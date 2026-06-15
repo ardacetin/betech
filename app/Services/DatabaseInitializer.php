@@ -76,6 +76,10 @@ class DatabaseInitializer
                 foreach ($this->patchLocationTracking($connection) as $warning) {
                     $warnings[] = $warning;
                 }
+
+                foreach ($this->patchSoftwareLicenseManagement($connection) as $warning) {
+                    $warnings[] = $warning;
+                }
             }
 
             if (is_readable($this->seedsPath)) {
@@ -294,6 +298,33 @@ class DatabaseInitializer
         }
 
         return $warnings;
+    }
+
+    /**
+     * Self-heal software license management (SAM) tables.
+     *
+     * @param object $connection Medoo instance
+     *
+     * @return list<string>
+     */
+    private function patchSoftwareLicenseManagement(object $connection): array
+    {
+        $warnings = [];
+
+        if (!$this->tableExists($connection, 'licenses')) {
+            $this->applySqlFile($connection, $this->getLicensesTableMigrationPath());
+            $warnings[] = 'Self-healed database: created licenses and license_assignments tables.';
+        } elseif (!$this->tableExists($connection, 'license_assignments')) {
+            $this->applySqlFile($connection, $this->getLicensesTableMigrationPath());
+            $warnings[] = 'Self-healed database: created license_assignments table.';
+        }
+
+        return $warnings;
+    }
+
+    private function getLicensesTableMigrationPath(): string
+    {
+        return dirname($this->schemaPath) . '/migrations/008_create_licenses_tables.sql';
     }
 
     /**

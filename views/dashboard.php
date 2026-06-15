@@ -95,6 +95,16 @@ $assignmentGradient = sprintf(
     $assignedPercentage
 );
 
+$assetOptions = array_map(
+    static fn (array $asset): array => [
+        'id' => (int) $asset['id'],
+        'asset_tag' => (string) ($asset['asset_tag'] ?? ''),
+        'name' => (string) ($asset['name'] ?? ''),
+    ],
+    $canManageAssets ? $assets : []
+);
+$assetOptionsJson = json_encode($assetOptions, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
+
 $i18nScript = json_encode([
     'create_error' => __('create_error'),
     'update_error' => __('update_error'),
@@ -165,9 +175,21 @@ $i18nScript = json_encode([
     'location_delete_confirm' => __('location_delete_confirm'),
     'location_delete_in_use' => __('location_delete_in_use'),
     'history_action_location_moved' => __('history_action_location_moved'),
+    'licenses_fetch_error' => __('licenses_fetch_error'),
+    'licenses_network_error' => __('licenses_network_error'),
+    'license_create_success' => __('license_create_success'),
+    'license_create_error' => __('license_create_error'),
+    'license_assign_success' => __('license_assign_success'),
+    'license_assign_error' => __('license_assign_error'),
+    'license_unassign_success' => __('license_unassign_success'),
+    'license_unassign_error' => __('license_unassign_error'),
+    'license_unassign_confirm' => __('license_unassign_confirm'),
+    'license_seats_in_use' => __('license_seats_in_use'),
+    'license_no_expiration' => __('license_no_expiration'),
+    'asset_licenses_error' => __('asset_licenses_error'),
 ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
 ?>
-<div class="min-h-full" x-data="assetDashboard()" x-init="if (canManageAssets) { fetchCategories(); fetchLocations(); }">
+<div class="min-h-full" x-data="assetDashboard()" x-init="if (canManageAssets) { fetchCategories(); fetchLocations(); fetchLicenses(); }">
     <div class="flex min-h-screen">
         <aside class="hidden w-64 shrink-0 border-r border-zinc-200 bg-white lg:flex lg:flex-col">
             <div class="flex h-16 items-center gap-3 border-b border-zinc-200 px-6">
@@ -206,6 +228,15 @@ $i18nScript = json_encode([
                 >
                     <span class="h-2 w-2 rounded-full" :class="activeView === 'locations' ? 'bg-zinc-900' : 'bg-zinc-300'"></span>
                     <?= htmlspecialchars(__('nav_locations'), ENT_QUOTES, 'UTF-8') ?>
+                </button>
+                <button
+                    type="button"
+                    @click="activeView = 'licenses'; fetchLicenses()"
+                    class="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm font-medium transition"
+                    :class="activeView === 'licenses' ? 'bg-zinc-100 text-zinc-900' : 'text-zinc-600 hover:bg-zinc-50'"
+                >
+                    <span class="h-2 w-2 rounded-full" :class="activeView === 'licenses' ? 'bg-zinc-900' : 'bg-zinc-300'"></span>
+                    <?= htmlspecialchars(__('nav_licenses'), ENT_QUOTES, 'UTF-8') ?>
                 </button>
                 <?php endif; ?>
                 <?php if ($canAccessPersonnel): ?>
@@ -292,6 +323,15 @@ $i18nScript = json_encode([
                         >
                             <span class="text-lg leading-none">+</span>
                             <?= htmlspecialchars(__('add_location'), ENT_QUOTES, 'UTF-8') ?>
+                        </button>
+                        <button
+                            type="button"
+                            x-show="activeView === 'licenses' && canManageAssets"
+                            @click="openLicenseModal()"
+                            class="inline-flex items-center gap-2 rounded-xl bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white shadow-soft transition hover:bg-zinc-800"
+                        >
+                            <span class="text-lg leading-none">+</span>
+                            <?= htmlspecialchars(__('add_license'), ENT_QUOTES, 'UTF-8') ?>
                         </button>
                     </div>
                 </div>
@@ -583,6 +623,7 @@ $i18nScript = json_encode([
                 <?php if ($canManageAssets): ?>
                 <?php require __DIR__ . '/partials/categories_panel.php'; ?>
                 <?php require __DIR__ . '/partials/locations_panel.php'; ?>
+                <?php require __DIR__ . '/partials/licenses_panel.php'; ?>
                 <?php endif; ?>
                 <?php if ($canAccessSettings): ?>
                 <?php require __DIR__ . '/partials/settings_panel.php'; ?>
@@ -847,6 +888,26 @@ $i18nScript = json_encode([
                     </div>
                     <div class="mt-4 flex justify-center rounded-xl border border-dashed border-zinc-200 bg-white p-4">
                         <div class="h-36 w-36" x-html="detailQrSvg"></div>
+                    </div>
+                </div>
+
+                <div class="mt-6">
+                    <h4 class="text-sm font-semibold text-zinc-900"><?= htmlspecialchars(__('asset_licenses_title'), ENT_QUOTES, 'UTF-8') ?></h4>
+                    <p x-show="assetLicensesLoading" x-cloak class="mt-4 text-sm text-zinc-500"><?= htmlspecialchars(__('asset_licenses_loading'), ENT_QUOTES, 'UTF-8') ?></p>
+                    <p x-show="assetLicensesError" x-cloak class="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700" x-text="assetLicensesError"></p>
+                    <p x-show="!assetLicensesLoading && !assetLicensesError && assetLicenses.length === 0" x-cloak class="mt-4 rounded-xl border border-dashed border-zinc-200 bg-zinc-50 px-4 py-3 text-sm text-zinc-500"><?= htmlspecialchars(__('asset_licenses_empty'), ENT_QUOTES, 'UTF-8') ?></p>
+                    <div x-show="!assetLicensesLoading && assetLicenses.length > 0" x-cloak class="mt-4 space-y-3">
+                        <template x-for="entry in assetLicenses" :key="entry.id">
+                            <article class="rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3">
+                                <div class="flex flex-wrap items-start justify-between gap-2">
+                                    <div>
+                                        <p class="text-sm font-medium text-zinc-900" x-text="entry.license_name"></p>
+                                        <p class="mt-1 text-xs text-zinc-500" x-text="entry.license_vendor"></p>
+                                    </div>
+                                    <span class="text-xs text-zinc-500" x-text="formatLicenseExpiration(entry.license_expiration_date)"></span>
+                                </div>
+                            </article>
+                        </template>
                     </div>
                 </div>
 
@@ -1182,6 +1243,179 @@ $i18nScript = json_encode([
             </form>
         </div>
     </div>
+
+    <div
+        x-show="isLicenseModalOpen"
+        x-cloak
+        class="fixed inset-0 z-[60] flex items-center justify-center px-4"
+        @keydown.escape.window="closeLicenseModal()"
+    >
+        <div class="absolute inset-0 bg-zinc-900/40 backdrop-blur-sm" @click="closeLicenseModal()"></div>
+
+        <div class="relative w-full max-w-xl rounded-2xl border border-zinc-200 bg-white shadow-soft">
+            <div class="flex items-center justify-between border-b border-zinc-200 px-6 py-4">
+                <div>
+                    <h3 class="text-lg font-semibold text-zinc-900"><?= htmlspecialchars(__('add_license'), ENT_QUOTES, 'UTF-8') ?></h3>
+                    <p class="mt-1 text-sm text-zinc-500"><?= htmlspecialchars(__('modal_license_subtitle'), ENT_QUOTES, 'UTF-8') ?></p>
+                </div>
+                <button type="button" @click="closeLicenseModal()" class="rounded-lg p-2 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600">&times;</button>
+            </div>
+
+            <form @submit.prevent="submitLicenseForm" class="px-6 py-5">
+                <div class="grid gap-4 sm:grid-cols-2">
+                    <label class="block sm:col-span-2">
+                        <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('license_name_label'), ENT_QUOTES, 'UTF-8') ?></span>
+                        <input type="text" x-model="licenseForm.name" required class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4">
+                    </label>
+                    <label class="block sm:col-span-2">
+                        <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('license_vendor_label'), ENT_QUOTES, 'UTF-8') ?></span>
+                        <input type="text" x-model="licenseForm.vendor" required class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4">
+                    </label>
+                    <label class="block">
+                        <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('license_seats_label'), ENT_QUOTES, 'UTF-8') ?></span>
+                        <input type="number" min="1" x-model="licenseForm.seats" required class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4">
+                    </label>
+                    <label class="block">
+                        <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('license_expiration_label'), ENT_QUOTES, 'UTF-8') ?></span>
+                        <input type="date" x-model="licenseForm.expiration_date" class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4">
+                    </label>
+                    <label class="block sm:col-span-2">
+                        <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('license_key_label'), ENT_QUOTES, 'UTF-8') ?></span>
+                        <input type="text" x-model="licenseForm.license_key" class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4">
+                    </label>
+                    <label class="block sm:col-span-2">
+                        <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('license_notes_label'), ENT_QUOTES, 'UTF-8') ?></span>
+                        <textarea x-model="licenseForm.notes" rows="3" class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4"></textarea>
+                    </label>
+                </div>
+
+                <p x-show="licenseFormError" x-cloak class="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700" x-text="licenseFormError"></p>
+
+                <div class="mt-6 flex items-center justify-end gap-3 border-t border-zinc-200 pt-5">
+                    <button type="button" @click="closeLicenseModal()" :disabled="isLicenseSubmitting" class="rounded-xl border border-zinc-200 px-4 py-2.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60"><?= htmlspecialchars(__('cancel'), ENT_QUOTES, 'UTF-8') ?></button>
+                    <button type="submit" :disabled="isLicenseSubmitting" class="inline-flex items-center gap-2 rounded-xl bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60">
+                        <span x-show="isLicenseSubmitting"><?= htmlspecialchars(__('saving'), ENT_QUOTES, 'UTF-8') ?></span>
+                        <span x-show="!isLicenseSubmitting"><?= htmlspecialchars(__('category_save'), ENT_QUOTES, 'UTF-8') ?></span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div
+        x-show="isAssignLicenseModalOpen"
+        x-cloak
+        class="fixed inset-0 z-[60] flex items-center justify-center px-4"
+        @keydown.escape.window="closeAssignLicenseModal()"
+    >
+        <div class="absolute inset-0 bg-zinc-900/40 backdrop-blur-sm" @click="closeAssignLicenseModal()"></div>
+
+        <div class="relative w-full max-w-xl rounded-2xl border border-zinc-200 bg-white shadow-soft">
+            <div class="flex items-center justify-between border-b border-zinc-200 px-6 py-4">
+                <div>
+                    <h3 class="text-lg font-semibold text-zinc-900"><?= htmlspecialchars(__('assign_license'), ENT_QUOTES, 'UTF-8') ?></h3>
+                    <p class="mt-1 text-sm text-zinc-500"><?= htmlspecialchars(__('modal_assign_license_subtitle'), ENT_QUOTES, 'UTF-8') ?></p>
+                </div>
+                <button type="button" @click="closeAssignLicenseModal()" class="rounded-lg p-2 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600">&times;</button>
+            </div>
+
+            <div class="max-h-[75vh] overflow-y-auto px-6 py-5">
+                <label class="block">
+                    <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('col_license_name'), ENT_QUOTES, 'UTF-8') ?></span>
+                    <select x-model="assignLicenseForm.license_id" @change="loadLicenseAssignments()" class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4">
+                        <option value=""><?= htmlspecialchars(__('license_select_license_placeholder'), ENT_QUOTES, 'UTF-8') ?></option>
+                        <template x-for="license in licenses" :key="license.id">
+                            <option :value="license.id" x-text="`${license.vendor} — ${license.name} (${license.remaining_seats} boş)`"></option>
+                        </template>
+                    </select>
+                </label>
+
+                <fieldset class="mt-4">
+                    <legend class="mb-2 text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('license_assign_type_label'), ENT_QUOTES, 'UTF-8') ?></legend>
+                    <div class="flex flex-wrap gap-3">
+                        <label class="inline-flex items-center gap-2 rounded-xl border border-zinc-200 px-3 py-2 text-sm">
+                            <input type="radio" value="asset" x-model="assignLicenseForm.assign_type">
+                            <?= htmlspecialchars(__('license_assign_type_asset'), ENT_QUOTES, 'UTF-8') ?>
+                        </label>
+                        <label class="inline-flex items-center gap-2 rounded-xl border border-zinc-200 px-3 py-2 text-sm">
+                            <input type="radio" value="user" x-model="assignLicenseForm.assign_type">
+                            <?= htmlspecialchars(__('license_assign_type_user'), ENT_QUOTES, 'UTF-8') ?>
+                        </label>
+                    </div>
+                </fieldset>
+
+                <div x-show="assignLicenseForm.assign_type === 'asset'" x-cloak class="mt-4">
+                    <label class="block">
+                        <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('license_select_asset'), ENT_QUOTES, 'UTF-8') ?></span>
+                        <select x-model="assignLicenseForm.asset_id" class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4">
+                            <option value=""><?= htmlspecialchars(__('license_select_asset_placeholder'), ENT_QUOTES, 'UTF-8') ?></option>
+                            <template x-for="asset in assetOptions" :key="asset.id">
+                                <option :value="asset.id" x-text="`${asset.asset_tag} — ${asset.name}`"></option>
+                            </template>
+                        </select>
+                    </label>
+                </div>
+
+                <div x-show="assignLicenseForm.assign_type === 'user'" x-cloak class="mt-4">
+                    <p class="text-sm text-zinc-600"><?= htmlspecialchars(__('license_select_user_hint'), ENT_QUOTES, 'UTF-8') ?></p>
+                    <div class="relative mt-3">
+                        <div x-show="assignLicenseSelectedUser" x-cloak class="mb-3 flex items-center justify-between rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3">
+                            <div>
+                                <p class="text-sm font-medium text-indigo-900" x-text="assignLicenseSelectedUser?.name"></p>
+                                <p class="text-xs text-indigo-700" x-text="assignLicenseSelectedUser?.email"></p>
+                            </div>
+                            <button type="button" @click="clearAssignLicenseUser()" class="text-xs font-medium text-indigo-700 hover:text-indigo-900"><?= htmlspecialchars(__('cancel'), ENT_QUOTES, 'UTF-8') ?></button>
+                        </div>
+                        <input
+                            type="text"
+                            x-model="assignLicenseUserSearchQuery"
+                            @input.debounce.300ms="searchAssignLicenseUsers()"
+                            @focus="showAssignLicenseUserResults = true"
+                            :placeholder="window.__i18n.search_users_placeholder"
+                            class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4"
+                        >
+                        <div x-show="showAssignLicenseUserResults && assignLicenseUserSearchResults.length > 0" x-cloak class="absolute z-10 mt-2 w-full overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-soft">
+                            <template x-for="user in assignLicenseUserSearchResults" :key="user.id">
+                                <button type="button" @click="selectAssignLicenseUser(user)" class="block w-full px-4 py-3 text-left hover:bg-zinc-50">
+                                    <p class="text-sm font-medium text-zinc-900" x-text="user.name"></p>
+                                    <p class="text-xs text-zinc-500" x-text="user.email"></p>
+                                </button>
+                            </template>
+                        </div>
+                        <p x-show="assignLicenseUserSearchLoading" x-cloak class="mt-2 text-xs text-zinc-500"><?= htmlspecialchars(__('history_loading'), ENT_QUOTES, 'UTF-8') ?></p>
+                    </div>
+                </div>
+
+                <div class="mt-6">
+                    <h4 class="text-sm font-semibold text-zinc-900"><?= htmlspecialchars(__('license_current_assignments'), ENT_QUOTES, 'UTF-8') ?></h4>
+                    <p x-show="assignLicenseAssignmentsLoading" x-cloak class="mt-3 text-sm text-zinc-500"><?= htmlspecialchars(__('licenses_loading'), ENT_QUOTES, 'UTF-8') ?></p>
+                    <p x-show="!assignLicenseAssignmentsLoading && assignLicenseAssignments.length === 0" x-cloak class="mt-3 rounded-xl border border-dashed border-zinc-200 bg-zinc-50 px-4 py-3 text-sm text-zinc-500"><?= htmlspecialchars(__('license_no_assignments'), ENT_QUOTES, 'UTF-8') ?></p>
+                    <div x-show="!assignLicenseAssignmentsLoading && assignLicenseAssignments.length > 0" x-cloak class="mt-3 space-y-2">
+                        <template x-for="assignment in assignLicenseAssignments" :key="assignment.id">
+                            <div class="flex items-center justify-between gap-3 rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3">
+                                <div>
+                                    <p class="text-sm text-zinc-800" x-text="formatLicenseAssignmentTarget(assignment)"></p>
+                                    <p class="text-xs text-zinc-500" x-text="formatHistoryDate(assignment.assigned_at)"></p>
+                                </div>
+                                <button type="button" @click="unassignLicenseSeat(assignment)" class="rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-medium text-rose-700 transition hover:bg-rose-50"><?= htmlspecialchars(__('action_unassign_license'), ENT_QUOTES, 'UTF-8') ?></button>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+
+                <p x-show="assignLicenseFormError" x-cloak class="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700" x-text="assignLicenseFormError"></p>
+                <p x-show="assignLicenseSuccessMessage" x-cloak class="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700" x-text="assignLicenseSuccessMessage"></p>
+
+                <div class="mt-6 flex items-center justify-end gap-3 border-t border-zinc-200 pt-5">
+                    <button type="button" @click="closeAssignLicenseModal()" :disabled="isAssignLicenseSubmitting" class="rounded-xl border border-zinc-200 px-4 py-2.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60"><?= htmlspecialchars(__('cancel'), ENT_QUOTES, 'UTF-8') ?></button>
+                    <button type="button" @click="submitAssignLicenseForm()" :disabled="isAssignLicenseSubmitting" class="inline-flex items-center gap-2 rounded-xl bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60">
+                        <span x-show="isAssignLicenseSubmitting"><?= htmlspecialchars(__('saving'), ENT_QUOTES, 'UTF-8') ?></span>
+                        <span x-show="!isAssignLicenseSubmitting"><?= htmlspecialchars(__('assign_license'), ENT_QUOTES, 'UTF-8') ?></span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 
 <style>
@@ -1215,6 +1449,7 @@ $i18nScript = json_encode([
     window.__settings = <?= $settingsJson ?>;
     window.__globalCustomFields = <?= $globalCustomFieldsJson ?>;
     window.__personnel = <?= $personnelJson ?? '[]' ?>;
+    window.__assetOptions = <?= $assetOptionsJson ?? '[]' ?>;
 
     function assetDashboard() {
         return {
@@ -1228,6 +1463,7 @@ $i18nScript = json_encode([
                 assets: <?= json_encode($isEndUser ? __('page_title_end_user') : $pageTitle, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 categories: <?= json_encode(__('categories_page_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 locations: <?= json_encode(__('locations_page_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
+                licenses: <?= json_encode(__('licenses_page_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 settings: <?= json_encode(__('settings_page_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 personnel: <?= json_encode(__('personnel_page_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
             },
@@ -1235,6 +1471,7 @@ $i18nScript = json_encode([
                 assets: <?= json_encode($isEndUser ? __('page_subtitle_end_user') : __('page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 categories: <?= json_encode(__('categories_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 locations: <?= json_encode(__('locations_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
+                licenses: <?= json_encode(__('licenses_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 settings: <?= json_encode(__('settings_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 personnel: <?= json_encode(__('personnel_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
             },
@@ -1275,6 +1512,41 @@ $i18nScript = json_encode([
                 description: '',
             },
             locationFormError: '',
+            licenses: [],
+            licensesLoading: false,
+            licensesError: '',
+            licensesSuccessMessage: '',
+            isLicenseModalOpen: false,
+            isLicenseSubmitting: false,
+            licenseForm: {
+                name: '',
+                vendor: '',
+                license_key: '',
+                seats: 1,
+                expiration_date: '',
+                notes: '',
+            },
+            licenseFormError: '',
+            isAssignLicenseModalOpen: false,
+            isAssignLicenseSubmitting: false,
+            assignLicenseForm: {
+                license_id: '',
+                assign_type: 'asset',
+                asset_id: '',
+            },
+            assignLicenseFormError: '',
+            assignLicenseSuccessMessage: '',
+            assignLicenseSelectedUser: null,
+            assignLicenseUserSearchQuery: '',
+            assignLicenseUserSearchResults: [],
+            assignLicenseUserSearchLoading: false,
+            showAssignLicenseUserResults: false,
+            assignLicenseAssignments: [],
+            assignLicenseAssignmentsLoading: false,
+            assetOptions: Array.isArray(window.__assetOptions) ? window.__assetOptions : [],
+            assetLicenses: [],
+            assetLicensesLoading: false,
+            assetLicensesError: '',
             isSubmitting: false,
             addErrorMessage: '',
             editErrorMessage: '',
@@ -1623,26 +1895,40 @@ $i18nScript = json_encode([
                 this.assetHistory = [];
                 this.historyError = '';
                 this.historyLoading = true;
+                this.assetLicenses = [];
+                this.assetLicensesError = '';
+                this.assetLicensesLoading = true;
                 this.isDetailOpen = true;
 
                 try {
-                    const response = await fetch(`/api/assets/${asset.id}/history`, {
-                        headers: {
-                            'Accept': 'application/json',
-                        },
-                    });
-                    const result = await response.json();
+                    const [historyResponse, licensesResponse] = await Promise.all([
+                        fetch(`/api/assets/${asset.id}/history`, {
+                            headers: { 'Accept': 'application/json' },
+                        }),
+                        fetch(`/api/assets/${asset.id}/licenses`, {
+                            headers: { 'Accept': 'application/json' },
+                        }),
+                    ]);
+                    const historyResult = await historyResponse.json();
+                    const licensesResult = await licensesResponse.json();
 
-                    if (!response.ok) {
-                        this.historyError = result.message || window.__i18n.history_error;
-                        return;
+                    if (!historyResponse.ok) {
+                        this.historyError = historyResult.message || window.__i18n.history_error;
+                    } else {
+                        this.assetHistory = Array.isArray(historyResult.data) ? historyResult.data : [];
                     }
 
-                    this.assetHistory = Array.isArray(result.data) ? result.data : [];
+                    if (!licensesResponse.ok) {
+                        this.assetLicensesError = licensesResult.message || window.__i18n.asset_licenses_error;
+                    } else {
+                        this.assetLicenses = Array.isArray(licensesResult.data) ? licensesResult.data : [];
+                    }
                 } catch (error) {
                     this.historyError = window.__i18n.history_error;
+                    this.assetLicensesError = window.__i18n.asset_licenses_error;
                 } finally {
                     this.historyLoading = false;
+                    this.assetLicensesLoading = false;
                 }
             },
             closeDetailModal() {
@@ -1652,6 +1938,9 @@ $i18nScript = json_encode([
                 this.assetHistory = [];
                 this.historyError = '';
                 this.historyLoading = false;
+                this.assetLicenses = [];
+                this.assetLicensesError = '';
+                this.assetLicensesLoading = false;
             },
             printAssetLabel() {
                 if (!this.detailAsset) {
@@ -2289,6 +2578,318 @@ $i18nScript = json_encode([
                     await this.fetchLocations();
                 } catch (error) {
                     this.locationsError = window.__i18n.locations_network_error;
+                }
+            },
+            async fetchLicenses() {
+                if (!this.canManageAssets) {
+                    return;
+                }
+
+                this.licensesLoading = true;
+                this.licensesError = '';
+
+                try {
+                    const response = await fetch('/api/licenses', {
+                        headers: { 'Accept': 'application/json' },
+                    });
+                    const result = await response.json();
+
+                    if (!response.ok) {
+                        this.licensesError = result.message || window.__i18n.licenses_fetch_error;
+                        this.licenses = [];
+                        return;
+                    }
+
+                    this.licenses = Array.isArray(result.data) ? result.data : [];
+                } catch (error) {
+                    this.licensesError = window.__i18n.licenses_network_error;
+                    this.licenses = [];
+                } finally {
+                    this.licensesLoading = false;
+                }
+            },
+            openLicenseModal() {
+                this.licenseForm = {
+                    name: '',
+                    vendor: '',
+                    license_key: '',
+                    seats: 1,
+                    expiration_date: '',
+                    notes: '',
+                };
+                this.licenseFormError = '';
+                this.licensesSuccessMessage = '';
+                this.isLicenseModalOpen = true;
+            },
+            closeLicenseModal() {
+                if (this.isLicenseSubmitting) {
+                    return;
+                }
+
+                this.isLicenseModalOpen = false;
+            },
+            async submitLicenseForm() {
+                this.isLicenseSubmitting = true;
+                this.licenseFormError = '';
+                this.licensesSuccessMessage = '';
+
+                const payload = {
+                    name: this.licenseForm.name,
+                    vendor: this.licenseForm.vendor,
+                    seats: Number(this.licenseForm.seats) || 1,
+                    license_key: this.licenseForm.license_key || null,
+                    expiration_date: this.licenseForm.expiration_date || null,
+                    notes: this.licenseForm.notes || null,
+                };
+
+                try {
+                    const response = await fetch('/api/licenses', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json',
+                        },
+                        body: JSON.stringify(payload),
+                    });
+                    const result = await response.json();
+
+                    if (!response.ok) {
+                        this.licenseFormError = result.message || window.__i18n.license_create_error;
+                        return;
+                    }
+
+                    this.isLicenseModalOpen = false;
+                    this.licensesSuccessMessage = result.message || window.__i18n.license_create_success;
+                    await this.fetchLicenses();
+                } catch (error) {
+                    this.licenseFormError = window.__i18n.licenses_network_error;
+                } finally {
+                    this.isLicenseSubmitting = false;
+                }
+            },
+            openAssignLicenseModal(license = null) {
+                this.assignLicenseForm = {
+                    license_id: license?.id ? String(license.id) : '',
+                    assign_type: 'asset',
+                    asset_id: '',
+                };
+                this.assignLicenseFormError = '';
+                this.assignLicenseSuccessMessage = '';
+                this.assignLicenseSelectedUser = null;
+                this.assignLicenseUserSearchQuery = '';
+                this.assignLicenseUserSearchResults = [];
+                this.showAssignLicenseUserResults = false;
+                this.assignLicenseAssignments = [];
+                this.isAssignLicenseModalOpen = true;
+
+                if (license?.id) {
+                    this.loadLicenseAssignments();
+                }
+            },
+            closeAssignLicenseModal() {
+                if (this.isAssignLicenseSubmitting) {
+                    return;
+                }
+
+                this.isAssignLicenseModalOpen = false;
+            },
+            async loadLicenseAssignments() {
+                const licenseId = Number(this.assignLicenseForm.license_id);
+
+                if (!licenseId) {
+                    this.assignLicenseAssignments = [];
+                    return;
+                }
+
+                this.assignLicenseAssignmentsLoading = true;
+
+                try {
+                    const response = await fetch(`/api/licenses/${licenseId}/assignments`, {
+                        headers: { 'Accept': 'application/json' },
+                    });
+                    const result = await response.json();
+
+                    if (!response.ok) {
+                        this.assignLicenseAssignments = [];
+                        return;
+                    }
+
+                    this.assignLicenseAssignments = Array.isArray(result.data) ? result.data : [];
+                } catch (error) {
+                    this.assignLicenseAssignments = [];
+                } finally {
+                    this.assignLicenseAssignmentsLoading = false;
+                }
+            },
+            async searchAssignLicenseUsers() {
+                this.assignLicenseUserSearchLoading = true;
+
+                try {
+                    const query = encodeURIComponent(this.assignLicenseUserSearchQuery.trim());
+                    const response = await fetch(`/api/users/search?q=${query}`, {
+                        headers: { 'Accept': 'application/json' },
+                    });
+                    const result = await response.json();
+
+                    if (!response.ok) {
+                        this.assignLicenseUserSearchResults = [];
+                        return;
+                    }
+
+                    this.assignLicenseUserSearchResults = Array.isArray(result.data) ? result.data : [];
+                } catch (error) {
+                    this.assignLicenseUserSearchResults = [];
+                } finally {
+                    this.assignLicenseUserSearchLoading = false;
+                }
+            },
+            selectAssignLicenseUser(user) {
+                this.assignLicenseSelectedUser = user;
+                this.assignLicenseUserSearchQuery = '';
+                this.assignLicenseUserSearchResults = [];
+                this.showAssignLicenseUserResults = false;
+            },
+            clearAssignLicenseUser() {
+                this.assignLicenseSelectedUser = null;
+            },
+            formatLicenseExpiration(value) {
+                if (!value) {
+                    return window.__i18n.license_no_expiration;
+                }
+
+                return value;
+            },
+            formatLicenseSeatUsage(license) {
+                const assigned = Number(license?.assigned_seats ?? 0);
+                const total = Number(license?.seats ?? 0);
+
+                return `${assigned} / ${total} Kullanılıyor`;
+            },
+            licenseSeatUsagePercent(license) {
+                const assigned = Number(license?.assigned_seats ?? 0);
+                const total = Number(license?.seats ?? 0);
+
+                if (total <= 0) {
+                    return 0;
+                }
+
+                return Math.max(0, Math.min(100, (assigned / total) * 100));
+            },
+            licenseSeatBarColor(license) {
+                const percent = this.licenseSeatUsagePercent(license);
+
+                if (percent >= 100) {
+                    return 'bg-rose-500';
+                }
+
+                if (percent >= 80) {
+                    return 'bg-amber-500';
+                }
+
+                return 'bg-emerald-500';
+            },
+            formatLicenseAssignmentTarget(assignment) {
+                if (assignment?.asset_id) {
+                    const tag = assignment.asset_tag || assignment.asset_id;
+                    const name = assignment.asset_name ? ` — ${assignment.asset_name}` : '';
+
+                    return `${tag}${name}`;
+                }
+
+                if (assignment?.user_id) {
+                    const name = assignment.user_name || assignment.user_id;
+                    const email = assignment.user_email ? ` (${assignment.user_email})` : '';
+
+                    return `${name}${email}`;
+                }
+
+                return '—';
+            },
+            async submitAssignLicenseForm() {
+                const licenseId = Number(this.assignLicenseForm.license_id);
+
+                if (!licenseId) {
+                    this.assignLicenseFormError = window.__i18n.license_invalid_id || window.__i18n.license_assign_error;
+                    return;
+                }
+
+                const payload = { };
+
+                if (this.assignLicenseForm.assign_type === 'asset') {
+                    if (!this.assignLicenseForm.asset_id) {
+                        this.assignLicenseFormError = window.__i18n.license_assign_error;
+                        return;
+                    }
+
+                    payload.asset_id = Number(this.assignLicenseForm.asset_id);
+                } else if (this.assignLicenseSelectedUser?.id) {
+                    payload.user_id = Number(this.assignLicenseSelectedUser.id);
+                } else {
+                    this.assignLicenseFormError = window.__i18n.license_assign_error;
+                    return;
+                }
+
+                this.isAssignLicenseSubmitting = true;
+                this.assignLicenseFormError = '';
+                this.assignLicenseSuccessMessage = '';
+
+                try {
+                    const response = await fetch(`/api/licenses/${licenseId}/assign`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json',
+                        },
+                        body: JSON.stringify(payload),
+                    });
+                    const result = await response.json();
+
+                    if (!response.ok) {
+                        this.assignLicenseFormError = result.message || window.__i18n.license_assign_error;
+                        return;
+                    }
+
+                    this.assignLicenseSuccessMessage = result.message || window.__i18n.license_assign_success;
+                    this.assignLicenseForm.asset_id = '';
+                    this.assignLicenseSelectedUser = null;
+                    await Promise.all([this.fetchLicenses(), this.loadLicenseAssignments()]);
+                } catch (error) {
+                    this.assignLicenseFormError = window.__i18n.licenses_network_error;
+                } finally {
+                    this.isAssignLicenseSubmitting = false;
+                }
+            },
+            async unassignLicenseSeat(assignment) {
+                if (!assignment?.id || !this.assignLicenseForm.license_id) {
+                    return;
+                }
+
+                if (!window.confirm(window.__i18n.license_unassign_confirm)) {
+                    return;
+                }
+
+                const licenseId = Number(this.assignLicenseForm.license_id);
+
+                try {
+                    const response = await fetch(`/api/licenses/${licenseId}/unassign`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json',
+                        },
+                        body: JSON.stringify({ assignment_id: assignment.id }),
+                    });
+                    const result = await response.json();
+
+                    if (!response.ok) {
+                        this.assignLicenseFormError = result.message || window.__i18n.license_unassign_error;
+                        return;
+                    }
+
+                    this.assignLicenseSuccessMessage = result.message || window.__i18n.license_unassign_success;
+                    await Promise.all([this.fetchLicenses(), this.loadLicenseAssignments()]);
+                } catch (error) {
+                    this.assignLicenseFormError = window.__i18n.licenses_network_error;
                 }
             },
             initQuillEditor() {

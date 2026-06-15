@@ -27,8 +27,17 @@ Built with **PHP 8.1+**, **Slim 4**, **Medoo**, **MySQL** (with native JSON colu
 - **Locations** table stores campus/building context (`name`, `building`, `description`) for classrooms, server rooms, and other physical areas.
 - Assets may have a `user_id`, a `location_id`, or both—personnel assignment and room placement are independent.
 - **Super Admins and Technicians** manage locations from the active **Lokasyonlar** view with full CRUD via `GET/POST/PUT/DELETE /api/locations`.
-- Location changes are written to `asset_histories` (e.g. “Varlık lokasyona taşındı: Sunucu Odası”).
+- Location changes are written to `asset_histories` (e.g. “Varlık lokasyona taşındı: Sunser Odası”).
 - Legacy databases self-heal on boot: `DatabaseInitializer` creates the `locations` table and adds `assets.location_id` when missing.
+
+### Software Asset Management (SAM) with seat capacity tracking and hardware/user mapping
+
+- **Licenses** table tracks corporate software (`name`, `vendor`, optional `license_key`, `seats`, `expiration_date`, `notes`).
+- **License assignments** map each seat to either an `asset_id` (device) or a `user_id` (person)—never both on the same row.
+- `GET /api/licenses` returns `assigned_seats` and `remaining_seats` for each license; assignment is blocked when no seats remain.
+- **Super Admins and Technicians** manage licenses from the **Yazılım & Lisanslar** dashboard tab with add/assign/unassign workflows.
+- Asset detail view lists software licenses currently assigned to that hardware via `GET /api/assets/{id}/licenses`.
+- Legacy databases self-heal on boot: `DatabaseInitializer` creates `licenses` and `license_assignments` when missing.
 
 ### Automated database setup
 

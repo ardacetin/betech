@@ -118,6 +118,36 @@ class RoleMiddleware implements MiddlewareInterface
             ],
             [
                 'methods' => ['GET'],
+                'pattern' => '/api/licenses',
+                'roles' => $operational,
+            ],
+            [
+                'methods' => ['POST'],
+                'pattern' => '/api/licenses',
+                'roles' => $operational,
+            ],
+            [
+                'methods' => ['POST'],
+                'pattern' => '/api/licenses/{id}/assign',
+                'roles' => $operational,
+            ],
+            [
+                'methods' => ['POST'],
+                'pattern' => '/api/licenses/{id}/unassign',
+                'roles' => $operational,
+            ],
+            [
+                'methods' => ['GET'],
+                'pattern' => '/api/licenses/{id}/assignments',
+                'roles' => $operational,
+            ],
+            [
+                'methods' => ['GET'],
+                'pattern' => '/api/assets/{id}/licenses',
+                'roles' => $operational,
+            ],
+            [
+                'methods' => ['GET'],
                 'pattern' => '/api/users',
                 'roles' => $operational,
             ],
