@@ -48,7 +48,7 @@ class HealthController
 
         if ($isEndUser) {
             $assets = $userId > 0
-                ? $this->assetModel->findForDashboardByUserId($userId)
+                ? $this->assetModel->findForDashboardByPersonnelId($userId)
                 : [];
             $analytics = $this->analyticsService->getEmptyDashboardStats();
             $settings = [];
