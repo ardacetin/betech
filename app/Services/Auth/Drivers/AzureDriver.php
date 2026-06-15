@@ -19,4 +19,9 @@ class AzureDriver implements UserIntegrationInterface
         // Placeholder: Microsoft Graph GET /users/{id}
         return null;
     }
+
+    public function listAllUsers(): array
+    {
+        return [];
+    }
 }

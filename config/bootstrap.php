@@ -130,6 +130,7 @@ $app->post('/api/licenses/{id}/unassign', [$licenseController, 'unassign']);
 $app->get('/api/licenses/{id}/assignments', [$licenseController, 'assignments']);
 $app->get('/api/assets/{id}/licenses', [$licenseController, 'forAsset']);
 $app->get('/api/personnel', [$userController, 'personnelIndex']);
+$app->post('/api/personnel/sync', [$userController, 'personnelSync']);
 $app->get('/api/users', [$userController, 'personnelIndex']);
 $app->get('/api/system-users', [$userController, 'systemUsersIndex']);
 $app->post('/api/system-users', [$userController, 'storeSystemUser']);

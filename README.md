@@ -69,10 +69,24 @@ ITMS separates **who operates the platform** from **who receives assets**:
 API endpoints:
 
 - `GET /api/system-users`, `POST /api/system-users`, `PUT /api/system-users/{id}` — Super Admin only; operator account lifecycle.
-- `GET /api/personnel` (alias: `GET /api/users`) — Technicians and Super Admins; personnel directory for zimmet workflows.
+- `GET /api/personnel` (alias: `GET /api/users`) — Technicians and Super Admins; paginated personnel directory (`page`, `per_page` default 50, optional `q` search against the local database).
+- `POST /api/personnel/sync` — Pulls the full LDAP/Google directory into the local `users` table (upsert by `email` / `external_id`, role `end_user`). Uses LDAP paged results and Google `nextPageToken` for large directories.
 - `POST /api/users` — Manual personnel record for zimmet when directory search has no match (`end_user`).
 
 The main sidebar stays operational (**Envanterler**, **Yazılım & Lisanslar**, **Personel**, **Sistem Kullanıcıları**). Configuration (**Kategoriler**, **Lokasyonlar**, auth, zimmet template) lives under **Sistem Ayarları** tabs.
+
+### Directory synchronization (Personel Rehberi)
+
+Personnel are **not** queried live from LDAP/Google on every page load. Instead:
+
+1. Configure **Kimlik Doğrulama Sürücüsü** to `ldap` or `google` under **Sistem Ayarları**.
+2. Open **Personel** and click **Rehberi Senkronize Et** (`POST /api/personnel/sync`).
+3. The active driver fetches the full directory (LDAP paged search / Google Admin SDK pagination) and upserts rows into the local `users` table with role `end_user`.
+4. The personnel table reads from the local database with **50 records per page** (`GET /api/personnel?page=1&per_page=50`). Search (`q`) filters name, email, and department locally.
+
+Operational accounts (`super_admin`, `technician`) are never overwritten during sync. Offboarded personnel keep their status but name/department/email may refresh on the next sync.
+
+Asset assignment search (`GET /api/users/search`) may still hit the directory for quick picker lookups; the **Personel** list always uses synced local data.
 
 ### Enterprise multi-provider authentication
 

@@ -152,6 +152,11 @@ class RoleMiddleware implements MiddlewareInterface
                 'roles' => $operational,
             ],
             [
+                'methods' => ['POST'],
+                'pattern' => '/api/personnel/sync',
+                'roles' => $operational,
+            ],
+            [
                 'methods' => ['GET'],
                 'pattern' => '/api/users',
                 'roles' => $operational,

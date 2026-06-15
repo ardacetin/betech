@@ -99,8 +99,19 @@ class UserController
 
     public function personnelIndex(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
     {
-        $users = $this->userModel->findAllForPersonnel();
-        $assetCounts = $this->userModel->assignedAssetCountsByUserId();
+        $queryParams = $request->getQueryParams();
+        $page = max(1, (int) ($queryParams['page'] ?? 1));
+        $perPage = max(1, min(100, (int) ($queryParams['per_page'] ?? User::PERSONNEL_PAGE_SIZE)));
+        $search = trim((string) ($queryParams['q'] ?? ''));
+
+        $result = $this->userModel->findPersonnelPaginated(
+            $page,
+            $perPage,
+            $search !== '' ? $search : null
+        );
+        $assetCounts = $this->userModel->assignedAssetCountsForUserIds(
+            array_map(static fn (array $user): int => (int) $user['id'], $result['data'])
+        );
 
         $data = array_map(
             static function (array $user) use ($assetCounts): array {
@@ -111,12 +122,58 @@ class UserController
                     'assigned_asset_count' => $assetCounts[$userId] ?? 0,
                 ];
             },
-            $users
+            $result['data']
         );
 
         return $this->jsonResponse($response, 200, [
             'status' => 'success',
             'data' => $data,
+            'pagination' => $result['pagination'],
+        ]);
+    }
+
+    public function personnelSync(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
+    {
+        $activeDriver = strtolower(trim($this->settingModel->get('active_auth_driver', 'local') ?? 'local'));
+
+        if (!in_array($activeDriver, [User::PROVIDER_LDAP, User::PROVIDER_GOOGLE], true)) {
+            return $this->jsonResponse($response, 422, [
+                'status' => 'error',
+                'message' => __('personnel_sync_unsupported'),
+            ]);
+        }
+
+        try {
+            $driver = $this->userIntegrationFactory->make($activeDriver);
+            $directoryUsers = $driver->listAllUsers();
+        } catch (\Throwable $exception) {
+            return $this->jsonResponse($response, 500, [
+                'status' => 'error',
+                'message' => __('personnel_sync_failed') . $exception->getMessage(),
+            ]);
+        }
+
+        if ($directoryUsers === []) {
+            return $this->jsonResponse($response, 422, [
+                'status' => 'error',
+                'message' => __('personnel_sync_empty'),
+            ]);
+        }
+
+        $stats = $this->userModel->syncPersonnelDirectory($directoryUsers, $activeDriver);
+
+        return $this->jsonResponse($response, 200, [
+            'status' => 'success',
+            'message' => __(
+                'personnel_sync_success',
+                [
+                    'created' => (string) $stats['created'],
+                    'updated' => (string) $stats['updated'],
+                    'skipped' => (string) $stats['skipped'],
+                    'total' => (string) $stats['total'],
+                ]
+            ),
+            'data' => $stats,
         ]);
     }
 

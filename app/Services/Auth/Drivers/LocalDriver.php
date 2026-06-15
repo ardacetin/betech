@@ -81,6 +81,26 @@ class LocalDriver implements UserIntegrationInterface
         return $row === null ? null : $this->formatUser($row);
     }
 
+    public function listAllUsers(): array
+    {
+        $rows = $this->db()->select('users', [
+            'id',
+            'external_id',
+            'name',
+            'email',
+            'department',
+        ], [
+            'role' => 'end_user',
+            'status' => 'active',
+            'ORDER' => ['name' => 'ASC'],
+        ]);
+
+        return array_map(
+            fn (array $row): array => $this->formatUser($row),
+            $rows
+        );
+    }
+
     private function db(): Medoo
     {
         return $this->databaseService->getConnection();

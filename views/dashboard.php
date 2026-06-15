@@ -142,6 +142,19 @@ $i18nScript = json_encode([
     'offboard_network_error' => __('offboard_network_error'),
     'personnel_status_active' => __('personnel_status_active'),
     'personnel_status_offboarded' => __('personnel_status_offboarded'),
+    'personnel_sync_button' => __('personnel_sync_button'),
+    'personnel_syncing' => __('personnel_syncing'),
+    'personnel_sync_success' => __('personnel_sync_success'),
+    'personnel_sync_error' => __('personnel_sync_error'),
+    'personnel_sync_unsupported' => __('personnel_sync_unsupported'),
+    'personnel_sync_empty' => __('personnel_sync_empty'),
+    'personnel_sync_failed' => __('personnel_sync_failed'),
+    'personnel_search_placeholder' => __('personnel_search_placeholder'),
+    'personnel_pagination_prev' => __('personnel_pagination_prev'),
+    'personnel_pagination_next' => __('personnel_pagination_next'),
+    'personnel_pagination_info' => __('personnel_pagination_info'),
+    'personnel_fetch_error' => __('personnel_fetch_error'),
+    'personnel_network_error' => __('personnel_network_error'),
     'delete_confirm' => __('delete_confirm'),
     'delete_success' => __('delete_success'),
     'delete_error' => __('delete_error'),
@@ -241,7 +254,7 @@ $i18nScript = json_encode([
                 <?php if ($canAccessPersonnel): ?>
                 <button
                     type="button"
-                    @click="activeView = 'personnel'"
+                    @click="activeView = 'personnel'; fetchPersonnel()"
                     class="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm font-medium transition"
                     :class="activeView === 'personnel' ? 'bg-zinc-100 text-zinc-900' : 'text-zinc-600 hover:bg-zinc-50'"
                 >
@@ -1732,7 +1745,21 @@ $i18nScript = json_encode([
             settingsSuccessMessage: '',
             quillEditor: null,
             globalCustomFields: Array.isArray(window.__globalCustomFields) ? window.__globalCustomFields : [],
-            personnel: Array.isArray(window.__personnel) ? window.__personnel : [],
+            personnel: [],
+            personnelLoading: false,
+            personnelError: '',
+            personnelSearch: '',
+            personnelPage: 1,
+            personnelPerPage: 50,
+            personnelPagination: {
+                page: 1,
+                per_page: 50,
+                total: 0,
+                total_pages: 1,
+            },
+            personnelSyncing: false,
+            personnelSyncMessage: '',
+            personnelSyncError: '',
             isOffboarding: false,
             offboardSuccessMessage: '',
             offboardErrorMessage: '',
@@ -1746,6 +1773,124 @@ $i18nScript = json_encode([
                 return status === 'offboarded'
                     ? window.__i18n.personnel_status_offboarded
                     : window.__i18n.personnel_status_active;
+            },
+            resolvePersonnelPaginationLabel() {
+                return window.__i18n.personnel_pagination_info
+                    .replace(':total', String(this.personnelPagination.total || 0))
+                    .replace(':page', String(this.personnelPagination.page || 1))
+                    .replace(':total_pages', String(this.personnelPagination.total_pages || 1));
+            },
+            personnelPageNumbers() {
+                const totalPages = Number(this.personnelPagination.total_pages || 1);
+                const currentPage = Number(this.personnelPagination.page || 1);
+                const windowSize = 5;
+                let start = Math.max(1, currentPage - Math.floor(windowSize / 2));
+                let end = Math.min(totalPages, start + windowSize - 1);
+
+                if (end - start + 1 < windowSize) {
+                    start = Math.max(1, end - windowSize + 1);
+                }
+
+                const pages = [];
+
+                for (let page = start; page <= end; page += 1) {
+                    pages.push(page);
+                }
+
+                return pages;
+            },
+            onPersonnelSearchInput() {
+                this.personnelPage = 1;
+                this.fetchPersonnel();
+            },
+            goToPersonnelPage(page) {
+                const targetPage = Number(page);
+
+                if (
+                    Number.isNaN(targetPage)
+                    || targetPage < 1
+                    || targetPage > Number(this.personnelPagination.total_pages || 1)
+                    || targetPage === this.personnelPagination.page
+                ) {
+                    return;
+                }
+
+                this.personnelPage = targetPage;
+                this.fetchPersonnel();
+            },
+            async fetchPersonnel() {
+                if (!this.canAccessPersonnel) {
+                    return;
+                }
+
+                this.personnelLoading = true;
+                this.personnelError = '';
+
+                const params = new URLSearchParams({
+                    page: String(this.personnelPage),
+                    per_page: String(this.personnelPerPage),
+                });
+
+                if (this.personnelSearch.trim() !== '') {
+                    params.set('q', this.personnelSearch.trim());
+                }
+
+                try {
+                    const response = await fetch(`/api/personnel?${params.toString()}`, {
+                        headers: { 'Accept': 'application/json' },
+                    });
+                    const result = await response.json();
+
+                    if (!response.ok) {
+                        this.personnelError = result.message || window.__i18n.personnel_fetch_error;
+                        this.personnel = [];
+                        return;
+                    }
+
+                    this.personnel = Array.isArray(result.data) ? result.data : [];
+                    this.personnelPagination = {
+                        page: Number(result.pagination?.page || this.personnelPage),
+                        per_page: Number(result.pagination?.per_page || this.personnelPerPage),
+                        total: Number(result.pagination?.total || 0),
+                        total_pages: Number(result.pagination?.total_pages || 1),
+                    };
+                    this.personnelPage = this.personnelPagination.page;
+                } catch (error) {
+                    this.personnelError = window.__i18n.personnel_network_error;
+                    this.personnel = [];
+                } finally {
+                    this.personnelLoading = false;
+                }
+            },
+            async syncPersonnelDirectory() {
+                if (!this.canAccessPersonnel || this.personnelSyncing) {
+                    return;
+                }
+
+                this.personnelSyncing = true;
+                this.personnelSyncMessage = '';
+                this.personnelSyncError = '';
+
+                try {
+                    const response = await fetch('/api/personnel/sync', {
+                        method: 'POST',
+                        headers: { 'Accept': 'application/json' },
+                    });
+                    const result = await response.json();
+
+                    if (!response.ok) {
+                        this.personnelSyncError = result.message || window.__i18n.personnel_sync_error;
+                        return;
+                    }
+
+                    this.personnelSyncMessage = result.message || window.__i18n.personnel_sync_success;
+                    this.personnelPage = 1;
+                    await this.fetchPersonnel();
+                } catch (error) {
+                    this.personnelSyncError = window.__i18n.personnel_network_error;
+                } finally {
+                    this.personnelSyncing = false;
+                }
             },
             resolveAuthProviderLabel(provider) {
                 const key = String(provider || 'local');
@@ -2074,7 +2219,7 @@ $i18nScript = json_encode([
                     this.offboardSuccessMessage = result.message || window.__i18n.offboard_success;
                     person.status = 'offboarded';
                     person.assigned_asset_count = 0;
-                    window.setTimeout(() => window.location.reload(), 1200);
+                    await this.fetchPersonnel();
                 } catch (error) {
                     this.offboardErrorMessage = window.__i18n.offboard_network_error;
                 } finally {

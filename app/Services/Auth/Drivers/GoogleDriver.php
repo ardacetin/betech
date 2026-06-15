@@ -104,6 +104,64 @@ class GoogleDriver implements UserIntegrationInterface
         return $this->mapUser($response);
     }
 
+    public function listAllUsers(): array
+    {
+        $config = $this->settingModel->getGoogleConfig();
+
+        if ($config['domain'] === '') {
+            return [];
+        }
+
+        $accessToken = $this->resolveAccessToken($config);
+
+        if ($accessToken === null) {
+            return [];
+        }
+
+        $users = [];
+        $pageToken = null;
+
+        do {
+            $params = [
+                'domain' => $config['domain'],
+                'maxResults' => '500',
+                'orderBy' => 'familyName',
+                'projection' => 'full',
+            ];
+
+            if ($pageToken !== null) {
+                $params['pageToken'] = $pageToken;
+            }
+
+            $response = $this->directoryRequest(
+                'GET',
+                self::DIRECTORY_BASE . '?' . http_build_query($params),
+                $accessToken
+            );
+
+            if ($response === null || !isset($response['users']) || !is_array($response['users'])) {
+                break;
+            }
+
+            foreach ($response['users'] as $user) {
+                if (!is_array($user)) {
+                    continue;
+                }
+
+                $mapped = $this->mapUser($user);
+
+                if ($mapped !== null) {
+                    $users[] = $mapped;
+                }
+            }
+
+            $nextPageToken = $response['nextPageToken'] ?? null;
+            $pageToken = is_string($nextPageToken) && $nextPageToken !== '' ? $nextPageToken : null;
+        } while ($pageToken !== null);
+
+        return $users;
+    }
+
     /**
      * @param array<string, mixed> $config
      */

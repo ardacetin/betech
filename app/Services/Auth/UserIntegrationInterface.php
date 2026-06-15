@@ -19,4 +19,11 @@ interface UserIntegrationInterface
      * @return array{id: string, external_id: string, name: string, email: string, department: string|null}|null
      */
     public function getUserById(string $id): ?array;
+
+    /**
+     * Fetch the full directory user list for personnel synchronization.
+     *
+     * @return list<array{id: string, external_id: string, name: string, email: string, department: string|null}>
+     */
+    public function listAllUsers(): array;
 }

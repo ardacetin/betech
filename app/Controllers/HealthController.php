@@ -57,19 +57,7 @@ class HealthController
             $assets = $this->assetModel->findAllForDashboard();
             $analytics = $this->analyticsService->getDashboardStats();
             $settings = $this->settingModel->getAdminBundle();
-            $personnel = $this->userModel->findAllForPersonnel();
-            $assetCounts = $this->userModel->assignedAssetCountsByUserId();
-            $personnelRows = array_map(
-                static function (array $user) use ($assetCounts): array {
-                    $personId = (int) $user['id'];
-
-                    return [
-                        ...$user,
-                        'assigned_asset_count' => $assetCounts[$personId] ?? 0,
-                    ];
-                },
-                $personnel
-            );
+            $personnelRows = [];
         }
 
         $assetQrCodes = [];

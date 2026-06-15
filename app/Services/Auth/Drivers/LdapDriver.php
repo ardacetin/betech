@@ -10,6 +10,7 @@ use App\Services\Auth\UserIntegrationInterface;
 class LdapDriver implements UserIntegrationInterface
 {
     private const SEARCH_LIMIT = 20;
+    private const SYNC_PAGE_SIZE = 500;
 
     public function __construct(
         private readonly Setting $settingModel
@@ -74,6 +75,118 @@ class LdapDriver implements UserIntegrationInterface
         } finally {
             @ldap_unbind($connection);
         }
+    }
+
+    public function listAllUsers(): array
+    {
+        if (!extension_loaded('ldap')) {
+            return [];
+        }
+
+        $config = $this->settingModel->getLdapConfig();
+
+        if ($config['host'] === '' || $config['base_dn'] === '') {
+            return [];
+        }
+
+        $connection = $this->connect($config);
+
+        if ($connection === null) {
+            return [];
+        }
+
+        try {
+            if (!$this->bind($connection, $config)) {
+                return [];
+            }
+
+            return $this->fetchAllEntries($connection, (string) $config['base_dn']);
+        } finally {
+            @ldap_unbind($connection);
+        }
+    }
+
+    /**
+     * @return list<array{id: string, external_id: string, name: string, email: string, department: string|null}>
+     */
+    private function fetchAllEntries(\LDAP\Connection $connection, string $baseDn): array
+    {
+        $filter = '(&(objectClass=person)(!(objectClass=computer)))';
+        $attributes = ['cn', 'mail', 'department', 'uid', 'displayName', 'sAMAccountName'];
+        $users = [];
+        $cookie = '';
+        $supportsPagedResults = defined('LDAP_CONTROL_PAGEDRESULTS');
+
+        do {
+            $controls = [];
+
+            if ($supportsPagedResults) {
+                $controls = [[
+                    'oid' => LDAP_CONTROL_PAGEDRESULTS,
+                    'iscritical' => true,
+                    'value' => [
+                        'size' => self::SYNC_PAGE_SIZE,
+                        'cookie' => $cookie,
+                    ],
+                ]];
+            }
+
+            $search = @ldap_search(
+                $connection,
+                $baseDn,
+                $filter,
+                $attributes,
+                0,
+                $supportsPagedResults ? 0 : self::SYNC_PAGE_SIZE,
+                0,
+                LDAP_DEREF_NEVER,
+                $controls
+            );
+
+            if ($search === false) {
+                break;
+            }
+
+            if ($supportsPagedResults) {
+                $errorCode = 0;
+                $errorMessage = '';
+                $matchedDn = '';
+                $referrals = [];
+                @ldap_parse_result(
+                    $connection,
+                    $search,
+                    $errorCode,
+                    $matchedDn,
+                    $errorMessage,
+                    $referrals,
+                    $controls
+                );
+
+                $cookie = (string) ($controls[0]['value']['cookie'] ?? '');
+            } else {
+                $cookie = '';
+            }
+
+            $entries = ldap_get_entries($connection, $search);
+
+            if (!is_array($entries) || ($entries['count'] ?? 0) === 0) {
+                break;
+            }
+
+            for ($index = 0; $index < (int) $entries['count']; $index++) {
+                $mapped = $this->mapEntry($entries[$index]);
+
+                if ($mapped !== null) {
+                    $users[] = $mapped;
+                }
+            }
+
+            if (!$supportsPagedResults) {
+                break;
+            }
+        } while ($cookie !== '');
+
+        return $users;
     }
 
     public function getUserById(string $id): ?array
