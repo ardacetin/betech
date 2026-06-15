@@ -49,6 +49,11 @@ class DatabaseInitializer
                     $this->applySqlFile($connection, $this->getUsersTableMigrationPath());
                     $warnings[] = 'Applied migration: created users table.';
                 }
+
+                if (!$this->assetHistoriesTableExists($connection)) {
+                    $this->applySqlFile($connection, $this->getAssetHistoriesTableMigrationPath());
+                    $warnings[] = 'Applied migration: created asset_histories table.';
+                }
             }
 
             if (is_readable($this->seedsPath)) {
@@ -107,6 +112,21 @@ class DatabaseInitializer
     private function getUsersTableMigrationPath(): string
     {
         return dirname($this->schemaPath) . '/migrations/001_create_users_table.sql';
+    }
+
+    private function getAssetHistoriesTableMigrationPath(): string
+    {
+        return dirname($this->schemaPath) . '/migrations/002_create_asset_histories_table.sql';
+    }
+
+    /**
+     * @param object $connection Medoo instance
+     */
+    private function assetHistoriesTableExists(object $connection): bool
+    {
+        $statement = $connection->query("SHOW TABLES LIKE 'asset_histories'");
+
+        return $statement !== false && $statement->rowCount() > 0;
     }
 
     /**

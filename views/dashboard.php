@@ -53,6 +53,14 @@ $i18nScript = json_encode([
     'no_category_fields' => __('no_category_fields'),
     'no_users_found' => __('no_users_found'),
     'search_users_placeholder' => __('search_users_placeholder'),
+    'history_empty' => __('history_empty'),
+    'history_loading' => __('history_loading'),
+    'history_error' => __('history_error'),
+    'history_action_created' => __('history_action_created'),
+    'history_action_assigned' => __('history_action_assigned'),
+    'history_action_unassigned' => __('history_action_unassigned'),
+    'history_action_status_change' => __('history_action_status_change'),
+    'history_action_updated' => __('history_action_updated'),
 ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
 ?>
 <div class="min-h-full" x-data="assetDashboard()">
@@ -200,20 +208,36 @@ $i18nScript = json_encode([
                                             </div>
                                         </td>
                                         <td class="px-6 py-4">
-                                            <button
-                                                type="button"
-                                                @click='openEditModal(<?= json_encode([
-                                                    'id' => (int) $asset['id'],
-                                                    'asset_tag' => (string) $asset['asset_tag'],
-                                                    'name' => (string) $asset['name'],
-                                                    'status' => $status,
-                                                    'user_id' => $asset['user_id'] ?? null,
-                                                    'user_name' => $asset['user_name'] ?? null,
-                                                ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>)'
-                                                class="rounded-lg border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-700 transition hover:bg-zinc-50"
-                                            >
-                                                <?= htmlspecialchars(__('action_assign'), ENT_QUOTES, 'UTF-8') ?>
-                                            </button>
+                                            <div class="flex flex-wrap gap-2">
+                                                <button
+                                                    type="button"
+                                                    @click='openDetailModal(<?= json_encode([
+                                                        'id' => (int) $asset['id'],
+                                                        'asset_tag' => (string) $asset['asset_tag'],
+                                                        'name' => (string) $asset['name'],
+                                                        'status' => $status,
+                                                        'category_name' => (string) ($asset['category_name'] ?? __('unknown_category')),
+                                                        'user_name' => $asset['user_name'] ?? null,
+                                                    ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>)'
+                                                    class="rounded-lg border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-700 transition hover:bg-zinc-50"
+                                                >
+                                                    <?= htmlspecialchars(__('action_view_history'), ENT_QUOTES, 'UTF-8') ?>
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    @click='openEditModal(<?= json_encode([
+                                                        'id' => (int) $asset['id'],
+                                                        'asset_tag' => (string) $asset['asset_tag'],
+                                                        'name' => (string) $asset['name'],
+                                                        'status' => $status,
+                                                        'user_id' => $asset['user_id'] ?? null,
+                                                        'user_name' => $asset['user_name'] ?? null,
+                                                    ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>)'
+                                                    class="rounded-lg border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-700 transition hover:bg-zinc-50"
+                                                >
+                                                    <?= htmlspecialchars(__('action_assign'), ENT_QUOTES, 'UTF-8') ?>
+                                                </button>
+                                            </div>
                                         </td>
                                     </tr>
                                     <?php endforeach; ?>
@@ -397,6 +421,66 @@ $i18nScript = json_encode([
             </form>
         </div>
     </div>
+
+    <div
+        x-show="isDetailOpen"
+        x-cloak
+        class="fixed inset-0 z-50 flex items-center justify-center px-4"
+        @keydown.escape.window="closeDetailModal()"
+    >
+        <div class="absolute inset-0 bg-zinc-900/40 backdrop-blur-sm" @click="closeDetailModal()"></div>
+
+        <div class="relative w-full max-w-2xl rounded-2xl border border-zinc-200 bg-white shadow-soft">
+            <div class="flex items-center justify-between border-b border-zinc-200 px-6 py-4">
+                <div>
+                    <h3 class="text-lg font-semibold text-zinc-900"><?= htmlspecialchars(__('modal_asset_detail'), ENT_QUOTES, 'UTF-8') ?></h3>
+                    <p class="mt-1 text-sm text-zinc-500"><?= htmlspecialchars(__('modal_asset_detail_subtitle'), ENT_QUOTES, 'UTF-8') ?></p>
+                </div>
+                <button type="button" @click="closeDetailModal()" class="rounded-lg p-2 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600">&times;</button>
+            </div>
+
+            <div class="max-h-[70vh] overflow-y-auto px-6 py-5">
+                <div class="rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3">
+                    <p class="text-xs uppercase tracking-wide text-zinc-400"><?= htmlspecialchars(__('col_asset_tag'), ENT_QUOTES, 'UTF-8') ?></p>
+                    <p class="mt-1 text-sm font-semibold text-zinc-900" x-text="detailAsset?.asset_tag"></p>
+                    <div class="mt-3 grid gap-3 sm:grid-cols-2">
+                        <div>
+                            <p class="text-xs uppercase tracking-wide text-zinc-400"><?= htmlspecialchars(__('col_name'), ENT_QUOTES, 'UTF-8') ?></p>
+                            <p class="mt-1 text-sm text-zinc-700" x-text="detailAsset?.name"></p>
+                        </div>
+                        <div>
+                            <p class="text-xs uppercase tracking-wide text-zinc-400"><?= htmlspecialchars(__('col_category'), ENT_QUOTES, 'UTF-8') ?></p>
+                            <p class="mt-1 text-sm text-zinc-700" x-text="detailAsset?.category_name"></p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mt-6">
+                    <h4 class="text-sm font-semibold text-zinc-900"><?= htmlspecialchars(__('history_title'), ENT_QUOTES, 'UTF-8') ?></h4>
+
+                    <p x-show="historyLoading" x-cloak class="mt-4 text-sm text-zinc-500" x-text="window.__i18n.history_loading"></p>
+                    <p x-show="historyError" x-cloak class="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700" x-text="historyError"></p>
+                    <p x-show="!historyLoading && !historyError && assetHistory.length === 0" x-cloak class="mt-4 rounded-xl border border-dashed border-zinc-200 bg-zinc-50 px-4 py-3 text-sm text-zinc-500" x-text="window.__i18n.history_empty"></p>
+
+                    <div x-show="!historyLoading && assetHistory.length > 0" x-cloak class="mt-4 space-y-4">
+                        <template x-for="entry in assetHistory" :key="entry.id">
+                            <article class="relative border-l-2 border-zinc-200 pl-4">
+                                <div class="flex flex-wrap items-center gap-2">
+                                    <span class="inline-flex rounded-full bg-zinc-100 px-2.5 py-1 text-xs font-medium text-zinc-700" x-text="resolveHistoryAction(entry.action)"></span>
+                                    <time class="text-xs text-zinc-400" x-text="formatHistoryDate(entry.created_at)"></time>
+                                </div>
+                                <p class="mt-2 text-sm text-zinc-700" x-text="entry.notes"></p>
+                                <p x-show="entry.target_user_name" class="mt-1 text-xs text-zinc-500">
+                                    <span><?= htmlspecialchars(__('col_assigned_user'), ENT_QUOTES, 'UTF-8') ?>:</span>
+                                    <span x-text="entry.target_user_name"></span>
+                                </p>
+                            </article>
+                        </template>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 
 <style>[x-cloak] { display: none !important; }</style>
@@ -409,9 +493,14 @@ $i18nScript = json_encode([
         return {
             isAddOpen: false,
             isEditOpen: false,
+            isDetailOpen: false,
             isSubmitting: false,
             addErrorMessage: '',
             editErrorMessage: '',
+            detailAsset: null,
+            assetHistory: [],
+            historyLoading: false,
+            historyError: '',
             categoryFields: window.__categoryFields || {},
             dynamicFields: [],
             dynamicValues: {},
@@ -470,6 +559,64 @@ $i18nScript = json_encode([
 
                 this.isEditOpen = false;
                 this.editAsset = null;
+            },
+            async openDetailModal(asset) {
+                this.detailAsset = asset;
+                this.assetHistory = [];
+                this.historyError = '';
+                this.historyLoading = true;
+                this.isDetailOpen = true;
+
+                try {
+                    const response = await fetch(`/api/assets/${asset.id}/history`, {
+                        headers: {
+                            'Accept': 'application/json',
+                        },
+                    });
+                    const result = await response.json();
+
+                    if (!response.ok) {
+                        this.historyError = result.message || window.__i18n.history_error;
+                        return;
+                    }
+
+                    this.assetHistory = Array.isArray(result.data) ? result.data : [];
+                } catch (error) {
+                    this.historyError = window.__i18n.history_error;
+                } finally {
+                    this.historyLoading = false;
+                }
+            },
+            closeDetailModal() {
+                this.isDetailOpen = false;
+                this.detailAsset = null;
+                this.assetHistory = [];
+                this.historyError = '';
+                this.historyLoading = false;
+            },
+            resolveHistoryAction(action) {
+                const labels = {
+                    created: window.__i18n.history_action_created,
+                    assigned: window.__i18n.history_action_assigned,
+                    unassigned: window.__i18n.history_action_unassigned,
+                    status_change: window.__i18n.history_action_status_change,
+                    updated: window.__i18n.history_action_updated,
+                };
+
+                return labels[action] || action;
+            },
+            formatHistoryDate(value) {
+                if (!value) {
+                    return '';
+                }
+
+                const date = new Date(value);
+
+                if (Number.isNaN(date.getTime())) {
+                    return value;
+                }
+
+                return date.toLocaleString(window.__i18n.locale === 'en' ? 'en-US' : 'tr-TR');
             },
             resetDynamicFields() {
                 this.dynamicFields = [];

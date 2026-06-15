@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Controllers;
 
 use App\Models\Asset;
+use App\Models\AssetHistory;
 use App\Services\Auth\UserIntegrationFactory;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
@@ -22,6 +23,7 @@ class AssetController
 
     public function __construct(
         private readonly Asset $assetModel,
+        private readonly AssetHistory $assetHistoryModel,
         private readonly UserIntegrationFactory $userIntegrationFactory
     ) {
     }
@@ -52,6 +54,7 @@ class AssetController
 
         try {
             $asset = $this->assetModel->create($coreFields, $properties);
+            $this->logAssetCreation($asset, $coreFields);
         } catch (\RuntimeException $exception) {
             return $this->jsonResponse($response, 422, [
                 'status' => 'error',
@@ -121,6 +124,7 @@ class AssetController
                 $coreFields,
                 array_key_exists('properties', $payload) ? $properties : null
             );
+            $this->logAssetUpdates($assetId, $existingAsset, $coreFields);
         } catch (\RuntimeException $exception) {
             return $this->jsonResponse($response, 422, [
                 'status' => 'error',
@@ -140,6 +144,164 @@ class AssetController
             'message' => 'Asset updated successfully.',
             'data' => $asset,
         ]);
+    }
+
+    public function history(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
+    {
+        $assetId = (int) ($args['id'] ?? 0);
+
+        if ($assetId <= 0) {
+            return $this->jsonResponse($response, 400, [
+                'status' => 'error',
+                'message' => 'A valid asset id is required.',
+            ]);
+        }
+
+        if ($this->assetModel->findById($assetId) === null) {
+            return $this->jsonResponse($response, 404, [
+                'status' => 'error',
+                'message' => 'Asset not found.',
+            ]);
+        }
+
+        return $this->jsonResponse($response, 200, [
+            'status' => 'success',
+            'data' => $this->assetHistoryModel->findByAssetId($assetId),
+        ]);
+    }
+
+    /**
+     * @param array<string, mixed> $asset
+     * @param array<string, mixed> $coreFields
+     */
+    private function logAssetCreation(array $asset, array $coreFields): void
+    {
+        $assetId = (int) $asset['id'];
+
+        $this->assetHistoryModel->log(
+            $assetId,
+            'created',
+            null,
+            null,
+            sprintf('Asset created with tag %s', (string) $asset['asset_tag'])
+        );
+
+        if (!array_key_exists('user_id', $coreFields) || $coreFields['user_id'] === null) {
+            return;
+        }
+
+        $targetUserId = (int) $coreFields['user_id'];
+        $targetUserName = $this->resolveUserName($targetUserId);
+
+        $this->assetHistoryModel->log(
+            $assetId,
+            'assigned',
+            null,
+            $targetUserId,
+            sprintf(
+                'Assigned to %s on creation',
+                $targetUserName ?? ('user #' . $targetUserId)
+            )
+        );
+    }
+
+    /**
+     * @param array<string, mixed> $existingAsset
+     * @param array<string, mixed> $coreFields
+     */
+    private function logAssetUpdates(int $assetId, array $existingAsset, array $coreFields): void
+    {
+        if (array_key_exists('user_id', $coreFields)) {
+            $this->logAssignmentChange(
+                $assetId,
+                $existingAsset['user_id'] ?? null,
+                $coreFields['user_id']
+            );
+        }
+
+        if (array_key_exists('status', $coreFields)) {
+            $oldStatus = (string) ($existingAsset['status'] ?? 'ready');
+            $newStatus = (string) $coreFields['status'];
+
+            if ($oldStatus !== $newStatus) {
+                $this->assetHistoryModel->log(
+                    $assetId,
+                    'status_change',
+                    null,
+                    null,
+                    sprintf('Status changed from %s to %s', $oldStatus, $newStatus)
+                );
+            }
+        }
+    }
+
+    private function logAssignmentChange(int $assetId, mixed $previousUserId, mixed $nextUserId): void
+    {
+        $oldUserId = $previousUserId !== null ? (int) $previousUserId : null;
+        $newUserId = $nextUserId !== null ? (int) $nextUserId : null;
+
+        if ($oldUserId === $newUserId) {
+            return;
+        }
+
+        if ($newUserId === null) {
+            $oldUserName = $this->resolveUserName($oldUserId);
+
+            $this->assetHistoryModel->log(
+                $assetId,
+                'unassigned',
+                null,
+                $oldUserId,
+                sprintf(
+                    'Assignment removed from %s',
+                    $oldUserName ?? ('user #' . $oldUserId)
+                )
+            );
+
+            return;
+        }
+
+        $newUserName = $this->resolveUserName($newUserId);
+
+        if ($oldUserId === null) {
+            $this->assetHistoryModel->log(
+                $assetId,
+                'assigned',
+                null,
+                $newUserId,
+                sprintf(
+                    'Assigned to %s',
+                    $newUserName ?? ('user #' . $newUserId)
+                )
+            );
+
+            return;
+        }
+
+        $oldUserName = $this->resolveUserName($oldUserId);
+
+        $this->assetHistoryModel->log(
+            $assetId,
+            'assigned',
+            null,
+            $newUserId,
+            sprintf(
+                'Reassigned from %s to %s',
+                $oldUserName ?? ('user #' . $oldUserId),
+                $newUserName ?? ('user #' . $newUserId)
+            )
+        );
+    }
+
+    private function resolveUserName(?int $userId): ?string
+    {
+        if ($userId === null) {
+            return null;
+        }
+
+        $user = $this->userIntegrationFactory->make()->getUserById((string) $userId);
+
+        return $user['name'] ?? null;
     }
 
     /**
