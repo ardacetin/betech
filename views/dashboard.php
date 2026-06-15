@@ -145,7 +145,7 @@ $i18nScript = json_encode([
                 </button>
                 <button
                     type="button"
-                    @click="activeView = 'settings'"
+                    @click="activeView = 'settings'; $nextTick(() => initQuillEditor())"
                     class="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm font-medium transition"
                     :class="activeView === 'settings' ? 'bg-zinc-100 text-zinc-900' : 'text-zinc-600 hover:bg-zinc-50'"
                 >
@@ -681,7 +681,28 @@ $i18nScript = json_encode([
     </div>
 </div>
 
-<style>[x-cloak] { display: none !important; }</style>
+<style>
+    [x-cloak] { display: none !important; }
+
+    #zimmet-quill-wrapper .ql-toolbar.ql-snow {
+        border: 0;
+        border-bottom: 1px solid #e4e4e7;
+        background: #fafafa;
+    }
+
+    #zimmet-quill-wrapper .ql-container.ql-snow {
+        border: 0;
+        font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+    }
+
+    #zimmet-quill-wrapper .ql-editor {
+        min-height: 240px;
+        line-height: 1.6;
+    }
+</style>
+
+<link href="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.snow.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.js"></script>
 
 <script>
     window.__i18n = <?= $i18nScript ?>;
@@ -804,6 +825,7 @@ $i18nScript = json_encode([
             isSavingSettings: false,
             settingsErrorMessage: '',
             settingsSuccessMessage: '',
+            quillEditor: null,
             globalCustomFields: Array.isArray(window.__globalCustomFields) ? window.__globalCustomFields : [],
             personnel: Array.isArray(window.__personnel) ? window.__personnel : [],
             isOffboarding: false,
@@ -1240,7 +1262,57 @@ $i18nScript = json_encode([
             removeCustomField(index) {
                 this.settingsForm.custom_fields.splice(index, 1);
             },
+            initQuillEditor() {
+                if (typeof Quill === 'undefined') {
+                    return;
+                }
+
+                const container = document.getElementById('zimmet-quill-editor');
+
+                if (!container) {
+                    return;
+                }
+
+                if (this.quillEditor) {
+                    return;
+                }
+
+                this.quillEditor = new Quill(container, {
+                    theme: 'snow',
+                    placeholder: 'Zimmet formu metnini buraya yazın…',
+                    modules: {
+                        toolbar: [
+                            ['bold', 'italic', 'underline'],
+                            [{ list: 'ordered' }, { list: 'bullet' }],
+                            [{ align: [] }],
+                            ['clean'],
+                        ],
+                    },
+                });
+
+                const template = this.settingsForm.zimmet_template || '';
+
+                if (template.includes('<')) {
+                    this.quillEditor.root.innerHTML = template;
+                } else if (template !== '') {
+                    this.quillEditor.setText(template);
+                }
+            },
+            syncZimmetTemplate() {
+                if (!this.quillEditor) {
+                    return;
+                }
+
+                const html = this.quillEditor.root.innerHTML.trim();
+                const isEmpty = html === '' || html === '<p><br></p>';
+                this.settingsForm.zimmet_template = isEmpty ? '' : html;
+
+                if (this.$refs.zimmetTemplateInput) {
+                    this.$refs.zimmetTemplateInput.value = this.settingsForm.zimmet_template;
+                }
+            },
             async saveSettings() {
+                this.syncZimmetTemplate();
                 this.isSavingSettings = true;
                 this.settingsErrorMessage = '';
                 this.settingsSuccessMessage = '';

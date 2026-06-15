@@ -107,6 +107,7 @@ return [
     'settings_auth_azure_hint' => 'Azure AD / Microsoft 365 identity platform.',
     'settings_zimmet_title' => 'Zimmet Form Text',
     'settings_zimmet_hint' => 'Default delivery text template used for personnel asset assignments.',
+    'settings_zimmet_rich_hint' => 'Use the rich text editor for bold text, lists, and alignment. Templates are stored as HTML and preserve formatting in print output.',
     'settings_zimmet_placeholders' => 'Available placeholders: {personnel_name}, {asset_name}, {serial_number}, {date}',
     'settings_custom_fields_title' => 'Global Custom Fields',
     'settings_custom_fields_hint' => 'Define additional fields that can be added to any asset. These fields are optional.',

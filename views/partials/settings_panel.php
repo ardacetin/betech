@@ -161,13 +161,15 @@ declare(strict_types=1);
         </article>
 
         <article class="rounded-2xl border border-zinc-200 bg-white p-6 shadow-soft">
+            <h3 class="text-sm font-semibold text-zinc-900"><?= htmlspecialchars(__('settings_zimmet_title'), ENT_QUOTES, 'UTF-8') ?></h3>
             <p class="mt-1 text-xs text-zinc-500"><?= htmlspecialchars(__('settings_zimmet_hint'), ENT_QUOTES, 'UTF-8') ?></p>
+            <p class="mt-1 text-xs text-zinc-400"><?= htmlspecialchars(__('settings_zimmet_rich_hint'), ENT_QUOTES, 'UTF-8') ?></p>
 
-            <textarea
-                x-model="settingsForm.zimmet_template"
-                rows="12"
-                class="mt-5 w-full rounded-xl border border-zinc-300 px-4 py-3 font-mono text-sm leading-relaxed text-zinc-800 outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4"
-            ></textarea>
+            <input type="hidden" name="zimmet_template" x-ref="zimmetTemplateInput" :value="settingsForm.zimmet_template">
+
+            <div class="mt-5 overflow-hidden rounded-xl border border-zinc-300 bg-white" id="zimmet-quill-wrapper">
+                <div id="zimmet-quill-editor" class="min-h-[280px] text-sm text-zinc-800"></div>
+            </div>
 
             <p class="mt-3 text-xs text-zinc-400"><?= htmlspecialchars(__('settings_zimmet_placeholders'), ENT_QUOTES, 'UTF-8') ?></p>
         </article>

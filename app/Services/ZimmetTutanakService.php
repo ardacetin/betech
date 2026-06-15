@@ -17,12 +17,28 @@ class ZimmetTutanakService
     public function renderTemplate(string $template, array $data): string
     {
         $replacements = [
-            '{personnel_name}' => trim((string) ($data['personnel_name'] ?? '')),
-            '{asset_name}' => trim((string) ($data['asset_name'] ?? '')),
-            '{serial_number}' => trim((string) ($data['serial_number'] ?? '')),
-            '{date}' => trim((string) ($data['date'] ?? date('d.m.Y'))),
+            '{personnel_name}' => $this->escapeValue($data['personnel_name'] ?? ''),
+            '{asset_name}' => $this->escapeValue($data['asset_name'] ?? ''),
+            '{serial_number}' => $this->escapeValue($data['serial_number'] ?? ''),
+            '{date}' => $this->escapeValue($data['date'] ?? date('d.m.Y')),
         ];
 
-        return str_replace(array_keys($replacements), array_values($replacements), $template);
+        $result = str_replace(array_keys($replacements), array_values($replacements), $template);
+
+        if (!$this->isHtmlTemplate($template)) {
+            return nl2br($result, false);
+        }
+
+        return $result;
+    }
+
+    private function escapeValue(mixed $value): string
+    {
+        return htmlspecialchars(trim((string) $value), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    }
+
+    private function isHtmlTemplate(string $template): bool
+    {
+        return (bool) preg_match('/<[^>]+>/', $template);
     }
 }

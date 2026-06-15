@@ -51,8 +51,43 @@ declare(strict_types=1);
         }
 
         .content {
-            white-space: pre-wrap;
             font-size: 15px;
+            line-height: 1.65;
+        }
+
+        .content p {
+            margin: 0 0 12px;
+        }
+
+        .content p:last-child {
+            margin-bottom: 0;
+        }
+
+        .content ul,
+        .content ol {
+            margin: 0 0 12px 1.25rem;
+            padding: 0;
+        }
+
+        .content li {
+            margin-bottom: 6px;
+        }
+
+        .content strong,
+        .content b {
+            font-weight: 700;
+        }
+
+        .content .ql-align-center {
+            text-align: center;
+        }
+
+        .content .ql-align-right {
+            text-align: right;
+        }
+
+        .content .ql-align-justify {
+            text-align: justify;
         }
 
         .signatures {
@@ -129,7 +164,7 @@ declare(strict_types=1);
             <span><?= htmlspecialchars((string) ($assignedUser['email'] ?? ''), ENT_QUOTES, 'UTF-8') ?></span>
         </div>
 
-        <div class="content"><?= nl2br(htmlspecialchars($body, ENT_QUOTES, 'UTF-8')) ?></div>
+        <div class="content"><?= $body ?></div>
 
         <div class="signatures">
             <div>

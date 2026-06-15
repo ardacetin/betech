@@ -107,6 +107,7 @@ return [
     'settings_auth_azure_hint' => 'Azure AD / Microsoft 365 kimlik sistemi.',
     'settings_zimmet_title' => 'Zimmet Formu Metni',
     'settings_zimmet_hint' => 'Personel zimmet tesliminde kullanılacak varsayılan metin şablonu.',
+    'settings_zimmet_rich_hint' => 'Kalın metin, listeler ve hizalama için zengin metin editörünü kullanın. Şablon HTML olarak kaydedilir ve baskıda biçimlendirme korunur.',
     'settings_zimmet_placeholders' => 'Kullanılabilir yer tutucular: {personnel_name}, {asset_name}, {serial_number}, {date}',
     'settings_custom_fields_title' => 'Global Özel Alanlar',
     'settings_custom_fields_hint' => 'Tüm varlıklara eklenebilecek ek alanları tanımlayın. Bu alanlar isteğe bağlıdır.',

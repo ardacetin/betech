@@ -42,7 +42,7 @@ INSERT INTO settings (`key`, value) VALUES
 ),
 (
     'zimmet_template',
-    'ZİMMET TESLİM FORMU\n\nSayın {personnel_name},\n\nTarafınıza aşağıdaki IT varlığı zimmetlenmiştir:\n\nVarlık Adı: {asset_name}\nSeri Numarası: {serial_number}\nTeslim Tarihi: {date}\n\nVarlığı kurumsal IT politikalarına uygun kullanacağınızı beyan edersiniz.'
+    '<p><strong>ZİMMET TESLİM FORMU</strong></p><p>Sayın {personnel_name},</p><p>Tarafınıza aşağıdaki IT varlığı zimmetlenmiştir:</p><ul><li><strong>Varlık Adı:</strong> {asset_name}</li><li><strong>Seri Numarası:</strong> {serial_number}</li><li><strong>Teslim Tarihi:</strong> {date}</li></ul><p>Varlığı kurumsal IT politikalarına uygun kullanacağınızı beyan edersiniz.</p>'
 ),
 (
     'custom_fields',

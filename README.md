@@ -57,8 +57,25 @@ First-time SSO/LDAP users are **auto-provisioned** into the local `users` table 
 
 ### Zimmet (assignment) tutanak
 
-- Configurable HTML/Markdown assignment receipt template with placeholders (`{personnel_name}`, `{asset_name}`, `{serial_number}`, `{date}`).
+- **Rich text (WYSIWYG) corporate templates** via [Quill.js](https://quilljs.com/) (CDN)—bold text, ordered/unordered lists, alignment, and clean formatting without bloated dependencies.
+- Templates are stored as HTML in the `settings` table and rendered on print with preserved structure.
+- Placeholders: `{personnel_name}`, `{asset_name}`, `{serial_number}`, `{date}` (values are escaped for safe HTML output).
 - Print-optimized output at `/api/assets/{id}/tutanak`.
+- Legacy plain-text templates remain supported and are auto-formatted for print.
+
+### System settings (Sistem Ayarları)
+
+Administrators configure the self-hosted instance from the dashboard without code changes:
+
+| Area | Capabilities |
+|------|----------------|
+| **Directory integration** | Active auth driver (local, LDAP, Google Workspace, Azure) for personnel search |
+| **Login providers** | Enable local, LDAP, Google SSO, Microsoft 365 OAuth2 |
+| **Zimmet template** | Quill.js rich text editor for corporate assignment forms |
+| **Global custom fields** | Optional extra asset fields across all categories |
+| **LDAP / Google directory** | Connection credentials for user search and zimmet assignment |
+
+All settings persist in the `settings` table. Secrets are never returned by the API after save.
 
 ---
 
