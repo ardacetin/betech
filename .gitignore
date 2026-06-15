@@ -1,6 +1,7 @@
 /vendor/
 /.env
 composer.phar
+/logs/*.log
 
 # IDE and editor files
 /.vscode/

@@ -14,6 +14,9 @@ declare(strict_types=1);
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <?php if (!empty($csrfToken)): ?>
+        <meta name="csrf-token" content="<?= htmlspecialchars((string) $csrfToken, ENT_QUOTES, 'UTF-8') ?>">
+    <?php endif; ?>
     <title><?= htmlspecialchars($pageTitle . ' · ' . $appName, ENT_QUOTES, 'UTF-8') ?></title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
@@ -37,5 +40,31 @@ declare(strict_types=1);
 </head>
 <body class="h-full font-sans text-zinc-900 antialiased">
     <?= $content ?>
+    <?php if (!empty($csrfToken)): ?>
+        <script>
+            (function () {
+                const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '';
+                if (token === '') {
+                    return;
+                }
+
+                const originalFetch = window.fetch.bind(window);
+                window.fetch = function (input, init) {
+                    init = init ?? {};
+                    const method = String(init.method ?? 'GET').toUpperCase();
+
+                    if (['POST', 'PUT', 'DELETE', 'PATCH'].includes(method)) {
+                        const headers = new Headers(init.headers ?? {});
+                        if (!headers.has('X-CSRF-TOKEN')) {
+                            headers.set('X-CSRF-TOKEN', token);
+                        }
+                        init.headers = headers;
+                    }
+
+                    return originalFetch(input, init);
+                };
+            })();
+        </script>
+    <?php endif; ?>
 </body>
 </html>

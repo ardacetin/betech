@@ -13,7 +13,9 @@ use App\Controllers\AuthController;
 use App\Controllers\HealthController;
 use App\Controllers\SettingsController;
 use App\Controllers\UserController;
+use App\Handlers\HttpErrorHandler;
 use App\Middleware\AuthMiddleware;
+use App\Middleware\CsrfMiddleware;
 use App\Middleware\LanguageMiddleware;
 use App\Middleware\RoleMiddleware;
 use App\Models\Asset;
@@ -25,6 +27,7 @@ use App\Models\Setting;
 use App\Models\Personnel;
 use App\Models\User;
 use App\Services\AnalyticsService;
+use App\Services\AppLogger;
 use App\Services\Auth\LdapAuthenticator;
 use App\Services\Auth\OAuthService;
 use App\Services\Auth\SessionAuthService;
@@ -67,12 +70,17 @@ $publicPaths = [
 ];
 $app->add(new RoleMiddleware($sessionAuthService, $publicPaths, RoleMiddleware::defaultRules()));
 $app->add(new AuthMiddleware($sessionAuthService, $publicPaths, $userModel));
+$app->add(new CsrfMiddleware($sessionAuthService));
 
-$app->addErrorMiddleware(
-    $appConfig['debug'],
-    $appConfig['debug'],
-    $appConfig['debug']
+$displayErrorDetails = $appConfig['display_error_details'] && !$appConfig['is_production'];
+$appLogger = new AppLogger($rootPath . '/logs/app.log');
+$errorMiddleware = $app->addErrorMiddleware($displayErrorDetails, true, true);
+$errorHandler = new HttpErrorHandler(
+    $app->getCallableResolver(),
+    $app->getResponseFactory(),
+    $appLogger
 );
+$errorMiddleware->setDefaultErrorHandler($errorHandler);
 
 $assetModel = new Asset($databaseService);
 $assetHistoryModel = new AssetHistory($databaseService);

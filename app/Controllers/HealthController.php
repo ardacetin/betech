@@ -75,6 +75,7 @@ class HealthController
             'pageTitle' => $isEndUser ? __('page_title_end_user') : __('page_title'),
             'environment' => $this->appConfig['env'],
             'locale' => Translator::instance()->getLocale(),
+            'csrfToken' => $this->sessionAuthService->getOrCreateCsrfToken(),
             'userRole' => $role,
             'canManageAssets' => $canManageAssets,
             'canAccessSettings' => $canAccessSettings,

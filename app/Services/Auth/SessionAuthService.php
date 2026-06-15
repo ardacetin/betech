@@ -10,8 +10,43 @@ class SessionAuthService
 {
     private const SESSION_USER_ID = 'auth_user_id';
     private const SESSION_USER_ROLE = 'auth_user_role';
+    private const SESSION_CSRF_TOKEN = 'csrf_token';
 
     public function ensureSessionStarted(): void
+    {
+        if (session_status() !== PHP_SESSION_ACTIVE) {
+            session_start();
+        }
+
+        $this->getOrCreateCsrfToken();
+    }
+
+    public function getOrCreateCsrfToken(): string
+    {
+        $this->ensureSessionStartedWithoutCsrfSideEffect();
+        $token = $_SESSION[self::SESSION_CSRF_TOKEN] ?? null;
+
+        if (!is_string($token) || $token === '') {
+            $token = bin2hex(random_bytes(32));
+            $_SESSION[self::SESSION_CSRF_TOKEN] = $token;
+        }
+
+        return $token;
+    }
+
+    public function validateCsrfToken(?string $token): bool
+    {
+        $this->ensureSessionStartedWithoutCsrfSideEffect();
+        $expected = $_SESSION[self::SESSION_CSRF_TOKEN] ?? '';
+
+        if (!is_string($expected) || $expected === '' || $token === null || $token === '') {
+            return false;
+        }
+
+        return hash_equals($expected, $token);
+    }
+
+    private function ensureSessionStartedWithoutCsrfSideEffect(): void
     {
         if (session_status() !== PHP_SESSION_ACTIVE) {
             session_start();

@@ -53,6 +53,7 @@ class AuthController
             'loginConfig' => $loginConfig,
             'errorMessage' => $this->resolveErrorMessage($errorKey),
             'redirectTarget' => $this->resolveRedirectTarget($request),
+            'csrfToken' => $this->sessionAuthService->getOrCreateCsrfToken(),
         ], null);
 
         $response->getBody()->write($html);

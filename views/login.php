@@ -9,6 +9,7 @@ declare(strict_types=1);
  * @var array<string, mixed> $loginConfig
  * @var string $errorMessage
  * @var string $redirectTarget
+ * @var string $csrfToken
  */
 
 $providers = $loginConfig['providers'] ?? [];
@@ -80,6 +81,7 @@ $showCredentialForm = $showLocal || $showLdap;
             <?php endif; ?>
 
             <form method="post" action="/login" class="space-y-4">
+                <input type="hidden" name="_csrf" value="<?= htmlspecialchars($csrfToken ?? '', ENT_QUOTES, 'UTF-8') ?>">
                 <input type="hidden" name="mode" :value="mode">
                 <input type="hidden" name="redirect" value="<?= htmlspecialchars($redirectTarget, ENT_QUOTES, 'UTF-8') ?>">
 

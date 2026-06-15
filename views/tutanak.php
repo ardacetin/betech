@@ -164,7 +164,7 @@ declare(strict_types=1);
             <span><?= htmlspecialchars((string) ($assignedUser['email'] ?? ''), ENT_QUOTES, 'UTF-8') ?></span>
         </div>
 
-        <div class="content"><?= $body ?></div>
+        <div class="content"><?php /* Controlled Quill.js zimmet template HTML; placeholders are escaped server-side. */ ?><?= $body ?></div>
 
         <div class="signatures">
             <div>

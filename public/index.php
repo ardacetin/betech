@@ -5,6 +5,29 @@ declare(strict_types=1);
 require __DIR__ . '/../vendor/autoload.php';
 
 use App\Services\DatabaseInitializer;
+use Dotenv\Dotenv;
+
+$rootPath = dirname(__DIR__);
+
+Dotenv::createImmutable($rootPath)->safeLoad();
+
+$isHttps = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+    || (isset($_SERVER['SERVER_PORT']) && (string) $_SERVER['SERVER_PORT'] === '443')
+    || (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && strtolower((string) $_SERVER['HTTP_X_FORWARDED_PROTO']) === 'https');
+
+ini_set('session.use_strict_mode', '1');
+ini_set('session.use_only_cookies', '1');
+ini_set('session.cookie_httponly', '1');
+ini_set('session.cookie_samesite', 'Lax');
+
+session_set_cookie_params([
+    'lifetime' => 0,
+    'path' => '/',
+    'domain' => '',
+    'secure' => $isHttps,
+    'httponly' => true,
+    'samesite' => 'Lax',
+]);
 
 $bootstrap = require __DIR__ . '/../config/bootstrap.php';
 
@@ -18,6 +41,7 @@ $initializationResult = $databaseInitializer->initialize();
 
 if (!$initializationResult->isSuccessful()) {
     $message = $initializationResult->getMessage() ?? 'Database initialization failed.';
+    $isProduction = strtolower(trim((string) ($_ENV['APP_ENV'] ?? 'local'))) === 'production';
 
     error_log('[Betech] ' . $message);
 
@@ -26,7 +50,7 @@ if (!$initializationResult->isSuccessful()) {
 
     echo json_encode([
         'status' => 'error',
-        'message' => $message,
+        'message' => $isProduction ? 'Veritabanı başlatılamadı. Lütfen sistem yöneticisiyle iletişime geçin.' : $message,
     ], JSON_THROW_ON_ERROR);
 
     exit(1);

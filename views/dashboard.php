@@ -408,7 +408,7 @@ $i18nScript = json_encode([
                                         <span class="tabular-nums text-zinc-500"><?= (int) $row['count'] ?> · <?= number_format((float) $row['percentage'], 1) ?>%</span>
                                     </div>
                                     <div class="mt-2 h-2 overflow-hidden rounded-full bg-zinc-100">
-                                        <div class="h-2 rounded-full transition-all duration-500 <?= $barColor ?>" style="width: <?= $barWidth ?>%"></div>
+                                        <div class="h-2 rounded-full transition-all duration-500 <?= $barColor ?>" style="width: <?= htmlspecialchars((string) $barWidth, ENT_QUOTES, 'UTF-8') ?>%"></div>
                                     </div>
                                 </div>
                                 <?php endforeach; ?>
@@ -433,7 +433,7 @@ $i18nScript = json_encode([
                                             <span class="shrink-0 tabular-nums text-zinc-500"><?= (int) $row['count'] ?> · <?= number_format((float) $row['percentage'], 1) ?>%</span>
                                         </div>
                                         <div class="mt-2 h-2 overflow-hidden rounded-full bg-zinc-100">
-                                            <div class="h-2 rounded-full transition-all duration-500 <?= $barColor ?>" style="width: <?= $barWidth ?>%"></div>
+                                            <div class="h-2 rounded-full transition-all duration-500 <?= $barColor ?>" style="width: <?= htmlspecialchars((string) $barWidth, ENT_QUOTES, 'UTF-8') ?>%"></div>
                                         </div>
                                     </div>
                                     <?php endforeach; ?>
