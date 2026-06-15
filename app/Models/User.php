@@ -12,6 +12,10 @@ class User
     public const STATUS_ACTIVE = 'active';
     public const STATUS_OFFBOARDED = 'offboarded';
 
+    public const ROLE_SUPER_ADMIN = 'super_admin';
+    public const ROLE_TECHNICIAN = 'technician';
+    public const ROLE_END_USER = 'end_user';
+
     public const PROVIDER_LOCAL = 'local';
     public const PROVIDER_LDAP = 'ldap';
     public const PROVIDER_GOOGLE = 'google';
@@ -34,6 +38,7 @@ class User
             'email',
             'department',
             'status',
+            'role',
             'created_at',
         ], [
             'ORDER' => ['name' => 'ASC'],
@@ -54,6 +59,7 @@ class User
             'email',
             'department',
             'status',
+            'role',
             'created_at',
         ], [
             'id' => $userId,
@@ -80,6 +86,7 @@ class User
             'auth_provider',
             'provider_subject',
             'password_hash',
+            'role',
             'created_at',
         ], [
             'email' => $normalizedEmail,
@@ -146,6 +153,7 @@ class User
                 ? trim((string) $profile['department'])
                 : null,
             'status' => self::STATUS_ACTIVE,
+            'role' => self::ROLE_END_USER,
             'auth_provider' => $authProvider !== '' ? $authProvider : self::PROVIDER_LOCAL,
             'provider_subject' => $providerSubject !== '' ? $providerSubject : null,
         ];
@@ -238,6 +246,38 @@ class User
         ];
     }
 
+    public function findRoleById(int $userId): string
+    {
+        $role = $this->db()->get('users', 'role', ['id' => $userId]);
+
+        return $this->normalizeRole(is_string($role) ? $role : null);
+    }
+
+    public function isOperationalRole(string $role): bool
+    {
+        return in_array($role, [self::ROLE_SUPER_ADMIN, self::ROLE_TECHNICIAN], true);
+    }
+
+    public function isSuperAdmin(string $role): bool
+    {
+        return $role === self::ROLE_SUPER_ADMIN;
+    }
+
+    public function normalizeRole(?string $role): string
+    {
+        return self::normalizeRoleStatic($role);
+    }
+
+    public static function normalizeRoleStatic(?string $role): string
+    {
+        $normalized = strtolower(trim((string) $role));
+
+        return match ($normalized) {
+            self::ROLE_SUPER_ADMIN, self::ROLE_TECHNICIAN => $normalized,
+            default => self::ROLE_END_USER,
+        };
+    }
+
     public function markOffboarded(int $userId): bool
     {
         if (!$this->db()->has('users', ['id' => $userId])) {
@@ -295,6 +335,7 @@ class User
     {
         $row['id'] = (int) $row['id'];
         $row['status'] = (string) ($row['status'] ?? self::STATUS_ACTIVE);
+        $row['role'] = $this->normalizeRole(isset($row['role']) ? (string) $row['role'] : null);
 
         if (array_key_exists('department', $row) && $row['department'] !== null) {
             $row['department'] = (string) $row['department'];

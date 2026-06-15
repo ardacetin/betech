@@ -22,18 +22,19 @@ ON DUPLICATE KEY UPDATE
     name = VALUES(name),
     fields = IF(categories.fields IS NULL, VALUES(fields), categories.fields);
 
-INSERT INTO users (external_id, name, email, department, password_hash, auth_provider) VALUES
-('admin', 'Sistem Yöneticisi', 'admin@betech.local', 'IT', '$2y$12$gKwuiE9St/UBa3ENhW7aT.yVeD1UPf2Ov9Fhcqa2PMoNAD.sHAt3e', 'local'),
-('USR-001', 'Ayşe Yılmaz', 'ayse.yilmaz@betech.local', 'IT', NULL, 'local'),
-('USR-002', 'Mehmet Demir', 'mehmet.demir@betech.local', 'Finans', NULL, 'local'),
-('USR-003', 'Zeynep Kaya', 'zeynep.kaya@betech.local', 'İnsan Kaynakları', NULL, 'local'),
-('USR-004', 'Can Öztürk', 'can.ozturk@betech.local', 'Operasyon', NULL, 'local'),
-('USR-005', 'Elif Arslan', 'elif.arslan@betech.local', 'IT', NULL, 'local')
+INSERT INTO users (external_id, name, email, department, password_hash, auth_provider, role) VALUES
+('admin', 'Sistem Yöneticisi', 'admin@betech.local', 'IT', '$2y$12$gKwuiE9St/UBa3ENhW7aT.yVeD1UPf2Ov9Fhcqa2PMoNAD.sHAt3e', 'local', 'super_admin'),
+('USR-001', 'Ayşe Yılmaz', 'ayse.yilmaz@betech.local', 'IT', NULL, 'local', 'end_user'),
+('USR-002', 'Mehmet Demir', 'mehmet.demir@betech.local', 'Finans', NULL, 'local', 'end_user'),
+('USR-003', 'Zeynep Kaya', 'zeynep.kaya@betech.local', 'İnsan Kaynakları', NULL, 'local', 'end_user'),
+('USR-004', 'Can Öztürk', 'can.ozturk@betech.local', 'Operasyon', NULL, 'local', 'end_user'),
+('USR-005', 'Elif Arslan', 'elif.arslan@betech.local', 'IT', NULL, 'local', 'end_user')
 ON DUPLICATE KEY UPDATE
     name = VALUES(name),
     email = VALUES(email),
     department = VALUES(department),
-    auth_provider = VALUES(auth_provider);
+    auth_provider = VALUES(auth_provider),
+    role = IF(email = 'admin@betech.local', 'super_admin', users.role);
 
 INSERT INTO settings (`key`, value) VALUES
 (

@@ -89,6 +89,51 @@ class AnalyticsService
     }
 
     /**
+     * @return array{
+     *     total: int,
+     *     summary_cards: array{total: int, deployed: int, in_storage: int, broken: int},
+     *     by_status: list<array{status: string, count: int, percentage: float}>,
+     *     by_category: list<array{category_id: int, category_name: string, count: int, percentage: float}>,
+     *     assignment: array{
+     *         assigned: int,
+     *         unassigned: int,
+     *         assigned_percentage: float,
+     *         unassigned_percentage: float
+     *     }
+     * }
+     */
+    public function getEmptyDashboardStats(): array
+    {
+        $byStatus = [];
+
+        foreach (self::KNOWN_STATUSES as $status) {
+            $byStatus[] = [
+                'status' => $status,
+                'count' => 0,
+                'percentage' => 0.0,
+            ];
+        }
+
+        return [
+            'total' => 0,
+            'summary_cards' => [
+                'total' => 0,
+                'deployed' => 0,
+                'in_storage' => 0,
+                'broken' => 0,
+            ],
+            'by_status' => $byStatus,
+            'by_category' => [],
+            'assignment' => [
+                'assigned' => 0,
+                'unassigned' => 0,
+                'assigned_percentage' => 0.0,
+                'unassigned_percentage' => 0.0,
+            ],
+        ];
+    }
+
+    /**
      * @return list<array{category_id: int, category_name: string, count: int, percentage: float}>
      */
     private function fetchCategoryBreakdown(int $total): array

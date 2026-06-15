@@ -12,6 +12,7 @@ use App\Controllers\SettingsController;
 use App\Controllers\UserController;
 use App\Middleware\AuthMiddleware;
 use App\Middleware\LanguageMiddleware;
+use App\Middleware\RoleMiddleware;
 use App\Models\Asset;
 use App\Models\AssetHistory;
 use App\Models\Category;
@@ -48,14 +49,17 @@ Translator::initialize($translator);
 $app->add(new LanguageMiddleware($translator));
 $app->addBodyParsingMiddleware();
 
+$userModel = new User($databaseService);
 $sessionAuthService = new SessionAuthService();
-$app->add(new AuthMiddleware($sessionAuthService, [
+$publicPaths = [
     '/login',
     '/logout',
     '/auth/oauth/{provider}',
     '/auth/callback/{provider}',
     '/assets/view/{id}',
-]));
+];
+$app->add(new RoleMiddleware($sessionAuthService, $publicPaths, RoleMiddleware::defaultRules()));
+$app->add(new AuthMiddleware($sessionAuthService, $publicPaths, $userModel));
 
 $app->addErrorMiddleware(
     $appConfig['debug'],
@@ -67,7 +71,6 @@ $assetModel = new Asset($databaseService);
 $assetHistoryModel = new AssetHistory($databaseService);
 $categoryModel = new Category($databaseService);
 $settingModel = new Setting($databaseService);
-$userModel = new User($databaseService);
 $userIntegrationFactory = new UserIntegrationFactory($databaseService, $settingModel);
 $viewRenderer = new ViewRenderer($rootPath . '/views');
 $qrCodeService = new QrCodeService($appConfig['url']);
@@ -84,10 +87,10 @@ $authController = new AuthController(
     $oauthService,
     $viewRenderer
 );
-$healthController = new HealthController($appConfig, $assetModel, $categoryModel, $viewRenderer, $qrCodeService, $analyticsService, $settingModel, $userModel);
-$assetController = new AssetController($assetModel, $assetHistoryModel, $userIntegrationFactory, $userModel);
+$healthController = new HealthController($appConfig, $assetModel, $categoryModel, $viewRenderer, $qrCodeService, $analyticsService, $settingModel, $userModel, $sessionAuthService);
+$assetController = new AssetController($assetModel, $assetHistoryModel, $userIntegrationFactory, $userModel, $sessionAuthService);
 $assetViewController = new AssetViewController($appConfig, $assetModel, $categoryModel, $viewRenderer);
-$assetTutanakController = new AssetTutanakController($assetModel, $settingModel, $userModel, $userIntegrationFactory, $zimmetTutanakService, $viewRenderer);
+$assetTutanakController = new AssetTutanakController($assetModel, $settingModel, $userModel, $userIntegrationFactory, $zimmetTutanakService, $viewRenderer, $sessionAuthService);
 $userController = new UserController($userIntegrationFactory, $userModel, $assetModel, $assetHistoryModel, $settingModel);
 $analyticsController = new AnalyticsController($analyticsService);
 $settingsController = new SettingsController($settingModel);
@@ -108,6 +111,7 @@ $app->post('/api/users/{id}/offboard', [$userController, 'offboard']);
 $app->get('/api/assets/{id}/tutanak', [$assetTutanakController, 'show']);
 $app->post('/api/assets', [$assetController, 'store']);
 $app->put('/api/assets/{id}', [$assetController, 'update']);
+$app->delete('/api/assets/{id}', [$assetController, 'destroy']);
 $app->get('/api/assets/{id}/history', [$assetController, 'history']);
 
 return [

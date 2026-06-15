@@ -85,7 +85,7 @@ class AuthController
                 return $this->redirectWithError($response, 'login_invalid_password', $redirectTarget);
             }
 
-            $this->sessionAuthService->login((int) $user['id']);
+            $this->sessionLoginFromUser($user);
 
             return $response->withHeader('Location', $redirectTarget)->withStatus(302);
         }
@@ -111,7 +111,7 @@ class AuthController
                 'provider_subject' => $ldapProfile['external_id'],
             ]);
 
-            $this->sessionAuthService->login((int) $user['id']);
+            $this->sessionLoginFromUser($user);
 
             return $response->withHeader('Location', $redirectTarget)->withStatus(302);
         }
@@ -158,7 +158,7 @@ class AuthController
         }
 
         $user = $this->userModel->provisionFromAuth($profile);
-        $this->sessionAuthService->login((int) $user['id']);
+        $this->sessionLoginFromUser($user);
 
         return $response
             ->withHeader('Location', '/')
@@ -177,6 +177,17 @@ class AuthController
         return $response
             ->withHeader('Location', $authorizationUrl)
             ->withStatus(302);
+    }
+
+    /**
+     * @param array<string, mixed> $user
+     */
+    private function sessionLoginFromUser(array $user): void
+    {
+        $this->sessionAuthService->login(
+            (int) $user['id'],
+            (string) ($user['role'] ?? User::ROLE_END_USER)
+        );
     }
 
     private function resolveRedirectTarget(ServerRequestInterface $request): string

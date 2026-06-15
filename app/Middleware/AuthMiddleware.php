@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Middleware;
 
+use App\Models\User;
 use App\Services\Auth\SessionAuthService;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
@@ -18,7 +19,8 @@ class AuthMiddleware implements MiddlewareInterface
      */
     public function __construct(
         private readonly SessionAuthService $sessionAuthService,
-        private readonly array $publicPaths = []
+        private readonly array $publicPaths = [],
+        private readonly ?User $userModel = null
     ) {
     }
 
@@ -33,6 +35,8 @@ class AuthMiddleware implements MiddlewareInterface
         }
 
         if ($this->sessionAuthService->isAuthenticated()) {
+            $this->syncSessionRoleFromDatabase();
+
             return $handler->handle($request);
         }
 
@@ -82,5 +86,20 @@ class AuthMiddleware implements MiddlewareInterface
         $accept = $request->getHeaderLine('Accept');
 
         return str_contains($accept, 'application/json');
+    }
+
+    private function syncSessionRoleFromDatabase(): void
+    {
+        if ($this->userModel === null) {
+            return;
+        }
+
+        $userId = $this->sessionAuthService->userId();
+
+        if ($userId === null) {
+            return;
+        }
+
+        $this->sessionAuthService->setRole($this->userModel->findRoleById($userId));
     }
 }

@@ -7,6 +7,7 @@ namespace App\Controllers;
 use App\Models\Asset;
 use App\Models\Setting;
 use App\Models\User;
+use App\Services\Auth\SessionAuthService;
 use App\Services\Auth\UserIntegrationFactory;
 use App\Services\Translator;
 use App\Services\ViewRenderer;
@@ -22,7 +23,8 @@ class AssetTutanakController
         private readonly User $userModel,
         private readonly UserIntegrationFactory $userIntegrationFactory,
         private readonly ZimmetTutanakService $zimmetTutanakService,
-        private readonly ViewRenderer $viewRenderer
+        private readonly ViewRenderer $viewRenderer,
+        private readonly SessionAuthService $sessionAuthService
     ) {
     }
 
@@ -38,6 +40,10 @@ class AssetTutanakController
 
         if ($asset === null) {
             return $this->renderError($response, __('tutanak_asset_not_found'), 404);
+        }
+
+        if (!$this->canAccessAsset($asset)) {
+            return $this->renderError($response, 'Bu tutanağa erişim yetkiniz bulunmuyor.', 403);
         }
 
         $userId = $asset['user_id'] ?? null;
@@ -108,5 +114,27 @@ class AssetTutanakController
         }
 
         return $this->userIntegrationFactory->make()->getUserById((string) $userId);
+    }
+
+    /**
+     * @param array<string, mixed> $asset
+     */
+    private function canAccessAsset(array $asset): bool
+    {
+        $role = $this->sessionAuthService->role();
+
+        if ($this->userModel->isOperationalRole($role)) {
+            return true;
+        }
+
+        $sessionUserId = $this->sessionAuthService->userId();
+
+        if ($sessionUserId === null) {
+            return false;
+        }
+
+        $assignedUserId = $asset['user_id'] ?? null;
+
+        return $assignedUserId !== null && (int) $assignedUserId === $sessionUserId;
     }
 }

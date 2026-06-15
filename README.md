@@ -24,6 +24,18 @@ Built with **PHP 8.1+**, **Slim 4**, **Medoo**, **MySQL** (with native JSON colu
 - On first request, `public/index.php` runs `DatabaseInitializer`, which applies `database/schema.sql`, incremental migrations, and `database/seeds.sql`.
 - No separate installer wizard: configure `.env`, point your web server at `public/`, and visit the application URL.
 
+### Role-based access control (RBAC)
+
+Betech enforces three session-scoped roles stored on the `users.role` column. `RoleMiddleware` guards API routes; the dashboard hides navigation and actions based on the active role.
+
+| Role | Scope |
+|------|--------|
+| **Super Admin** (`super_admin`) | Full access: Sistem Ayarları, auth driver configuration, permanent asset deletion, and all technician capabilities |
+| **Technician** (`technician`) | Operational access: create/edit/assign assets, print zimmet tutanak forms, search personnel, offboarding workflow, executive analytics |
+| **End User** (`end_user`) | Self-service only: simplified dashboard listing assets where `user_id` matches the signed-in user; may view history and print tutanak for own assignments |
+
+The seeded local administrator (`admin@betech.local`) receives the `super_admin` role. SSO/LDAP auto-provisioned accounts default to `end_user` until promoted in the database.
+
 ### Enterprise multi-provider authentication
 
 Self-hosted sign-in with admin-configurable providers (no shared identity pool):

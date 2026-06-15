@@ -22,6 +22,7 @@ CREATE TABLE IF NOT EXISTS users (
     email VARCHAR(255) NOT NULL,
     department VARCHAR(120) DEFAULT NULL,
     status VARCHAR(32) NOT NULL DEFAULT 'active',
+    role VARCHAR(32) NOT NULL DEFAULT 'end_user',
     password_hash VARCHAR(255) DEFAULT NULL,
     auth_provider VARCHAR(32) NOT NULL DEFAULT 'local',
     provider_subject VARCHAR(255) DEFAULT NULL,
@@ -33,6 +34,7 @@ CREATE TABLE IF NOT EXISTS users (
     KEY idx_users_name (name),
     KEY idx_users_department (department),
     KEY idx_users_status (status),
+    KEY idx_users_role (role),
     KEY idx_users_auth_provider (auth_provider),
     KEY idx_users_provider_subject (provider_subject)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

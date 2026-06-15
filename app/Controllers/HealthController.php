@@ -9,6 +9,7 @@ use App\Models\Category;
 use App\Models\Setting;
 use App\Models\User;
 use App\Services\AnalyticsService;
+use App\Services\Auth\SessionAuthService;
 use App\Services\QrCodeService;
 use App\Services\Translator;
 use App\Services\ViewRenderer;
@@ -28,29 +29,48 @@ class HealthController
         private readonly QrCodeService $qrCodeService,
         private readonly AnalyticsService $analyticsService,
         private readonly Setting $settingModel,
-        private readonly User $userModel
+        private readonly User $userModel,
+        private readonly SessionAuthService $sessionAuthService
     ) {
     }
 
     public function index(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
     {
-        $categories = $this->categoryModel->findAll();
-        $assets = $this->assetModel->findAllForDashboard();
-        $analytics = $this->analyticsService->getDashboardStats();
-        $settings = $this->settingModel->getAdminBundle();
-        $personnel = $this->userModel->findAllForPersonnel();
-        $assetCounts = $this->userModel->assignedAssetCountsByUserId();
-        $personnelRows = array_map(
-            static function (array $user) use ($assetCounts): array {
-                $userId = (int) $user['id'];
+        $userId = $this->sessionAuthService->userId() ?? 0;
+        $role = $this->sessionAuthService->role();
+        $isEndUser = $role === User::ROLE_END_USER;
+        $canManageAssets = $this->userModel->isOperationalRole($role);
+        $canAccessSettings = $this->userModel->isSuperAdmin($role);
+        $canAccessPersonnel = $canManageAssets;
 
-                return [
-                    ...$user,
-                    'assigned_asset_count' => $assetCounts[$userId] ?? 0,
-                ];
-            },
-            $personnel
-        );
+        $categories = $this->categoryModel->findAll();
+
+        if ($isEndUser) {
+            $assets = $userId > 0
+                ? $this->assetModel->findForDashboardByUserId($userId)
+                : [];
+            $analytics = $this->analyticsService->getEmptyDashboardStats();
+            $settings = [];
+            $personnelRows = [];
+        } else {
+            $assets = $this->assetModel->findAllForDashboard();
+            $analytics = $this->analyticsService->getDashboardStats();
+            $settings = $this->settingModel->getAdminBundle();
+            $personnel = $this->userModel->findAllForPersonnel();
+            $assetCounts = $this->userModel->assignedAssetCountsByUserId();
+            $personnelRows = array_map(
+                static function (array $user) use ($assetCounts): array {
+                    $personId = (int) $user['id'];
+
+                    return [
+                        ...$user,
+                        'assigned_asset_count' => $assetCounts[$personId] ?? 0,
+                    ];
+                },
+                $personnel
+            );
+        }
+
         $assetQrCodes = [];
 
         foreach ($assets as $asset) {
@@ -63,9 +83,15 @@ class HealthController
 
         $html = $this->viewRenderer->render('dashboard', [
             'appName' => 'Betech',
-            'pageTitle' => __('page_title'),
+            'pageTitle' => $isEndUser ? __('page_title_end_user') : __('page_title'),
             'environment' => $this->appConfig['env'],
             'locale' => Translator::instance()->getLocale(),
+            'userRole' => $role,
+            'canManageAssets' => $canManageAssets,
+            'canAccessSettings' => $canAccessSettings,
+            'canAccessPersonnel' => $canAccessPersonnel,
+            'isEndUser' => $isEndUser,
+            'isSuperAdmin' => $canAccessSettings,
             'assets' => $assets,
             'assetQrCodesJson' => json_encode($assetQrCodes, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE),
             'analytics' => $analytics,
@@ -78,7 +104,7 @@ class HealthController
             'settings' => $settings,
             'settingsJson' => json_encode($settings, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE),
             'globalCustomFieldsJson' => json_encode(
-                $settings['custom_fields'],
+                $settings['custom_fields'] ?? [],
                 JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE
             ),
             'personnel' => $personnelRows,

@@ -7,6 +7,7 @@ namespace App\Controllers;
 use App\Models\Asset;
 use App\Models\AssetHistory;
 use App\Models\User;
+use App\Services\Auth\SessionAuthService;
 use App\Services\Auth\UserIntegrationFactory;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
@@ -26,7 +27,8 @@ class AssetController
         private readonly Asset $assetModel,
         private readonly AssetHistory $assetHistoryModel,
         private readonly UserIntegrationFactory $userIntegrationFactory,
-        private readonly User $userModel
+        private readonly User $userModel,
+        private readonly SessionAuthService $sessionAuthService
     ) {
     }
 
@@ -165,7 +167,40 @@ class AssetController
             ]);
         }
 
-        if ($this->assetModel->findById($assetId) === null) {
+        $asset = $this->assetModel->findById($assetId);
+
+        if ($asset === null) {
+            return $this->jsonResponse($response, 404, [
+                'status' => 'error',
+                'message' => 'Asset not found.',
+            ]);
+        }
+
+        if (!$this->canAccessAsset($asset)) {
+            return $this->jsonResponse($response, 403, [
+                'status' => 'error',
+                'message' => 'Bu varlığa erişim yetkiniz bulunmuyor.',
+            ]);
+        }
+
+        return $this->jsonResponse($response, 200, [
+            'status' => 'success',
+            'data' => $this->assetHistoryModel->findByAssetId($assetId),
+        ]);
+    }
+
+    public function destroy(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
+    {
+        $assetId = (int) ($args['id'] ?? 0);
+
+        if ($assetId <= 0) {
+            return $this->jsonResponse($response, 400, [
+                'status' => 'error',
+                'message' => 'A valid asset id is required.',
+            ]);
+        }
+
+        if (!$this->assetModel->deletePermanently($assetId)) {
             return $this->jsonResponse($response, 404, [
                 'status' => 'error',
                 'message' => 'Asset not found.',
@@ -174,8 +209,30 @@ class AssetController
 
         return $this->jsonResponse($response, 200, [
             'status' => 'success',
-            'data' => $this->assetHistoryModel->findByAssetId($assetId),
+            'message' => 'Asset permanently deleted.',
         ]);
+    }
+
+    /**
+     * @param array<string, mixed> $asset
+     */
+    private function canAccessAsset(array $asset): bool
+    {
+        $role = $this->sessionAuthService->role();
+
+        if ($this->userModel->isOperationalRole($role)) {
+            return true;
+        }
+
+        $sessionUserId = $this->sessionAuthService->userId();
+
+        if ($sessionUserId === null) {
+            return false;
+        }
+
+        $assignedUserId = $asset['user_id'] ?? null;
+
+        return $assignedUserId !== null && (int) $assignedUserId === $sessionUserId;
     }
 
     /**

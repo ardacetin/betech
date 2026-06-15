@@ -64,6 +64,16 @@ class DatabaseInitializer
                     $this->applySqlFile($connection, $this->getUsersStatusColumnMigrationPath());
                     $warnings[] = 'Applied migration: added users.status column.';
                 }
+
+                if (!$this->usersAuthColumnsExist($connection)) {
+                    $this->applySqlFile($connection, $this->getUsersAuthColumnsMigrationPath());
+                    $warnings[] = 'Applied migration: added users authentication columns.';
+                }
+
+                if (!$this->usersRoleColumnExists($connection)) {
+                    $this->applySqlFile($connection, $this->getUsersRoleColumnMigrationPath());
+                    $warnings[] = 'Applied migration: added users.role column.';
+                }
             }
 
             if (is_readable($this->seedsPath)) {
@@ -137,6 +147,36 @@ class DatabaseInitializer
     private function getUsersStatusColumnMigrationPath(): string
     {
         return dirname($this->schemaPath) . '/migrations/004_add_users_status_column.sql';
+    }
+
+    private function getUsersAuthColumnsMigrationPath(): string
+    {
+        return dirname($this->schemaPath) . '/migrations/005_add_user_auth_columns.sql';
+    }
+
+    private function getUsersRoleColumnMigrationPath(): string
+    {
+        return dirname($this->schemaPath) . '/migrations/006_add_users_role_column.sql';
+    }
+
+    /**
+     * @param object $connection Medoo instance
+     */
+    private function usersAuthColumnsExist(object $connection): bool
+    {
+        $statement = $connection->query("SHOW COLUMNS FROM users LIKE 'password_hash'");
+
+        return $statement !== false && $statement->rowCount() > 0;
+    }
+
+    /**
+     * @param object $connection Medoo instance
+     */
+    private function usersRoleColumnExists(object $connection): bool
+    {
+        $statement = $connection->query("SHOW COLUMNS FROM users LIKE 'role'");
+
+        return $statement !== false && $statement->rowCount() > 0;
     }
 
     /**

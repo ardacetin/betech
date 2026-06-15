@@ -18,6 +18,13 @@ declare(strict_types=1);
  * @var string $personnelJson
  */
 
+$userRole = $userRole ?? 'end_user';
+$canManageAssets = $canManageAssets ?? false;
+$canAccessSettings = $canAccessSettings ?? false;
+$canAccessPersonnel = $canAccessPersonnel ?? false;
+$isEndUser = $isEndUser ?? false;
+$isSuperAdmin = $isSuperAdmin ?? false;
+
 $statusStyles = [
     'ready' => 'bg-sky-50 text-sky-700 ring-sky-600/20',
     'deployed' => 'bg-emerald-50 text-emerald-700 ring-emerald-600/20',
@@ -107,6 +114,10 @@ $i18nScript = json_encode([
     'offboard_network_error' => __('offboard_network_error'),
     'personnel_status_active' => __('personnel_status_active'),
     'personnel_status_offboarded' => __('personnel_status_offboarded'),
+    'delete_confirm' => __('delete_confirm'),
+    'delete_success' => __('delete_success'),
+    'delete_error' => __('delete_error'),
+    'delete_network_error' => __('delete_network_error'),
 ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
 ?>
 <div class="min-h-full" x-data="assetDashboard()">
@@ -128,12 +139,15 @@ $i18nScript = json_encode([
                     :class="activeView === 'assets' ? 'bg-zinc-100 text-zinc-900' : 'text-zinc-600 hover:bg-zinc-50'"
                 >
                     <span class="h-2 w-2 rounded-full" :class="activeView === 'assets' ? 'bg-zinc-900' : 'bg-zinc-300'"></span>
-                    <?= htmlspecialchars(__('nav_assets'), ENT_QUOTES, 'UTF-8') ?>
+                    <?= htmlspecialchars($isEndUser ? __('page_title_end_user') : __('nav_assets'), ENT_QUOTES, 'UTF-8') ?>
                 </button>
+                <?php if (!$isEndUser): ?>
                 <span class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-zinc-400">
                     <span class="h-2 w-2 rounded-full bg-zinc-300"></span>
                     <?= htmlspecialchars(__('nav_categories'), ENT_QUOTES, 'UTF-8') ?>
                 </span>
+                <?php endif; ?>
+                <?php if ($canAccessPersonnel): ?>
                 <button
                     type="button"
                     @click="activeView = 'personnel'"
@@ -143,6 +157,8 @@ $i18nScript = json_encode([
                     <span class="h-2 w-2 rounded-full" :class="activeView === 'personnel' ? 'bg-zinc-900' : 'bg-zinc-300'"></span>
                     <?= htmlspecialchars(__('nav_personnel'), ENT_QUOTES, 'UTF-8') ?>
                 </button>
+                <?php endif; ?>
+                <?php if ($canAccessSettings): ?>
                 <button
                     type="button"
                     @click="activeView = 'settings'; $nextTick(() => initQuillEditor())"
@@ -152,6 +168,7 @@ $i18nScript = json_encode([
                     <span class="h-2 w-2 rounded-full" :class="activeView === 'settings' ? 'bg-zinc-900' : 'bg-zinc-300'"></span>
                     <?= htmlspecialchars(__('nav_settings'), ENT_QUOTES, 'UTF-8') ?>
                 </button>
+                <?php endif; ?>
             </nav>
 
             <div class="border-t border-zinc-200 p-4 space-y-3">
@@ -190,7 +207,7 @@ $i18nScript = json_encode([
                         </div>
                         <button
                             type="button"
-                            x-show="activeView === 'assets'"
+                            x-show="activeView === 'assets' && canManageAssets"
                             @click="openAddModal()"
                             class="inline-flex items-center gap-2 rounded-xl bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white shadow-soft transition hover:bg-zinc-800"
                         >
@@ -203,6 +220,7 @@ $i18nScript = json_encode([
 
             <div class="mx-auto max-w-7xl space-y-8 px-6 py-8">
                 <div x-show="activeView === 'assets'" x-cloak class="space-y-8">
+                <?php if (!$isEndUser): ?>
                 <section class="space-y-4">
                     <div>
                         <h2 class="text-lg font-semibold tracking-tight text-zinc-900"><?= htmlspecialchars(__('analytics_title'), ENT_QUOTES, 'UTF-8') ?></h2>
@@ -302,11 +320,12 @@ $i18nScript = json_encode([
                         </article>
                     </div>
                 </section>
+                <?php endif; ?>
 
                 <section class="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-soft">
                     <div class="border-b border-zinc-200 px-6 py-4">
-                        <h2 class="text-lg font-semibold text-zinc-900"><?= htmlspecialchars(__('inventory_title'), ENT_QUOTES, 'UTF-8') ?></h2>
-                        <p class="mt-1 text-sm text-zinc-500"><?= htmlspecialchars(__('inventory_subtitle'), ENT_QUOTES, 'UTF-8') ?></p>
+                        <h2 class="text-lg font-semibold text-zinc-900"><?= htmlspecialchars($isEndUser ? __('inventory_title_end_user') : __('inventory_title'), ENT_QUOTES, 'UTF-8') ?></h2>
+                        <p class="mt-1 text-sm text-zinc-500"><?= htmlspecialchars($isEndUser ? __('inventory_subtitle_end_user') : __('inventory_subtitle'), ENT_QUOTES, 'UTF-8') ?></p>
                     </div>
 
                     <div class="overflow-x-auto">
@@ -326,9 +345,13 @@ $i18nScript = json_encode([
                                 <?php if ($assets === []): ?>
                                 <tr>
                                     <td colspan="7" class="px-6 py-12 text-center text-sm text-zinc-500">
+                                        <?php if ($isEndUser): ?>
+                                            <?= htmlspecialchars(__('empty_assets_end_user'), ENT_QUOTES, 'UTF-8') ?>
+                                        <?php else: ?>
                                         <?= htmlspecialchars(__('empty_assets_prefix'), ENT_QUOTES, 'UTF-8') ?>
                                         <span class="font-medium text-zinc-700"><?= htmlspecialchars(__('add_asset'), ENT_QUOTES, 'UTF-8') ?></span>
                                         <?= htmlspecialchars(__('empty_assets_suffix'), ENT_QUOTES, 'UTF-8') ?>
+                                        <?php endif; ?>
                                     </td>
                                 </tr>
                                 <?php else: ?>
@@ -389,6 +412,7 @@ $i18nScript = json_encode([
                                                 >
                                                     <?= htmlspecialchars(__('action_view_history'), ENT_QUOTES, 'UTF-8') ?>
                                                 </button>
+                                                <?php if ($canManageAssets): ?>
                                                 <button
                                                     type="button"
                                                     @click='openEditModal(<?= json_encode([
@@ -403,6 +427,7 @@ $i18nScript = json_encode([
                                                 >
                                                     <?= htmlspecialchars(__('action_assign'), ENT_QUOTES, 'UTF-8') ?>
                                                 </button>
+                                                <?php endif; ?>
                                                 <?php if (!empty($asset['user_id'])): ?>
                                                 <button
                                                     type="button"
@@ -410,6 +435,15 @@ $i18nScript = json_encode([
                                                     class="rounded-lg border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-700 transition hover:bg-zinc-50"
                                                 >
                                                     <?= htmlspecialchars(__('action_print_tutanak'), ENT_QUOTES, 'UTF-8') ?>
+                                                </button>
+                                                <?php endif; ?>
+                                                <?php if ($isSuperAdmin): ?>
+                                                <button
+                                                    type="button"
+                                                    @click="deleteAsset(<?= (int) $asset['id'] ?>)"
+                                                    class="rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-medium text-rose-700 transition hover:bg-rose-50"
+                                                >
+                                                    <?= htmlspecialchars(__('action_delete_asset'), ENT_QUOTES, 'UTF-8') ?>
                                                 </button>
                                                 <?php endif; ?>
                                             </div>
@@ -423,8 +457,12 @@ $i18nScript = json_encode([
                 </section>
                 </div>
 
+                <?php if ($canAccessSettings): ?>
                 <?php require __DIR__ . '/partials/settings_panel.php'; ?>
+                <?php endif; ?>
+                <?php if ($canAccessPersonnel): ?>
                 <?php require __DIR__ . '/partials/personnel_panel.php'; ?>
+                <?php endif; ?>
             </div>
         </main>
     </div>
@@ -716,13 +754,18 @@ $i18nScript = json_encode([
     function assetDashboard() {
         return {
             activeView: 'assets',
+            userRole: <?= json_encode($userRole, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
+            canManageAssets: <?= $canManageAssets ? 'true' : 'false' ?>,
+            canAccessSettings: <?= $canAccessSettings ? 'true' : 'false' ?>,
+            canAccessPersonnel: <?= $canAccessPersonnel ? 'true' : 'false' ?>,
+            isSuperAdmin: <?= $isSuperAdmin ? 'true' : 'false' ?>,
             pageTitles: {
-                assets: <?= json_encode($pageTitle, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
+                assets: <?= json_encode($isEndUser ? __('page_title_end_user') : $pageTitle, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 settings: <?= json_encode(__('settings_page_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 personnel: <?= json_encode(__('personnel_page_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
             },
             pageSubtitles: {
-                assets: <?= json_encode(__('page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
+                assets: <?= json_encode($isEndUser ? __('page_subtitle_end_user') : __('page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 settings: <?= json_encode(__('settings_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 personnel: <?= json_encode(__('personnel_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
             },
@@ -844,6 +887,31 @@ $i18nScript = json_encode([
             },
             printTutanak(assetId) {
                 window.open(`/api/assets/${assetId}/tutanak`, '_blank', 'noopener,noreferrer');
+            },
+            async deleteAsset(assetId) {
+                if (!assetId || !window.confirm(window.__i18n.delete_confirm)) {
+                    return;
+                }
+
+                try {
+                    const response = await fetch(`/api/assets/${assetId}`, {
+                        method: 'DELETE',
+                        headers: {
+                            'Accept': 'application/json',
+                        },
+                    });
+                    const result = await response.json();
+
+                    if (!response.ok) {
+                        window.alert(result.message || window.__i18n.delete_error);
+                        return;
+                    }
+
+                    window.alert(result.message || window.__i18n.delete_success);
+                    window.location.reload();
+                } catch (error) {
+                    window.alert(window.__i18n.delete_network_error);
+                }
             },
             async startOffboarding(person) {
                 if (!person?.id || !window.confirm(window.__i18n.offboard_confirm)) {

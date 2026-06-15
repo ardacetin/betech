@@ -119,6 +119,60 @@ class Asset
     }
 
     /**
+     * Fetch assigned assets with category names for end-user dashboard display.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function findForDashboardByUserId(int $userId): array
+    {
+        $rows = $this->db()->select('assets', [
+            '[>]categories' => ['category_id' => 'id'],
+            '[>]users' => ['user_id' => 'id'],
+        ], [
+            'assets.id',
+            'assets.asset_tag',
+            'assets.serial_number',
+            'assets.name',
+            'assets.category_id',
+            'assets.status',
+            'assets.user_id',
+            'assets.properties',
+            'assets.created_at',
+            'assets.updated_at',
+            'category_name' => 'categories.name',
+            'user_name' => 'users.name',
+        ], [
+            'assets.user_id' => $userId,
+            'ORDER' => ['assets.id' => 'DESC'],
+        ]);
+
+        return array_map(
+            fn (array $row): array => $this->normalizeRow($row),
+            $rows
+        );
+    }
+
+    public function isAssignedToUser(int $assetId, int $userId): bool
+    {
+        return $this->db()->has('assets', [
+            'id' => $assetId,
+            'user_id' => $userId,
+        ]);
+    }
+
+    public function deletePermanently(int $assetId): bool
+    {
+        if (!$this->db()->has('assets', ['id' => $assetId])) {
+            return false;
+        }
+
+        $this->db()->delete('asset_histories', ['asset_id' => $assetId]);
+        $this->db()->delete('assets', ['id' => $assetId]);
+
+        return true;
+    }
+
+    /**
      * @return array{total: int, deployed: int, in_storage: int, broken: int}
      */
     public function getMetrics(): array
