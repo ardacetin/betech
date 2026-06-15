@@ -19,7 +19,7 @@ Built with **PHP 8.1+**, **Slim 4**, **Medoo**, **MySQL** (with native JSON colu
 
 - Category definitions include a JSON `fields` schema (text, number, textarea).
 - The dashboard loads field definitions at runtime and renders inputs with **Alpine.js**—no code changes required when categories evolve.
-- **Super Admins and Technicians** can manage categories from the active **Kategoriler** view: create, edit, and delete categories with a built-in **dynamic field builder** (label, internal name, and type per field).
+- **Super Admins** manage categories from **Sistem Ayarları → Kategoriler**: create, edit, and delete categories with a built-in **dynamic field builder** (label, internal name, and type per field).
 - Category CRUD is exposed via `GET/POST/PUT/DELETE /api/categories`; the `fields` payload is persisted to the `categories.fields` JSON column and immediately drives asset create/edit forms.
 - Deletion is blocked when assets still reference the category, preventing orphaned records.
 
@@ -27,7 +27,7 @@ Built with **PHP 8.1+**, **Slim 4**, **Medoo**, **MySQL** (with native JSON colu
 
 - **Locations** table stores campus/building context (`name`, `building`, `description`) for classrooms, server rooms, and other physical areas.
 - Assets may have a `user_id`, a `location_id`, or both—personnel assignment and room placement are independent.
-- **Super Admins and Technicians** manage locations from the active **Lokasyonlar** view with full CRUD via `GET/POST/PUT/DELETE /api/locations`.
+- **Super Admins** manage locations from **Sistem Ayarları → Lokasyonlar** with full CRUD via `GET/POST/PUT/DELETE /api/locations`.
 - Location changes are written to `asset_histories` (e.g. “Varlık lokasyona taşındı: Sunser Odası”).
 - Legacy databases self-heal on boot: `DatabaseInitializer` creates the `locations` table and adds `assets.location_id` when missing.
 
@@ -55,7 +55,24 @@ BT Yönetim Sistemi (ITMS) enforces three session-scoped roles stored on the `us
 | **Technician** (`technician`) | Operational access: create/edit/assign assets, print zimmet tutanak forms, search personnel, offboarding workflow, executive analytics |
 | **End User** (`end_user`) | Self-service only: simplified dashboard listing assets where `user_id` matches the signed-in user; may view history and print tutanak for own assignments |
 
-The seeded local administrator (`admin@betech.local`) receives the `super_admin` role. SSO/LDAP auto-provisioned accounts default to `end_user` until promoted in the database.
+The seeded local administrator (`admin@betech.local`) receives the `super_admin` role. SSO/LDAP auto-provisioned accounts default to `end_user` (Personnel) until promoted under **Sistem Kullanıcıları**.
+
+### System Users vs Personnel (Operators vs Asset Holders)
+
+ITMS separates **who operates the platform** from **who receives assets**:
+
+| Concept | Turkish UI | Role | Purpose |
+|---------|------------|------|---------|
+| **System Users** | Sistem Kullanıcıları | `super_admin`, `technician` | Accounts that sign in to the BTMS operations dashboard. Super Admins manage these accounts and assign roles. |
+| **Personnel** | Personel / Personel Rehberi | `end_user` | Employees synced from LDAP/Google (or added manually for zimmet). Used for asset assignment, transfer, and offboarding—not for granting dashboard operator access. |
+
+API endpoints:
+
+- `GET /api/system-users`, `POST /api/system-users`, `PUT /api/system-users/{id}` — Super Admin only; operator account lifecycle.
+- `GET /api/personnel` (alias: `GET /api/users`) — Technicians and Super Admins; personnel directory for zimmet workflows.
+- `POST /api/users` — Manual personnel record for zimmet when directory search has no match (`end_user`).
+
+The main sidebar stays operational (**Envanterler**, **Yazılım & Lisanslar**, **Personel**, **Sistem Kullanıcıları**). Configuration (**Kategoriler**, **Lokasyonlar**, auth, zimmet template) lives under **Sistem Ayarları** tabs.
 
 ### Enterprise multi-provider authentication
 

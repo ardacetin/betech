@@ -41,6 +41,7 @@ class HealthController
         $isEndUser = $role === User::ROLE_END_USER;
         $canManageAssets = $this->userModel->isOperationalRole($role);
         $canAccessSettings = $this->userModel->isSuperAdmin($role);
+        $canAccessSystemUsers = $canAccessSettings;
         $canAccessPersonnel = $canManageAssets;
 
         $categories = $this->categoryModel->findAll();
@@ -90,6 +91,7 @@ class HealthController
             'canManageAssets' => $canManageAssets,
             'canAccessSettings' => $canAccessSettings,
             'canAccessPersonnel' => $canAccessPersonnel,
+            'canAccessSystemUsers' => $canAccessSystemUsers,
             'isEndUser' => $isEndUser,
             'isSuperAdmin' => $canAccessSettings,
             'assets' => $assets,

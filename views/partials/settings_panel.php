@@ -8,7 +8,34 @@ declare(strict_types=1);
         <p class="mt-1 text-sm text-zinc-500"><?= htmlspecialchars(__('settings_page_subtitle'), ENT_QUOTES, 'UTF-8') ?></p>
     </div>
 
-    <form @submit.prevent="saveSettings" class="space-y-6">
+    <nav class="flex flex-wrap gap-2 border-b border-zinc-200 pb-1">
+        <button
+            type="button"
+            @click="settingsTab = 'general'"
+            class="rounded-lg px-3 py-2 text-sm font-medium transition"
+            :class="settingsTab === 'general' ? 'bg-zinc-900 text-white' : 'text-zinc-600 hover:bg-zinc-100'"
+        >
+            <?= htmlspecialchars(__('settings_tab_general'), ENT_QUOTES, 'UTF-8') ?>
+        </button>
+        <button
+            type="button"
+            @click="settingsTab = 'categories'; fetchCategories()"
+            class="rounded-lg px-3 py-2 text-sm font-medium transition"
+            :class="settingsTab === 'categories' ? 'bg-zinc-900 text-white' : 'text-zinc-600 hover:bg-zinc-100'"
+        >
+            <?= htmlspecialchars(__('settings_tab_categories'), ENT_QUOTES, 'UTF-8') ?>
+        </button>
+        <button
+            type="button"
+            @click="settingsTab = 'locations'; fetchLocations()"
+            class="rounded-lg px-3 py-2 text-sm font-medium transition"
+            :class="settingsTab === 'locations' ? 'bg-zinc-900 text-white' : 'text-zinc-600 hover:bg-zinc-100'"
+        >
+            <?= htmlspecialchars(__('settings_tab_locations'), ENT_QUOTES, 'UTF-8') ?>
+        </button>
+    </nav>
+
+    <form x-show="settingsTab === 'general'" @submit.prevent="saveSettings" class="space-y-6">
         <article class="rounded-2xl border border-zinc-200 bg-white p-6 shadow-soft">
             <h3 class="text-sm font-semibold text-zinc-900"><?= htmlspecialchars(__('settings_auth_title'), ENT_QUOTES, 'UTF-8') ?></h3>
             <p class="mt-1 text-xs text-zinc-500"><?= htmlspecialchars(__('settings_auth_hint'), ENT_QUOTES, 'UTF-8') ?></p>

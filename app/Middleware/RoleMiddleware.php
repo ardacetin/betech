@@ -84,17 +84,17 @@ class RoleMiddleware implements MiddlewareInterface
             [
                 'methods' => ['POST'],
                 'pattern' => '/api/categories',
-                'roles' => $operational,
+                'roles' => [User::ROLE_SUPER_ADMIN],
             ],
             [
                 'methods' => ['PUT'],
                 'pattern' => '/api/categories/{id}',
-                'roles' => $operational,
+                'roles' => [User::ROLE_SUPER_ADMIN],
             ],
             [
                 'methods' => ['DELETE'],
                 'pattern' => '/api/categories/{id}',
-                'roles' => $operational,
+                'roles' => [User::ROLE_SUPER_ADMIN],
             ],
             [
                 'methods' => ['GET'],
@@ -104,17 +104,17 @@ class RoleMiddleware implements MiddlewareInterface
             [
                 'methods' => ['POST'],
                 'pattern' => '/api/locations',
-                'roles' => $operational,
+                'roles' => [User::ROLE_SUPER_ADMIN],
             ],
             [
                 'methods' => ['PUT'],
                 'pattern' => '/api/locations/{id}',
-                'roles' => $operational,
+                'roles' => [User::ROLE_SUPER_ADMIN],
             ],
             [
                 'methods' => ['DELETE'],
                 'pattern' => '/api/locations/{id}',
-                'roles' => $operational,
+                'roles' => [User::ROLE_SUPER_ADMIN],
             ],
             [
                 'methods' => ['GET'],
@@ -148,8 +148,28 @@ class RoleMiddleware implements MiddlewareInterface
             ],
             [
                 'methods' => ['GET'],
+                'pattern' => '/api/personnel',
+                'roles' => $operational,
+            ],
+            [
+                'methods' => ['GET'],
                 'pattern' => '/api/users',
                 'roles' => $operational,
+            ],
+            [
+                'methods' => ['GET'],
+                'pattern' => '/api/system-users',
+                'roles' => [User::ROLE_SUPER_ADMIN],
+            ],
+            [
+                'methods' => ['POST'],
+                'pattern' => '/api/system-users',
+                'roles' => [User::ROLE_SUPER_ADMIN],
+            ],
+            [
+                'methods' => ['PUT'],
+                'pattern' => '/api/system-users/{id}',
+                'roles' => [User::ROLE_SUPER_ADMIN],
             ],
             [
                 'methods' => ['POST'],

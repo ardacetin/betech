@@ -22,6 +22,7 @@ $userRole = $userRole ?? 'end_user';
 $canManageAssets = $canManageAssets ?? false;
 $canAccessSettings = $canAccessSettings ?? false;
 $canAccessPersonnel = $canAccessPersonnel ?? false;
+$canAccessSystemUsers = $canAccessSystemUsers ?? false;
 $isEndUser = $isEndUser ?? false;
 $isSuperAdmin = $isSuperAdmin ?? false;
 
@@ -177,6 +178,17 @@ $i18nScript = json_encode([
     'location_delete_confirm' => __('location_delete_confirm'),
     'location_delete_in_use' => __('location_delete_in_use'),
     'history_action_location_moved' => __('history_action_location_moved'),
+    'system_users_fetch_error' => __('system_users_fetch_error'),
+    'system_users_network_error' => __('system_users_network_error'),
+    'system_user_create_success' => __('system_user_create_success'),
+    'system_user_update_success' => __('system_user_update_success'),
+    'system_user_create_error' => __('system_user_create_error'),
+    'system_user_update_error' => __('system_user_update_error'),
+    'system_user_password_optional' => __('system_user_password_optional'),
+    'auth_provider_local' => __('auth_provider_local'),
+    'auth_provider_ldap' => __('auth_provider_ldap'),
+    'auth_provider_google' => __('auth_provider_google'),
+    'auth_provider_microsoft' => __('auth_provider_microsoft'),
     'licenses_fetch_error' => __('licenses_fetch_error'),
     'licenses_network_error' => __('licenses_network_error'),
     'license_create_success' => __('license_create_success'),
@@ -218,24 +230,6 @@ $i18nScript = json_encode([
                 <?php if ($canManageAssets): ?>
                 <button
                     type="button"
-                    @click="activeView = 'categories'; fetchCategories()"
-                    class="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm font-medium transition"
-                    :class="activeView === 'categories' ? 'bg-zinc-100 text-zinc-900' : 'text-zinc-600 hover:bg-zinc-50'"
-                >
-                    <span class="h-2 w-2 rounded-full" :class="activeView === 'categories' ? 'bg-zinc-900' : 'bg-zinc-300'"></span>
-                    <?= htmlspecialchars(__('nav_categories'), ENT_QUOTES, 'UTF-8') ?>
-                </button>
-                <button
-                    type="button"
-                    @click="activeView = 'locations'; fetchLocations()"
-                    class="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm font-medium transition"
-                    :class="activeView === 'locations' ? 'bg-zinc-100 text-zinc-900' : 'text-zinc-600 hover:bg-zinc-50'"
-                >
-                    <span class="h-2 w-2 rounded-full" :class="activeView === 'locations' ? 'bg-zinc-900' : 'bg-zinc-300'"></span>
-                    <?= htmlspecialchars(__('nav_locations'), ENT_QUOTES, 'UTF-8') ?>
-                </button>
-                <button
-                    type="button"
                     @click="activeView = 'licenses'; fetchLicenses()"
                     class="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm font-medium transition"
                     :class="activeView === 'licenses' ? 'bg-zinc-100 text-zinc-900' : 'text-zinc-600 hover:bg-zinc-50'"
@@ -255,10 +249,21 @@ $i18nScript = json_encode([
                     <?= htmlspecialchars(__('nav_personnel'), ENT_QUOTES, 'UTF-8') ?>
                 </button>
                 <?php endif; ?>
+                <?php if ($canAccessSystemUsers): ?>
+                <button
+                    type="button"
+                    @click="activeView = 'system_users'; fetchSystemUsers()"
+                    class="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm font-medium transition"
+                    :class="activeView === 'system_users' ? 'bg-zinc-100 text-zinc-900' : 'text-zinc-600 hover:bg-zinc-50'"
+                >
+                    <span class="h-2 w-2 rounded-full" :class="activeView === 'system_users' ? 'bg-zinc-900' : 'bg-zinc-300'"></span>
+                    <?= htmlspecialchars(__('nav_system_users'), ENT_QUOTES, 'UTF-8') ?>
+                </button>
+                <?php endif; ?>
                 <?php if ($canAccessSettings): ?>
                 <button
                     type="button"
-                    @click="activeView = 'settings'; $nextTick(() => initQuillEditor())"
+                    @click="activeView = 'settings'; settingsTab = 'general'; $nextTick(() => initQuillEditor())"
                     class="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm font-medium transition"
                     :class="activeView === 'settings' ? 'bg-zinc-100 text-zinc-900' : 'text-zinc-600 hover:bg-zinc-50'"
                 >
@@ -313,7 +318,7 @@ $i18nScript = json_encode([
                         </button>
                         <button
                             type="button"
-                            x-show="activeView === 'categories' && canManageAssets"
+                            x-show="activeView === 'settings' && settingsTab === 'categories' && canAccessSettings"
                             @click="openCategoryModal()"
                             class="inline-flex items-center gap-2 rounded-xl bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white shadow-soft transition hover:bg-zinc-800"
                         >
@@ -322,12 +327,21 @@ $i18nScript = json_encode([
                         </button>
                         <button
                             type="button"
-                            x-show="activeView === 'locations' && canManageAssets"
+                            x-show="activeView === 'settings' && settingsTab === 'locations' && canAccessSettings"
                             @click="openLocationModal()"
                             class="inline-flex items-center gap-2 rounded-xl bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white shadow-soft transition hover:bg-zinc-800"
                         >
                             <span class="text-lg leading-none">+</span>
                             <?= htmlspecialchars(__('add_location'), ENT_QUOTES, 'UTF-8') ?>
+                        </button>
+                        <button
+                            type="button"
+                            x-show="activeView === 'system_users' && canAccessSystemUsers"
+                            @click="openSystemUserModal()"
+                            class="inline-flex items-center gap-2 rounded-xl bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white shadow-soft transition hover:bg-zinc-800"
+                        >
+                            <span class="text-lg leading-none">+</span>
+                            <?= htmlspecialchars(__('add_system_user'), ENT_QUOTES, 'UTF-8') ?>
                         </button>
                         <button
                             type="button"
@@ -626,15 +640,18 @@ $i18nScript = json_encode([
                 </div>
 
                 <?php if ($canManageAssets): ?>
-                <?php require __DIR__ . '/partials/categories_panel.php'; ?>
-                <?php require __DIR__ . '/partials/locations_panel.php'; ?>
                 <?php require __DIR__ . '/partials/licenses_panel.php'; ?>
                 <?php endif; ?>
                 <?php if ($canAccessSettings): ?>
                 <?php require __DIR__ . '/partials/settings_panel.php'; ?>
+                <?php require __DIR__ . '/partials/categories_panel.php'; ?>
+                <?php require __DIR__ . '/partials/locations_panel.php'; ?>
                 <?php endif; ?>
                 <?php if ($canAccessPersonnel): ?>
                 <?php require __DIR__ . '/partials/personnel_panel.php'; ?>
+                <?php endif; ?>
+                <?php if ($canAccessSystemUsers): ?>
+                <?php require __DIR__ . '/partials/system_users_panel.php'; ?>
                 <?php endif; ?>
             </div>
         </main>
@@ -1238,6 +1255,61 @@ $i18nScript = json_encode([
     </div>
 
     <div
+        x-show="isSystemUserModalOpen"
+        x-cloak
+        class="fixed inset-0 z-[60] flex items-center justify-center px-4"
+        @keydown.escape.window="closeSystemUserModal()"
+    >
+        <div class="absolute inset-0 bg-zinc-900/40 backdrop-blur-sm" @click="closeSystemUserModal()"></div>
+
+        <div class="relative w-full max-w-xl rounded-2xl border border-zinc-200 bg-white shadow-soft">
+            <div class="flex items-center justify-between border-b border-zinc-200 px-6 py-4">
+                <div>
+                    <h3 class="text-lg font-semibold text-zinc-900" x-text="systemUserForm.id ? '<?= htmlspecialchars(__('edit_system_user'), ENT_QUOTES, 'UTF-8') ?>' : '<?= htmlspecialchars(__('add_system_user'), ENT_QUOTES, 'UTF-8') ?>'"></h3>
+                    <p class="mt-1 text-sm text-zinc-500"><?= htmlspecialchars(__('system_user_modal_subtitle'), ENT_QUOTES, 'UTF-8') ?></p>
+                </div>
+                <button type="button" @click="closeSystemUserModal()" class="rounded-lg p-2 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600">&times;</button>
+            </div>
+
+            <form @submit.prevent="submitSystemUserForm" class="px-6 py-5">
+                <div class="grid gap-4 sm:grid-cols-2">
+                    <label class="block sm:col-span-2">
+                        <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('system_users_col_name'), ENT_QUOTES, 'UTF-8') ?></span>
+                        <input type="text" x-model="systemUserForm.name" required class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4">
+                    </label>
+                    <label class="block sm:col-span-2">
+                        <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('system_users_col_email'), ENT_QUOTES, 'UTF-8') ?></span>
+                        <input type="email" x-model="systemUserForm.email" required class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4">
+                    </label>
+                    <label class="block sm:col-span-1">
+                        <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('system_users_col_role'), ENT_QUOTES, 'UTF-8') ?></span>
+                        <select x-model="systemUserForm.role" class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4">
+                            <option value="super_admin"><?= htmlspecialchars(__('role_super_admin'), ENT_QUOTES, 'UTF-8') ?></option>
+                            <option value="technician"><?= htmlspecialchars(__('role_technician'), ENT_QUOTES, 'UTF-8') ?></option>
+                        </select>
+                    </label>
+                    <label class="block sm:col-span-1">
+                        <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('system_user_password_label'), ENT_QUOTES, 'UTF-8') ?></span>
+                        <input type="password" x-model="systemUserForm.password" :required="!systemUserForm.id" minlength="8" class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4" :placeholder="systemUserForm.id ? window.__i18n.system_user_password_optional : ''">
+                    </label>
+                </div>
+
+                <p x-show="systemUserFormError" x-cloak class="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700" x-text="systemUserFormError"></p>
+
+                <div class="mt-6 flex items-center justify-end gap-3 border-t border-zinc-200 pt-5">
+                    <button type="button" @click="closeSystemUserModal()" :disabled="isSystemUserSubmitting" class="rounded-xl border border-zinc-200 px-4 py-2.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60">
+                        <?= htmlspecialchars(__('cancel'), ENT_QUOTES, 'UTF-8') ?>
+                    </button>
+                    <button type="submit" :disabled="isSystemUserSubmitting" class="inline-flex items-center gap-2 rounded-xl bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60">
+                        <span x-show="isSystemUserSubmitting"><?= htmlspecialchars(__('saving'), ENT_QUOTES, 'UTF-8') ?></span>
+                        <span x-show="!isSystemUserSubmitting"><?= htmlspecialchars(__('save_changes'), ENT_QUOTES, 'UTF-8') ?></span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div
         x-show="isLicenseModalOpen"
         x-cloak
         class="fixed inset-0 z-[60] flex items-center justify-center px-4"
@@ -1451,22 +1523,22 @@ $i18nScript = json_encode([
             canManageAssets: <?= $canManageAssets ? 'true' : 'false' ?>,
             canAccessSettings: <?= $canAccessSettings ? 'true' : 'false' ?>,
             canAccessPersonnel: <?= $canAccessPersonnel ? 'true' : 'false' ?>,
+            canAccessSystemUsers: <?= $canAccessSystemUsers ? 'true' : 'false' ?>,
             isSuperAdmin: <?= $isSuperAdmin ? 'true' : 'false' ?>,
+            settingsTab: 'general',
             pageTitles: {
                 assets: <?= json_encode($isEndUser ? __('page_title_end_user') : $pageTitle, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
-                categories: <?= json_encode(__('categories_page_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
-                locations: <?= json_encode(__('locations_page_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 licenses: <?= json_encode(__('licenses_page_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 settings: <?= json_encode(__('settings_page_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 personnel: <?= json_encode(__('personnel_page_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
+                system_users: <?= json_encode(__('system_users_page_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
             },
             pageSubtitles: {
                 assets: <?= json_encode($isEndUser ? __('page_subtitle_end_user') : __('page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
-                categories: <?= json_encode(__('categories_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
-                locations: <?= json_encode(__('locations_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 licenses: <?= json_encode(__('licenses_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 settings: <?= json_encode(__('settings_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 personnel: <?= json_encode(__('personnel_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
+                system_users: <?= json_encode(__('system_users_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
             },
             isAddOpen: false,
             isEditOpen: false,
@@ -1505,6 +1577,20 @@ $i18nScript = json_encode([
                 description: '',
             },
             locationFormError: '',
+            systemUsers: [],
+            systemUsersLoading: false,
+            systemUsersError: '',
+            systemUsersSuccessMessage: '',
+            isSystemUserModalOpen: false,
+            isSystemUserSubmitting: false,
+            systemUserForm: {
+                id: null,
+                name: '',
+                email: '',
+                role: 'technician',
+                password: '',
+            },
+            systemUserFormError: '',
             licenses: [],
             licensesLoading: false,
             licensesError: '',
@@ -1660,6 +1746,156 @@ $i18nScript = json_encode([
                 return status === 'offboarded'
                     ? window.__i18n.personnel_status_offboarded
                     : window.__i18n.personnel_status_active;
+            },
+            resolveAuthProviderLabel(provider) {
+                const key = String(provider || 'local');
+                const labels = {
+                    local: window.__i18n.auth_provider_local,
+                    ldap: window.__i18n.auth_provider_ldap,
+                    google: window.__i18n.auth_provider_google,
+                    microsoft: window.__i18n.auth_provider_microsoft,
+                };
+
+                return labels[key] || key;
+            },
+            async fetchSystemUsers() {
+                if (!this.canAccessSystemUsers) {
+                    return;
+                }
+
+                this.systemUsersLoading = true;
+                this.systemUsersError = '';
+
+                try {
+                    const response = await fetch('/api/system-users', {
+                        headers: { 'Accept': 'application/json' },
+                    });
+                    const result = await response.json();
+
+                    if (!response.ok) {
+                        this.systemUsersError = result.message || window.__i18n.system_users_fetch_error;
+                        this.systemUsers = [];
+                        return;
+                    }
+
+                    this.systemUsers = Array.isArray(result.data) ? result.data : [];
+                } catch (error) {
+                    this.systemUsersError = window.__i18n.system_users_network_error;
+                    this.systemUsers = [];
+                } finally {
+                    this.systemUsersLoading = false;
+                }
+            },
+            openSystemUserModal(user = null) {
+                this.systemUserFormError = '';
+                this.systemUsersSuccessMessage = '';
+
+                if (user) {
+                    this.systemUserForm = {
+                        id: user.id,
+                        name: user.name || '',
+                        email: user.email || '',
+                        role: user.role || 'technician',
+                        password: '',
+                    };
+                } else {
+                    this.systemUserForm = {
+                        id: null,
+                        name: '',
+                        email: '',
+                        role: 'technician',
+                        password: '',
+                    };
+                }
+
+                this.isSystemUserModalOpen = true;
+            },
+            closeSystemUserModal() {
+                if (this.isSystemUserSubmitting) {
+                    return;
+                }
+
+                this.isSystemUserModalOpen = false;
+                this.systemUserFormError = '';
+            },
+            async submitSystemUserForm() {
+                this.systemUserFormError = '';
+                this.isSystemUserSubmitting = true;
+
+                const isEdit = Boolean(this.systemUserForm.id);
+                const payload = {
+                    name: this.systemUserForm.name,
+                    email: this.systemUserForm.email,
+                    role: this.systemUserForm.role,
+                };
+
+                if (this.systemUserForm.password) {
+                    payload.password = this.systemUserForm.password;
+                }
+
+                try {
+                    const response = await fetch(
+                        isEdit ? `/api/system-users/${this.systemUserForm.id}` : '/api/system-users',
+                        {
+                            method: isEdit ? 'PUT' : 'POST',
+                            headers: {
+                                'Accept': 'application/json',
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify(payload),
+                        }
+                    );
+                    const result = await response.json();
+
+                    if (!response.ok) {
+                        this.systemUserFormError = result.message || (isEdit
+                            ? window.__i18n.system_user_update_error
+                            : window.__i18n.system_user_create_error);
+                        return;
+                    }
+
+                    this.isSystemUserModalOpen = false;
+                    this.systemUsersSuccessMessage = result.message || (isEdit
+                        ? window.__i18n.system_user_update_success
+                        : window.__i18n.system_user_create_success);
+                    await this.fetchSystemUsers();
+                } catch (error) {
+                    this.systemUserFormError = window.__i18n.system_users_network_error;
+                } finally {
+                    this.isSystemUserSubmitting = false;
+                }
+            },
+            async updateSystemUserRole(user, role) {
+                if (!user?.id || !role || user.role === role) {
+                    return;
+                }
+
+                this.systemUsersSuccessMessage = '';
+                this.systemUsersError = '';
+
+                try {
+                    const response = await fetch(`/api/system-users/${user.id}`, {
+                        method: 'PUT',
+                        headers: {
+                            'Accept': 'application/json',
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ role }),
+                    });
+                    const result = await response.json();
+
+                    if (!response.ok) {
+                        this.systemUsersError = result.message || window.__i18n.system_user_update_error;
+                        await this.fetchSystemUsers();
+                        return;
+                    }
+
+                    user.role = role;
+                    this.systemUsersSuccessMessage = result.message || window.__i18n.system_user_update_success;
+                } catch (error) {
+                    this.systemUsersError = window.__i18n.system_users_network_error;
+                    await this.fetchSystemUsers();
+                }
             },
             printTutanak(assetId) {
                 window.open(`/api/assets/${assetId}/tutanak`, '_blank', 'noopener,noreferrer');

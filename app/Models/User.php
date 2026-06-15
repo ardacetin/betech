@@ -39,8 +39,10 @@ class User
             'department',
             'status',
             'role',
+            'auth_provider',
             'created_at',
         ], [
+            'role' => self::ROLE_END_USER,
             'ORDER' => ['name' => 'ASC'],
         ]);
 
@@ -48,6 +50,168 @@ class User
             fn (array $row): array => $this->normalizeRow($row),
             $rows
         );
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    public function findAllSystemUsers(): array
+    {
+        $rows = $this->db()->select('users', [
+            'id',
+            'external_id',
+            'name',
+            'email',
+            'department',
+            'status',
+            'role',
+            'auth_provider',
+            'last_login_at',
+            'created_at',
+        ], [
+            'role' => [self::ROLE_SUPER_ADMIN, self::ROLE_TECHNICIAN],
+            'ORDER' => ['name' => 'ASC'],
+        ]);
+
+        return array_map(
+            fn (array $row): array => $this->normalizeRow($row),
+            $rows
+        );
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function createSystemUser(string $name, string $email, string $role, string $password): array
+    {
+        $trimmedName = trim($name);
+        $normalizedEmail = strtolower(trim($email));
+        $normalizedRole = $this->normalizeRole($role);
+
+        if ($trimmedName === '') {
+            throw new \InvalidArgumentException(__('system_user_name_required'));
+        }
+
+        if ($normalizedEmail === '' || filter_var($normalizedEmail, FILTER_VALIDATE_EMAIL) === false) {
+            throw new \InvalidArgumentException(__('system_user_email_invalid'));
+        }
+
+        if (!$this->isOperationalRole($normalizedRole)) {
+            throw new \InvalidArgumentException(__('system_user_role_invalid'));
+        }
+
+        if (strlen($password) < 8) {
+            throw new \InvalidArgumentException(__('system_user_password_required'));
+        }
+
+        if ($this->findByEmail($normalizedEmail) !== null) {
+            throw new \InvalidArgumentException(__('manual_user_email_taken'));
+        }
+
+        $externalId = 'sys-' . bin2hex(random_bytes(8));
+
+        $this->db()->insert('users', [
+            'external_id' => $externalId,
+            'name' => $trimmedName,
+            'email' => $normalizedEmail,
+            'department' => null,
+            'status' => self::STATUS_ACTIVE,
+            'role' => $normalizedRole,
+            'auth_provider' => self::PROVIDER_LOCAL,
+            'provider_subject' => null,
+            'password_hash' => password_hash($password, PASSWORD_DEFAULT),
+        ]);
+
+        $created = $this->findById((int) $this->db()->id());
+
+        if ($created === null) {
+            throw new \RuntimeException(__('system_user_create_error'));
+        }
+
+        return $created;
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    public function updateSystemUser(
+        int $userId,
+        ?string $role = null,
+        ?string $name = null,
+        ?string $email = null,
+        ?string $password = null
+    ): ?array {
+        $existing = $this->findById($userId);
+
+        if ($existing === null || !$this->isOperationalRole((string) $existing['role'])) {
+            return null;
+        }
+
+        $payload = [];
+
+        if ($name !== null) {
+            $trimmedName = trim($name);
+
+            if ($trimmedName === '') {
+                throw new \InvalidArgumentException(__('system_user_name_required'));
+            }
+
+            $payload['name'] = $trimmedName;
+        }
+
+        if ($email !== null) {
+            $normalizedEmail = strtolower(trim($email));
+
+            if ($normalizedEmail === '' || filter_var($normalizedEmail, FILTER_VALIDATE_EMAIL) === false) {
+                throw new \InvalidArgumentException(__('system_user_email_invalid'));
+            }
+
+            $duplicate = $this->findByEmail($normalizedEmail);
+
+            if ($duplicate !== null && (int) $duplicate['id'] !== $userId) {
+                throw new \InvalidArgumentException(__('manual_user_email_taken'));
+            }
+
+            $payload['email'] = $normalizedEmail;
+        }
+
+        if ($role !== null) {
+            $normalizedRole = $this->normalizeRole($role);
+
+            if (!$this->isOperationalRole($normalizedRole)) {
+                throw new \InvalidArgumentException(__('system_user_role_invalid'));
+            }
+
+            if ((string) $existing['role'] === self::ROLE_SUPER_ADMIN
+                && $normalizedRole !== self::ROLE_SUPER_ADMIN
+                && $this->countUsersByRole(self::ROLE_SUPER_ADMIN) <= 1) {
+                throw new \InvalidArgumentException(__('system_user_last_super_admin'));
+            }
+
+            $payload['role'] = $normalizedRole;
+        }
+
+        if ($password !== null && $password !== '') {
+            if (strlen($password) < 8) {
+                throw new \InvalidArgumentException(__('system_user_password_required'));
+            }
+
+            $payload['password_hash'] = password_hash($password, PASSWORD_DEFAULT);
+        }
+
+        if ($payload !== []) {
+            $this->db()->update('users', $payload, ['id' => $userId]);
+        }
+
+        return $this->findById($userId);
+    }
+
+    public function countUsersByRole(string $role): int
+    {
+        return $this->db()->count('users', [
+            'role' => $this->normalizeRole($role),
+            'status' => self::STATUS_ACTIVE,
+        ]);
     }
 
     public function findById(int $userId): ?array

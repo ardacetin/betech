@@ -97,7 +97,7 @@ class UserController
         ]);
     }
 
-    public function index(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
+    public function personnelIndex(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
     {
         $users = $this->userModel->findAllForPersonnel();
         $assetCounts = $this->userModel->assignedAssetCountsByUserId();
@@ -118,6 +118,135 @@ class UserController
             'status' => 'success',
             'data' => $data,
         ]);
+    }
+
+    public function systemUsersIndex(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
+    {
+        return $this->jsonResponse($response, 200, [
+            'status' => 'success',
+            'data' => $this->userModel->findAllSystemUsers(),
+        ]);
+    }
+
+    public function storeSystemUser(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
+    {
+        $payload = $this->resolvePayload($request);
+
+        if ($payload === null) {
+            return $this->jsonResponse($response, 400, [
+                'status' => 'error',
+                'message' => __('system_user_invalid_payload'),
+            ]);
+        }
+
+        $name = trim((string) ($payload['name'] ?? ''));
+        $email = trim((string) ($payload['email'] ?? ''));
+        $role = trim((string) ($payload['role'] ?? User::ROLE_TECHNICIAN));
+        $password = (string) ($payload['password'] ?? '');
+
+        try {
+            $user = $this->userModel->createSystemUser($name, $email, $role, $password);
+        } catch (\InvalidArgumentException $exception) {
+            return $this->jsonResponse($response, 422, [
+                'status' => 'error',
+                'message' => $exception->getMessage(),
+            ]);
+        } catch (\Throwable) {
+            return $this->jsonResponse($response, 500, [
+                'status' => 'error',
+                'message' => __('system_user_create_error'),
+            ]);
+        }
+
+        return $this->jsonResponse($response, 201, [
+            'status' => 'success',
+            'message' => __('system_user_create_success'),
+            'data' => $user,
+        ]);
+    }
+
+    public function updateSystemUser(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
+    {
+        $userId = (int) ($args['id'] ?? 0);
+
+        if ($userId <= 0) {
+            return $this->jsonResponse($response, 400, [
+                'status' => 'error',
+                'message' => __('system_user_invalid_id'),
+            ]);
+        }
+
+        $payload = $this->resolvePayload($request);
+
+        if ($payload === null) {
+            return $this->jsonResponse($response, 400, [
+                'status' => 'error',
+                'message' => __('system_user_invalid_payload'),
+            ]);
+        }
+
+        $role = array_key_exists('role', $payload) ? trim((string) $payload['role']) : null;
+        $name = array_key_exists('name', $payload) ? trim((string) $payload['name']) : null;
+        $email = array_key_exists('email', $payload) ? trim((string) $payload['email']) : null;
+        $password = array_key_exists('password', $payload) ? (string) $payload['password'] : null;
+
+        try {
+            $user = $this->userModel->updateSystemUser($userId, $role, $name, $email, $password);
+        } catch (\InvalidArgumentException $exception) {
+            return $this->jsonResponse($response, 422, [
+                'status' => 'error',
+                'message' => $exception->getMessage(),
+            ]);
+        } catch (\Throwable) {
+            return $this->jsonResponse($response, 500, [
+                'status' => 'error',
+                'message' => __('system_user_update_error'),
+            ]);
+        }
+
+        if ($user === null) {
+            return $this->jsonResponse($response, 404, [
+                'status' => 'error',
+                'message' => __('system_user_not_found'),
+            ]);
+        }
+
+        return $this->jsonResponse($response, 200, [
+            'status' => 'success',
+            'message' => __('system_user_update_success'),
+            'data' => $user,
+        ]);
+    }
+
+    public function index(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
+    {
+        return $this->personnelIndex($request, $response);
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function resolvePayload(ServerRequestInterface $request): ?array
+    {
+        $parsedBody = $request->getParsedBody();
+
+        if (is_array($parsedBody)) {
+            return $parsedBody;
+        }
+
+        $rawBody = (string) $request->getBody();
+
+        if ($rawBody === '') {
+            return [];
+        }
+
+        try {
+            $decoded = json_decode($rawBody, true, 512, JSON_THROW_ON_ERROR);
+
+            return is_array($decoded) ? $decoded : null;
+        } catch (\JsonException) {
+            return null;
+        }
     }
 
     public function offboard(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
