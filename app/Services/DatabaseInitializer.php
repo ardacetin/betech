@@ -60,9 +60,8 @@ class DatabaseInitializer
                     $warnings[] = 'Applied migration: created settings table.';
                 }
 
-                if (!$this->usersStatusColumnExists($connection)) {
-                    $this->applySqlFile($connection, $this->getUsersStatusColumnMigrationPath());
-                    $warnings[] = 'Applied migration: added users.status column.';
+                foreach ($this->patchLegacyUsersStatusColumn($connection) as $warning) {
+                    $warnings[] = $warning;
                 }
             }
 
@@ -165,9 +164,44 @@ class DatabaseInitializer
         return dirname($this->schemaPath) . '/migrations/003_create_settings_table.sql';
     }
 
-    private function getUsersStatusColumnMigrationPath(): string
+    /**
+     * Add users.status only on legacy unified-user schemas that still have department.
+     * Post-separation databases store status on personnel; never reference users.department.
+     *
+     * @param object $connection Medoo instance
+     *
+     * @return list<string>
+     */
+    private function patchLegacyUsersStatusColumn(object $connection): array
     {
-        return dirname($this->schemaPath) . '/migrations/004_add_users_status_column.sql';
+        $warnings = [];
+
+        if (!$this->usersTableExists($connection) || $this->usersStatusColumnExists($connection)) {
+            return $warnings;
+        }
+
+        if ($this->tableExists($connection, 'personnel')) {
+            return $warnings;
+        }
+
+        if (!$this->columnExists($connection, 'users', 'department')) {
+            return $warnings;
+        }
+
+        $afterColumn = $this->resolveUsersAlterAfterColumn($connection, 'department', 'email');
+        $connection->query(
+            sprintf(
+                "ALTER TABLE users ADD COLUMN status VARCHAR(32) NOT NULL DEFAULT 'active' AFTER %s",
+                $afterColumn
+            )
+        );
+        $warnings[] = 'Applied migration: added users.status column.';
+
+        if (!$this->indexExists($connection, 'users', 'idx_users_status')) {
+            $connection->query('ALTER TABLE users ADD KEY idx_users_status (status)');
+        }
+
+        return $warnings;
     }
 
     /**
@@ -318,7 +352,13 @@ class DatabaseInitializer
             && $this->tableExists($connection, 'personnel')
             && $this->columnExists($connection, 'users', 'role')) {
             $needsPersonnelMigration = $this->usersTableHasLegacyPersonnelColumns($connection)
-                || (int) $connection->count('users', ['role' => 'end_user']) > 0;
+                || (
+                    (int) $connection->count('users', ['role' => 'end_user']) > 0
+                    && (
+                        $this->columnExists($connection, 'users', 'department')
+                        || $this->columnExists($connection, 'users', 'external_id')
+                    )
+                );
 
             if ($needsPersonnelMigration) {
                 $this->migrateLegacyPersonnelFromUsers($connection);
