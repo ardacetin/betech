@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Controllers\HealthController;
+use App\Models\Asset;
 use App\Services\DatabaseService;
 use Dotenv\Dotenv;
 use Slim\Factory\AppFactory;
@@ -25,7 +26,8 @@ $app->addErrorMiddleware(
     $appConfig['debug']
 );
 
-$healthController = new HealthController($appConfig);
+$assetModel = new Asset($databaseService);
+$healthController = new HealthController($appConfig, $assetModel);
 
 $app->get('/', [$healthController, 'index']);
 

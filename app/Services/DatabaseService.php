@@ -26,4 +26,12 @@ class DatabaseService
 
         return $this->connection;
     }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function getConfig(): array
+    {
+        return $this->config;
+    }
 }
