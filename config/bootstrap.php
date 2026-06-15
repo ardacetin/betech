@@ -5,7 +5,9 @@ declare(strict_types=1);
 use App\Controllers\AssetController;
 use App\Controllers\HealthController;
 use App\Models\Asset;
+use App\Models\Category;
 use App\Services\DatabaseService;
+use App\Services\ViewRenderer;
 use Dotenv\Dotenv;
 use Slim\Factory\AppFactory;
 
@@ -30,7 +32,9 @@ $app->addErrorMiddleware(
 );
 
 $assetModel = new Asset($databaseService);
-$healthController = new HealthController($appConfig, $assetModel);
+$categoryModel = new Category($databaseService);
+$viewRenderer = new ViewRenderer($rootPath . '/views');
+$healthController = new HealthController($appConfig, $assetModel, $categoryModel, $viewRenderer);
 $assetController = new AssetController($assetModel);
 
 $app->get('/', [$healthController, 'index']);

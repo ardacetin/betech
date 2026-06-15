@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Controllers;
 
 use App\Models\Asset;
+use App\Models\Category;
+use App\Services\ViewRenderer;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 
@@ -15,25 +17,25 @@ class HealthController
      */
     public function __construct(
         private readonly array $appConfig,
-        private readonly Asset $assetModel
+        private readonly Asset $assetModel,
+        private readonly Category $categoryModel,
+        private readonly ViewRenderer $viewRenderer
     ) {
     }
 
     public function index(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
     {
-        $assets = $this->assetModel->findAll();
-
-        $payload = json_encode([
-            'status' => 'ok',
-            'message' => 'Betech API is up and running',
-            'service' => 'Betech ITAM',
+        $html = $this->viewRenderer->render('dashboard', [
+            'appName' => 'Betech',
+            'pageTitle' => 'Asset Dashboard',
             'environment' => $this->appConfig['env'],
-            'count' => count($assets),
-            'assets' => $assets,
-        ], JSON_THROW_ON_ERROR);
+            'assets' => $this->assetModel->findAllForDashboard(),
+            'metrics' => $this->assetModel->getMetrics(),
+            'categories' => $this->categoryModel->findAll(),
+        ]);
 
-        $response->getBody()->write($payload);
+        $response->getBody()->write($html);
 
-        return $response->withHeader('Content-Type', 'application/json');
+        return $response->withHeader('Content-Type', 'text/html; charset=utf-8');
     }
 }

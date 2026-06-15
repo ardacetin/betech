@@ -38,6 +38,44 @@ class Asset
     }
 
     /**
+     * Fetch assets with category names for dashboard display.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function findAllForDashboard(): array
+    {
+        $assets = $this->findAll();
+        $categories = $this->db()->select('categories', ['id', 'name']);
+        $categoryNames = [];
+
+        foreach ($categories as $category) {
+            $categoryNames[(int) $category['id']] = (string) $category['name'];
+        }
+
+        foreach ($assets as &$asset) {
+            $categoryId = (int) ($asset['category_id'] ?? 0);
+            $asset['category_name'] = $categoryNames[$categoryId] ?? 'Unknown';
+        }
+
+        unset($asset);
+
+        return $assets;
+    }
+
+    /**
+     * @return array{total: int, deployed: int, in_storage: int, broken: int}
+     */
+    public function getMetrics(): array
+    {
+        return [
+            'total' => $this->db()->count('assets'),
+            'deployed' => $this->db()->count('assets', ['status' => 'deployed']),
+            'in_storage' => $this->db()->count('assets', ['status' => ['storage', 'ready']]),
+            'broken' => $this->db()->count('assets', ['status' => 'broken']),
+        ];
+    }
+
+    /**
      * Create a new asset with core columns and hybrid JSON properties.
      *
      * @param array<string, mixed> $coreFields
