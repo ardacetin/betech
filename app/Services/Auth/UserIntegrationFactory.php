@@ -30,12 +30,21 @@ class UserIntegrationFactory
 
         return match ($driverName) {
             'local' => new LocalDriver($this->databaseService),
-            'ldap' => new LdapDriver(),
-            'google' => new GoogleDriver(),
+            'ldap' => new LdapDriver($this->requireSettingModel()),
+            'google' => new GoogleDriver($this->requireSettingModel()),
             'azure' => new AzureDriver(),
             default => throw new InvalidArgumentException(
                 sprintf('Unsupported AUTH_DRIVER value: %s', $driverName)
             ),
         };
+    }
+
+    private function requireSettingModel(): Setting
+    {
+        if ($this->settingModel === null) {
+            throw new InvalidArgumentException('Setting model is required for directory integrations.');
+        }
+
+        return $this->settingModel;
     }
 }

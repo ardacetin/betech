@@ -57,6 +57,56 @@ class User
         return $row === null ? null : $this->normalizeRow($row);
     }
 
+    /**
+     * Persist or refresh a directory user and return the local integration shape.
+     *
+     * @param array{id: string, external_id: string, name: string, email: string, department: string|null} $directoryUser
+     *
+     * @return array{id: string, external_id: string, name: string, email: string, department: string|null}
+     */
+    public function syncFromDirectory(array $directoryUser): array
+    {
+        $externalId = trim((string) ($directoryUser['external_id'] ?? $directoryUser['id'] ?? ''));
+
+        if ($externalId === '') {
+            return $directoryUser;
+        }
+
+        $payload = [
+            'name' => trim((string) ($directoryUser['name'] ?? $externalId)),
+            'email' => trim((string) ($directoryUser['email'] ?? '')),
+            'department' => isset($directoryUser['department']) && $directoryUser['department'] !== null
+                ? trim((string) $directoryUser['department'])
+                : null,
+            'status' => self::STATUS_ACTIVE,
+        ];
+
+        if ($payload['email'] === '') {
+            $payload['email'] = sprintf('%s@directory.local', preg_replace('/[^a-z0-9._-]+/i', '-', $externalId) ?: 'user');
+        }
+
+        $existing = $this->db()->get('users', ['id'], ['external_id' => $externalId]);
+
+        if ($existing !== null) {
+            $this->db()->update('users', $payload, ['id' => (int) $existing['id']]);
+            $localId = (int) $existing['id'];
+        } else {
+            $this->db()->insert('users', [
+                'external_id' => $externalId,
+                ...$payload,
+            ]);
+            $localId = (int) $this->db()->id();
+        }
+
+        return [
+            'id' => (string) $localId,
+            'external_id' => $externalId,
+            'name' => $payload['name'],
+            'email' => $payload['email'],
+            'department' => $payload['department'],
+        ];
+    }
+
     public function markOffboarded(int $userId): bool
     {
         if (!$this->db()->has('users', ['id' => $userId])) {

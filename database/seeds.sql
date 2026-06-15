@@ -45,6 +45,50 @@ INSERT INTO settings (`key`, value) VALUES
 (
     'custom_fields',
     '[]'
+),
+(
+    'ldap_host',
+    ''
+),
+(
+    'ldap_port',
+    '389'
+),
+(
+    'ldap_base_dn',
+    ''
+),
+(
+    'ldap_bind_dn',
+    ''
+),
+(
+    'ldap_bind_password',
+    ''
+),
+(
+    'ldap_use_tls',
+    '0'
+),
+(
+    'google_domain',
+    ''
+),
+(
+    'google_admin_email',
+    ''
+),
+(
+    'google_auth_mode',
+    'service_account'
+),
+(
+    'google_service_account_json',
+    ''
+),
+(
+    'google_oauth_token_json',
+    ''
 )
 ON DUPLICATE KEY UPDATE
     value = IF(settings.value IS NULL OR settings.value = '', VALUES(value), settings.value);

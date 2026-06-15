@@ -6,6 +6,7 @@ namespace App\Controllers;
 
 use App\Models\Asset;
 use App\Models\AssetHistory;
+use App\Models\Setting;
 use App\Models\User;
 use App\Services\Auth\UserIntegrationFactory;
 use Psr\Http\Message\ResponseInterface;
@@ -19,7 +20,8 @@ class UserController
         private readonly UserIntegrationFactory $userIntegrationFactory,
         private readonly User $userModel,
         private readonly Asset $assetModel,
-        private readonly AssetHistory $assetHistoryModel
+        private readonly AssetHistory $assetHistoryModel,
+        private readonly Setting $settingModel
     ) {
     }
 
@@ -31,6 +33,14 @@ class UserController
         try {
             $driver = $this->userIntegrationFactory->make();
             $users = $driver->searchUsers($query);
+            $activeDriver = strtolower(trim($this->settingModel->get('active_auth_driver', 'local') ?? 'local'));
+
+            if ($activeDriver !== 'local') {
+                $users = array_map(
+                    fn (array $user): array => $this->userModel->syncFromDirectory($user),
+                    $users
+                );
+            }
         } catch (\Throwable $exception) {
             return $this->jsonResponse($response, 500, [
                 'status' => 'error',

@@ -738,6 +738,24 @@ $i18nScript = json_encode([
                 custom_fields: Array.isArray(window.__settings?.custom_fields)
                     ? JSON.parse(JSON.stringify(window.__settings.custom_fields))
                     : [],
+                ldap_config: {
+                    host: window.__settings?.ldap_config?.host || '',
+                    port: window.__settings?.ldap_config?.port || '389',
+                    base_dn: window.__settings?.ldap_config?.base_dn || '',
+                    bind_dn: window.__settings?.ldap_config?.bind_dn || '',
+                    bind_password: '',
+                    bind_password_configured: Boolean(window.__settings?.ldap_config?.bind_password_configured),
+                    use_tls: Boolean(window.__settings?.ldap_config?.use_tls),
+                },
+                google_config: {
+                    domain: window.__settings?.google_config?.domain || '',
+                    admin_email: window.__settings?.google_config?.admin_email || '',
+                    auth_mode: window.__settings?.google_config?.auth_mode || 'service_account',
+                    service_account_json: '',
+                    service_account_configured: Boolean(window.__settings?.google_config?.service_account_configured),
+                    oauth_token_json: '',
+                    oauth_token_configured: Boolean(window.__settings?.google_config?.oauth_token_configured),
+                },
             },
             authDrivers: [
                 {
@@ -1216,6 +1234,8 @@ $i18nScript = json_encode([
                             active_auth_driver: this.settingsForm.active_auth_driver,
                             zimmet_template: this.settingsForm.zimmet_template,
                             custom_fields: this.settingsForm.custom_fields,
+                            ldap_config: this.settingsForm.ldap_config,
+                            google_config: this.settingsForm.google_config,
                         }),
                     });
 
@@ -1238,6 +1258,21 @@ $i18nScript = json_encode([
                         ? result.data.custom_fields
                         : this.settingsForm.custom_fields;
                     window.__globalCustomFields = this.globalCustomFields;
+
+                    if (result.data?.ldap_config) {
+                        this.settingsForm.ldap_config = {
+                            ...result.data.ldap_config,
+                            bind_password: '',
+                        };
+                    }
+
+                    if (result.data?.google_config) {
+                        this.settingsForm.google_config = {
+                            ...result.data.google_config,
+                            service_account_json: '',
+                            oauth_token_json: '',
+                        };
+                    }
 
                     if (this.form.category_id) {
                         this.loadCategoryFields(this.form.category_id);

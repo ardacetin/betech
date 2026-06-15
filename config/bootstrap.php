@@ -60,10 +60,10 @@ $qrCodeService = new QrCodeService($appConfig['url']);
 $analyticsService = new AnalyticsService($databaseService);
 $zimmetTutanakService = new ZimmetTutanakService();
 $healthController = new HealthController($appConfig, $assetModel, $categoryModel, $viewRenderer, $qrCodeService, $analyticsService, $settingModel, $userModel);
-$assetController = new AssetController($assetModel, $assetHistoryModel, $userIntegrationFactory);
+$assetController = new AssetController($assetModel, $assetHistoryModel, $userIntegrationFactory, $userModel);
 $assetViewController = new AssetViewController($appConfig, $assetModel, $categoryModel, $viewRenderer);
-$assetTutanakController = new AssetTutanakController($assetModel, $settingModel, $userIntegrationFactory, $zimmetTutanakService, $viewRenderer);
-$userController = new UserController($userIntegrationFactory, $userModel, $assetModel, $assetHistoryModel);
+$assetTutanakController = new AssetTutanakController($assetModel, $settingModel, $userModel, $userIntegrationFactory, $zimmetTutanakService, $viewRenderer);
+$userController = new UserController($userIntegrationFactory, $userModel, $assetModel, $assetHistoryModel, $settingModel);
 $analyticsController = new AnalyticsController($analyticsService);
 $settingsController = new SettingsController($settingModel);
 

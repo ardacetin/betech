@@ -63,6 +63,14 @@ class SettingsController
             $this->settingModel->setJson('custom_fields', $payload['custom_fields']);
         }
 
+        if (array_key_exists('ldap_config', $payload) && is_array($payload['ldap_config'])) {
+            $this->settingModel->saveLdapConfig($payload['ldap_config']);
+        }
+
+        if (array_key_exists('google_config', $payload) && is_array($payload['google_config'])) {
+            $this->settingModel->saveGoogleConfig($payload['google_config']);
+        }
+
         return $this->jsonResponse($response, 200, [
             'status' => 'success',
             'message' => 'Settings updated successfully.',
@@ -108,6 +116,52 @@ class SettingsController
 
                 if (!in_array($type, self::ALLOWED_FIELD_TYPES, true)) {
                     $errors['custom_fields'][] = sprintf('Custom field at index %d has an invalid type.', $index);
+                }
+            }
+        }
+
+        if (array_key_exists('ldap_config', $payload) && !is_array($payload['ldap_config'])) {
+            $errors['ldap_config'][] = 'LDAP configuration must be an object.';
+        }
+
+        if (is_array($payload['ldap_config'] ?? null)) {
+            $port = (int) ($payload['ldap_config']['port'] ?? 389);
+
+            if ($port <= 0 || $port > 65535) {
+                $errors['ldap_config'][] = 'LDAP port must be between 1 and 65535.';
+            }
+        }
+
+        if (array_key_exists('google_config', $payload) && !is_array($payload['google_config'])) {
+            $errors['google_config'][] = 'Google configuration must be an object.';
+        }
+
+        if (is_array($payload['google_config'] ?? null)) {
+            $authMode = strtolower(trim((string) ($payload['google_config']['auth_mode'] ?? 'service_account')));
+
+            if (!in_array($authMode, ['service_account', 'oauth'], true)) {
+                $errors['google_config'][] = 'Google auth mode must be service_account or oauth.';
+            }
+
+            $serviceAccountJson = trim((string) ($payload['google_config']['service_account_json'] ?? ''));
+
+            if ($serviceAccountJson !== '') {
+                $decoded = json_decode($serviceAccountJson, true);
+
+                if (!is_array($decoded)) {
+                    $errors['google_config'][] = 'Google service account JSON is invalid.';
+                } elseif (!isset($decoded['client_email'], $decoded['private_key'])) {
+                    $errors['google_config'][] = 'Google service account JSON must include client_email and private_key.';
+                }
+            }
+
+            $oauthTokenJson = trim((string) ($payload['google_config']['oauth_token_json'] ?? ''));
+
+            if ($oauthTokenJson !== '') {
+                $decoded = json_decode($oauthTokenJson, true);
+
+                if (!is_array($decoded)) {
+                    $errors['google_config'][] = 'Google OAuth token JSON is invalid.';
                 }
             }
         }

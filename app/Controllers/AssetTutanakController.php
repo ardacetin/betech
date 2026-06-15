@@ -6,6 +6,7 @@ namespace App\Controllers;
 
 use App\Models\Asset;
 use App\Models\Setting;
+use App\Models\User;
 use App\Services\Auth\UserIntegrationFactory;
 use App\Services\Translator;
 use App\Services\ViewRenderer;
@@ -18,6 +19,7 @@ class AssetTutanakController
     public function __construct(
         private readonly Asset $assetModel,
         private readonly Setting $settingModel,
+        private readonly User $userModel,
         private readonly UserIntegrationFactory $userIntegrationFactory,
         private readonly ZimmetTutanakService $zimmetTutanakService,
         private readonly ViewRenderer $viewRenderer
@@ -44,7 +46,7 @@ class AssetTutanakController
             return $this->renderError($response, __('tutanak_no_assignee'), 422);
         }
 
-        $assignedUser = $this->userIntegrationFactory->make()->getUserById((string) $userId);
+        $assignedUser = $this->resolveAssignedUser((int) $userId, $asset);
         $template = $this->settingModel->get('zimmet_template', '') ?? '';
 
         if (trim($template) === '') {
@@ -84,5 +86,27 @@ class AssetTutanakController
         return $response
             ->withHeader('Content-Type', 'text/html; charset=utf-8')
             ->withStatus($statusCode);
+    }
+
+    /**
+     * @param array<string, mixed> $asset
+     *
+     * @return array<string, mixed>|null
+     */
+    private function resolveAssignedUser(int $userId, array $asset): ?array
+    {
+        $localUser = $this->userModel->findById($userId);
+
+        if ($localUser !== null) {
+            return [
+                'id' => (string) $localUser['id'],
+                'external_id' => (string) $localUser['external_id'],
+                'name' => (string) $localUser['name'],
+                'email' => (string) $localUser['email'],
+                'department' => $localUser['department'] ?? null,
+            ];
+        }
+
+        return $this->userIntegrationFactory->make()->getUserById((string) $userId);
     }
 }

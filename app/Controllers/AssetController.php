@@ -6,6 +6,7 @@ namespace App\Controllers;
 
 use App\Models\Asset;
 use App\Models\AssetHistory;
+use App\Models\User;
 use App\Services\Auth\UserIntegrationFactory;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
@@ -24,7 +25,8 @@ class AssetController
     public function __construct(
         private readonly Asset $assetModel,
         private readonly AssetHistory $assetHistoryModel,
-        private readonly UserIntegrationFactory $userIntegrationFactory
+        private readonly UserIntegrationFactory $userIntegrationFactory,
+        private readonly User $userModel
     ) {
     }
 
@@ -305,6 +307,12 @@ class AssetController
             return null;
         }
 
+        $user = $this->userModel->findById($userId);
+
+        if ($user !== null) {
+            return (string) ($user['name'] ?? null);
+        }
+
         $user = $this->userIntegrationFactory->make()->getUserById((string) $userId);
 
         return $user['name'] ?? null;
@@ -466,7 +474,11 @@ class AssetController
         }
 
         $driver = $this->userIntegrationFactory->make();
-        $user = $driver->getUserById((string) $normalizedUserId);
+        $user = $this->userModel->findById($normalizedUserId);
+
+        if ($user === null) {
+            $user = $driver->getUserById((string) $normalizedUserId);
+        }
 
         if ($user === null) {
             return ['The selected user_id does not exist.'];

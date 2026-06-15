@@ -35,8 +35,80 @@ declare(strict_types=1);
             </div>
         </article>
 
+        <article x-show="settingsForm.active_auth_driver === 'ldap'" x-cloak class="rounded-2xl border border-zinc-200 bg-white p-6 shadow-soft">
+            <h3 class="text-sm font-semibold text-zinc-900"><?= htmlspecialchars(__('settings_ldap_title'), ENT_QUOTES, 'UTF-8') ?></h3>
+            <p class="mt-1 text-xs text-zinc-500"><?= htmlspecialchars(__('settings_ldap_hint'), ENT_QUOTES, 'UTF-8') ?></p>
+
+            <div class="mt-5 grid gap-4 sm:grid-cols-2">
+                <label class="block sm:col-span-1">
+                    <span class="mb-1 block text-xs font-medium text-zinc-600"><?= htmlspecialchars(__('settings_ldap_host'), ENT_QUOTES, 'UTF-8') ?></span>
+                    <input type="text" x-model="settingsForm.ldap_config.host" class="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-400" placeholder="ldap.sirket.local">
+                </label>
+                <label class="block sm:col-span-1">
+                    <span class="mb-1 block text-xs font-medium text-zinc-600"><?= htmlspecialchars(__('settings_ldap_port'), ENT_QUOTES, 'UTF-8') ?></span>
+                    <input type="number" min="1" max="65535" x-model="settingsForm.ldap_config.port" class="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-400" placeholder="389">
+                </label>
+                <label class="block sm:col-span-2">
+                    <span class="mb-1 block text-xs font-medium text-zinc-600"><?= htmlspecialchars(__('settings_ldap_base_dn'), ENT_QUOTES, 'UTF-8') ?></span>
+                    <input type="text" x-model="settingsForm.ldap_config.base_dn" class="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-400" placeholder="dc=sirket,dc=local">
+                </label>
+                <label class="block sm:col-span-2">
+                    <span class="mb-1 block text-xs font-medium text-zinc-600"><?= htmlspecialchars(__('settings_ldap_bind_dn'), ENT_QUOTES, 'UTF-8') ?></span>
+                    <input type="text" x-model="settingsForm.ldap_config.bind_dn" class="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-400" placeholder="cn=admin,dc=sirket,dc=local">
+                </label>
+                <label class="block sm:col-span-2">
+                    <span class="mb-1 block text-xs font-medium text-zinc-600"><?= htmlspecialchars(__('settings_ldap_bind_password'), ENT_QUOTES, 'UTF-8') ?></span>
+                    <input type="password" x-model="settingsForm.ldap_config.bind_password" class="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-400" :placeholder="settingsForm.ldap_config.bind_password_configured ? '<?= htmlspecialchars(__('settings_secret_configured'), ENT_QUOTES, 'UTF-8') ?>' : ''">
+                </label>
+                <label class="flex items-center gap-2 sm:col-span-2">
+                    <input type="checkbox" x-model="settingsForm.ldap_config.use_tls" class="rounded border-zinc-300">
+                    <span class="text-sm text-zinc-700"><?= htmlspecialchars(__('settings_ldap_use_tls'), ENT_QUOTES, 'UTF-8') ?></span>
+                </label>
+            </div>
+        </article>
+
+        <article x-show="settingsForm.active_auth_driver === 'google'" x-cloak class="rounded-2xl border border-zinc-200 bg-white p-6 shadow-soft">
+            <h3 class="text-sm font-semibold text-zinc-900"><?= htmlspecialchars(__('settings_google_title'), ENT_QUOTES, 'UTF-8') ?></h3>
+            <p class="mt-1 text-xs text-zinc-500"><?= htmlspecialchars(__('settings_google_hint'), ENT_QUOTES, 'UTF-8') ?></p>
+
+            <div class="mt-5 grid gap-4 sm:grid-cols-2">
+                <label class="block sm:col-span-1">
+                    <span class="mb-1 block text-xs font-medium text-zinc-600"><?= htmlspecialchars(__('settings_google_domain'), ENT_QUOTES, 'UTF-8') ?></span>
+                    <input type="text" x-model="settingsForm.google_config.domain" class="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-400" placeholder="sirket.com">
+                </label>
+                <label class="block sm:col-span-1">
+                    <span class="mb-1 block text-xs font-medium text-zinc-600"><?= htmlspecialchars(__('settings_google_admin_email'), ENT_QUOTES, 'UTF-8') ?></span>
+                    <input type="email" x-model="settingsForm.google_config.admin_email" class="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-400" placeholder="admin@sirket.com">
+                </label>
+                <label class="block sm:col-span-2">
+                    <span class="mb-1 block text-xs font-medium text-zinc-600"><?= htmlspecialchars(__('settings_google_auth_mode'), ENT_QUOTES, 'UTF-8') ?></span>
+                    <select x-model="settingsForm.google_config.auth_mode" class="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-400">
+                        <option value="service_account"><?= htmlspecialchars(__('settings_google_auth_service_account'), ENT_QUOTES, 'UTF-8') ?></option>
+                        <option value="oauth"><?= htmlspecialchars(__('settings_google_auth_oauth'), ENT_QUOTES, 'UTF-8') ?></option>
+                    </select>
+                </label>
+                <label x-show="settingsForm.google_config.auth_mode === 'service_account'" x-cloak class="block sm:col-span-2">
+                    <span class="mb-1 block text-xs font-medium text-zinc-600"><?= htmlspecialchars(__('settings_google_service_account_json'), ENT_QUOTES, 'UTF-8') ?></span>
+                    <textarea
+                        x-model="settingsForm.google_config.service_account_json"
+                        rows="8"
+                        class="w-full rounded-lg border border-zinc-300 px-3 py-2 font-mono text-xs outline-none focus:border-zinc-400"
+                        :placeholder="settingsForm.google_config.service_account_configured ? '<?= htmlspecialchars(__('settings_secret_configured'), ENT_QUOTES, 'UTF-8') ?>' : '{ \"client_email\": \"...\", \"private_key\": \"...\" }'"
+                    ></textarea>
+                </label>
+                <label x-show="settingsForm.google_config.auth_mode === 'oauth'" x-cloak class="block sm:col-span-2">
+                    <span class="mb-1 block text-xs font-medium text-zinc-600"><?= htmlspecialchars(__('settings_google_oauth_token_json'), ENT_QUOTES, 'UTF-8') ?></span>
+                    <textarea
+                        x-model="settingsForm.google_config.oauth_token_json"
+                        rows="8"
+                        class="w-full rounded-lg border border-zinc-300 px-3 py-2 font-mono text-xs outline-none focus:border-zinc-400"
+                        :placeholder="settingsForm.google_config.oauth_token_configured ? '<?= htmlspecialchars(__('settings_secret_configured'), ENT_QUOTES, 'UTF-8') ?>' : '{ \"access_token\": \"...\", \"refresh_token\": \"...\" }'"
+                    ></textarea>
+                </label>
+            </div>
+        </article>
+
         <article class="rounded-2xl border border-zinc-200 bg-white p-6 shadow-soft">
-            <h3 class="text-sm font-semibold text-zinc-900"><?= htmlspecialchars(__('settings_zimmet_title'), ENT_QUOTES, 'UTF-8') ?></h3>
             <p class="mt-1 text-xs text-zinc-500"><?= htmlspecialchars(__('settings_zimmet_hint'), ENT_QUOTES, 'UTF-8') ?></p>
 
             <textarea
