@@ -18,14 +18,14 @@ class AssetHistory
         int $assetId,
         string $action,
         ?int $userId = null,
-        ?int $targetUserId = null,
+        ?int $targetPersonnelId = null,
         ?string $notes = null
     ): void {
         $this->db()->insert('asset_histories', [
             'asset_id' => $assetId,
             'action' => $action,
             'user_id' => $userId,
-            'target_user_id' => $targetUserId,
+            'target_personnel_id' => $targetPersonnelId,
             'notes' => $notes,
         ]);
     }
@@ -36,17 +36,17 @@ class AssetHistory
     public function findByAssetId(int $assetId): array
     {
         $rows = $this->db()->select('asset_histories', [
-            '[>]users(target_user)' => ['target_user_id' => 'id'],
+            '[>]personnel(target_personnel)' => ['target_personnel_id' => 'id'],
             '[>]users(actor)' => ['user_id' => 'id'],
         ], [
             'asset_histories.id',
             'asset_histories.asset_id',
             'asset_histories.action',
             'asset_histories.user_id',
-            'asset_histories.target_user_id',
+            'asset_histories.target_personnel_id',
             'asset_histories.notes',
             'asset_histories.created_at',
-            'target_user.name(target_user_name)',
+            'target_personnel.name(target_personnel_name)',
             'actor.name(actor_name)',
         ], [
             'asset_histories.asset_id' => $assetId,
@@ -76,8 +76,12 @@ class AssetHistory
             $row['user_id'] = (int) $row['user_id'];
         }
 
-        if (array_key_exists('target_user_id', $row) && $row['target_user_id'] !== null) {
-            $row['target_user_id'] = (int) $row['target_user_id'];
+        if (array_key_exists('target_personnel_id', $row) && $row['target_personnel_id'] !== null) {
+            $row['target_personnel_id'] = (int) $row['target_personnel_id'];
+        }
+
+        if (array_key_exists('target_personnel_name', $row)) {
+            $row['target_user_name'] = $row['target_personnel_name'];
         }
 
         return $row;

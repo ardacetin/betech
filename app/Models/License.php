@@ -148,7 +148,7 @@ class License
             throw new \InvalidArgumentException(__('license_asset_not_found'));
         }
 
-        if ($hasUser && !$this->db()->has('users', ['id' => $userId])) {
+        if ($hasUser && !$this->db()->has('personnel', ['id' => $userId])) {
             throw new \InvalidArgumentException(__('license_user_not_found'));
         }
 
@@ -159,7 +159,7 @@ class License
         if ($hasAsset) {
             $duplicateConditions['asset_id'] = $assetId;
         } else {
-            $duplicateConditions['user_id'] = $userId;
+            $duplicateConditions['personnel_id'] = $userId;
         }
 
         if ($this->db()->has('license_assignments', $duplicateConditions)) {
@@ -169,7 +169,7 @@ class License
         $this->db()->insert('license_assignments', [
             'license_id' => $licenseId,
             'asset_id' => $hasAsset ? $assetId : null,
-            'user_id' => $hasUser ? $userId : null,
+            'personnel_id' => $hasUser ? $userId : null,
         ]);
 
         $assignmentId = (int) $this->db()->id();
@@ -214,17 +214,17 @@ class License
             fn (array $row): array => $this->normalizeAssignmentRow($row),
             $this->db()->select('license_assignments', [
                 '[>]assets' => ['asset_id' => 'id'],
-                '[>]users' => ['user_id' => 'id'],
+                '[>]personnel' => ['personnel_id' => 'id'],
             ], [
                 'license_assignments.id',
                 'license_assignments.license_id',
                 'license_assignments.asset_id',
-                'license_assignments.user_id',
+                'license_assignments.personnel_id',
                 'license_assignments.assigned_at',
                 'assets.asset_tag',
                 'assets.name(asset_name)',
-                'users.name(user_name)',
-                'users.email(user_email)',
+                'personnel.name(personnel_name)',
+                'personnel.email(personnel_email)',
             ], [
                 'license_assignments.license_id' => $licenseId,
                 'ORDER' => [
@@ -247,7 +247,7 @@ class License
                 'license_assignments.id',
                 'license_assignments.license_id',
                 'license_assignments.asset_id',
-                'license_assignments.user_id',
+                'license_assignments.personnel_id',
                 'license_assignments.assigned_at',
                 'licenses.name(license_name)',
                 'licenses.vendor(license_vendor)',
@@ -269,17 +269,17 @@ class License
     {
         $row = $this->db()->get('license_assignments', [
             '[>]assets' => ['asset_id' => 'id'],
-            '[>]users' => ['user_id' => 'id'],
+            '[>]personnel' => ['personnel_id' => 'id'],
         ], [
             'license_assignments.id',
             'license_assignments.license_id',
             'license_assignments.asset_id',
-            'license_assignments.user_id',
+            'license_assignments.personnel_id',
             'license_assignments.assigned_at',
             'assets.asset_tag',
             'assets.name(asset_name)',
-            'users.name(user_name)',
-            'users.email(user_email)',
+            'personnel.name(personnel_name)',
+            'personnel.email(personnel_email)',
         ], [
             'license_assignments.id' => $assignmentId,
         ]);
@@ -331,9 +331,17 @@ class License
         $row['asset_id'] = isset($row['asset_id']) && $row['asset_id'] !== null
             ? (int) $row['asset_id']
             : null;
-        $row['user_id'] = isset($row['user_id']) && $row['user_id'] !== null
-            ? (int) $row['user_id']
+        $row['personnel_id'] = isset($row['personnel_id']) && $row['personnel_id'] !== null
+            ? (int) $row['personnel_id']
             : null;
+
+        if (array_key_exists('personnel_name', $row)) {
+            $row['user_name'] = $row['personnel_name'];
+        }
+
+        if ($row['personnel_id'] !== null) {
+            $row['user_id'] = $row['personnel_id'];
+        }
 
         return $row;
     }

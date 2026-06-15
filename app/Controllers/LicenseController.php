@@ -95,12 +95,16 @@ class LicenseController
         $assetId = array_key_exists('asset_id', $payload) && $payload['asset_id'] !== null && $payload['asset_id'] !== ''
             ? (int) $payload['asset_id']
             : null;
-        $userId = array_key_exists('user_id', $payload) && $payload['user_id'] !== null && $payload['user_id'] !== ''
-            ? (int) $payload['user_id']
-            : null;
+        $personnelId = null;
+
+        if (array_key_exists('personnel_id', $payload) && $payload['personnel_id'] !== null && $payload['personnel_id'] !== '') {
+            $personnelId = (int) $payload['personnel_id'];
+        } elseif (array_key_exists('user_id', $payload) && $payload['user_id'] !== null && $payload['user_id'] !== '') {
+            $personnelId = (int) $payload['user_id'];
+        }
 
         try {
-            $assignment = $this->licenseModel->assign($licenseId, $assetId, $userId);
+            $assignment = $this->licenseModel->assign($licenseId, $assetId, $personnelId);
         } catch (\InvalidArgumentException $exception) {
             return $this->jsonResponse($response, 422, [
                 'status' => 'error',

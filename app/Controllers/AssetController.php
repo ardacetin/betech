@@ -7,6 +7,7 @@ namespace App\Controllers;
 use App\Models\Asset;
 use App\Models\AssetHistory;
 use App\Models\Location;
+use App\Models\Personnel;
 use App\Models\User;
 use App\Services\Auth\SessionAuthService;
 use App\Services\Auth\UserIntegrationFactory;
@@ -21,7 +22,7 @@ class AssetController
         'name',
         'category_id',
         'status',
-        'user_id',
+        'personnel_id',
         'location_id',
     ];
 
@@ -29,6 +30,7 @@ class AssetController
         private readonly Asset $assetModel,
         private readonly AssetHistory $assetHistoryModel,
         private readonly UserIntegrationFactory $userIntegrationFactory,
+        private readonly Personnel $personnelModel,
         private readonly User $userModel,
         private readonly Location $locationModel,
         private readonly SessionAuthService $sessionAuthService
@@ -237,19 +239,19 @@ class AssetController
             ]);
         }
 
-        if (($existingAsset['user_id'] ?? null) === null) {
+        if (($existingAsset['personnel_id'] ?? null) === null) {
             return $this->jsonResponse($response, 422, [
                 'status' => 'error',
                 'message' => __('return_not_assigned'),
             ]);
         }
 
-        $previousUserId = (int) $existingAsset['user_id'];
+        $previousUserId = (int) $existingAsset['personnel_id'];
         $previousStatus = (string) ($existingAsset['status'] ?? 'ready');
 
         try {
             $asset = $this->assetModel->update($assetId, [
-                'user_id' => null,
+                'personnel_id' => null,
                 'status' => 'ready',
             ]);
         } catch (\RuntimeException $exception) {
@@ -315,7 +317,7 @@ class AssetController
             ]);
         }
 
-        if (($existingAsset['user_id'] ?? null) === null) {
+        if (($existingAsset['personnel_id'] ?? null) === null) {
             return $this->jsonResponse($response, 422, [
                 'status' => 'error',
                 'message' => __('transfer_not_assigned'),
@@ -324,25 +326,25 @@ class AssetController
 
         $payload = $this->resolvePayload($request);
 
-        if ($payload === null || !array_key_exists('user_id', $payload)) {
+        if ($payload === null || !array_key_exists('personnel_id', $payload)) {
             return $this->jsonResponse($response, 400, [
                 'status' => 'error',
                 'message' => __('transfer_missing_user'),
             ]);
         }
 
-        $userErrors = $this->validateUserId($payload['user_id']);
+        $userErrors = $this->validatePersonnelId($payload['personnel_id']);
 
         if ($userErrors !== []) {
             return $this->jsonResponse($response, 422, [
                 'status' => 'error',
                 'message' => __('transfer_invalid_user'),
-                'errors' => ['user_id' => $userErrors],
+                'errors' => ['personnel_id' => $userErrors],
             ]);
         }
 
-        $previousUserId = (int) $existingAsset['user_id'];
-        $newUserId = (int) $payload['user_id'];
+        $previousUserId = (int) $existingAsset['personnel_id'];
+        $newUserId = (int) $payload['personnel_id'];
 
         if ($newUserId === $previousUserId) {
             return $this->jsonResponse($response, 422, [
@@ -353,7 +355,7 @@ class AssetController
 
         try {
             $asset = $this->assetModel->update($assetId, [
-                'user_id' => $newUserId,
+                'personnel_id' => $newUserId,
             ]);
         } catch (\RuntimeException $exception) {
             return $this->jsonResponse($response, 422, [
@@ -369,8 +371,8 @@ class AssetController
             ]);
         }
 
-        $oldUserName = $this->resolveUserName($previousUserId) ?? ('user #' . $previousUserId);
-        $newUserName = $this->resolveUserName($newUserId) ?? ('user #' . $newUserId);
+        $oldUserName = $this->resolvePersonnelName($previousUserId) ?? ('personnel #' . $previousUserId);
+        $newUserName = $this->resolvePersonnelName($newUserId) ?? ('personnel #' . $newUserId);
 
         $this->assetHistoryModel->log(
             $assetId,
@@ -408,7 +410,7 @@ class AssetController
             return false;
         }
 
-        $assignedUserId = $asset['user_id'] ?? null;
+        $assignedUserId = $asset['personnel_id'] ?? null;
 
         return $assignedUserId !== null && (int) $assignedUserId === $sessionUserId;
     }
@@ -429,7 +431,7 @@ class AssetController
             sprintf('Asset created with tag %s', (string) $asset['asset_tag'])
         );
 
-        if (!array_key_exists('user_id', $coreFields) || $coreFields['user_id'] === null) {
+        if (!array_key_exists('personnel_id', $coreFields) || $coreFields['personnel_id'] === null) {
             if (array_key_exists('location_id', $coreFields) && $coreFields['location_id'] !== null) {
                 $locationId = (int) $coreFields['location_id'];
                 $locationName = $this->resolveLocationName($locationId);
@@ -449,8 +451,8 @@ class AssetController
             return;
         }
 
-        $targetUserId = (int) $coreFields['user_id'];
-        $targetUserName = $this->resolveUserName($targetUserId);
+        $targetUserId = (int) $coreFields['personnel_id'];
+        $targetUserName = $this->resolvePersonnelName($targetUserId);
 
         $this->assetHistoryModel->log(
             $assetId,
@@ -486,11 +488,11 @@ class AssetController
      */
     private function logAssetUpdates(int $assetId, array $existingAsset, array $coreFields): void
     {
-        if (array_key_exists('user_id', $coreFields)) {
+        if (array_key_exists('personnel_id', $coreFields)) {
             $this->logAssignmentChange(
                 $assetId,
-                $existingAsset['user_id'] ?? null,
-                $coreFields['user_id']
+                $existingAsset['personnel_id'] ?? null,
+                $coreFields['personnel_id']
             );
         }
 
@@ -528,7 +530,7 @@ class AssetController
         }
 
         if ($newUserId === null) {
-            $oldUserName = $this->resolveUserName($oldUserId);
+            $oldUserName = $this->resolvePersonnelName($oldUserId);
 
             $this->assetHistoryModel->log(
                 $assetId,
@@ -544,7 +546,7 @@ class AssetController
             return;
         }
 
-        $newUserName = $this->resolveUserName($newUserId);
+        $newUserName = $this->resolvePersonnelName($newUserId);
 
         if ($oldUserId === null) {
             $this->assetHistoryModel->log(
@@ -561,7 +563,7 @@ class AssetController
             return;
         }
 
-        $oldUserName = $this->resolveUserName($oldUserId);
+        $oldUserName = $this->resolvePersonnelName($oldUserId);
 
         $this->assetHistoryModel->log(
             $assetId,
@@ -634,21 +636,21 @@ class AssetController
         );
     }
 
-    private function resolveUserName(?int $userId): ?string
+    private function resolvePersonnelName(?int $personnelId): ?string
     {
-        if ($userId === null) {
+        if ($personnelId === null) {
             return null;
         }
 
-        $user = $this->userModel->findById($userId);
+        $person = $this->personnelModel->findById($personnelId);
 
-        if ($user !== null) {
-            return (string) ($user['name'] ?? null);
+        if ($person !== null) {
+            return (string) ($person['name'] ?? null);
         }
 
-        $user = $this->userIntegrationFactory->make()->getUserById((string) $userId);
+        $directoryUser = $this->userIntegrationFactory->make()->getUserById((string) $personnelId);
 
-        return $user['name'] ?? null;
+        return $directoryUser['name'] ?? null;
     }
 
     private function resolveLocationName(?int $locationId): ?string
@@ -802,11 +804,11 @@ class AssetController
             $errors['status'][] = 'The status field cannot be empty when provided.';
         }
 
-        if (array_key_exists('user_id', $coreFields)) {
-            $userErrors = $this->validateUserId($coreFields['user_id']);
+        if (array_key_exists('personnel_id', $coreFields)) {
+            $userErrors = $this->validatePersonnelId($coreFields['personnel_id']);
 
             if ($userErrors !== []) {
-                $errors['user_id'] = $userErrors;
+                $errors['personnel_id'] = $userErrors;
             }
         }
 
@@ -824,32 +826,34 @@ class AssetController
     /**
      * @return list<string>
      */
-    private function validateUserId(mixed $userId): array
+    private function validatePersonnelId(mixed $personnelId): array
     {
-        if ($userId === null || $userId === '') {
+        if ($personnelId === null || $personnelId === '') {
             return [];
         }
 
-        if (!is_numeric($userId)) {
-            return ['The user_id must be a valid integer.'];
+        if (!is_numeric($personnelId)) {
+            return ['The personnel_id must be a valid integer.'];
         }
 
-        $normalizedUserId = (int) $userId;
+        $normalizedPersonnelId = (int) $personnelId;
 
-        if ($normalizedUserId <= 0) {
-            return ['The user_id must be a positive integer.'];
+        if ($normalizedPersonnelId <= 0) {
+            return ['The personnel_id must be a positive integer.'];
+        }
+
+        if ($this->personnelModel->findById($normalizedPersonnelId) !== null) {
+            return [];
         }
 
         $driver = $this->userIntegrationFactory->make();
-        $user = $this->userModel->findById($normalizedUserId);
+        $directoryUser = $driver->getUserById((string) $normalizedPersonnelId);
 
-        if ($user === null) {
-            $user = $driver->getUserById((string) $normalizedUserId);
+        if ($directoryUser === null) {
+            return ['The selected personnel_id does not exist.'];
         }
 
-        if ($user === null) {
-            return ['The selected user_id does not exist.'];
-        }
+        $this->personnelModel->syncFromDirectory($directoryUser);
 
         return [];
     }
@@ -927,11 +931,11 @@ class AssetController
             $normalized['status'] = $status !== '' ? $status : 'ready';
         }
 
-        if (array_key_exists('user_id', $coreFields)) {
-            if ($coreFields['user_id'] === null || $coreFields['user_id'] === '') {
-                $normalized['user_id'] = null;
+        if (array_key_exists('personnel_id', $coreFields)) {
+            if ($coreFields['personnel_id'] === null || $coreFields['personnel_id'] === '') {
+                $normalized['personnel_id'] = null;
             } else {
-                $normalized['user_id'] = (int) $coreFields['user_id'];
+                $normalized['personnel_id'] = (int) $coreFields['personnel_id'];
             }
         }
 

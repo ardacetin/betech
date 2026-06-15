@@ -17,26 +17,32 @@ CREATE TABLE IF NOT EXISTS categories (
 
 CREATE TABLE IF NOT EXISTS users (
     id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-    external_id VARCHAR(128) NOT NULL,
+    name VARCHAR(255) NOT NULL,
+    email VARCHAR(255) NOT NULL,
+    password_hash VARCHAR(255) NULL,
+    role VARCHAR(50) NOT NULL DEFAULT 'technician',
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_users_email (email),
+    KEY idx_users_role (role)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS personnel (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
     name VARCHAR(255) NOT NULL,
     email VARCHAR(255) NOT NULL,
     department VARCHAR(120) DEFAULT NULL,
+    title VARCHAR(255) DEFAULT NULL,
+    external_id VARCHAR(128) DEFAULT NULL,
+    provider VARCHAR(32) NOT NULL DEFAULT 'local',
     status VARCHAR(32) NOT NULL DEFAULT 'active',
-    role VARCHAR(50) NOT NULL DEFAULT 'end_user',
-    password_hash VARCHAR(255) NULL,
-    auth_provider VARCHAR(32) NOT NULL DEFAULT 'local',
-    provider_subject VARCHAR(255) DEFAULT NULL,
-    last_login_at DATETIME DEFAULT NULL,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
-    UNIQUE KEY uq_users_external_id (external_id),
-    UNIQUE KEY uq_users_email (email),
-    KEY idx_users_name (name),
-    KEY idx_users_department (department),
-    KEY idx_users_status (status),
-    KEY idx_users_role (role),
-    KEY idx_users_auth_provider (auth_provider),
-    KEY idx_users_provider_subject (provider_subject)
+    UNIQUE KEY uq_personnel_email (email),
+    KEY idx_personnel_name (name),
+    KEY idx_personnel_department (department),
+    KEY idx_personnel_external_id (external_id),
+    KEY idx_personnel_provider (provider),
+    KEY idx_personnel_status (status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS locations (
@@ -57,7 +63,7 @@ CREATE TABLE IF NOT EXISTS assets (
     name VARCHAR(255) NOT NULL,
     category_id INT UNSIGNED NOT NULL,
     status VARCHAR(32) NOT NULL DEFAULT 'ready',
-    user_id BIGINT UNSIGNED DEFAULT NULL,
+    personnel_id BIGINT UNSIGNED DEFAULT NULL,
     location_id BIGINT UNSIGNED DEFAULT NULL,
     properties JSON DEFAULT NULL,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -67,13 +73,13 @@ CREATE TABLE IF NOT EXISTS assets (
     KEY idx_assets_serial_number (serial_number),
     KEY idx_assets_category_id (category_id),
     KEY idx_assets_status (status),
-    KEY idx_assets_user_id (user_id),
+    KEY idx_assets_personnel_id (personnel_id),
     KEY idx_assets_location_id (location_id),
     CONSTRAINT fk_assets_category_id
         FOREIGN KEY (category_id) REFERENCES categories (id)
         ON DELETE RESTRICT ON UPDATE CASCADE,
-    CONSTRAINT fk_assets_user_id
-        FOREIGN KEY (user_id) REFERENCES users (id)
+    CONSTRAINT fk_assets_personnel_id
+        FOREIGN KEY (personnel_id) REFERENCES personnel (id)
         ON DELETE SET NULL ON UPDATE CASCADE,
     CONSTRAINT fk_assets_location_id
         FOREIGN KEY (location_id) REFERENCES locations (id)
@@ -85,7 +91,7 @@ CREATE TABLE IF NOT EXISTS asset_histories (
     asset_id BIGINT UNSIGNED NOT NULL,
     action VARCHAR(50) NOT NULL,
     user_id BIGINT UNSIGNED DEFAULT NULL,
-    target_user_id BIGINT UNSIGNED DEFAULT NULL,
+    target_personnel_id BIGINT UNSIGNED DEFAULT NULL,
     notes TEXT DEFAULT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
@@ -98,8 +104,8 @@ CREATE TABLE IF NOT EXISTS asset_histories (
     CONSTRAINT fk_asset_histories_user_id
         FOREIGN KEY (user_id) REFERENCES users (id)
         ON DELETE SET NULL ON UPDATE CASCADE,
-    CONSTRAINT fk_asset_histories_target_user_id
-        FOREIGN KEY (target_user_id) REFERENCES users (id)
+    CONSTRAINT fk_asset_histories_target_personnel_id
+        FOREIGN KEY (target_personnel_id) REFERENCES personnel (id)
         ON DELETE SET NULL ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -131,20 +137,20 @@ CREATE TABLE IF NOT EXISTS license_assignments (
     id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
     license_id BIGINT UNSIGNED NOT NULL,
     asset_id BIGINT UNSIGNED DEFAULT NULL,
-    user_id BIGINT UNSIGNED DEFAULT NULL,
+    personnel_id BIGINT UNSIGNED DEFAULT NULL,
     assigned_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
     KEY idx_license_assignments_license_id (license_id),
     KEY idx_license_assignments_asset_id (asset_id),
-    KEY idx_license_assignments_user_id (user_id),
+    KEY idx_license_assignments_personnel_id (personnel_id),
     CONSTRAINT fk_license_assignments_license_id
         FOREIGN KEY (license_id) REFERENCES licenses (id)
         ON DELETE CASCADE ON UPDATE CASCADE,
     CONSTRAINT fk_license_assignments_asset_id
         FOREIGN KEY (asset_id) REFERENCES assets (id)
         ON DELETE CASCADE ON UPDATE CASCADE,
-    CONSTRAINT fk_license_assignments_user_id
-        FOREIGN KEY (user_id) REFERENCES users (id)
+    CONSTRAINT fk_license_assignments_personnel_id
+        FOREIGN KEY (personnel_id) REFERENCES personnel (id)
         ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 

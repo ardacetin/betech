@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Controllers;
 
 use App\Models\Asset;
+use App\Models\Personnel;
 use App\Models\Setting;
 use App\Models\User;
 use App\Services\Auth\SessionAuthService;
@@ -20,6 +21,7 @@ class AssetTutanakController
     public function __construct(
         private readonly Asset $assetModel,
         private readonly Setting $settingModel,
+        private readonly Personnel $personnelModel,
         private readonly User $userModel,
         private readonly UserIntegrationFactory $userIntegrationFactory,
         private readonly ZimmetTutanakService $zimmetTutanakService,
@@ -46,13 +48,13 @@ class AssetTutanakController
             return $this->renderError($response, 'Bu tutanağa erişim yetkiniz bulunmuyor.', 403);
         }
 
-        $userId = $asset['user_id'] ?? null;
+        $personnelId = $asset['personnel_id'] ?? null;
 
-        if ($userId === null) {
+        if ($personnelId === null) {
             return $this->renderError($response, __('tutanak_no_assignee'), 422);
         }
 
-        $assignedUser = $this->resolveAssignedUser((int) $userId, $asset);
+        $assignedPerson = $this->resolveAssignedPersonnel((int) $personnelId, $asset);
         $template = $this->settingModel->get('zimmet_template', '') ?? '';
 
         if (trim($template) === '') {
@@ -60,7 +62,7 @@ class AssetTutanakController
         }
 
         $body = $this->zimmetTutanakService->renderTemplate($template, [
-            'personnel_name' => $assignedUser['name'] ?? (string) ($asset['user_name'] ?? ''),
+            'personnel_name' => $assignedPerson['name'] ?? (string) ($asset['personnel_name'] ?? $asset['user_name'] ?? ''),
             'asset_name' => (string) $asset['name'],
             'serial_number' => (string) ($asset['serial_number'] ?? '-'),
             'date' => date('d.m.Y'),
@@ -70,7 +72,7 @@ class AssetTutanakController
             'pageTitle' => __('tutanak_page_title'),
             'locale' => Translator::instance()->getLocale(),
             'asset' => $asset,
-            'assignedUser' => $assignedUser,
+            'assignedUser' => $assignedPerson,
             'body' => $body,
         ]);
 
@@ -99,21 +101,21 @@ class AssetTutanakController
      *
      * @return array<string, mixed>|null
      */
-    private function resolveAssignedUser(int $userId, array $asset): ?array
+    private function resolveAssignedPersonnel(int $personnelId, array $asset): ?array
     {
-        $localUser = $this->userModel->findById($userId);
+        $person = $this->personnelModel->findById($personnelId);
 
-        if ($localUser !== null) {
+        if ($person !== null) {
             return [
-                'id' => (string) $localUser['id'],
-                'external_id' => (string) $localUser['external_id'],
-                'name' => (string) $localUser['name'],
-                'email' => (string) $localUser['email'],
-                'department' => $localUser['department'] ?? null,
+                'id' => (string) $person['id'],
+                'external_id' => (string) ($person['external_id'] ?? ''),
+                'name' => (string) $person['name'],
+                'email' => (string) $person['email'],
+                'department' => $person['department'] ?? null,
             ];
         }
 
-        return $this->userIntegrationFactory->make()->getUserById((string) $userId);
+        return $this->userIntegrationFactory->make()->getUserById((string) $personnelId);
     }
 
     /**
@@ -133,8 +135,8 @@ class AssetTutanakController
             return false;
         }
 
-        $assignedUserId = $asset['user_id'] ?? null;
+        $assignedPersonnelId = $asset['personnel_id'] ?? null;
 
-        return $assignedUserId !== null && (int) $assignedUserId === $sessionUserId;
+        return $assignedPersonnelId !== null && (int) $assignedPersonnelId === $sessionUserId;
     }
 }

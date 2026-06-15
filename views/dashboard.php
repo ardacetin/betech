@@ -2216,7 +2216,7 @@ $i18nScript = json_encode([
                             'Content-Type': 'application/json',
                         },
                         body: JSON.stringify({
-                            user_id: Number(this.transferSelectedUser.id),
+                            personnel_id: Number(this.transferSelectedUser.id),
                         }),
                     });
                     const result = await response.json();
@@ -2633,7 +2633,7 @@ $i18nScript = json_encode([
                 }
 
                 if (this.selectedUser?.id) {
-                    payload.user_id = Number(this.selectedUser.id);
+                    payload.personnel_id = Number(this.selectedUser.id);
                 }
 
                 if (this.form.location_id) {
@@ -2661,7 +2661,7 @@ $i18nScript = json_encode([
             buildEditPayload() {
                 return {
                     status: this.editForm.status,
-                    user_id: this.selectedUser?.id ? Number(this.selectedUser.id) : null,
+                    personnel_id: this.selectedUser?.id ? Number(this.selectedUser.id) : null,
                     location_id: this.editForm.location_id ? Number(this.editForm.location_id) : null,
                 };
             },
@@ -3297,7 +3297,7 @@ $i18nScript = json_encode([
 
                     payload.asset_id = Number(this.assignLicenseForm.asset_id);
                 } else if (this.assignLicenseSelectedUser?.id) {
-                    payload.user_id = Number(this.assignLicenseSelectedUser.id);
+                    payload.personnel_id = Number(this.assignLicenseSelectedUser.id);
                 } else {
                     this.assignLicenseFormError = window.__i18n.license_assign_error;
                     return;

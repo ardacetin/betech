@@ -34,7 +34,7 @@ class LocalDriver implements UserIntegrationInterface
             ];
         }
 
-        $rows = $this->db()->select('users', [
+        $rows = $this->db()->select('personnel', [
             'id',
             'external_id',
             'name',
@@ -53,7 +53,7 @@ class LocalDriver implements UserIntegrationInterface
         $row = null;
 
         if (ctype_digit($id)) {
-            $row = $this->db()->get('users', [
+            $row = $this->db()->get('personnel', [
                 'id',
                 'external_id',
                 'name',
@@ -66,7 +66,7 @@ class LocalDriver implements UserIntegrationInterface
         }
 
         if ($row === null) {
-            $row = $this->db()->get('users', [
+            $row = $this->db()->get('personnel', [
                 'id',
                 'external_id',
                 'name',
@@ -83,14 +83,13 @@ class LocalDriver implements UserIntegrationInterface
 
     public function listAllUsers(): array
     {
-        $rows = $this->db()->select('users', [
+        $rows = $this->db()->select('personnel', [
             'id',
             'external_id',
             'name',
             'email',
             'department',
         ], [
-            'role' => 'end_user',
             'status' => 'active',
             'ORDER' => ['name' => 'ASC'],
         ]);
@@ -115,7 +114,7 @@ class LocalDriver implements UserIntegrationInterface
     {
         return [
             'id' => (string) $row['id'],
-            'external_id' => (string) $row['external_id'],
+            'external_id' => (string) ($row['external_id'] ?? ''),
             'name' => (string) $row['name'],
             'email' => (string) $row['email'],
             'department' => isset($row['department']) && $row['department'] !== null

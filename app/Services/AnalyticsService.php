@@ -183,7 +183,7 @@ class AnalyticsService
     private function fetchAssignmentStats(int $total): array
     {
         $assigned = (int) $this->db()->count('assets', [
-            'user_id[!]' => null,
+            'personnel_id[!]' => null,
         ]);
         $unassigned = max(0, $total - $assigned);
 

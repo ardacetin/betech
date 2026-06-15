@@ -23,9 +23,6 @@ try {
     $updatePayload = [
         'password_hash' => $passwordHash,
         'role' => 'super_admin',
-        'auth_provider' => 'local',
-        'provider_subject' => null,
-        'status' => 'active',
     ];
 
     if ($db->has('users', ['email' => $adminEmail])) {
@@ -34,10 +31,8 @@ try {
         ]);
     } else {
         $db->insert('users', [
-            'external_id' => 'admin',
             'name' => 'Sistem Yöneticisi',
             'email' => $adminEmail,
-            'department' => 'IT',
             ...$updatePayload,
         ]);
     }
@@ -45,7 +40,6 @@ try {
     $stored = $db->get('users', [
         'password_hash',
         'role',
-        'auth_provider',
     ], [
         'email' => $adminEmail,
     ]);

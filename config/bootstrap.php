@@ -22,6 +22,7 @@ use App\Models\Category;
 use App\Models\License;
 use App\Models\Location;
 use App\Models\Setting;
+use App\Models\Personnel;
 use App\Models\User;
 use App\Services\AnalyticsService;
 use App\Services\Auth\LdapAuthenticator;
@@ -55,6 +56,7 @@ $app->add(new LanguageMiddleware($translator));
 $app->addBodyParsingMiddleware();
 
 $userModel = new User($databaseService);
+$personnelModel = new Personnel($databaseService);
 $sessionAuthService = new SessionAuthService();
 $publicPaths = [
     '/login',
@@ -89,16 +91,17 @@ $authController = new AuthController(
     $appConfig,
     $settingModel,
     $userModel,
+    $personnelModel,
     $sessionAuthService,
     $ldapAuthenticator,
     $oauthService,
     $viewRenderer
 );
 $healthController = new HealthController($appConfig, $assetModel, $categoryModel, $viewRenderer, $qrCodeService, $analyticsService, $settingModel, $userModel, $sessionAuthService);
-$assetController = new AssetController($assetModel, $assetHistoryModel, $userIntegrationFactory, $userModel, $locationModel, $sessionAuthService);
+$assetController = new AssetController($assetModel, $assetHistoryModel, $userIntegrationFactory, $personnelModel, $userModel, $locationModel, $sessionAuthService);
 $assetViewController = new AssetViewController($appConfig, $assetModel, $categoryModel, $viewRenderer);
-$assetTutanakController = new AssetTutanakController($assetModel, $settingModel, $userModel, $userIntegrationFactory, $zimmetTutanakService, $viewRenderer, $sessionAuthService);
-$userController = new UserController($userIntegrationFactory, $userModel, $assetModel, $assetHistoryModel, $settingModel, $sessionAuthService);
+$assetTutanakController = new AssetTutanakController($assetModel, $settingModel, $personnelModel, $userModel, $userIntegrationFactory, $zimmetTutanakService, $viewRenderer, $sessionAuthService);
+$userController = new UserController($userIntegrationFactory, $userModel, $personnelModel, $assetModel, $assetHistoryModel, $settingModel, $sessionAuthService);
 $analyticsController = new AnalyticsController($analyticsService);
 $settingsController = new SettingsController($settingModel);
 $categoryController = new CategoryController($categoryModel);

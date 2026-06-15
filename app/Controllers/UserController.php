@@ -6,6 +6,7 @@ namespace App\Controllers;
 
 use App\Models\Asset;
 use App\Models\AssetHistory;
+use App\Models\Personnel;
 use App\Models\Setting;
 use App\Models\User;
 use App\Services\Auth\SessionAuthService;
@@ -20,6 +21,7 @@ class UserController
     public function __construct(
         private readonly UserIntegrationFactory $userIntegrationFactory,
         private readonly User $userModel,
+        private readonly Personnel $personnelModel,
         private readonly Asset $assetModel,
         private readonly AssetHistory $assetHistoryModel,
         private readonly Setting $settingModel,
@@ -39,7 +41,7 @@ class UserController
 
             if ($activeDriver !== 'local') {
                 $users = array_map(
-                    fn (array $user): array => $this->userModel->syncFromDirectory($user),
+                    fn (array $user): array => $this->personnelModel->syncFromDirectory($user),
                     $users
                 );
             }
@@ -84,7 +86,7 @@ class UserController
         $email = trim((string) ($payload['email'] ?? ''));
 
         try {
-            $user = $this->userModel->createManual($name, $email);
+            $person = $this->personnelModel->createManual($name, $email);
         } catch (\InvalidArgumentException $exception) {
             return $this->jsonResponse($response, 422, [
                 'status' => 'error',
@@ -95,7 +97,7 @@ class UserController
         return $this->jsonResponse($response, 201, [
             'status' => 'success',
             'message' => __('manual_user_create_success'),
-            'data' => $user,
+            'data' => $person,
         ]);
     }
 
@@ -103,25 +105,25 @@ class UserController
     {
         $queryParams = $request->getQueryParams();
         $page = max(1, (int) ($queryParams['page'] ?? 1));
-        $perPage = max(1, min(100, (int) ($queryParams['per_page'] ?? User::PERSONNEL_PAGE_SIZE)));
+        $perPage = max(1, min(100, (int) ($queryParams['per_page'] ?? Personnel::PAGE_SIZE)));
         $search = trim((string) ($queryParams['q'] ?? ''));
 
-        $result = $this->userModel->findPersonnelPaginated(
+        $result = $this->personnelModel->findPaginated(
             $page,
             $perPage,
             $search !== '' ? $search : null
         );
-        $assetCounts = $this->userModel->assignedAssetCountsForUserIds(
-            array_map(static fn (array $user): int => (int) $user['id'], $result['data'])
+        $assetCounts = $this->personnelModel->assignedAssetCountsForIds(
+            array_map(static fn (array $person): int => (int) $person['id'], $result['data'])
         );
 
         $data = array_map(
-            static function (array $user) use ($assetCounts): array {
-                $userId = (int) $user['id'];
+            static function (array $person) use ($assetCounts): array {
+                $personnelId = (int) $person['id'];
 
                 return [
-                    ...$user,
-                    'assigned_asset_count' => $assetCounts[$userId] ?? 0,
+                    ...$person,
+                    'assigned_asset_count' => $assetCounts[$personnelId] ?? 0,
                 ];
             },
             $result['data']
@@ -138,7 +140,7 @@ class UserController
     {
         $activeDriver = strtolower(trim($this->settingModel->get('active_auth_driver', 'local') ?? 'local'));
 
-        if (!in_array($activeDriver, [User::PROVIDER_LDAP, User::PROVIDER_GOOGLE], true)) {
+        if (!in_array($activeDriver, [Personnel::PROVIDER_LDAP, Personnel::PROVIDER_GOOGLE], true)) {
             return $this->jsonResponse($response, 422, [
                 'status' => 'error',
                 'message' => __('personnel_sync_unsupported'),
@@ -162,7 +164,7 @@ class UserController
             ]);
         }
 
-        $stats = $this->userModel->syncPersonnelDirectory($directoryUsers, $activeDriver);
+        $stats = $this->personnelModel->syncDirectory($directoryUsers, $activeDriver);
 
         return $this->jsonResponse($response, 200, [
             'status' => 'success',
@@ -356,39 +358,39 @@ class UserController
 
     public function offboard(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
     {
-        $userId = (int) ($args['id'] ?? 0);
+        $personnelId = (int) ($args['id'] ?? 0);
 
-        if ($userId <= 0) {
+        if ($personnelId <= 0) {
             return $this->jsonResponse($response, 400, [
                 'status' => 'error',
                 'message' => __('offboard_invalid_user'),
             ]);
         }
 
-        $user = $this->userModel->findById($userId);
+        $person = $this->personnelModel->findById($personnelId);
 
-        if ($user === null) {
+        if ($person === null) {
             return $this->jsonResponse($response, 404, [
                 'status' => 'error',
                 'message' => __('offboard_user_not_found'),
             ]);
         }
 
-        if (($user['status'] ?? User::STATUS_ACTIVE) === User::STATUS_OFFBOARDED) {
+        if (($person['status'] ?? Personnel::STATUS_ACTIVE) === Personnel::STATUS_OFFBOARDED) {
             return $this->jsonResponse($response, 422, [
                 'status' => 'error',
                 'message' => __('offboard_already_offboarded'),
             ]);
         }
 
-        $assets = $this->assetModel->findAllByUserId($userId);
+        $assets = $this->assetModel->findAllByPersonnelId($personnelId);
         $reclaimedAssets = [];
 
         foreach ($assets as $asset) {
             $assetId = (int) $asset['id'];
 
             $updated = $this->assetModel->update($assetId, [
-                'user_id' => null,
+                'personnel_id' => null,
                 'status' => 'storage',
             ]);
 
@@ -399,8 +401,8 @@ class UserController
             $this->assetHistoryModel->log(
                 $assetId,
                 'offboarded',
-                null,
-                $userId,
+                $this->sessionAuthService->userId(),
+                $personnelId,
                 self::OFFBOARD_HISTORY_NOTE
             );
 
@@ -411,13 +413,13 @@ class UserController
             ];
         }
 
-        $this->userModel->markOffboarded($userId);
+        $this->personnelModel->markOffboarded($personnelId);
 
         return $this->jsonResponse($response, 200, [
             'status' => 'success',
             'message' => __('offboard_success'),
             'data' => [
-                'user_id' => $userId,
+                'personnel_id' => $personnelId,
                 'reclaimed_assets' => $reclaimedAssets,
                 'reclaimed_count' => count($reclaimedAssets),
             ],

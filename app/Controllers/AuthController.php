@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Controllers;
 
+use App\Models\Personnel;
 use App\Models\Setting;
 use App\Models\User;
 use App\Services\Auth\LdapAuthenticator;
@@ -23,6 +24,7 @@ class AuthController
         private readonly array $appConfig,
         private readonly Setting $settingModel,
         private readonly User $userModel,
+        private readonly Personnel $personnelModel,
         private readonly SessionAuthService $sessionAuthService,
         private readonly LdapAuthenticator $ldapAuthenticator,
         private readonly OAuthService $oauthService,
@@ -85,10 +87,6 @@ class AuthController
                 return $this->redirectWithError($response, 'login_invalid_password', $redirectTarget);
             }
 
-            if (($userRecord['status'] ?? User::STATUS_ACTIVE) !== User::STATUS_ACTIVE) {
-                return $this->redirectWithError($response, 'login_invalid_password', $redirectTarget);
-            }
-
             $passwordHash = (string) ($userRecord['password_hash'] ?? '');
 
             if ($passwordHash === '' || !password_verify($password, $passwordHash)) {
@@ -100,8 +98,6 @@ class AuthController
             if (password_needs_rehash($passwordHash, PASSWORD_DEFAULT)) {
                 $this->userModel->updatePasswordHash($userId, $password);
             }
-
-            $this->userModel->touchLastLogin($userId);
 
             $user = $this->userModel->findById($userId);
 
@@ -129,13 +125,21 @@ class AuthController
                 return $this->redirectWithError($response, 'login_ldap_failed', $redirectTarget);
             }
 
-            $user = $this->userModel->provisionFromAuth([
+            $systemUser = $this->userModel->findByEmail($ldapProfile['email']);
+
+            if ($systemUser !== null) {
+                $this->sessionLoginFromUser($systemUser);
+
+                return $response->withHeader('Location', $redirectTarget)->withStatus(302);
+            }
+
+            $person = $this->personnelModel->provisionFromAuth([
                 ...$ldapProfile,
-                'auth_provider' => User::PROVIDER_LDAP,
+                'auth_provider' => Personnel::PROVIDER_LDAP,
                 'provider_subject' => $ldapProfile['external_id'],
             ]);
 
-            $this->sessionLoginFromUser($user);
+            $this->sessionLoginFromPersonnel($person);
 
             return $response->withHeader('Location', $redirectTarget)->withStatus(302);
         }
@@ -181,8 +185,18 @@ class AuthController
             return $this->redirectWithError($response, 'login_corporate_account_not_found');
         }
 
-        $user = $this->userModel->provisionFromAuth($profile);
-        $this->sessionLoginFromUser($user);
+        $systemUser = $this->userModel->findByEmail($profile['email'] ?? '');
+
+        if ($systemUser !== null) {
+            $this->sessionLoginFromUser($systemUser);
+
+            return $response
+                ->withHeader('Location', '/')
+                ->withStatus(302);
+        }
+
+        $person = $this->personnelModel->provisionFromAuth($profile);
+        $this->sessionLoginFromPersonnel($person);
 
         return $response
             ->withHeader('Location', '/')
@@ -201,6 +215,14 @@ class AuthController
         return $response
             ->withHeader('Location', $authorizationUrl)
             ->withStatus(302);
+    }
+
+    private function sessionLoginFromPersonnel(array $person): void
+    {
+        $this->sessionAuthService->login(
+            (int) $person['id'],
+            User::ROLE_END_USER
+        );
     }
 
     /**

@@ -82,6 +82,10 @@ class DatabaseInitializer
                 }
             }
 
+            foreach ($this->patchPersonnelSeparation($connection) as $warning) {
+                $warnings[] = $warning;
+            }
+
             if (is_readable($this->seedsPath)) {
                 $this->applySqlFile($connection, $this->seedsPath);
             } else {
@@ -253,6 +257,178 @@ class DatabaseInitializer
         }
 
         return $warnings;
+    }
+
+    /**
+     * Migrate legacy unified users table into personnel + slim auth users, and rename FK columns.
+     *
+     * @param object $connection Medoo instance
+     *
+     * @return list<string>
+     */
+    private function patchPersonnelSeparation(object $connection): array
+    {
+        $warnings = [];
+
+        if (!$this->tableExists($connection, 'personnel')) {
+            $this->applySqlFile($connection, $this->getPersonnelTableMigrationPath());
+            $warnings[] = 'Self-healed database: created personnel table.';
+        }
+
+        if ($this->usersTableExists($connection)
+            && $this->tableExists($connection, 'personnel')
+            && $this->columnExists($connection, 'users', 'role')) {
+            $connection->query(
+                "INSERT INTO personnel (id, name, email, department, title, external_id, provider, status, created_at)
+                SELECT u.id, u.name, u.email, u.department, NULL, u.external_id,
+                    COALESCE(u.auth_provider, 'local'), COALESCE(u.status, 'active'), u.created_at
+                FROM users u
+                WHERE u.role = 'end_user'
+                ON DUPLICATE KEY UPDATE
+                    personnel.name = VALUES(name),
+                    personnel.email = VALUES(email),
+                    personnel.department = VALUES(department),
+                    personnel.external_id = COALESCE(personnel.external_id, VALUES(external_id)),
+                    personnel.provider = VALUES(provider),
+                    personnel.status = VALUES(status)"
+            );
+            $warnings[] = 'Self-healed database: migrated personnel records from users table.';
+        }
+
+        if ($this->assetsTableExists($connection)
+            && $this->columnExists($connection, 'assets', 'user_id')
+            && !$this->columnExists($connection, 'assets', 'personnel_id')) {
+            $this->dropForeignKeyIfExists($connection, 'assets', 'fk_assets_user_id');
+            $connection->query(
+                'ALTER TABLE assets CHANGE user_id personnel_id BIGINT UNSIGNED DEFAULT NULL'
+            );
+            $warnings[] = 'Self-healed assets table: renamed user_id to personnel_id.';
+        }
+
+        if ($this->assetsTableExists($connection)
+            && $this->columnExists($connection, 'assets', 'personnel_id')
+            && !$this->indexExists($connection, 'assets', 'idx_assets_personnel_id')) {
+            if ($this->indexExists($connection, 'assets', 'idx_assets_user_id')) {
+                $connection->query('ALTER TABLE assets DROP INDEX idx_assets_user_id');
+            }
+
+            $connection->query('ALTER TABLE assets ADD KEY idx_assets_personnel_id (personnel_id)');
+            $warnings[] = 'Self-healed assets table: added idx_assets_personnel_id index.';
+        }
+
+        if ($this->assetsTableExists($connection)
+            && $this->tableExists($connection, 'personnel')
+            && $this->columnExists($connection, 'assets', 'personnel_id')
+            && !$this->foreignKeyExists($connection, 'assets', 'fk_assets_personnel_id')) {
+            $connection->query(
+                'ALTER TABLE assets ADD CONSTRAINT fk_assets_personnel_id FOREIGN KEY (personnel_id) REFERENCES personnel (id) ON DELETE SET NULL ON UPDATE CASCADE'
+            );
+            $warnings[] = 'Self-healed assets table: added fk_assets_personnel_id foreign key.';
+        }
+
+        if ($this->tableExists($connection, 'license_assignments')
+            && $this->columnExists($connection, 'license_assignments', 'user_id')
+            && !$this->columnExists($connection, 'license_assignments', 'personnel_id')) {
+            $this->dropForeignKeyIfExists($connection, 'license_assignments', 'fk_license_assignments_user_id');
+            $connection->query(
+                'ALTER TABLE license_assignments CHANGE user_id personnel_id BIGINT UNSIGNED DEFAULT NULL'
+            );
+            $warnings[] = 'Self-healed license_assignments table: renamed user_id to personnel_id.';
+        }
+
+        if ($this->tableExists($connection, 'license_assignments')
+            && $this->columnExists($connection, 'license_assignments', 'personnel_id')
+            && !$this->indexExists($connection, 'license_assignments', 'idx_license_assignments_personnel_id')) {
+            if ($this->indexExists($connection, 'license_assignments', 'idx_license_assignments_user_id')) {
+                $connection->query('ALTER TABLE license_assignments DROP INDEX idx_license_assignments_user_id');
+            }
+
+            $connection->query('ALTER TABLE license_assignments ADD KEY idx_license_assignments_personnel_id (personnel_id)');
+            $warnings[] = 'Self-healed license_assignments table: added idx_license_assignments_personnel_id index.';
+        }
+
+        if ($this->tableExists($connection, 'license_assignments')
+            && $this->tableExists($connection, 'personnel')
+            && $this->columnExists($connection, 'license_assignments', 'personnel_id')
+            && !$this->foreignKeyExists($connection, 'license_assignments', 'fk_license_assignments_personnel_id')) {
+            $connection->query(
+                'ALTER TABLE license_assignments ADD CONSTRAINT fk_license_assignments_personnel_id FOREIGN KEY (personnel_id) REFERENCES personnel (id) ON DELETE CASCADE ON UPDATE CASCADE'
+            );
+            $warnings[] = 'Self-healed license_assignments table: added fk_license_assignments_personnel_id foreign key.';
+        }
+
+        if ($this->tableExists($connection, 'asset_histories')
+            && $this->columnExists($connection, 'asset_histories', 'target_user_id')
+            && !$this->columnExists($connection, 'asset_histories', 'target_personnel_id')) {
+            $this->dropForeignKeyIfExists($connection, 'asset_histories', 'fk_asset_histories_target_user_id');
+            $connection->query(
+                'ALTER TABLE asset_histories CHANGE target_user_id target_personnel_id BIGINT UNSIGNED DEFAULT NULL'
+            );
+            $warnings[] = 'Self-healed asset_histories table: renamed target_user_id to target_personnel_id.';
+        }
+
+        if ($this->tableExists($connection, 'asset_histories')
+            && $this->tableExists($connection, 'personnel')
+            && $this->columnExists($connection, 'asset_histories', 'target_personnel_id')
+            && !$this->foreignKeyExists($connection, 'asset_histories', 'fk_asset_histories_target_personnel_id')) {
+            $connection->query(
+                'ALTER TABLE asset_histories ADD CONSTRAINT fk_asset_histories_target_personnel_id FOREIGN KEY (target_personnel_id) REFERENCES personnel (id) ON DELETE SET NULL ON UPDATE CASCADE'
+            );
+            $warnings[] = 'Self-healed asset_histories table: added fk_asset_histories_target_personnel_id foreign key.';
+        }
+
+        if ($this->usersTableExists($connection) && $this->columnExists($connection, 'users', 'role')) {
+            $connection->query(
+                "DELETE FROM users WHERE role = 'end_user' OR role = '' OR role IS NULL"
+            );
+            $warnings[] = 'Self-healed users table: removed personnel rows (end_user).';
+        }
+
+        foreach ([
+            'external_id' => 'uq_users_external_id',
+            'department' => 'idx_users_department',
+            'status' => 'idx_users_status',
+            'auth_provider' => 'idx_users_auth_provider',
+            'provider_subject' => 'idx_users_provider_subject',
+            'last_login_at' => null,
+            'created_at' => null,
+        ] as $column => $indexName) {
+            if (!$this->columnExists($connection, 'users', $column)) {
+                continue;
+            }
+
+            if ($indexName !== null && $this->indexExists($connection, 'users', $indexName)) {
+                $connection->query(sprintf('ALTER TABLE users DROP INDEX %s', $indexName));
+            }
+
+            $connection->query(sprintf('ALTER TABLE users DROP COLUMN %s', $column));
+            $warnings[] = sprintf('Self-healed users table: dropped legacy column %s.', $column);
+        }
+
+        return $warnings;
+    }
+
+    private function getPersonnelTableMigrationPath(): string
+    {
+        return dirname($this->schemaPath) . '/migrations/009_separate_personnel_table.sql';
+    }
+
+    /**
+     * @param object $connection Medoo instance
+     */
+    private function dropForeignKeyIfExists(object $connection, string $table, string $constraintName): void
+    {
+        if (!$this->foreignKeyExists($connection, $table, $constraintName)) {
+            return;
+        }
+
+        $connection->query(
+            sprintf(
+                'ALTER TABLE `%s` DROP FOREIGN KEY %s',
+                $this->escapeIdentifier($table),
+                $constraintName
+            )
+        );
     }
 
     /**

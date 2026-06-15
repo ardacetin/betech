@@ -46,7 +46,7 @@ class Asset
     {
         $rows = $this->db()->select('assets', [
             '[>]categories' => ['category_id' => 'id'],
-            '[>]users' => ['user_id' => 'id'],
+            '[>]personnel' => ['personnel_id' => 'id'],
             '[>]locations' => ['location_id' => 'id'],
         ], [
             'assets.id',
@@ -55,13 +55,13 @@ class Asset
             'assets.name',
             'assets.category_id',
             'assets.status',
-            'assets.user_id',
+            'assets.personnel_id',
             'assets.location_id',
             'assets.properties',
             'assets.created_at',
             'assets.updated_at',
             'categories.name(category_name)',
-            'users.name(user_name)',
+            'personnel.name(personnel_name)',
             'locations.name(location_name)',
             'locations.building(location_building)',
         ], [
@@ -85,7 +85,7 @@ class Asset
     {
         $row = $this->db()->get('assets', [
             '[>]categories' => ['category_id' => 'id'],
-            '[>]users' => ['user_id' => 'id'],
+            '[>]personnel' => ['personnel_id' => 'id'],
             '[>]locations' => ['location_id' => 'id'],
         ], [
             'assets.id',
@@ -94,13 +94,13 @@ class Asset
             'assets.name',
             'assets.category_id',
             'assets.status',
-            'assets.user_id',
+            'assets.personnel_id',
             'assets.location_id',
             'assets.properties',
             'assets.created_at',
             'assets.updated_at',
             'categories.name(category_name)',
-            'users.name(user_name)',
+            'personnel.name(personnel_name)',
             'locations.name(location_name)',
             'locations.building(location_building)',
         ], [
@@ -113,10 +113,10 @@ class Asset
     /**
      * @return list<array<string, mixed>>
      */
-    public function findAllByUserId(int $userId): array
+    public function findAllByPersonnelId(int $userId): array
     {
         $rows = $this->db()->select('assets', '*', [
-            'user_id' => $userId,
+            'personnel_id' => $userId,
             'ORDER' => ['id' => 'ASC'],
         ]);
 
@@ -131,11 +131,11 @@ class Asset
      *
      * @return list<array<string, mixed>>
      */
-    public function findForDashboardByUserId(int $userId): array
+    public function findForDashboardByPersonnelId(int $userId): array
     {
         $rows = $this->db()->select('assets', [
             '[>]categories' => ['category_id' => 'id'],
-            '[>]users' => ['user_id' => 'id'],
+            '[>]personnel' => ['personnel_id' => 'id'],
             '[>]locations' => ['location_id' => 'id'],
         ], [
             'assets.id',
@@ -144,17 +144,17 @@ class Asset
             'assets.name',
             'assets.category_id',
             'assets.status',
-            'assets.user_id',
+            'assets.personnel_id',
             'assets.location_id',
             'assets.properties',
             'assets.created_at',
             'assets.updated_at',
             'categories.name(category_name)',
-            'users.name(user_name)',
+            'personnel.name(personnel_name)',
             'locations.name(location_name)',
             'locations.building(location_building)',
         ], [
-            'assets.user_id' => $userId,
+            'assets.personnel_id' => $userId,
             'ORDER' => ['assets.id' => 'DESC'],
         ]);
 
@@ -164,11 +164,11 @@ class Asset
         );
     }
 
-    public function isAssignedToUser(int $assetId, int $userId): bool
+    public function isAssignedToPersonnel(int $assetId, int $userId): bool
     {
         return $this->db()->has('assets', [
             'id' => $assetId,
-            'user_id' => $userId,
+            'personnel_id' => $userId,
         ]);
     }
 
@@ -229,7 +229,7 @@ class Asset
             'name' => $name,
             'category_id' => $categoryId,
             'status' => $status !== '' ? $status : 'ready',
-            'user_id' => array_key_exists('user_id', $coreFields) ? $coreFields['user_id'] : null,
+            'personnel_id' => array_key_exists('personnel_id', $coreFields) ? $coreFields['personnel_id'] : null,
             'location_id' => array_key_exists('location_id', $coreFields) ? $coreFields['location_id'] : null,
             'properties' => $encodedProperties,
         ]);
@@ -286,8 +286,8 @@ class Asset
             $updateData['status'] = $status !== '' ? $status : 'ready';
         }
 
-        if (array_key_exists('user_id', $coreFields)) {
-            $updateData['user_id'] = $coreFields['user_id'];
+        if (array_key_exists('personnel_id', $coreFields)) {
+            $updateData['personnel_id'] = $coreFields['personnel_id'];
         }
 
         if (array_key_exists('location_id', $coreFields)) {
@@ -475,12 +475,17 @@ class Asset
             $row['category_name'] = null;
         }
 
-        if (array_key_exists('user_name', $row) && $row['user_name'] === null) {
-            $row['user_name'] = null;
+        if (array_key_exists('personnel_name', $row) && $row['personnel_name'] === null) {
+            $row['personnel_name'] = null;
         }
 
-        if (array_key_exists('user_id', $row) && $row['user_id'] !== null) {
-            $row['user_id'] = (int) $row['user_id'];
+        if (array_key_exists('personnel_name', $row)) {
+            $row['user_name'] = $row['personnel_name'];
+        }
+
+        if (array_key_exists('personnel_id', $row) && $row['personnel_id'] !== null) {
+            $row['personnel_id'] = (int) $row['personnel_id'];
+            $row['user_id'] = $row['personnel_id'];
         }
 
         if (array_key_exists('location_id', $row) && $row['location_id'] !== null) {

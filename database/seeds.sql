@@ -31,19 +31,24 @@ FROM (
 ) AS seed
 WHERE NOT EXISTS (SELECT 1 FROM locations LIMIT 1);
 
-INSERT INTO users (external_id, name, email, department, password_hash, auth_provider, role) VALUES
-('admin', 'Sistem Yöneticisi', 'admin@betech.local', 'IT', '$2y$12$gKwuiE9St/UBa3ENhW7aT.yVeD1UPf2Ov9Fhcqa2PMoNAD.sHAt3e', 'local', 'super_admin'),
-('USR-001', 'Ayşe Yılmaz', 'ayse.yilmaz@betech.local', 'IT', NULL, 'local', 'end_user'),
-('USR-002', 'Mehmet Demir', 'mehmet.demir@betech.local', 'Finans', NULL, 'local', 'end_user'),
-('USR-003', 'Zeynep Kaya', 'zeynep.kaya@betech.local', 'İnsan Kaynakları', NULL, 'local', 'end_user'),
-('USR-004', 'Can Öztürk', 'can.ozturk@betech.local', 'Operasyon', NULL, 'local', 'end_user'),
-('USR-005', 'Elif Arslan', 'elif.arslan@betech.local', 'IT', NULL, 'local', 'end_user')
+INSERT INTO users (name, email, password_hash, role) VALUES
+('Sistem Yöneticisi', 'admin@betech.local', '$2y$12$gKwuiE9St/UBa3ENhW7aT.yVeD1UPf2Ov9Fhcqa2PMoNAD.sHAt3e', 'super_admin')
+ON DUPLICATE KEY UPDATE
+    name = VALUES(name),
+    password_hash = VALUES(password_hash),
+    role = 'super_admin';
+
+INSERT INTO personnel (external_id, name, email, department, provider, status) VALUES
+('USR-001', 'Ayşe Yılmaz', 'ayse.yilmaz@betech.local', 'IT', 'local', 'active'),
+('USR-002', 'Mehmet Demir', 'mehmet.demir@betech.local', 'Finans', 'local', 'active'),
+('USR-003', 'Zeynep Kaya', 'zeynep.kaya@betech.local', 'İnsan Kaynakları', 'local', 'active'),
+('USR-004', 'Can Öztürk', 'can.ozturk@betech.local', 'Operasyon', 'local', 'active'),
+('USR-005', 'Elif Arslan', 'elif.arslan@betech.local', 'IT', 'local', 'active')
 ON DUPLICATE KEY UPDATE
     name = VALUES(name),
     email = VALUES(email),
     department = VALUES(department),
-    auth_provider = VALUES(auth_provider),
-    role = IF(email = 'admin@betech.local', 'super_admin', users.role);
+    provider = VALUES(provider);
 
 INSERT INTO settings (`key`, value) VALUES
 (

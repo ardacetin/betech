@@ -100,6 +100,10 @@ class AuthMiddleware implements MiddlewareInterface
             return;
         }
 
-        $this->sessionAuthService->setRole($this->userModel->findRoleById($userId));
+        $user = $this->userModel->findById($userId);
+
+        if ($user !== null) {
+            $this->sessionAuthService->setRole((string) $user['role']);
+        }
     }
 }
