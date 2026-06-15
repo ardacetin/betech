@@ -72,6 +72,12 @@ class DatabaseInitializer
                 }
             }
 
+            if ($this->assetsTableExists($connection)) {
+                foreach ($this->patchLocationTracking($connection) as $warning) {
+                    $warnings[] = $warning;
+                }
+            }
+
             if (is_readable($this->seedsPath)) {
                 $this->applySqlFile($connection, $this->seedsPath);
             } else {
@@ -236,6 +242,86 @@ class DatabaseInitializer
         }
 
         return $warnings;
+    }
+
+    /**
+     * Self-heal location tracking tables and asset.location_id column.
+     *
+     * @param object $connection Medoo instance
+     *
+     * @return list<string>
+     */
+    private function patchLocationTracking(object $connection): array
+    {
+        $warnings = [];
+
+        if (!$this->tableExists($connection, 'locations')) {
+            $connection->query(
+                'CREATE TABLE IF NOT EXISTS locations (
+                    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+                    name VARCHAR(255) NOT NULL,
+                    building VARCHAR(255) DEFAULT NULL,
+                    description TEXT DEFAULT NULL,
+                    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    PRIMARY KEY (id),
+                    KEY idx_locations_building (building),
+                    KEY idx_locations_name (name)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci'
+            );
+            $warnings[] = 'Self-healed database: created locations table.';
+        }
+
+        if (!$this->columnExists($connection, 'assets', 'location_id')) {
+            $connection->query(
+                'ALTER TABLE assets ADD COLUMN location_id BIGINT UNSIGNED NULL AFTER user_id'
+            );
+            $warnings[] = 'Self-healed assets table: added location_id column.';
+        }
+
+        if ($this->columnExists($connection, 'assets', 'location_id')
+            && !$this->indexExists($connection, 'assets', 'idx_assets_location_id')) {
+            $connection->query('ALTER TABLE assets ADD KEY idx_assets_location_id (location_id)');
+            $warnings[] = 'Self-healed assets table: added idx_assets_location_id index.';
+        }
+
+        if ($this->columnExists($connection, 'assets', 'location_id')
+            && $this->tableExists($connection, 'locations')
+            && !$this->foreignKeyExists($connection, 'assets', 'fk_assets_location_id')) {
+            $connection->query(
+                'ALTER TABLE assets ADD CONSTRAINT fk_assets_location_id FOREIGN KEY (location_id) REFERENCES locations (id) ON DELETE SET NULL ON UPDATE CASCADE'
+            );
+            $warnings[] = 'Self-healed assets table: added fk_assets_location_id foreign key.';
+        }
+
+        return $warnings;
+    }
+
+    /**
+     * @param object $connection Medoo instance
+     */
+    private function tableExists(object $connection, string $table): bool
+    {
+        $statement = $connection->query(
+            sprintf("SHOW TABLES LIKE '%s'", $this->escapeIdentifier($table))
+        );
+
+        return $statement !== false && $statement->rowCount() > 0;
+    }
+
+    /**
+     * @param object $connection Medoo instance
+     */
+    private function foreignKeyExists(object $connection, string $table, string $constraintName): bool
+    {
+        $statement = $connection->query(
+            sprintf(
+                "SELECT CONSTRAINT_NAME FROM information_schema.TABLE_CONSTRAINTS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = '%s' AND CONSTRAINT_NAME = '%s' AND CONSTRAINT_TYPE = 'FOREIGN KEY'",
+                $this->escapeIdentifier($table),
+                $constraintName
+            )
+        );
+
+        return $statement !== false && $statement->rowCount() > 0;
     }
 
     /**

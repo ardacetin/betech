@@ -50,6 +50,21 @@ $formatPropertyValue = static function (mixed $value): string {
     return (string) $value;
 };
 
+$formatLocationLabel = static function (?string $building, ?string $name): string {
+    $building = trim((string) $building);
+    $name = trim((string) $name);
+
+    if ($name === '') {
+        return '';
+    }
+
+    if ($building === '') {
+        return $name;
+    }
+
+    return $building . ' / ' . $name;
+};
+
 $statusChartColors = [
     'ready' => 'bg-sky-500',
     'deployed' => 'bg-emerald-500',
@@ -139,9 +154,20 @@ $i18nScript = json_encode([
     'category_delete_confirm' => __('category_delete_confirm'),
     'category_delete_in_use' => __('category_delete_in_use'),
     'category_field_count' => __('category_field_count'),
+    'locations_fetch_error' => __('locations_fetch_error'),
+    'locations_network_error' => __('locations_network_error'),
+    'location_create_success' => __('location_create_success'),
+    'location_update_success' => __('location_update_success'),
+    'location_delete_success' => __('location_delete_success'),
+    'location_create_error' => __('location_create_error'),
+    'location_update_error' => __('location_update_error'),
+    'location_delete_error' => __('location_delete_error'),
+    'location_delete_confirm' => __('location_delete_confirm'),
+    'location_delete_in_use' => __('location_delete_in_use'),
+    'history_action_location_moved' => __('history_action_location_moved'),
 ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
 ?>
-<div class="min-h-full" x-data="assetDashboard()" x-init="if (canManageAssets) { fetchCategories(); }">
+<div class="min-h-full" x-data="assetDashboard()" x-init="if (canManageAssets) { fetchCategories(); fetchLocations(); }">
     <div class="flex min-h-screen">
         <aside class="hidden w-64 shrink-0 border-r border-zinc-200 bg-white lg:flex lg:flex-col">
             <div class="flex h-16 items-center gap-3 border-b border-zinc-200 px-6">
@@ -171,6 +197,15 @@ $i18nScript = json_encode([
                 >
                     <span class="h-2 w-2 rounded-full" :class="activeView === 'categories' ? 'bg-zinc-900' : 'bg-zinc-300'"></span>
                     <?= htmlspecialchars(__('nav_categories'), ENT_QUOTES, 'UTF-8') ?>
+                </button>
+                <button
+                    type="button"
+                    @click="activeView = 'locations'; fetchLocations()"
+                    class="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm font-medium transition"
+                    :class="activeView === 'locations' ? 'bg-zinc-100 text-zinc-900' : 'text-zinc-600 hover:bg-zinc-50'"
+                >
+                    <span class="h-2 w-2 rounded-full" :class="activeView === 'locations' ? 'bg-zinc-900' : 'bg-zinc-300'"></span>
+                    <?= htmlspecialchars(__('nav_locations'), ENT_QUOTES, 'UTF-8') ?>
                 </button>
                 <?php endif; ?>
                 <?php if ($canAccessPersonnel): ?>
@@ -248,6 +283,15 @@ $i18nScript = json_encode([
                         >
                             <span class="text-lg leading-none">+</span>
                             <?= htmlspecialchars(__('add_category'), ENT_QUOTES, 'UTF-8') ?>
+                        </button>
+                        <button
+                            type="button"
+                            x-show="activeView === 'locations' && canManageAssets"
+                            @click="openLocationModal()"
+                            class="inline-flex items-center gap-2 rounded-xl bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white shadow-soft transition hover:bg-zinc-800"
+                        >
+                            <span class="text-lg leading-none">+</span>
+                            <?= htmlspecialchars(__('add_location'), ENT_QUOTES, 'UTF-8') ?>
                         </button>
                     </div>
                 </div>
@@ -372,6 +416,7 @@ $i18nScript = json_encode([
                                     <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500"><?= htmlspecialchars(__('col_category'), ENT_QUOTES, 'UTF-8') ?></th>
                                     <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500"><?= htmlspecialchars(__('col_status'), ENT_QUOTES, 'UTF-8') ?></th>
                                     <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500"><?= htmlspecialchars(__('col_assigned_user'), ENT_QUOTES, 'UTF-8') ?></th>
+                                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500"><?= htmlspecialchars(__('col_location'), ENT_QUOTES, 'UTF-8') ?></th>
                                     <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500"><?= htmlspecialchars(__('col_properties'), ENT_QUOTES, 'UTF-8') ?></th>
                                     <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500"><?= htmlspecialchars(__('col_actions'), ENT_QUOTES, 'UTF-8') ?></th>
                                 </tr>
@@ -379,7 +424,7 @@ $i18nScript = json_encode([
                             <tbody class="divide-y divide-zinc-100 bg-white">
                                 <?php if ($assets === []): ?>
                                 <tr>
-                                    <td colspan="7" class="px-6 py-12 text-center text-sm text-zinc-500">
+                                    <td colspan="8" class="px-6 py-12 text-center text-sm text-zinc-500">
                                         <?php if ($isEndUser): ?>
                                             <?= htmlspecialchars(__('empty_assets_end_user'), ENT_QUOTES, 'UTF-8') ?>
                                         <?php else: ?>
@@ -394,6 +439,10 @@ $i18nScript = json_encode([
                                         $status = (string) ($asset['status'] ?? 'ready');
                                         $statusClass = $statusStyles[$status] ?? 'bg-zinc-100 text-zinc-700 ring-zinc-500/20';
                                         $properties = is_array($asset['properties'] ?? null) ? $asset['properties'] : [];
+                                        $locationLabel = $formatLocationLabel(
+                                            isset($asset['location_building']) ? (string) $asset['location_building'] : null,
+                                            isset($asset['location_name']) ? (string) $asset['location_name'] : null
+                                        );
                                     ?>
                                     <tr class="hover:bg-zinc-50/80">
                                         <td class="whitespace-nowrap px-6 py-4 text-sm font-medium text-zinc-900">
@@ -415,6 +464,13 @@ $i18nScript = json_encode([
                                                 <?= htmlspecialchars((string) $asset['user_name'], ENT_QUOTES, 'UTF-8') ?>
                                             <?php else: ?>
                                                 <span class="text-zinc-400"><?= htmlspecialchars(__('not_assigned'), ENT_QUOTES, 'UTF-8') ?></span>
+                                            <?php endif; ?>
+                                        </td>
+                                        <td class="px-6 py-4 text-sm text-zinc-600">
+                                            <?php if ($locationLabel !== ''): ?>
+                                                <?= htmlspecialchars($locationLabel, ENT_QUOTES, 'UTF-8') ?>
+                                            <?php else: ?>
+                                                <span class="text-zinc-400"><?= htmlspecialchars(__('not_located'), ENT_QUOTES, 'UTF-8') ?></span>
                                             <?php endif; ?>
                                         </td>
                                         <td class="px-6 py-4">
@@ -443,6 +499,9 @@ $i18nScript = json_encode([
                                                         'category_name' => (string) ($asset['category_name'] ?? __('unknown_category')),
                                                         'user_id' => $asset['user_id'] ?? null,
                                                         'user_name' => $asset['user_name'] ?? null,
+                                                        'location_id' => $asset['location_id'] ?? null,
+                                                        'location_name' => $asset['location_name'] ?? null,
+                                                        'location_building' => $asset['location_building'] ?? null,
                                                     ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>)'
                                                     class="rounded-lg border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-700 transition hover:bg-zinc-50"
                                                 >
@@ -458,6 +517,9 @@ $i18nScript = json_encode([
                                                         'status' => $status,
                                                         'user_id' => $asset['user_id'] ?? null,
                                                         'user_name' => $asset['user_name'] ?? null,
+                                                        'location_id' => $asset['location_id'] ?? null,
+                                                        'location_name' => $asset['location_name'] ?? null,
+                                                        'location_building' => $asset['location_building'] ?? null,
                                                     ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>)'
                                                     class="rounded-lg border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-700 transition hover:bg-zinc-50"
                                                 >
@@ -488,6 +550,9 @@ $i18nScript = json_encode([
                                                         'name' => (string) $asset['name'],
                                                         'user_id' => $asset['user_id'] ?? null,
                                                         'user_name' => $asset['user_name'] ?? null,
+                                                        'location_id' => $asset['location_id'] ?? null,
+                                                        'location_name' => $asset['location_name'] ?? null,
+                                                        'location_building' => $asset['location_building'] ?? null,
                                                     ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>)'
                                                     class="rounded-lg border border-indigo-200 px-3 py-1.5 text-xs font-medium text-indigo-800 transition hover:bg-indigo-50"
                                                 >
@@ -517,6 +582,7 @@ $i18nScript = json_encode([
 
                 <?php if ($canManageAssets): ?>
                 <?php require __DIR__ . '/partials/categories_panel.php'; ?>
+                <?php require __DIR__ . '/partials/locations_panel.php'; ?>
                 <?php endif; ?>
                 <?php if ($canAccessSettings): ?>
                 <?php require __DIR__ . '/partials/settings_panel.php'; ?>
@@ -590,6 +656,22 @@ $i18nScript = json_encode([
                     <h4 class="text-sm font-semibold text-zinc-900"><?= htmlspecialchars(__('label_assign_user'), ENT_QUOTES, 'UTF-8') ?></h4>
                     <p class="mt-1 text-xs text-zinc-500"><?= htmlspecialchars(__('assign_user_hint'), ENT_QUOTES, 'UTF-8') ?></p>
                     <?php require __DIR__ . '/partials/user_picker.php'; ?>
+                </div>
+
+                <div class="mt-6 border-t border-zinc-200 pt-5">
+                    <h4 class="text-sm font-semibold text-zinc-900"><?= htmlspecialchars(__('label_select_location'), ENT_QUOTES, 'UTF-8') ?></h4>
+                    <p class="mt-1 text-xs text-zinc-500"><?= htmlspecialchars(__('assign_location_hint'), ENT_QUOTES, 'UTF-8') ?></p>
+                    <label class="mt-4 block">
+                        <select
+                            x-model="form.location_id"
+                            class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4"
+                        >
+                            <option value=""><?= htmlspecialchars(__('select_location'), ENT_QUOTES, 'UTF-8') ?></option>
+                            <template x-for="location in locations" :key="location.id">
+                                <option :value="location.id" x-text="formatLocationLabel(location)"></option>
+                            </template>
+                        </select>
+                    </label>
                 </div>
 
                 <div class="mt-6 border-t border-zinc-200 pt-5">
@@ -681,6 +763,22 @@ $i18nScript = json_encode([
                     <h4 class="text-sm font-semibold text-zinc-900"><?= htmlspecialchars(__('label_assign_user'), ENT_QUOTES, 'UTF-8') ?></h4>
                     <p class="mt-1 text-xs text-zinc-500"><?= htmlspecialchars(__('assign_user_hint'), ENT_QUOTES, 'UTF-8') ?></p>
                     <?php require __DIR__ . '/partials/user_picker.php'; ?>
+                </div>
+
+                <div class="mt-6 border-t border-zinc-200 pt-5">
+                    <h4 class="text-sm font-semibold text-zinc-900"><?= htmlspecialchars(__('label_select_location'), ENT_QUOTES, 'UTF-8') ?></h4>
+                    <p class="mt-1 text-xs text-zinc-500"><?= htmlspecialchars(__('assign_location_hint'), ENT_QUOTES, 'UTF-8') ?></p>
+                    <label class="mt-4 block">
+                        <select
+                            x-model="editForm.location_id"
+                            class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4"
+                        >
+                            <option value=""><?= htmlspecialchars(__('select_location'), ENT_QUOTES, 'UTF-8') ?></option>
+                            <template x-for="location in locations" :key="location.id">
+                                <option :value="location.id" x-text="formatLocationLabel(location)"></option>
+                            </template>
+                        </select>
+                    </label>
                 </div>
 
                 <div x-show="editErrorMessage" x-cloak class="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700" x-text="editErrorMessage"></div>
@@ -1014,6 +1112,76 @@ $i18nScript = json_encode([
             </form>
         </div>
     </div>
+
+    <div
+        x-show="isLocationModalOpen"
+        x-cloak
+        class="fixed inset-0 z-[60] flex items-center justify-center px-4"
+        @keydown.escape.window="closeLocationModal()"
+    >
+        <div class="absolute inset-0 bg-zinc-900/40 backdrop-blur-sm" @click="closeLocationModal()"></div>
+
+        <div class="relative w-full max-w-xl rounded-2xl border border-zinc-200 bg-white shadow-soft">
+            <div class="flex items-center justify-between border-b border-zinc-200 px-6 py-4">
+                <div>
+                    <h3 class="text-lg font-semibold text-zinc-900" x-text="locationForm.id ? '<?= htmlspecialchars(__('edit_location'), ENT_QUOTES, 'UTF-8') ?>' : '<?= htmlspecialchars(__('add_location'), ENT_QUOTES, 'UTF-8') ?>'"></h3>
+                    <p class="mt-1 text-sm text-zinc-500"><?= htmlspecialchars(__('modal_location_subtitle'), ENT_QUOTES, 'UTF-8') ?></p>
+                </div>
+                <button type="button" @click="closeLocationModal()" class="rounded-lg p-2 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600">&times;</button>
+            </div>
+
+            <form @submit.prevent="submitLocationForm" class="px-6 py-5">
+                <div class="grid gap-4">
+                    <label class="block">
+                        <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('location_name_label'), ENT_QUOTES, 'UTF-8') ?></span>
+                        <input
+                            type="text"
+                            x-model="locationForm.name"
+                            required
+                            class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4"
+                        >
+                    </label>
+                    <label class="block">
+                        <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('location_building_label'), ENT_QUOTES, 'UTF-8') ?></span>
+                        <input
+                            type="text"
+                            x-model="locationForm.building"
+                            class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4"
+                        >
+                    </label>
+                    <label class="block">
+                        <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('location_description_label'), ENT_QUOTES, 'UTF-8') ?></span>
+                        <textarea
+                            x-model="locationForm.description"
+                            rows="3"
+                            class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4"
+                        ></textarea>
+                    </label>
+                </div>
+
+                <p x-show="locationFormError" x-cloak class="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700" x-text="locationFormError"></p>
+
+                <div class="mt-6 flex items-center justify-end gap-3 border-t border-zinc-200 pt-5">
+                    <button
+                        type="button"
+                        @click="closeLocationModal()"
+                        :disabled="isLocationSubmitting"
+                        class="rounded-xl border border-zinc-200 px-4 py-2.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                        <?= htmlspecialchars(__('cancel'), ENT_QUOTES, 'UTF-8') ?>
+                    </button>
+                    <button
+                        type="submit"
+                        :disabled="isLocationSubmitting"
+                        class="inline-flex items-center gap-2 rounded-xl bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                        <span x-show="isLocationSubmitting"><?= htmlspecialchars(__('saving'), ENT_QUOTES, 'UTF-8') ?></span>
+                        <span x-show="!isLocationSubmitting"><?= htmlspecialchars(__('category_save'), ENT_QUOTES, 'UTF-8') ?></span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
 </div>
 
 <style>
@@ -1059,12 +1227,14 @@ $i18nScript = json_encode([
             pageTitles: {
                 assets: <?= json_encode($isEndUser ? __('page_title_end_user') : $pageTitle, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 categories: <?= json_encode(__('categories_page_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
+                locations: <?= json_encode(__('locations_page_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 settings: <?= json_encode(__('settings_page_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 personnel: <?= json_encode(__('personnel_page_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
             },
             pageSubtitles: {
                 assets: <?= json_encode($isEndUser ? __('page_subtitle_end_user') : __('page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 categories: <?= json_encode(__('categories_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
+                locations: <?= json_encode(__('locations_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 settings: <?= json_encode(__('settings_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 personnel: <?= json_encode(__('personnel_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
             },
@@ -1092,6 +1262,19 @@ $i18nScript = json_encode([
                 fields: [],
             },
             categoryFormError: '',
+            locations: [],
+            locationsLoading: false,
+            locationsError: '',
+            locationsSuccessMessage: '',
+            isLocationModalOpen: false,
+            isLocationSubmitting: false,
+            locationForm: {
+                id: null,
+                name: '',
+                building: '',
+                description: '',
+            },
+            locationFormError: '',
             isSubmitting: false,
             addErrorMessage: '',
             editErrorMessage: '',
@@ -1111,6 +1294,7 @@ $i18nScript = json_encode([
             editAsset: null,
             editForm: {
                 status: 'ready',
+                location_id: '',
             },
             form: {
                 asset_tag: '',
@@ -1118,6 +1302,7 @@ $i18nScript = json_encode([
                 name: '',
                 category_id: '',
                 status: 'ready',
+                location_id: '',
             },
             settingsForm: {
                 active_auth_driver: window.__settings?.active_auth_driver || 'local',
@@ -1393,6 +1578,7 @@ $i18nScript = json_encode([
                 this.addErrorMessage = '';
                 this.resetDynamicFields();
                 this.resetUserSearch();
+                this.form.location_id = '';
                 this.loadCategoryFields(this.form.category_id);
                 this.isAddOpen = true;
             },
@@ -1407,6 +1593,7 @@ $i18nScript = json_encode([
                 this.editErrorMessage = '';
                 this.editAsset = asset;
                 this.editForm.status = asset.status || 'ready';
+                this.editForm.location_id = asset.location_id ? String(asset.location_id) : '';
                 this.resetUserSearch();
 
                 if (asset.user_id) {
@@ -1554,6 +1741,7 @@ $i18nScript = json_encode([
                     offboarded: window.__i18n.history_action_offboarded,
                     returned: window.__i18n.history_action_returned,
                     transferred: window.__i18n.history_action_transferred,
+                    location_moved: window.__i18n.history_action_location_moved,
                 };
 
                 return labels[action] || action;
@@ -1651,6 +1839,24 @@ $i18nScript = json_encode([
 
                 return field.label || field.name;
             },
+            formatLocationLabel(location) {
+                if (!location) {
+                    return '';
+                }
+
+                const name = String(location.name || '').trim();
+                const building = String(location.building || '').trim();
+
+                if (name === '') {
+                    return '';
+                }
+
+                if (building === '') {
+                    return name;
+                }
+
+                return `${building} / ${name}`;
+            },
             buildAddPayload() {
                 const payload = {
                     asset_tag: this.form.asset_tag.trim(),
@@ -1665,6 +1871,10 @@ $i18nScript = json_encode([
 
                 if (this.selectedUser?.id) {
                     payload.user_id = Number(this.selectedUser.id);
+                }
+
+                if (this.form.location_id) {
+                    payload.location_id = Number(this.form.location_id);
                 }
 
                 this.dynamicFields.forEach((field) => {
@@ -1689,6 +1899,7 @@ $i18nScript = json_encode([
                 return {
                     status: this.editForm.status,
                     user_id: this.selectedUser?.id ? Number(this.selectedUser.id) : null,
+                    location_id: this.editForm.location_id ? Number(this.editForm.location_id) : null,
                 };
             },
             async submitAddForm() {
@@ -1944,6 +2155,140 @@ $i18nScript = json_encode([
                     window.setTimeout(() => window.location.reload(), 900);
                 } catch (error) {
                     this.categoriesError = window.__i18n.categories_network_error;
+                }
+            },
+            async fetchLocations() {
+                if (!this.canManageAssets) {
+                    return;
+                }
+
+                this.locationsLoading = true;
+                this.locationsError = '';
+
+                try {
+                    const response = await fetch('/api/locations', {
+                        headers: {
+                            'Accept': 'application/json',
+                        },
+                    });
+                    const result = await response.json();
+
+                    if (!response.ok) {
+                        this.locationsError = result.message || window.__i18n.locations_fetch_error;
+                        this.locations = [];
+                        return;
+                    }
+
+                    this.locations = Array.isArray(result.data) ? result.data : [];
+                } catch (error) {
+                    this.locationsError = window.__i18n.locations_network_error;
+                    this.locations = [];
+                } finally {
+                    this.locationsLoading = false;
+                }
+            },
+            openLocationModal(location = null) {
+                this.locationFormError = '';
+                this.locationsSuccessMessage = '';
+
+                if (location) {
+                    this.locationForm = {
+                        id: location.id,
+                        name: location.name || '',
+                        building: location.building || '',
+                        description: location.description || '',
+                    };
+                } else {
+                    this.locationForm = {
+                        id: null,
+                        name: '',
+                        building: '',
+                        description: '',
+                    };
+                }
+
+                this.isLocationModalOpen = true;
+            },
+            closeLocationModal() {
+                if (this.isLocationSubmitting) {
+                    return;
+                }
+
+                this.isLocationModalOpen = false;
+                this.locationFormError = '';
+            },
+            buildLocationPayload() {
+                return {
+                    name: this.locationForm.name.trim(),
+                    building: this.locationForm.building.trim(),
+                    description: this.locationForm.description.trim(),
+                };
+            },
+            async submitLocationForm() {
+                this.isLocationSubmitting = true;
+                this.locationFormError = '';
+                this.locationsSuccessMessage = '';
+
+                const payload = this.buildLocationPayload();
+                const isEdit = Boolean(this.locationForm.id);
+                const url = isEdit ? `/api/locations/${this.locationForm.id}` : '/api/locations';
+                const method = isEdit ? 'PUT' : 'POST';
+
+                try {
+                    const response = await fetch(url, {
+                        method,
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json',
+                        },
+                        body: JSON.stringify(payload),
+                    });
+                    const result = await response.json();
+
+                    if (!response.ok) {
+                        this.locationFormError = result.message || (isEdit
+                            ? window.__i18n.location_update_error
+                            : window.__i18n.location_create_error);
+                        return;
+                    }
+
+                    this.isLocationModalOpen = false;
+                    this.locationsSuccessMessage = result.message || (isEdit
+                        ? window.__i18n.location_update_success
+                        : window.__i18n.location_create_success);
+                    await this.fetchLocations();
+                } catch (error) {
+                    this.locationFormError = window.__i18n.locations_network_error;
+                } finally {
+                    this.isLocationSubmitting = false;
+                }
+            },
+            async deleteLocation(location) {
+                if (!location?.id || !window.confirm(window.__i18n.location_delete_confirm)) {
+                    return;
+                }
+
+                this.locationsSuccessMessage = '';
+                this.locationsError = '';
+
+                try {
+                    const response = await fetch(`/api/locations/${location.id}`, {
+                        method: 'DELETE',
+                        headers: {
+                            'Accept': 'application/json',
+                        },
+                    });
+                    const result = await response.json();
+
+                    if (!response.ok) {
+                        this.locationsError = result.message || window.__i18n.location_delete_error;
+                        return;
+                    }
+
+                    this.locationsSuccessMessage = result.message || window.__i18n.location_delete_success;
+                    await this.fetchLocations();
+                } catch (error) {
+                    this.locationsError = window.__i18n.locations_network_error;
                 }
             },
             initQuillEditor() {

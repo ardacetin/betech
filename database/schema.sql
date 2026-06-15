@@ -39,6 +39,17 @@ CREATE TABLE IF NOT EXISTS users (
     KEY idx_users_provider_subject (provider_subject)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS locations (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    name VARCHAR(255) NOT NULL,
+    building VARCHAR(255) DEFAULT NULL,
+    description TEXT DEFAULT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    KEY idx_locations_building (building),
+    KEY idx_locations_name (name)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS assets (
     id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
     asset_tag VARCHAR(64) NOT NULL,
@@ -47,6 +58,7 @@ CREATE TABLE IF NOT EXISTS assets (
     category_id INT UNSIGNED NOT NULL,
     status VARCHAR(32) NOT NULL DEFAULT 'ready',
     user_id BIGINT UNSIGNED DEFAULT NULL,
+    location_id BIGINT UNSIGNED DEFAULT NULL,
     properties JSON DEFAULT NULL,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -56,11 +68,15 @@ CREATE TABLE IF NOT EXISTS assets (
     KEY idx_assets_category_id (category_id),
     KEY idx_assets_status (status),
     KEY idx_assets_user_id (user_id),
+    KEY idx_assets_location_id (location_id),
     CONSTRAINT fk_assets_category_id
         FOREIGN KEY (category_id) REFERENCES categories (id)
         ON DELETE RESTRICT ON UPDATE CASCADE,
     CONSTRAINT fk_assets_user_id
         FOREIGN KEY (user_id) REFERENCES users (id)
+        ON DELETE SET NULL ON UPDATE CASCADE,
+    CONSTRAINT fk_assets_location_id
+        FOREIGN KEY (location_id) REFERENCES locations (id)
         ON DELETE SET NULL ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 

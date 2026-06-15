@@ -47,6 +47,7 @@ class Asset
         $rows = $this->db()->select('assets', [
             '[>]categories' => ['category_id' => 'id'],
             '[>]users' => ['user_id' => 'id'],
+            '[>]locations' => ['location_id' => 'id'],
         ], [
             'assets.id',
             'assets.asset_tag',
@@ -55,11 +56,14 @@ class Asset
             'assets.category_id',
             'assets.status',
             'assets.user_id',
+            'assets.location_id',
             'assets.properties',
             'assets.created_at',
             'assets.updated_at',
             'category_name' => 'categories.name',
             'user_name' => 'users.name',
+            'location_name' => 'locations.name',
+            'location_building' => 'locations.building',
         ], [
             'ORDER' => ['assets.id' => 'DESC'],
         ]);
@@ -82,6 +86,7 @@ class Asset
         $row = $this->db()->get('assets', [
             '[>]categories' => ['category_id' => 'id'],
             '[>]users' => ['user_id' => 'id'],
+            '[>]locations' => ['location_id' => 'id'],
         ], [
             'assets.id',
             'assets.asset_tag',
@@ -90,11 +95,14 @@ class Asset
             'assets.category_id',
             'assets.status',
             'assets.user_id',
+            'assets.location_id',
             'assets.properties',
             'assets.created_at',
             'assets.updated_at',
             'category_name' => 'categories.name',
             'user_name' => 'users.name',
+            'location_name' => 'locations.name',
+            'location_building' => 'locations.building',
         ], [
             'assets.id' => $assetId,
         ]);
@@ -128,6 +136,7 @@ class Asset
         $rows = $this->db()->select('assets', [
             '[>]categories' => ['category_id' => 'id'],
             '[>]users' => ['user_id' => 'id'],
+            '[>]locations' => ['location_id' => 'id'],
         ], [
             'assets.id',
             'assets.asset_tag',
@@ -136,11 +145,14 @@ class Asset
             'assets.category_id',
             'assets.status',
             'assets.user_id',
+            'assets.location_id',
             'assets.properties',
             'assets.created_at',
             'assets.updated_at',
             'category_name' => 'categories.name',
             'user_name' => 'users.name',
+            'location_name' => 'locations.name',
+            'location_building' => 'locations.building',
         ], [
             'assets.user_id' => $userId,
             'ORDER' => ['assets.id' => 'DESC'],
@@ -218,6 +230,7 @@ class Asset
             'category_id' => $categoryId,
             'status' => $status !== '' ? $status : 'ready',
             'user_id' => array_key_exists('user_id', $coreFields) ? $coreFields['user_id'] : null,
+            'location_id' => array_key_exists('location_id', $coreFields) ? $coreFields['location_id'] : null,
             'properties' => $encodedProperties,
         ]);
 
@@ -277,6 +290,10 @@ class Asset
             $updateData['user_id'] = $coreFields['user_id'];
         }
 
+        if (array_key_exists('location_id', $coreFields)) {
+            $updateData['location_id'] = $coreFields['location_id'];
+        }
+
         if ($properties !== null) {
             $updateData['properties'] = $properties === []
                 ? null
@@ -310,6 +327,11 @@ class Asset
     public function categoryExists(int $categoryId): bool
     {
         return $this->db()->has('categories', ['id' => $categoryId]);
+    }
+
+    public function locationExists(int $locationId): bool
+    {
+        return $this->db()->has('locations', ['id' => $locationId]);
     }
 
     /**
@@ -433,6 +455,18 @@ class Asset
 
         if (array_key_exists('user_id', $row) && $row['user_id'] !== null) {
             $row['user_id'] = (int) $row['user_id'];
+        }
+
+        if (array_key_exists('location_id', $row) && $row['location_id'] !== null) {
+            $row['location_id'] = (int) $row['location_id'];
+        }
+
+        if (array_key_exists('location_name', $row) && $row['location_name'] === null) {
+            $row['location_name'] = null;
+        }
+
+        if (array_key_exists('location_building', $row) && $row['location_building'] === null) {
+            $row['location_building'] = null;
         }
 
         return $row;

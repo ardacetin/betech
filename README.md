@@ -10,7 +10,7 @@ Built with **PHP 8.1+**, **Slim 4**, **Medoo**, **MySQL** (with native JSON colu
 
 ### Hybrid asset management
 
-- Fixed relational columns for operational data (`asset_tag`, `serial_number`, `name`, `status`, `user_id`, `category_id`).
+- Fixed relational columns for operational data (`asset_tag`, `serial_number`, `name`, `status`, `user_id`, `location_id`, `category_id`).
 - Dynamic **JSON `properties`** column for per-category technical attributes (RAM, CPU, ports, IP address, and custom fields).
 - Global optional custom fields configurable from **Sistem Ayarları**.
 
@@ -21,6 +21,14 @@ Built with **PHP 8.1+**, **Slim 4**, **Medoo**, **MySQL** (with native JSON colu
 - **Super Admins and Technicians** can manage categories from the active **Kategoriler** view: create, edit, and delete categories with a built-in **dynamic field builder** (label, internal name, and type per field).
 - Category CRUD is exposed via `GET/POST/PUT/DELETE /api/categories`; the `fields` payload is persisted to the `categories.fields` JSON column and immediately drives asset create/edit forms.
 - Deletion is blocked when assets still reference the category, preventing orphaned records.
+
+### Physical location and room-based asset tracking
+
+- **Locations** table stores campus/building context (`name`, `building`, `description`) for classrooms, server rooms, and other physical areas.
+- Assets may have a `user_id`, a `location_id`, or both—personnel assignment and room placement are independent.
+- **Super Admins and Technicians** manage locations from the active **Lokasyonlar** view with full CRUD via `GET/POST/PUT/DELETE /api/locations`.
+- Location changes are written to `asset_histories` (e.g. “Varlık lokasyona taşındı: Sunucu Odası”).
+- Legacy databases self-heal on boot: `DatabaseInitializer` creates the `locations` table and adds `assets.location_id` when missing.
 
 ### Automated database setup
 

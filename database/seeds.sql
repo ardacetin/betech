@@ -22,6 +22,13 @@ ON DUPLICATE KEY UPDATE
     name = VALUES(name),
     fields = IF(categories.fields IS NULL, VALUES(fields), categories.fields);
 
+INSERT INTO locations (name, building, description) VALUES
+('101 Nolu Sınıf', 'Kavacık Kampüsü', 'Ana bina zemin kat derslik'),
+('Sunucu Odası', 'Kavacık Kampüsü', 'Veri merkezi ve ağ altyapısı')
+ON DUPLICATE KEY UPDATE
+    building = VALUES(building),
+    description = VALUES(description);
+
 INSERT INTO users (external_id, name, email, department, password_hash, auth_provider, role) VALUES
 ('admin', 'Sistem Yöneticisi', 'admin@betech.local', 'IT', '$2y$12$gKwuiE9St/UBa3ENhW7aT.yVeD1UPf2Ov9Fhcqa2PMoNAD.sHAt3e', 'local', 'super_admin'),
 ('USR-001', 'Ayşe Yılmaz', 'ayse.yilmaz@betech.local', 'IT', NULL, 'local', 'end_user'),

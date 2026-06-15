@@ -98,6 +98,26 @@ class RoleMiddleware implements MiddlewareInterface
             ],
             [
                 'methods' => ['GET'],
+                'pattern' => '/api/locations',
+                'roles' => $operational,
+            ],
+            [
+                'methods' => ['POST'],
+                'pattern' => '/api/locations',
+                'roles' => $operational,
+            ],
+            [
+                'methods' => ['PUT'],
+                'pattern' => '/api/locations/{id}',
+                'roles' => $operational,
+            ],
+            [
+                'methods' => ['DELETE'],
+                'pattern' => '/api/locations/{id}',
+                'roles' => $operational,
+            ],
+            [
+                'methods' => ['GET'],
                 'pattern' => '/api/users',
                 'roles' => $operational,
             ],

@@ -6,6 +6,7 @@ namespace App\Controllers;
 
 use App\Models\Asset;
 use App\Models\AssetHistory;
+use App\Models\Location;
 use App\Models\User;
 use App\Services\Auth\SessionAuthService;
 use App\Services\Auth\UserIntegrationFactory;
@@ -21,6 +22,7 @@ class AssetController
         'category_id',
         'status',
         'user_id',
+        'location_id',
     ];
 
     public function __construct(
@@ -28,6 +30,7 @@ class AssetController
         private readonly AssetHistory $assetHistoryModel,
         private readonly UserIntegrationFactory $userIntegrationFactory,
         private readonly User $userModel,
+        private readonly Location $locationModel,
         private readonly SessionAuthService $sessionAuthService
     ) {
     }
@@ -426,6 +429,22 @@ class AssetController
         );
 
         if (!array_key_exists('user_id', $coreFields) || $coreFields['user_id'] === null) {
+            if (array_key_exists('location_id', $coreFields) && $coreFields['location_id'] !== null) {
+                $locationId = (int) $coreFields['location_id'];
+                $locationName = $this->resolveLocationName($locationId);
+
+                $this->assetHistoryModel->log(
+                    $assetId,
+                    'location_moved',
+                    null,
+                    null,
+                    sprintf(
+                        __('asset_history_assigned_to_location'),
+                        $locationName ?? ('lokasyon #' . $locationId)
+                    )
+                );
+            }
+
             return;
         }
 
@@ -442,6 +461,22 @@ class AssetController
                 $targetUserName ?? ('user #' . $targetUserId)
             )
         );
+
+        if (array_key_exists('location_id', $coreFields) && $coreFields['location_id'] !== null) {
+            $locationId = (int) $coreFields['location_id'];
+            $locationName = $this->resolveLocationName($locationId);
+
+            $this->assetHistoryModel->log(
+                $assetId,
+                'location_moved',
+                null,
+                null,
+                sprintf(
+                    __('asset_history_assigned_to_location'),
+                    $locationName ?? ('lokasyon #' . $locationId)
+                )
+            );
+        }
     }
 
     /**
@@ -455,6 +490,14 @@ class AssetController
                 $assetId,
                 $existingAsset['user_id'] ?? null,
                 $coreFields['user_id']
+            );
+        }
+
+        if (array_key_exists('location_id', $coreFields)) {
+            $this->logLocationChange(
+                $assetId,
+                $existingAsset['location_id'] ?? null,
+                $coreFields['location_id']
             );
         }
 
@@ -532,6 +575,64 @@ class AssetController
         );
     }
 
+    private function logLocationChange(int $assetId, mixed $previousLocationId, mixed $nextLocationId): void
+    {
+        $oldLocationId = $previousLocationId !== null ? (int) $previousLocationId : null;
+        $newLocationId = $nextLocationId !== null ? (int) $nextLocationId : null;
+
+        if ($oldLocationId === $newLocationId) {
+            return;
+        }
+
+        if ($newLocationId === null) {
+            $oldLocationName = $this->resolveLocationName($oldLocationId);
+
+            $this->assetHistoryModel->log(
+                $assetId,
+                'location_moved',
+                null,
+                null,
+                sprintf(
+                    __('asset_history_removed_from_location'),
+                    $oldLocationName ?? ('lokasyon #' . $oldLocationId)
+                )
+            );
+
+            return;
+        }
+
+        $newLocationName = $this->resolveLocationName($newLocationId);
+
+        if ($oldLocationId === null) {
+            $this->assetHistoryModel->log(
+                $assetId,
+                'location_moved',
+                null,
+                null,
+                sprintf(
+                    __('asset_history_assigned_to_location'),
+                    $newLocationName ?? ('lokasyon #' . $newLocationId)
+                )
+            );
+
+            return;
+        }
+
+        $oldLocationName = $this->resolveLocationName($oldLocationId);
+
+        $this->assetHistoryModel->log(
+            $assetId,
+            'location_moved',
+            null,
+            null,
+            sprintf(
+                __('asset_history_moved_to_location'),
+                $oldLocationName ?? ('lokasyon #' . $oldLocationId),
+                $newLocationName ?? ('lokasyon #' . $newLocationId)
+            )
+        );
+    }
+
     private function resolveUserName(?int $userId): ?string
     {
         if ($userId === null) {
@@ -547,6 +648,32 @@ class AssetController
         $user = $this->userIntegrationFactory->make()->getUserById((string) $userId);
 
         return $user['name'] ?? null;
+    }
+
+    private function resolveLocationName(?int $locationId): ?string
+    {
+        if ($locationId === null) {
+            return null;
+        }
+
+        $location = $this->locationModel->findById($locationId);
+
+        if ($location === null) {
+            return null;
+        }
+
+        $name = trim((string) ($location['name'] ?? ''));
+        $building = trim((string) ($location['building'] ?? ''));
+
+        if ($name === '') {
+            return null;
+        }
+
+        if ($building === '') {
+            return $name;
+        }
+
+        return $building . ' / ' . $name;
     }
 
     /**
@@ -682,6 +809,14 @@ class AssetController
             }
         }
 
+        if (array_key_exists('location_id', $coreFields)) {
+            $locationErrors = $this->validateLocationId($coreFields['location_id']);
+
+            if ($locationErrors !== []) {
+                $errors['location_id'] = $locationErrors;
+            }
+        }
+
         return $errors;
     }
 
@@ -713,6 +848,32 @@ class AssetController
 
         if ($user === null) {
             return ['The selected user_id does not exist.'];
+        }
+
+        return [];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function validateLocationId(mixed $locationId): array
+    {
+        if ($locationId === null || $locationId === '') {
+            return [];
+        }
+
+        if (!is_numeric($locationId)) {
+            return [__('location_invalid_id')];
+        }
+
+        $normalizedLocationId = (int) $locationId;
+
+        if ($normalizedLocationId <= 0) {
+            return [__('location_invalid_id')];
+        }
+
+        if (!$this->assetModel->locationExists($normalizedLocationId)) {
+            return [__('location_not_found')];
         }
 
         return [];
@@ -770,6 +931,14 @@ class AssetController
                 $normalized['user_id'] = null;
             } else {
                 $normalized['user_id'] = (int) $coreFields['user_id'];
+            }
+        }
+
+        if (array_key_exists('location_id', $coreFields)) {
+            if ($coreFields['location_id'] === null || $coreFields['location_id'] === '') {
+                $normalized['location_id'] = null;
+            } else {
+                $normalized['location_id'] = (int) $coreFields['location_id'];
             }
         }
 
