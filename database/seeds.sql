@@ -32,3 +32,19 @@ ON DUPLICATE KEY UPDATE
     name = VALUES(name),
     email = VALUES(email),
     department = VALUES(department);
+
+INSERT INTO settings (`key`, value) VALUES
+(
+    'active_auth_driver',
+    'local'
+),
+(
+    'zimmet_template',
+    'ZİMMET TESLİM FORMU\n\nSayın {personnel_name},\n\nTarafınıza aşağıdaki IT varlığı zimmetlenmiştir:\n\nVarlık Adı: {asset_name}\nSeri Numarası: {serial_number}\nTeslim Tarihi: {date}\n\nVarlığı kurumsal IT politikalarına uygun kullanacağınızı beyan edersiniz.'
+),
+(
+    'custom_fields',
+    '[]'
+)
+ON DUPLICATE KEY UPDATE
+    value = IF(settings.value IS NULL OR settings.value = '', VALUES(value), settings.value);

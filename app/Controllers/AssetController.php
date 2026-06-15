@@ -40,6 +40,7 @@ class AssetController
         }
 
         [$coreFields, $properties] = $this->separatePayload($payload);
+        $properties = $this->filterOptionalProperties($properties);
         $errors = $this->validateCoreFields($coreFields);
 
         if ($errors !== []) {
@@ -99,6 +100,11 @@ class AssetController
         }
 
         [$coreFields, $properties] = $this->separatePayload($payload);
+
+        if (array_key_exists('properties', $payload)) {
+            $properties = $this->filterOptionalProperties($properties);
+        }
+
         $errors = $this->validateCoreFields($coreFields, $assetId);
 
         if ($errors !== []) {
@@ -350,6 +356,36 @@ class AssetController
         }
 
         return [$coreFields, $properties];
+    }
+
+    /**
+     * Category-driven and global custom properties are optional; omit empty values.
+     *
+     * @param array<string, mixed> $properties
+     *
+     * @return array<string, mixed>
+     */
+    private function filterOptionalProperties(array $properties): array
+    {
+        $filtered = [];
+
+        foreach ($properties as $key => $value) {
+            if (!is_string($key)) {
+                continue;
+            }
+
+            if ($value === null) {
+                continue;
+            }
+
+            if (is_string($value) && trim($value) === '') {
+                continue;
+            }
+
+            $filtered[$key] = $value;
+        }
+
+        return $filtered;
     }
 
     /**

@@ -13,6 +13,8 @@ declare(strict_types=1);
  * @var list<array<string, mixed>> $categories
  * @var string $categoryFieldsJson
  * @var string $assetQrCodesJson
+ * @var string $settingsJson
+ * @var string $globalCustomFieldsJson
  */
 
 $statusStyles = [
@@ -86,6 +88,17 @@ $i18nScript = json_encode([
     'history_action_unassigned' => __('history_action_unassigned'),
     'history_action_status_change' => __('history_action_status_change'),
     'history_action_updated' => __('history_action_updated'),
+    'settings_save_success' => __('settings_save_success'),
+    'settings_save_error' => __('settings_save_error'),
+    'settings_network_error' => __('settings_network_error'),
+    'settings_auth_local' => __('settings_auth_local'),
+    'settings_auth_local_hint' => __('settings_auth_local_hint'),
+    'settings_auth_ldap' => __('settings_auth_ldap'),
+    'settings_auth_ldap_hint' => __('settings_auth_ldap_hint'),
+    'settings_auth_google' => __('settings_auth_google'),
+    'settings_auth_google_hint' => __('settings_auth_google_hint'),
+    'settings_auth_azure' => __('settings_auth_azure'),
+    'settings_auth_azure_hint' => __('settings_auth_azure_hint'),
 ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
 ?>
 <div class="min-h-full" x-data="assetDashboard()">
@@ -100,18 +113,28 @@ $i18nScript = json_encode([
             </div>
 
             <nav class="flex-1 space-y-1 p-4">
-                <a href="/" class="flex items-center gap-3 rounded-lg bg-zinc-100 px-3 py-2 text-sm font-medium text-zinc-900">
-                    <span class="h-2 w-2 rounded-full bg-zinc-900"></span>
+                <button
+                    type="button"
+                    @click="activeView = 'assets'"
+                    class="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm font-medium transition"
+                    :class="activeView === 'assets' ? 'bg-zinc-100 text-zinc-900' : 'text-zinc-600 hover:bg-zinc-50'"
+                >
+                    <span class="h-2 w-2 rounded-full" :class="activeView === 'assets' ? 'bg-zinc-900' : 'bg-zinc-300'"></span>
                     <?= htmlspecialchars(__('nav_assets'), ENT_QUOTES, 'UTF-8') ?>
-                </a>
+                </button>
                 <span class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-zinc-400">
                     <span class="h-2 w-2 rounded-full bg-zinc-300"></span>
                     <?= htmlspecialchars(__('nav_categories'), ENT_QUOTES, 'UTF-8') ?>
                 </span>
-                <span class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-zinc-400">
-                    <span class="h-2 w-2 rounded-full bg-zinc-300"></span>
+                <button
+                    type="button"
+                    @click="activeView = 'settings'"
+                    class="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm font-medium transition"
+                    :class="activeView === 'settings' ? 'bg-zinc-100 text-zinc-900' : 'text-zinc-600 hover:bg-zinc-50'"
+                >
+                    <span class="h-2 w-2 rounded-full" :class="activeView === 'settings' ? 'bg-zinc-900' : 'bg-zinc-300'"></span>
                     <?= htmlspecialchars(__('nav_settings'), ENT_QUOTES, 'UTF-8') ?>
-                </span>
+                </button>
             </nav>
 
             <div class="border-t border-zinc-200 p-4">
@@ -124,8 +147,14 @@ $i18nScript = json_encode([
             <header class="sticky top-0 z-10 border-b border-zinc-200 bg-white/90 backdrop-blur">
                 <div class="mx-auto flex max-w-7xl items-center justify-between gap-4 px-6 py-4">
                     <div>
-                        <h1 class="text-2xl font-semibold tracking-tight text-zinc-900"><?= htmlspecialchars($pageTitle, ENT_QUOTES, 'UTF-8') ?></h1>
-                        <p class="mt-1 text-sm text-zinc-500"><?= htmlspecialchars(__('page_subtitle'), ENT_QUOTES, 'UTF-8') ?></p>
+                        <h1
+                            class="text-2xl font-semibold tracking-tight text-zinc-900"
+                            x-text="activeView === 'settings' ? '<?= htmlspecialchars(__('settings_page_title'), ENT_QUOTES, 'UTF-8') ?>' : '<?= htmlspecialchars($pageTitle, ENT_QUOTES, 'UTF-8') ?>'"
+                        ></h1>
+                        <p
+                            class="mt-1 text-sm text-zinc-500"
+                            x-text="activeView === 'settings' ? '<?= htmlspecialchars(__('settings_page_subtitle'), ENT_QUOTES, 'UTF-8') ?>' : '<?= htmlspecialchars(__('page_subtitle'), ENT_QUOTES, 'UTF-8') ?>'"
+                        ></p>
                     </div>
                     <div class="flex items-center gap-3">
                         <div class="inline-flex items-center rounded-xl border border-zinc-200 bg-white p-1 shadow-soft">
@@ -141,6 +170,7 @@ $i18nScript = json_encode([
                         </div>
                         <button
                             type="button"
+                            x-show="activeView === 'assets'"
                             @click="openAddModal()"
                             class="inline-flex items-center gap-2 rounded-xl bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white shadow-soft transition hover:bg-zinc-800"
                         >
@@ -152,6 +182,7 @@ $i18nScript = json_encode([
             </header>
 
             <div class="mx-auto max-w-7xl space-y-8 px-6 py-8">
+                <div x-show="activeView === 'assets'" x-cloak class="space-y-8">
                 <section class="space-y-4">
                     <div>
                         <h2 class="text-lg font-semibold tracking-tight text-zinc-900"><?= htmlspecialchars(__('analytics_title'), ENT_QUOTES, 'UTF-8') ?></h2>
@@ -361,6 +392,9 @@ $i18nScript = json_encode([
                         </table>
                     </div>
                 </section>
+                </div>
+
+                <?php require __DIR__ . '/partials/settings_panel.php'; ?>
             </div>
         </main>
     </div>
@@ -624,9 +658,12 @@ $i18nScript = json_encode([
     window.__categoryFields = <?= $categoryFieldsJson ?>;
     window.__assetQrCodes = <?= $assetQrCodesJson ?>;
     window.__analytics = <?= $analyticsJson ?>;
+    window.__settings = <?= $settingsJson ?>;
+    window.__globalCustomFields = <?= $globalCustomFieldsJson ?>;
 
     function assetDashboard() {
         return {
+            activeView: 'assets',
             isAddOpen: false,
             isEditOpen: false,
             isDetailOpen: false,
@@ -657,10 +694,44 @@ $i18nScript = json_encode([
                 category_id: '',
                 status: 'ready',
             },
+            settingsForm: {
+                active_auth_driver: window.__settings?.active_auth_driver || 'local',
+                zimmet_template: window.__settings?.zimmet_template || '',
+                custom_fields: Array.isArray(window.__settings?.custom_fields)
+                    ? JSON.parse(JSON.stringify(window.__settings.custom_fields))
+                    : [],
+            },
+            authDrivers: [
+                {
+                    id: 'local',
+                    label: window.__i18n.settings_auth_local,
+                    description: window.__i18n.settings_auth_local_hint,
+                },
+                {
+                    id: 'ldap',
+                    label: window.__i18n.settings_auth_ldap,
+                    description: window.__i18n.settings_auth_ldap_hint,
+                },
+                {
+                    id: 'google',
+                    label: window.__i18n.settings_auth_google,
+                    description: window.__i18n.settings_auth_google_hint,
+                },
+                {
+                    id: 'azure',
+                    label: window.__i18n.settings_auth_azure,
+                    description: window.__i18n.settings_auth_azure_hint,
+                },
+            ],
+            isSavingSettings: false,
+            settingsErrorMessage: '',
+            settingsSuccessMessage: '',
+            globalCustomFields: Array.isArray(window.__globalCustomFields) ? window.__globalCustomFields : [],
             openAddModal() {
                 this.addErrorMessage = '';
                 this.resetDynamicFields();
                 this.resetUserSearch();
+                this.loadCategoryFields(this.form.category_id);
                 this.isAddOpen = true;
             },
             closeAddModal() {
@@ -884,18 +955,27 @@ $i18nScript = json_encode([
                 const normalizedId = String(categoryId || '');
                 this.resetDynamicFields();
 
-                if (normalizedId === '') {
-                    return;
-                }
+                const globalFields = Array.isArray(this.globalCustomFields) ? this.globalCustomFields : [];
+                const categorySpecificFields = normalizedId === ''
+                    ? []
+                    : (this.categoryFields[normalizedId] || this.categoryFields[Number(normalizedId)] || []);
 
-                const fields = this.categoryFields[normalizedId] || this.categoryFields[Number(normalizedId)] || [];
-                this.dynamicFields = Array.isArray(fields) ? fields : [];
+                const mergedFields = [
+                    ...(Array.isArray(categorySpecificFields) ? categorySpecificFields : []),
+                    ...globalFields,
+                ];
 
-                this.dynamicFields.forEach((field) => {
-                    if (!field || !field.name) {
-                        return;
+                const seen = new Set();
+                this.dynamicFields = mergedFields.filter((field) => {
+                    if (!field || !field.name || seen.has(field.name)) {
+                        return false;
                     }
 
+                    seen.add(field.name);
+                    return true;
+                });
+
+                this.dynamicFields.forEach((field) => {
                     this.dynamicValues[field.name] = '';
                 });
             },
@@ -1018,6 +1098,64 @@ $i18nScript = json_encode([
                     this.editErrorMessage = window.__i18n.network_error;
                 } finally {
                     this.isSubmitting = false;
+                }
+            },
+            addCustomField() {
+                this.settingsForm.custom_fields.push({
+                    name: '',
+                    label: '',
+                    type: 'text',
+                });
+            },
+            removeCustomField(index) {
+                this.settingsForm.custom_fields.splice(index, 1);
+            },
+            async saveSettings() {
+                this.isSavingSettings = true;
+                this.settingsErrorMessage = '';
+                this.settingsSuccessMessage = '';
+
+                try {
+                    const response = await fetch('/api/settings', {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            active_auth_driver: this.settingsForm.active_auth_driver,
+                            zimmet_template: this.settingsForm.zimmet_template,
+                            custom_fields: this.settingsForm.custom_fields,
+                        }),
+                    });
+
+                    const result = await response.json();
+
+                    if (!response.ok) {
+                        if (result.errors) {
+                            this.settingsErrorMessage = Object.values(result.errors)
+                                .flat()
+                                .join(' ');
+                        } else {
+                            this.settingsErrorMessage = result.message || window.__i18n.settings_save_error;
+                        }
+
+                        return;
+                    }
+
+                    this.settingsSuccessMessage = window.__i18n.settings_save_success;
+                    this.globalCustomFields = Array.isArray(result.data?.custom_fields)
+                        ? result.data.custom_fields
+                        : this.settingsForm.custom_fields;
+                    window.__globalCustomFields = this.globalCustomFields;
+
+                    if (this.form.category_id) {
+                        this.loadCategoryFields(this.form.category_id);
+                    }
+                } catch (error) {
+                    this.settingsErrorMessage = window.__i18n.settings_network_error;
+                } finally {
+                    this.isSavingSettings = false;
                 }
             },
         };

@@ -6,6 +6,7 @@ namespace App\Controllers;
 
 use App\Models\Asset;
 use App\Models\Category;
+use App\Models\Setting;
 use App\Services\AnalyticsService;
 use App\Services\QrCodeService;
 use App\Services\Translator;
@@ -24,7 +25,8 @@ class HealthController
         private readonly Category $categoryModel,
         private readonly ViewRenderer $viewRenderer,
         private readonly QrCodeService $qrCodeService,
-        private readonly AnalyticsService $analyticsService
+        private readonly AnalyticsService $analyticsService,
+        private readonly Setting $settingModel
     ) {
     }
 
@@ -33,6 +35,7 @@ class HealthController
         $categories = $this->categoryModel->findAll();
         $assets = $this->assetModel->findAllForDashboard();
         $analytics = $this->analyticsService->getDashboardStats();
+        $settings = $this->settingModel->getAdminBundle();
         $assetQrCodes = [];
 
         foreach ($assets as $asset) {
@@ -55,6 +58,12 @@ class HealthController
             'categories' => $categories,
             'categoryFieldsJson' => json_encode(
                 $this->categoryModel->fieldMapByCategoryId(),
+                JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE
+            ),
+            'settings' => $settings,
+            'settingsJson' => json_encode($settings, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE),
+            'globalCustomFieldsJson' => json_encode(
+                $settings['custom_fields'],
                 JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE
             ),
         ]);
