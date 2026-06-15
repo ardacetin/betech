@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Controllers\AnalyticsController;
 use App\Controllers\AssetController;
+use App\Controllers\CategoryController;
 use App\Controllers\AssetTutanakController;
 use App\Controllers\AssetViewController;
 use App\Controllers\AuthController;
@@ -94,6 +95,7 @@ $assetTutanakController = new AssetTutanakController($assetModel, $settingModel,
 $userController = new UserController($userIntegrationFactory, $userModel, $assetModel, $assetHistoryModel, $settingModel);
 $analyticsController = new AnalyticsController($analyticsService);
 $settingsController = new SettingsController($settingModel);
+$categoryController = new CategoryController($categoryModel);
 
 $app->get('/login', [$authController, 'showLoginForm']);
 $app->post('/login', [$authController, 'login']);
@@ -105,6 +107,10 @@ $app->get('/assets/view/{id}', [$assetViewController, 'show']);
 $app->get('/api/analytics/summary', [$analyticsController, 'summary']);
 $app->get('/api/settings', [$settingsController, 'show']);
 $app->put('/api/settings', [$settingsController, 'update']);
+$app->get('/api/categories', [$categoryController, 'index']);
+$app->post('/api/categories', [$categoryController, 'store']);
+$app->put('/api/categories/{id}', [$categoryController, 'update']);
+$app->delete('/api/categories/{id}', [$categoryController, 'destroy']);
 $app->get('/api/users', [$userController, 'index']);
 $app->get('/api/users/search', [$userController, 'search']);
 $app->post('/api/users/{id}/offboard', [$userController, 'offboard']);

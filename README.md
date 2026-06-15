@@ -18,6 +18,9 @@ Built with **PHP 8.1+**, **Slim 4**, **Medoo**, **MySQL** (with native JSON colu
 
 - Category definitions include a JSON `fields` schema (text, number, textarea).
 - The dashboard loads field definitions at runtime and renders inputs with **Alpine.js**—no code changes required when categories evolve.
+- **Super Admins and Technicians** can manage categories from the active **Kategoriler** view: create, edit, and delete categories with a built-in **dynamic field builder** (label, internal name, and type per field).
+- Category CRUD is exposed via `GET/POST/PUT/DELETE /api/categories`; the `fields` payload is persisted to the `categories.fields` JSON column and immediately drives asset create/edit forms.
+- Deletion is blocked when assets still reference the category, preventing orphaned records.
 
 ### Automated database setup
 

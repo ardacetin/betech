@@ -39,6 +39,160 @@ class Category
     }
 
     /**
+     * @return array<string, mixed>|null
+     */
+    public function findById(int $id): ?array
+    {
+        $row = $this->db()->get('categories', [
+            'id',
+            'name',
+            'slug',
+            'fields',
+        ], [
+            'id' => $id,
+        ]);
+
+        if (!is_array($row) || $row === []) {
+            return null;
+        }
+
+        return $this->normalizeRow($row);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $fields
+     *
+     * @return array<string, mixed>
+     */
+    public function create(string $name, array $fields): array
+    {
+        $trimmedName = trim($name);
+
+        if ($trimmedName === '') {
+            throw new \InvalidArgumentException('Category name is required.');
+        }
+
+        $slug = $this->ensureUniqueSlug($this->generateSlug($trimmedName));
+
+        $this->db()->insert('categories', [
+            'name' => $trimmedName,
+            'slug' => $slug,
+            'fields' => json_encode($fields, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE),
+        ]);
+
+        $created = $this->findById((int) $this->db()->id());
+
+        if ($created === null) {
+            throw new \RuntimeException('Failed to create category.');
+        }
+
+        return $created;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $fields
+     *
+     * @return array<string, mixed>|null
+     */
+    public function update(int $id, string $name, array $fields): ?array
+    {
+        $existing = $this->findById($id);
+
+        if ($existing === null) {
+            return null;
+        }
+
+        $trimmedName = trim($name);
+
+        if ($trimmedName === '') {
+            throw new \InvalidArgumentException('Category name is required.');
+        }
+
+        $slug = (string) ($existing['slug'] ?? '');
+
+        if ($trimmedName !== (string) ($existing['name'] ?? '')) {
+            $slug = $this->ensureUniqueSlug($this->generateSlug($trimmedName), $id);
+        }
+
+        $this->db()->update('categories', [
+            'name' => $trimmedName,
+            'slug' => $slug,
+            'fields' => json_encode($fields, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE),
+        ], [
+            'id' => $id,
+        ]);
+
+        return $this->findById($id);
+    }
+
+    public function delete(int $id): bool
+    {
+        $existing = $this->findById($id);
+
+        if ($existing === null) {
+            return false;
+        }
+
+        if ($this->countAssets($id) > 0) {
+            throw new \RuntimeException('Category is in use by existing assets.');
+        }
+
+        $this->db()->delete('categories', [
+            'id' => $id,
+        ]);
+
+        return true;
+    }
+
+    public function countAssets(int $categoryId): int
+    {
+        return $this->db()->count('assets', [
+            'category_id' => $categoryId,
+        ]);
+    }
+
+    private function generateSlug(string $name): string
+    {
+        $normalized = mb_strtolower(trim($name), 'UTF-8');
+        $transliterated = iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $normalized);
+
+        if ($transliterated === false) {
+            $transliterated = $normalized;
+        }
+
+        $slug = preg_replace('/[^a-z0-9]+/', '-', $transliterated) ?? '';
+        $slug = trim($slug, '-');
+
+        return $slug !== '' ? $slug : 'category';
+    }
+
+    private function ensureUniqueSlug(string $baseSlug, ?int $ignoreId = null): string
+    {
+        $candidate = $baseSlug;
+        $suffix = 2;
+
+        while ($this->slugExists($candidate, $ignoreId)) {
+            $candidate = $baseSlug . '-' . $suffix;
+            ++$suffix;
+        }
+
+        return $candidate;
+    }
+
+    private function slugExists(string $slug, ?int $ignoreId = null): bool
+    {
+        $conditions = [
+            'slug' => $slug,
+        ];
+
+        if ($ignoreId !== null) {
+            $conditions['id[!]'] = $ignoreId;
+        }
+
+        return $this->db()->has('categories', $conditions);
+    }
+
+    /**
      * @return array<int, list<array<string, mixed>>>
      */
     public function fieldMapByCategoryId(): array

@@ -128,9 +128,20 @@ $i18nScript = json_encode([
     'transfer_select_user' => __('transfer_select_user'),
     'history_action_returned' => __('history_action_returned'),
     'history_action_transferred' => __('history_action_transferred'),
+    'categories_fetch_error' => __('categories_fetch_error'),
+    'categories_network_error' => __('categories_network_error'),
+    'category_create_success' => __('category_create_success'),
+    'category_update_success' => __('category_update_success'),
+    'category_delete_success' => __('category_delete_success'),
+    'category_create_error' => __('category_create_error'),
+    'category_update_error' => __('category_update_error'),
+    'category_delete_error' => __('category_delete_error'),
+    'category_delete_confirm' => __('category_delete_confirm'),
+    'category_delete_in_use' => __('category_delete_in_use'),
+    'category_field_count' => __('category_field_count'),
 ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
 ?>
-<div class="min-h-full" x-data="assetDashboard()">
+<div class="min-h-full" x-data="assetDashboard()" x-init="if (canManageAssets) { fetchCategories(); }">
     <div class="flex min-h-screen">
         <aside class="hidden w-64 shrink-0 border-r border-zinc-200 bg-white lg:flex lg:flex-col">
             <div class="flex h-16 items-center gap-3 border-b border-zinc-200 px-6">
@@ -151,11 +162,16 @@ $i18nScript = json_encode([
                     <span class="h-2 w-2 rounded-full" :class="activeView === 'assets' ? 'bg-zinc-900' : 'bg-zinc-300'"></span>
                     <?= htmlspecialchars($isEndUser ? __('page_title_end_user') : __('nav_assets'), ENT_QUOTES, 'UTF-8') ?>
                 </button>
-                <?php if (!$isEndUser): ?>
-                <span class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-zinc-400">
-                    <span class="h-2 w-2 rounded-full bg-zinc-300"></span>
+                <?php if ($canManageAssets): ?>
+                <button
+                    type="button"
+                    @click="activeView = 'categories'; fetchCategories()"
+                    class="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm font-medium transition"
+                    :class="activeView === 'categories' ? 'bg-zinc-100 text-zinc-900' : 'text-zinc-600 hover:bg-zinc-50'"
+                >
+                    <span class="h-2 w-2 rounded-full" :class="activeView === 'categories' ? 'bg-zinc-900' : 'bg-zinc-300'"></span>
                     <?= htmlspecialchars(__('nav_categories'), ENT_QUOTES, 'UTF-8') ?>
-                </span>
+                </button>
                 <?php endif; ?>
                 <?php if ($canAccessPersonnel): ?>
                 <button
@@ -223,6 +239,15 @@ $i18nScript = json_encode([
                         >
                             <span class="text-lg leading-none">+</span>
                             <?= htmlspecialchars(__('add_asset'), ENT_QUOTES, 'UTF-8') ?>
+                        </button>
+                        <button
+                            type="button"
+                            x-show="activeView === 'categories' && canManageAssets"
+                            @click="openCategoryModal()"
+                            class="inline-flex items-center gap-2 rounded-xl bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white shadow-soft transition hover:bg-zinc-800"
+                        >
+                            <span class="text-lg leading-none">+</span>
+                            <?= htmlspecialchars(__('add_category'), ENT_QUOTES, 'UTF-8') ?>
                         </button>
                     </div>
                 </div>
@@ -490,6 +515,9 @@ $i18nScript = json_encode([
                 </section>
                 </div>
 
+                <?php if ($canManageAssets): ?>
+                <?php require __DIR__ . '/partials/categories_panel.php'; ?>
+                <?php endif; ?>
                 <?php if ($canAccessSettings): ?>
                 <?php require __DIR__ . '/partials/settings_panel.php'; ?>
                 <?php endif; ?>
@@ -864,6 +892,128 @@ $i18nScript = json_encode([
             </div>
         </div>
     </div>
+
+    <div
+        x-show="isCategoryModalOpen"
+        x-cloak
+        class="fixed inset-0 z-[60] flex items-center justify-center px-4"
+        @keydown.escape.window="closeCategoryModal()"
+    >
+        <div class="absolute inset-0 bg-zinc-900/40 backdrop-blur-sm" @click="closeCategoryModal()"></div>
+
+        <div class="relative w-full max-w-2xl rounded-2xl border border-zinc-200 bg-white shadow-soft">
+            <div class="flex items-center justify-between border-b border-zinc-200 px-6 py-4">
+                <div>
+                    <h3 class="text-lg font-semibold text-zinc-900" x-text="categoryForm.id ? '<?= htmlspecialchars(__('edit_category'), ENT_QUOTES, 'UTF-8') ?>' : '<?= htmlspecialchars(__('add_category'), ENT_QUOTES, 'UTF-8') ?>'"></h3>
+                    <p class="mt-1 text-sm text-zinc-500"><?= htmlspecialchars(__('modal_category_subtitle'), ENT_QUOTES, 'UTF-8') ?></p>
+                </div>
+                <button type="button" @click="closeCategoryModal()" class="rounded-lg p-2 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600">&times;</button>
+            </div>
+
+            <form @submit.prevent="submitCategoryForm" class="max-h-[70vh] overflow-y-auto px-6 py-5">
+                <label class="block">
+                    <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('category_name_label'), ENT_QUOTES, 'UTF-8') ?></span>
+                    <input
+                        type="text"
+                        x-model="categoryForm.name"
+                        required
+                        class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4"
+                    >
+                </label>
+
+                <div class="mt-6 border-t border-zinc-200 pt-5">
+                    <div class="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                            <h4 class="text-sm font-semibold text-zinc-900"><?= htmlspecialchars(__('category_fields_title'), ENT_QUOTES, 'UTF-8') ?></h4>
+                            <p class="mt-1 text-xs text-zinc-500"><?= htmlspecialchars(__('category_fields_hint'), ENT_QUOTES, 'UTF-8') ?></p>
+                        </div>
+                        <button
+                            type="button"
+                            @click="addCategoryField()"
+                            class="inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs font-medium text-zinc-700 transition hover:bg-zinc-50"
+                        >
+                            <span class="text-base leading-none">+</span>
+                            <?= htmlspecialchars(__('category_add_field'), ENT_QUOTES, 'UTF-8') ?>
+                        </button>
+                    </div>
+
+                    <p
+                        x-show="categoryForm.fields.length === 0"
+                        x-cloak
+                        class="mt-4 rounded-xl border border-dashed border-zinc-200 bg-zinc-50 px-4 py-3 text-sm text-zinc-500"
+                    >
+                        <?= htmlspecialchars(__('category_no_fields'), ENT_QUOTES, 'UTF-8') ?>
+                    </p>
+
+                    <div x-show="categoryForm.fields.length > 0" x-cloak class="mt-4 space-y-3">
+                        <template x-for="(field, index) in categoryForm.fields" :key="index">
+                            <div class="grid gap-3 rounded-xl border border-zinc-200 bg-zinc-50 p-4 sm:grid-cols-12">
+                                <label class="block sm:col-span-3">
+                                    <span class="mb-1 block text-xs font-medium text-zinc-600"><?= htmlspecialchars(__('settings_field_name'), ENT_QUOTES, 'UTF-8') ?></span>
+                                    <input
+                                        type="text"
+                                        x-model="field.name"
+                                        class="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-400"
+                                        placeholder="ram"
+                                    >
+                                </label>
+                                <label class="block sm:col-span-4">
+                                    <span class="mb-1 block text-xs font-medium text-zinc-600"><?= htmlspecialchars(__('settings_field_label'), ENT_QUOTES, 'UTF-8') ?></span>
+                                    <input
+                                        type="text"
+                                        x-model="field.label"
+                                        class="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-400"
+                                        placeholder="<?= htmlspecialchars(__('settings_field_label_placeholder'), ENT_QUOTES, 'UTF-8') ?>"
+                                    >
+                                </label>
+                                <label class="block sm:col-span-3">
+                                    <span class="mb-1 block text-xs font-medium text-zinc-600"><?= htmlspecialchars(__('settings_field_type'), ENT_QUOTES, 'UTF-8') ?></span>
+                                    <select
+                                        x-model="field.type"
+                                        class="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-400"
+                                    >
+                                        <option value="text"><?= htmlspecialchars(__('settings_field_type_text'), ENT_QUOTES, 'UTF-8') ?></option>
+                                        <option value="number"><?= htmlspecialchars(__('settings_field_type_number'), ENT_QUOTES, 'UTF-8') ?></option>
+                                        <option value="textarea"><?= htmlspecialchars(__('settings_field_type_textarea'), ENT_QUOTES, 'UTF-8') ?></option>
+                                    </select>
+                                </label>
+                                <div class="flex items-end justify-end sm:col-span-2">
+                                    <button
+                                        type="button"
+                                        @click="removeCategoryField(index)"
+                                        class="rounded-lg px-3 py-2 text-xs font-medium text-rose-600 transition hover:bg-rose-50"
+                                    >
+                                        <?= htmlspecialchars(__('category_remove_field'), ENT_QUOTES, 'UTF-8') ?>
+                                    </button>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+
+                <p x-show="categoryFormError" x-cloak class="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700" x-text="categoryFormError"></p>
+
+                <div class="mt-6 flex items-center justify-end gap-3 border-t border-zinc-200 pt-5">
+                    <button
+                        type="button"
+                        @click="closeCategoryModal()"
+                        :disabled="isCategorySubmitting"
+                        class="rounded-xl border border-zinc-200 px-4 py-2.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                        <?= htmlspecialchars(__('cancel'), ENT_QUOTES, 'UTF-8') ?>
+                    </button>
+                    <button
+                        type="submit"
+                        :disabled="isCategorySubmitting"
+                        class="inline-flex items-center gap-2 rounded-xl bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                        <span x-show="isCategorySubmitting"><?= htmlspecialchars(__('saving'), ENT_QUOTES, 'UTF-8') ?></span>
+                        <span x-show="!isCategorySubmitting"><?= htmlspecialchars(__('category_save'), ENT_QUOTES, 'UTF-8') ?></span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
 </div>
 
 <style>
@@ -908,11 +1058,13 @@ $i18nScript = json_encode([
             isSuperAdmin: <?= $isSuperAdmin ? 'true' : 'false' ?>,
             pageTitles: {
                 assets: <?= json_encode($isEndUser ? __('page_title_end_user') : $pageTitle, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
+                categories: <?= json_encode(__('categories_page_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 settings: <?= json_encode(__('settings_page_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 personnel: <?= json_encode(__('personnel_page_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
             },
             pageSubtitles: {
                 assets: <?= json_encode($isEndUser ? __('page_subtitle_end_user') : __('page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
+                categories: <?= json_encode(__('categories_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 settings: <?= json_encode(__('settings_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 personnel: <?= json_encode(__('personnel_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
             },
@@ -928,6 +1080,18 @@ $i18nScript = json_encode([
             transferUserSearchLoading: false,
             showTransferUserResults: false,
             transferErrorMessage: '',
+            categories: [],
+            categoriesLoading: false,
+            categoriesError: '',
+            categoriesSuccessMessage: '',
+            isCategoryModalOpen: false,
+            isCategorySubmitting: false,
+            categoryForm: {
+                id: null,
+                name: '',
+                fields: [],
+            },
+            categoryFormError: '',
             isSubmitting: false,
             addErrorMessage: '',
             editErrorMessage: '',
@@ -1610,6 +1774,177 @@ $i18nScript = json_encode([
             },
             removeCustomField(index) {
                 this.settingsForm.custom_fields.splice(index, 1);
+            },
+            async fetchCategories() {
+                if (!this.canManageAssets) {
+                    return;
+                }
+
+                this.categoriesLoading = true;
+                this.categoriesError = '';
+
+                try {
+                    const response = await fetch('/api/categories', {
+                        headers: {
+                            'Accept': 'application/json',
+                        },
+                    });
+                    const result = await response.json();
+
+                    if (!response.ok) {
+                        this.categoriesError = result.message || window.__i18n.categories_fetch_error;
+                        this.categories = [];
+                        return;
+                    }
+
+                    this.categories = Array.isArray(result.data) ? result.data : [];
+                    this.syncCategoryFieldMap();
+                } catch (error) {
+                    this.categoriesError = window.__i18n.categories_network_error;
+                    this.categories = [];
+                } finally {
+                    this.categoriesLoading = false;
+                }
+            },
+            syncCategoryFieldMap() {
+                const map = {};
+
+                this.categories.forEach((category) => {
+                    if (!category?.id) {
+                        return;
+                    }
+
+                    map[String(category.id)] = Array.isArray(category.fields) ? category.fields : [];
+                });
+
+                this.categoryFields = map;
+                window.__categoryFields = map;
+            },
+            resolveCategoryFieldCount(category) {
+                const count = Array.isArray(category?.fields) ? category.fields.length : 0;
+
+                return (window.__i18n.category_field_count || '%d alan').replace('%d', String(count));
+            },
+            openCategoryModal(category = null) {
+                this.categoryFormError = '';
+                this.categoriesSuccessMessage = '';
+
+                if (category) {
+                    this.categoryForm = {
+                        id: category.id,
+                        name: category.name || '',
+                        fields: Array.isArray(category.fields)
+                            ? JSON.parse(JSON.stringify(category.fields))
+                            : [],
+                    };
+                } else {
+                    this.categoryForm = {
+                        id: null,
+                        name: '',
+                        fields: [],
+                    };
+                }
+
+                this.isCategoryModalOpen = true;
+            },
+            closeCategoryModal() {
+                if (this.isCategorySubmitting) {
+                    return;
+                }
+
+                this.isCategoryModalOpen = false;
+                this.categoryFormError = '';
+            },
+            addCategoryField() {
+                this.categoryForm.fields.push({
+                    name: '',
+                    label: '',
+                    type: 'text',
+                });
+            },
+            removeCategoryField(index) {
+                this.categoryForm.fields.splice(index, 1);
+            },
+            buildCategoryPayload() {
+                return {
+                    name: this.categoryForm.name.trim(),
+                    fields: this.categoryForm.fields
+                        .filter((field) => field && (field.name?.trim() || field.label?.trim()))
+                        .map((field) => ({
+                            name: String(field.name || '').trim(),
+                            label: String(field.label || '').trim(),
+                            type: field.type || 'text',
+                        })),
+                };
+            },
+            async submitCategoryForm() {
+                this.isCategorySubmitting = true;
+                this.categoryFormError = '';
+                this.categoriesSuccessMessage = '';
+
+                const payload = this.buildCategoryPayload();
+                const isEdit = Boolean(this.categoryForm.id);
+                const url = isEdit ? `/api/categories/${this.categoryForm.id}` : '/api/categories';
+                const method = isEdit ? 'PUT' : 'POST';
+
+                try {
+                    const response = await fetch(url, {
+                        method,
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json',
+                        },
+                        body: JSON.stringify(payload),
+                    });
+                    const result = await response.json();
+
+                    if (!response.ok) {
+                        this.categoryFormError = result.message || (isEdit
+                            ? window.__i18n.category_update_error
+                            : window.__i18n.category_create_error);
+                        return;
+                    }
+
+                    this.isCategoryModalOpen = false;
+                    this.categoriesSuccessMessage = result.message || (isEdit
+                        ? window.__i18n.category_update_success
+                        : window.__i18n.category_create_success);
+                    await this.fetchCategories();
+                    window.setTimeout(() => window.location.reload(), 900);
+                } catch (error) {
+                    this.categoryFormError = window.__i18n.categories_network_error;
+                } finally {
+                    this.isCategorySubmitting = false;
+                }
+            },
+            async deleteCategory(category) {
+                if (!category?.id || !window.confirm(window.__i18n.category_delete_confirm)) {
+                    return;
+                }
+
+                this.categoriesSuccessMessage = '';
+                this.categoriesError = '';
+
+                try {
+                    const response = await fetch(`/api/categories/${category.id}`, {
+                        method: 'DELETE',
+                        headers: {
+                            'Accept': 'application/json',
+                        },
+                    });
+                    const result = await response.json();
+
+                    if (!response.ok) {
+                        this.categoriesError = result.message || window.__i18n.category_delete_error;
+                        return;
+                    }
+
+                    this.categoriesSuccessMessage = result.message || window.__i18n.category_delete_success;
+                    await this.fetchCategories();
+                    window.setTimeout(() => window.location.reload(), 900);
+                } catch (error) {
+                    this.categoriesError = window.__i18n.categories_network_error;
+                }
             },
             initQuillEditor() {
                 if (typeof Quill === 'undefined') {
