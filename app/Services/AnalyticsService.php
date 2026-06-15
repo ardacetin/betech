@@ -142,7 +142,7 @@ class AnalyticsService
             '[>]categories' => ['category_id' => 'id'],
         ], [
             'assets.category_id',
-            'category_name' => 'categories.name',
+            'categories.name(category_name)',
             'count' => Medoo::raw('COUNT(<assets.id>)'),
         ], [
             'GROUP' => [

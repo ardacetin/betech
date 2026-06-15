@@ -46,8 +46,8 @@ class AssetHistory
             'asset_histories.target_user_id',
             'asset_histories.notes',
             'asset_histories.created_at',
-            'target_user_name' => 'target_user.name',
-            'actor_name' => 'actor.name',
+            'target_user.name(target_user_name)',
+            'actor.name(actor_name)',
         ], [
             'asset_histories.asset_id' => $assetId,
             'ORDER' => [

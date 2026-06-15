@@ -60,10 +60,10 @@ class Asset
             'assets.properties',
             'assets.created_at',
             'assets.updated_at',
-            'category_name' => 'categories.name',
-            'user_name' => 'users.name',
-            'location_name' => 'locations.name',
-            'location_building' => 'locations.building',
+            'categories.name(category_name)',
+            'users.name(user_name)',
+            'locations.name(location_name)',
+            'locations.building(location_building)',
         ], [
             'ORDER' => ['assets.id' => 'DESC'],
         ]);
@@ -99,10 +99,10 @@ class Asset
             'assets.properties',
             'assets.created_at',
             'assets.updated_at',
-            'category_name' => 'categories.name',
-            'user_name' => 'users.name',
-            'location_name' => 'locations.name',
-            'location_building' => 'locations.building',
+            'categories.name(category_name)',
+            'users.name(user_name)',
+            'locations.name(location_name)',
+            'locations.building(location_building)',
         ], [
             'assets.id' => $assetId,
         ]);
@@ -149,10 +149,10 @@ class Asset
             'assets.properties',
             'assets.created_at',
             'assets.updated_at',
-            'category_name' => 'categories.name',
-            'user_name' => 'users.name',
-            'location_name' => 'locations.name',
-            'location_building' => 'locations.building',
+            'categories.name(category_name)',
+            'users.name(user_name)',
+            'locations.name(location_name)',
+            'locations.building(location_building)',
         ], [
             'assets.user_id' => $userId,
             'ORDER' => ['assets.id' => 'DESC'],
@@ -326,18 +326,20 @@ class Asset
 
     public function generateNextAssetTag(): string
     {
-        $tags = $this->db()->select('assets', ['asset_tag'], [
-            'asset_tag[~]' => 'ENV-%',
+        $rows = $this->db()->select('assets', ['asset_tag'], [
+            'ORDER' => ['id' => 'ASC'],
         ]);
 
         $maxNumber = 0;
 
-        foreach ($tags as $row) {
+        foreach ($rows as $row) {
             $tag = (string) ($row['asset_tag'] ?? '');
 
-            if (preg_match('/^ENV-(\d+)$/', $tag, $matches) === 1) {
-                $maxNumber = max($maxNumber, (int) $matches[1]);
+            if (preg_match('/^ENV-(\d+)$/', $tag, $matches) !== 1) {
+                continue;
             }
+
+            $maxNumber = max($maxNumber, (int) $matches[1]);
         }
 
         do {
