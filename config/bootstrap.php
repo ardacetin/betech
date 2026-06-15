@@ -6,9 +6,11 @@ use App\Controllers\AnalyticsController;
 use App\Controllers\AssetController;
 use App\Controllers\AssetTutanakController;
 use App\Controllers\AssetViewController;
+use App\Controllers\AuthController;
 use App\Controllers\HealthController;
 use App\Controllers\SettingsController;
 use App\Controllers\UserController;
+use App\Middleware\AuthMiddleware;
 use App\Middleware\LanguageMiddleware;
 use App\Models\Asset;
 use App\Models\AssetHistory;
@@ -16,6 +18,9 @@ use App\Models\Category;
 use App\Models\Setting;
 use App\Models\User;
 use App\Services\AnalyticsService;
+use App\Services\Auth\LdapAuthenticator;
+use App\Services\Auth\OAuthService;
+use App\Services\Auth\SessionAuthService;
 use App\Services\Auth\UserIntegrationFactory;
 use App\Services\DatabaseService;
 use App\Services\QrCodeService;
@@ -43,6 +48,15 @@ Translator::initialize($translator);
 $app->add(new LanguageMiddleware($translator));
 $app->addBodyParsingMiddleware();
 
+$sessionAuthService = new SessionAuthService();
+$app->add(new AuthMiddleware($sessionAuthService, [
+    '/login',
+    '/logout',
+    '/auth/oauth/{provider}',
+    '/auth/callback/{provider}',
+    '/assets/view/{id}',
+]));
+
 $app->addErrorMiddleware(
     $appConfig['debug'],
     $appConfig['debug'],
@@ -59,6 +73,17 @@ $viewRenderer = new ViewRenderer($rootPath . '/views');
 $qrCodeService = new QrCodeService($appConfig['url']);
 $analyticsService = new AnalyticsService($databaseService);
 $zimmetTutanakService = new ZimmetTutanakService();
+$ldapAuthenticator = new LdapAuthenticator($settingModel);
+$oauthService = new OAuthService($settingModel, $appConfig['url']);
+$authController = new AuthController(
+    $appConfig,
+    $settingModel,
+    $userModel,
+    $sessionAuthService,
+    $ldapAuthenticator,
+    $oauthService,
+    $viewRenderer
+);
 $healthController = new HealthController($appConfig, $assetModel, $categoryModel, $viewRenderer, $qrCodeService, $analyticsService, $settingModel, $userModel);
 $assetController = new AssetController($assetModel, $assetHistoryModel, $userIntegrationFactory, $userModel);
 $assetViewController = new AssetViewController($appConfig, $assetModel, $categoryModel, $viewRenderer);
@@ -67,6 +92,11 @@ $userController = new UserController($userIntegrationFactory, $userModel, $asset
 $analyticsController = new AnalyticsController($analyticsService);
 $settingsController = new SettingsController($settingModel);
 
+$app->get('/login', [$authController, 'showLoginForm']);
+$app->post('/login', [$authController, 'login']);
+$app->get('/logout', [$authController, 'logout']);
+$app->get('/auth/oauth/{provider}', [$authController, 'startOAuth']);
+$app->get('/auth/callback/{provider}', [$authController, 'handleOAuthCallback']);
 $app->get('/', [$healthController, 'index']);
 $app->get('/assets/view/{id}', [$assetViewController, 'show']);
 $app->get('/api/analytics/summary', [$analyticsController, 'summary']);

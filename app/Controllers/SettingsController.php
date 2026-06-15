@@ -71,6 +71,10 @@ class SettingsController
             $this->settingModel->saveGoogleConfig($payload['google_config']);
         }
 
+        if (array_key_exists('login_config', $payload) && is_array($payload['login_config'])) {
+            $this->settingModel->saveLoginConfig($payload['login_config']);
+        }
+
         return $this->jsonResponse($response, 200, [
             'status' => 'success',
             'message' => 'Settings updated successfully.',
@@ -164,6 +168,10 @@ class SettingsController
                     $errors['google_config'][] = 'Google OAuth token JSON is invalid.';
                 }
             }
+        }
+
+        if (array_key_exists('login_config', $payload) && !is_array($payload['login_config'])) {
+            $errors['login_config'][] = 'Login configuration must be an object.';
         }
 
         return $errors;

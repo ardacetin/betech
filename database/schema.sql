@@ -22,13 +22,19 @@ CREATE TABLE IF NOT EXISTS users (
     email VARCHAR(255) NOT NULL,
     department VARCHAR(120) DEFAULT NULL,
     status VARCHAR(32) NOT NULL DEFAULT 'active',
+    password_hash VARCHAR(255) DEFAULT NULL,
+    auth_provider VARCHAR(32) NOT NULL DEFAULT 'local',
+    provider_subject VARCHAR(255) DEFAULT NULL,
+    last_login_at DATETIME DEFAULT NULL,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
     UNIQUE KEY uq_users_external_id (external_id),
     UNIQUE KEY uq_users_email (email),
     KEY idx_users_name (name),
     KEY idx_users_department (department),
-    KEY idx_users_status (status)
+    KEY idx_users_status (status),
+    KEY idx_users_auth_provider (auth_provider),
+    KEY idx_users_provider_subject (provider_subject)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS assets (

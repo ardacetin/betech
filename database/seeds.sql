@@ -22,16 +22,18 @@ ON DUPLICATE KEY UPDATE
     name = VALUES(name),
     fields = IF(categories.fields IS NULL, VALUES(fields), categories.fields);
 
-INSERT INTO users (external_id, name, email, department) VALUES
-('USR-001', 'Ayşe Yılmaz', 'ayse.yilmaz@betech.local', 'IT'),
-('USR-002', 'Mehmet Demir', 'mehmet.demir@betech.local', 'Finans'),
-('USR-003', 'Zeynep Kaya', 'zeynep.kaya@betech.local', 'İnsan Kaynakları'),
-('USR-004', 'Can Öztürk', 'can.ozturk@betech.local', 'Operasyon'),
-('USR-005', 'Elif Arslan', 'elif.arslan@betech.local', 'IT')
+INSERT INTO users (external_id, name, email, department, password_hash, auth_provider) VALUES
+('admin', 'Sistem Yöneticisi', 'admin@betech.local', 'IT', '$2y$12$gKwuiE9St/UBa3ENhW7aT.yVeD1UPf2Ov9Fhcqa2PMoNAD.sHAt3e', 'local'),
+('USR-001', 'Ayşe Yılmaz', 'ayse.yilmaz@betech.local', 'IT', NULL, 'local'),
+('USR-002', 'Mehmet Demir', 'mehmet.demir@betech.local', 'Finans', NULL, 'local'),
+('USR-003', 'Zeynep Kaya', 'zeynep.kaya@betech.local', 'İnsan Kaynakları', NULL, 'local'),
+('USR-004', 'Can Öztürk', 'can.ozturk@betech.local', 'Operasyon', NULL, 'local'),
+('USR-005', 'Elif Arslan', 'elif.arslan@betech.local', 'IT', NULL, 'local')
 ON DUPLICATE KEY UPDATE
     name = VALUES(name),
     email = VALUES(email),
-    department = VALUES(department);
+    department = VALUES(department),
+    auth_provider = VALUES(auth_provider);
 
 INSERT INTO settings (`key`, value) VALUES
 (
@@ -88,6 +90,42 @@ INSERT INTO settings (`key`, value) VALUES
 ),
 (
     'google_oauth_token_json',
+    ''
+),
+(
+    'login_local_enabled',
+    '1'
+),
+(
+    'login_ldap_enabled',
+    '0'
+),
+(
+    'login_google_enabled',
+    '0'
+),
+(
+    'login_microsoft_enabled',
+    '0'
+),
+(
+    'google_sso_client_id',
+    ''
+),
+(
+    'google_sso_client_secret',
+    ''
+),
+(
+    'azure_sso_tenant_id',
+    ''
+),
+(
+    'azure_sso_client_id',
+    ''
+),
+(
+    'azure_sso_client_secret',
     ''
 )
 ON DUPLICATE KEY UPDATE

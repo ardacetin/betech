@@ -154,9 +154,12 @@ $i18nScript = json_encode([
                 </button>
             </nav>
 
-            <div class="border-t border-zinc-200 p-4">
+            <div class="border-t border-zinc-200 p-4 space-y-3">
                 <p class="text-xs uppercase tracking-wide text-zinc-400"><?= htmlspecialchars(__('environment'), ENT_QUOTES, 'UTF-8') ?></p>
-                <p class="mt-1 text-sm font-medium text-zinc-700"><?= htmlspecialchars($environment, ENT_QUOTES, 'UTF-8') ?></p>
+                <p class="text-sm font-medium text-zinc-700"><?= htmlspecialchars($environment, ENT_QUOTES, 'UTF-8') ?></p>
+                <a href="/logout" class="inline-flex items-center text-sm font-medium text-zinc-600 transition hover:text-zinc-900">
+                    <?= htmlspecialchars(__('nav_logout'), ENT_QUOTES, 'UTF-8') ?>
+                </a>
             </div>
         </aside>
 
@@ -756,6 +759,25 @@ $i18nScript = json_encode([
                     oauth_token_json: '',
                     oauth_token_configured: Boolean(window.__settings?.google_config?.oauth_token_configured),
                 },
+                login_config: {
+                    providers: {
+                        local: Boolean(window.__settings?.login_config?.providers?.local ?? true),
+                        ldap: Boolean(window.__settings?.login_config?.providers?.ldap),
+                        google: Boolean(window.__settings?.login_config?.providers?.google),
+                        microsoft: Boolean(window.__settings?.login_config?.providers?.microsoft),
+                    },
+                    google_sso: {
+                        client_id: window.__settings?.login_config?.google_sso?.client_id || '',
+                        client_secret: '',
+                        client_secret_configured: Boolean(window.__settings?.login_config?.google_sso?.client_secret_configured),
+                    },
+                    microsoft_sso: {
+                        tenant_id: window.__settings?.login_config?.microsoft_sso?.tenant_id || '',
+                        client_id: window.__settings?.login_config?.microsoft_sso?.client_id || '',
+                        client_secret: '',
+                        client_secret_configured: Boolean(window.__settings?.login_config?.microsoft_sso?.client_secret_configured),
+                    },
+                },
             },
             authDrivers: [
                 {
@@ -1236,6 +1258,7 @@ $i18nScript = json_encode([
                             custom_fields: this.settingsForm.custom_fields,
                             ldap_config: this.settingsForm.ldap_config,
                             google_config: this.settingsForm.google_config,
+                            login_config: this.settingsForm.login_config,
                         }),
                     });
 
@@ -1271,6 +1294,20 @@ $i18nScript = json_encode([
                             ...result.data.google_config,
                             service_account_json: '',
                             oauth_token_json: '',
+                        };
+                    }
+
+                    if (result.data?.login_config) {
+                        this.settingsForm.login_config = {
+                            ...result.data.login_config,
+                            google_sso: {
+                                ...result.data.login_config.google_sso,
+                                client_secret: '',
+                            },
+                            microsoft_sso: {
+                                ...result.data.login_config.microsoft_sso,
+                                client_secret: '',
+                            },
                         };
                     }
 

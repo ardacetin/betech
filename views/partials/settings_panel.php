@@ -109,6 +109,58 @@ declare(strict_types=1);
         </article>
 
         <article class="rounded-2xl border border-zinc-200 bg-white p-6 shadow-soft">
+            <h3 class="text-sm font-semibold text-zinc-900"><?= htmlspecialchars(__('settings_login_title'), ENT_QUOTES, 'UTF-8') ?></h3>
+            <p class="mt-1 text-xs text-zinc-500"><?= htmlspecialchars(__('settings_login_hint'), ENT_QUOTES, 'UTF-8') ?></p>
+
+            <div class="mt-5 grid gap-3 sm:grid-cols-2">
+                <label class="flex items-center gap-3 rounded-xl border border-zinc-200 px-4 py-3">
+                    <input type="checkbox" x-model="settingsForm.login_config.providers.local" class="rounded border-zinc-300">
+                    <span class="text-sm text-zinc-700"><?= htmlspecialchars(__('settings_login_local'), ENT_QUOTES, 'UTF-8') ?></span>
+                </label>
+                <label class="flex items-center gap-3 rounded-xl border border-zinc-200 px-4 py-3">
+                    <input type="checkbox" x-model="settingsForm.login_config.providers.ldap" class="rounded border-zinc-300">
+                    <span class="text-sm text-zinc-700"><?= htmlspecialchars(__('settings_login_ldap'), ENT_QUOTES, 'UTF-8') ?></span>
+                </label>
+                <label class="flex items-center gap-3 rounded-xl border border-zinc-200 px-4 py-3">
+                    <input type="checkbox" x-model="settingsForm.login_config.providers.google" class="rounded border-zinc-300">
+                    <span class="text-sm text-zinc-700"><?= htmlspecialchars(__('settings_login_google'), ENT_QUOTES, 'UTF-8') ?></span>
+                </label>
+                <label class="flex items-center gap-3 rounded-xl border border-zinc-200 px-4 py-3">
+                    <input type="checkbox" x-model="settingsForm.login_config.providers.microsoft" class="rounded border-zinc-300">
+                    <span class="text-sm text-zinc-700"><?= htmlspecialchars(__('settings_login_microsoft'), ENT_QUOTES, 'UTF-8') ?></span>
+                </label>
+            </div>
+
+            <div x-show="settingsForm.login_config.providers.google" x-cloak class="mt-5 grid gap-4 sm:grid-cols-2">
+                <label class="block sm:col-span-2">
+                    <span class="mb-1 block text-xs font-medium text-zinc-600"><?= htmlspecialchars(__('settings_google_sso_client_id'), ENT_QUOTES, 'UTF-8') ?></span>
+                    <input type="text" x-model="settingsForm.login_config.google_sso.client_id" class="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-400">
+                </label>
+                <label class="block sm:col-span-2">
+                    <span class="mb-1 block text-xs font-medium text-zinc-600"><?= htmlspecialchars(__('settings_google_sso_client_secret'), ENT_QUOTES, 'UTF-8') ?></span>
+                    <input type="password" x-model="settingsForm.login_config.google_sso.client_secret" class="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-400" :placeholder="settingsForm.login_config.google_sso.client_secret_configured ? '<?= htmlspecialchars(__('settings_secret_configured'), ENT_QUOTES, 'UTF-8') ?>' : ''">
+                </label>
+                <p class="sm:col-span-2 text-xs text-zinc-400"><?= htmlspecialchars(__('settings_google_sso_redirect_hint'), ENT_QUOTES, 'UTF-8') ?>: /auth/callback/google</p>
+            </div>
+
+            <div x-show="settingsForm.login_config.providers.microsoft" x-cloak class="mt-5 grid gap-4 sm:grid-cols-2">
+                <label class="block sm:col-span-1">
+                    <span class="mb-1 block text-xs font-medium text-zinc-600"><?= htmlspecialchars(__('settings_microsoft_sso_tenant_id'), ENT_QUOTES, 'UTF-8') ?></span>
+                    <input type="text" x-model="settingsForm.login_config.microsoft_sso.tenant_id" class="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-400" placeholder="organizations">
+                </label>
+                <label class="block sm:col-span-1">
+                    <span class="mb-1 block text-xs font-medium text-zinc-600"><?= htmlspecialchars(__('settings_microsoft_sso_client_id'), ENT_QUOTES, 'UTF-8') ?></span>
+                    <input type="text" x-model="settingsForm.login_config.microsoft_sso.client_id" class="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-400">
+                </label>
+                <label class="block sm:col-span-2">
+                    <span class="mb-1 block text-xs font-medium text-zinc-600"><?= htmlspecialchars(__('settings_microsoft_sso_client_secret'), ENT_QUOTES, 'UTF-8') ?></span>
+                    <input type="password" x-model="settingsForm.login_config.microsoft_sso.client_secret" class="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-400" :placeholder="settingsForm.login_config.microsoft_sso.client_secret_configured ? '<?= htmlspecialchars(__('settings_secret_configured'), ENT_QUOTES, 'UTF-8') ?>' : ''">
+                </label>
+                <p class="sm:col-span-2 text-xs text-zinc-400"><?= htmlspecialchars(__('settings_microsoft_sso_redirect_hint'), ENT_QUOTES, 'UTF-8') ?>: /auth/callback/microsoft</p>
+            </div>
+        </article>
+
+        <article class="rounded-2xl border border-zinc-200 bg-white p-6 shadow-soft">
             <p class="mt-1 text-xs text-zinc-500"><?= htmlspecialchars(__('settings_zimmet_hint'), ENT_QUOTES, 'UTF-8') ?></p>
 
             <textarea

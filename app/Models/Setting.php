@@ -82,7 +82,8 @@ class Setting
      *     zimmet_template: string,
      *     custom_fields: list<array<string, mixed>>,
      *     ldap_config: array<string, mixed>,
-     *     google_config: array<string, mixed>
+     *     google_config: array<string, mixed>,
+     *     login_config: array<string, mixed>
      * }
      */
     public function getAdminBundle(): array
@@ -95,6 +96,7 @@ class Setting
             'custom_fields' => is_array($customFields) ? $customFields : [],
             'ldap_config' => $this->getLdapConfigForAdmin(),
             'google_config' => $this->getGoogleConfigForAdmin(),
+            'login_config' => $this->getLoginConfigForAdmin(),
         ];
     }
 
@@ -227,6 +229,135 @@ class Setting
 
         if ($oauthTokenJson !== '') {
             $this->set('google_oauth_token_json', $oauthTokenJson);
+        }
+    }
+
+    /**
+     * @return array{
+     *     local: bool,
+     *     ldap: bool,
+     *     google: bool,
+     *     microsoft: bool
+     * }
+     */
+    public function getLoginProviders(): array
+    {
+        return [
+            'local' => $this->toBool($this->get('login_local_enabled', '1')),
+            'ldap' => $this->toBool($this->get('login_ldap_enabled', '0')),
+            'google' => $this->toBool($this->get('login_google_enabled', '0')),
+            'microsoft' => $this->toBool($this->get('login_microsoft_enabled', '0')),
+        ];
+    }
+
+    /**
+     * @return array{
+     *     client_id: string,
+     *     client_secret: string,
+     *     domain: string
+     * }
+     */
+    public function getGoogleSsoConfig(): array
+    {
+        return [
+            'client_id' => trim($this->get('google_sso_client_id', '') ?? ''),
+            'client_secret' => $this->get('google_sso_client_secret', '') ?? '',
+            'domain' => trim($this->get('google_domain', '') ?? ''),
+        ];
+    }
+
+    /**
+     * @return array{
+     *     tenant_id: string,
+     *     client_id: string,
+     *     client_secret: string
+     * }
+     */
+    public function getMicrosoftSsoConfig(): array
+    {
+        return [
+            'tenant_id' => trim($this->get('azure_sso_tenant_id', '') ?? ''),
+            'client_id' => trim($this->get('azure_sso_client_id', '') ?? ''),
+            'client_secret' => $this->get('azure_sso_client_secret', '') ?? '',
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function getLoginConfigForAdmin(): array
+    {
+        $providers = $this->getLoginProviders();
+        $googleSso = $this->getGoogleSsoConfig();
+        $microsoftSso = $this->getMicrosoftSsoConfig();
+
+        return [
+            'providers' => $providers,
+            'google_sso' => [
+                'client_id' => $googleSso['client_id'],
+                'client_secret' => '',
+                'client_secret_configured' => $this->hasSecret('google_sso_client_secret'),
+                'domain' => $googleSso['domain'],
+            ],
+            'microsoft_sso' => [
+                'tenant_id' => $microsoftSso['tenant_id'],
+                'client_id' => $microsoftSso['client_id'],
+                'client_secret' => '',
+                'client_secret_configured' => $this->hasSecret('azure_sso_client_secret'),
+            ],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function getLoginConfigForLoginPage(): array
+    {
+        $config = $this->getLoginConfigForAdmin();
+        $providers = $config['providers'];
+
+        return [
+            'providers' => $providers,
+            'has_google_sso' => $providers['google']
+                && trim((string) ($config['google_sso']['client_id'] ?? '')) !== ''
+                && ($config['google_sso']['client_secret_configured'] ?? false),
+            'has_microsoft_sso' => $providers['microsoft']
+                && trim((string) ($config['microsoft_sso']['client_id'] ?? '')) !== ''
+                && ($config['microsoft_sso']['client_secret_configured'] ?? false),
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $config
+     */
+    public function saveLoginConfig(array $config): void
+    {
+        $providers = is_array($config['providers'] ?? null) ? $config['providers'] : [];
+
+        $this->set('login_local_enabled', $this->toBool($providers['local'] ?? true) ? '1' : '0');
+        $this->set('login_ldap_enabled', $this->toBool($providers['ldap'] ?? false) ? '1' : '0');
+        $this->set('login_google_enabled', $this->toBool($providers['google'] ?? false) ? '1' : '0');
+        $this->set('login_microsoft_enabled', $this->toBool($providers['microsoft'] ?? false) ? '1' : '0');
+
+        if (is_array($config['google_sso'] ?? null)) {
+            $this->set('google_sso_client_id', trim((string) ($config['google_sso']['client_id'] ?? '')));
+
+            $clientSecret = trim((string) ($config['google_sso']['client_secret'] ?? ''));
+
+            if ($clientSecret !== '') {
+                $this->set('google_sso_client_secret', $clientSecret);
+            }
+        }
+
+        if (is_array($config['microsoft_sso'] ?? null)) {
+            $this->set('azure_sso_tenant_id', trim((string) ($config['microsoft_sso']['tenant_id'] ?? '')));
+            $this->set('azure_sso_client_id', trim((string) ($config['microsoft_sso']['client_id'] ?? '')));
+
+            $clientSecret = trim((string) ($config['microsoft_sso']['client_secret'] ?? ''));
+
+            if ($clientSecret !== '') {
+                $this->set('azure_sso_client_secret', $clientSecret);
+            }
         }
     }
 

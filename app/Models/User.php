@@ -12,6 +12,11 @@ class User
     public const STATUS_ACTIVE = 'active';
     public const STATUS_OFFBOARDED = 'offboarded';
 
+    public const PROVIDER_LOCAL = 'local';
+    public const PROVIDER_LDAP = 'ldap';
+    public const PROVIDER_GOOGLE = 'google';
+    public const PROVIDER_MICROSOFT = 'microsoft';
+
     public function __construct(
         private readonly DatabaseService $databaseService
     ) {
@@ -55,6 +60,132 @@ class User
         ]);
 
         return $row === null ? null : $this->normalizeRow($row);
+    }
+
+    public function findByEmail(string $email): ?array
+    {
+        $normalizedEmail = strtolower(trim($email));
+
+        if ($normalizedEmail === '') {
+            return null;
+        }
+
+        $row = $this->db()->get('users', [
+            'id',
+            'external_id',
+            'name',
+            'email',
+            'department',
+            'status',
+            'auth_provider',
+            'provider_subject',
+            'password_hash',
+            'created_at',
+        ], [
+            'email' => $normalizedEmail,
+        ]);
+
+        return $row === null ? null : $this->normalizeRow($row);
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    public function authenticateLocal(string $email, string $password): ?array
+    {
+        $user = $this->findByEmail($email);
+
+        if ($user === null) {
+            return null;
+        }
+
+        if (($user['status'] ?? self::STATUS_ACTIVE) !== self::STATUS_ACTIVE) {
+            return null;
+        }
+
+        $passwordHash = (string) ($user['password_hash'] ?? '');
+
+        if ($passwordHash === '' || !password_verify($password, $passwordHash)) {
+            return null;
+        }
+
+        $this->touchLastLogin((int) $user['id']);
+
+        return $user;
+    }
+
+    /**
+     * Provision or refresh a user authenticated via LDAP, Google, or Microsoft.
+     *
+     * @param array{
+     *     name: string,
+     *     email: string,
+     *     external_id: string,
+     *     department?: string|null,
+     *     auth_provider: string,
+     *     provider_subject?: string|null
+     * } $profile
+     *
+     * @return array<string, mixed>
+     */
+    public function provisionFromAuth(array $profile): array
+    {
+        $email = strtolower(trim($profile['email']));
+        $externalId = trim($profile['external_id']);
+        $authProvider = trim($profile['auth_provider']);
+        $providerSubject = trim((string) ($profile['provider_subject'] ?? $externalId));
+
+        if ($email === '' || $externalId === '') {
+            throw new \InvalidArgumentException('Authenticated profile must include email and external_id.');
+        }
+
+        $payload = [
+            'name' => trim($profile['name']) !== '' ? trim($profile['name']) : $email,
+            'email' => $email,
+            'department' => isset($profile['department']) && $profile['department'] !== null
+                ? trim((string) $profile['department'])
+                : null,
+            'status' => self::STATUS_ACTIVE,
+            'auth_provider' => $authProvider !== '' ? $authProvider : self::PROVIDER_LOCAL,
+            'provider_subject' => $providerSubject !== '' ? $providerSubject : null,
+        ];
+
+        $existing = $this->db()->get('users', ['id'], [
+            'OR' => [
+                'external_id' => $externalId,
+                'email' => $email,
+            ],
+        ]);
+
+        if ($existing !== null) {
+            $localId = (int) $existing['id'];
+            $this->db()->update('users', $payload, ['id' => $localId]);
+        } else {
+            $this->db()->insert('users', [
+                'external_id' => $externalId,
+                ...$payload,
+            ]);
+            $localId = (int) $this->db()->id();
+        }
+
+        $this->touchLastLogin($localId);
+
+        $user = $this->findById($localId);
+
+        if ($user === null) {
+            throw new \RuntimeException('Failed to load provisioned user.');
+        }
+
+        return $user;
+    }
+
+    public function touchLastLogin(int $userId): void
+    {
+        $this->db()->update('users', [
+            'last_login_at' => date('Y-m-d H:i:s'),
+        ], [
+            'id' => $userId,
+        ]);
     }
 
     /**
