@@ -130,6 +130,7 @@ $app->post('/api/licenses/{id}/unassign', [$licenseController, 'unassign']);
 $app->get('/api/licenses/{id}/assignments', [$licenseController, 'assignments']);
 $app->get('/api/assets/{id}/licenses', [$licenseController, 'forAsset']);
 $app->get('/api/users', [$userController, 'index']);
+$app->post('/api/users', [$userController, 'store']);
 $app->get('/api/users/search', [$userController, 'search']);
 $app->post('/api/users/{id}/offboard', [$userController, 'offboard']);
 $app->get('/api/assets/{id}/tutanak', [$assetTutanakController, 'show']);

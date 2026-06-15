@@ -48,6 +48,7 @@ class AssetController
 
         [$coreFields, $properties] = $this->separatePayload($payload);
         $properties = $this->filterOptionalProperties($properties);
+        $coreFields['asset_tag'] = $this->assetModel->generateNextAssetTag();
         $errors = $this->validateCoreFields($coreFields);
 
         if ($errors !== []) {

@@ -46,7 +46,7 @@ class AuthController
 
         $html = $this->viewRenderer->render('login', [
             'pageTitle' => __('login_page_title'),
-            'appName' => 'Betech ITMS',
+            'appName' => __('app_name'),
             'locale' => 'tr',
             'loginConfig' => $loginConfig,
             'errorMessage' => $this->resolveErrorMessage($errorKey),

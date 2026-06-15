@@ -82,7 +82,7 @@ class HealthController
         }
 
         $html = $this->viewRenderer->render('dashboard', [
-            'appName' => 'Betech',
+            'appName' => __('app_name'),
             'pageTitle' => $isEndUser ? __('page_title_end_user') : __('page_title'),
             'environment' => $this->appConfig['env'],
             'locale' => Translator::instance()->getLocale(),

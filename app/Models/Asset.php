@@ -324,6 +324,30 @@ class Asset
         return $this->db()->has('assets', $conditions);
     }
 
+    public function generateNextAssetTag(): string
+    {
+        $tags = $this->db()->select('assets', ['asset_tag'], [
+            'asset_tag[~]' => 'ENV-%',
+        ]);
+
+        $maxNumber = 0;
+
+        foreach ($tags as $row) {
+            $tag = (string) ($row['asset_tag'] ?? '');
+
+            if (preg_match('/^ENV-(\d+)$/', $tag, $matches) === 1) {
+                $maxNumber = max($maxNumber, (int) $matches[1]);
+            }
+        }
+
+        do {
+            $maxNumber++;
+            $candidate = sprintf('ENV-%04d', $maxNumber);
+        } while ($this->assetTagExists($candidate));
+
+        return $candidate;
+    }
+
     public function categoryExists(int $categoryId): bool
     {
         return $this->db()->has('categories', ['id' => $categoryId]);

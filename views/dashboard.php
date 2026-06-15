@@ -113,6 +113,8 @@ $i18nScript = json_encode([
     'no_category_fields' => __('no_category_fields'),
     'no_users_found' => __('no_users_found'),
     'search_users_placeholder' => __('search_users_placeholder'),
+    'label_mac_address_1' => __('label_mac_address_1'),
+    'label_mac_address_2' => __('label_mac_address_2'),
     'history_empty' => __('history_empty'),
     'history_loading' => __('history_loading'),
     'history_error' => __('history_error'),
@@ -187,6 +189,9 @@ $i18nScript = json_encode([
     'license_seats_in_use' => __('license_seats_in_use'),
     'license_no_expiration' => __('license_no_expiration'),
     'asset_licenses_error' => __('asset_licenses_error'),
+    'add_manual_user' => __('add_manual_user'),
+    'manual_user_create_button' => __('manual_user_create_button'),
+    'manual_user_create_error' => __('manual_user_create_error'),
 ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
 ?>
 <div class="min-h-full" x-data="assetDashboard()" x-init="if (canManageAssets) { fetchCategories(); fetchLocations(); fetchLicenses(); }">
@@ -655,10 +660,6 @@ $i18nScript = json_encode([
             <form @submit.prevent="submitAddForm" class="max-h-[70vh] overflow-y-auto px-6 py-5">
                 <div class="grid gap-4 sm:grid-cols-2">
                     <label class="block sm:col-span-1">
-                        <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('label_asset_tag'), ENT_QUOTES, 'UTF-8') ?></span>
-                        <input x-model="form.asset_tag" type="text" required class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4">
-                    </label>
-                    <label class="block sm:col-span-1">
                         <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('label_serial_number'), ENT_QUOTES, 'UTF-8') ?></span>
                         <input x-model="form.serial_number" type="text" class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4">
                     </label>
@@ -719,15 +720,7 @@ $i18nScript = json_encode([
                     <h4 class="text-sm font-semibold text-zinc-900"><?= htmlspecialchars(__('technical_specifications'), ENT_QUOTES, 'UTF-8') ?></h4>
                     <p class="mt-1 text-xs text-zinc-500"><?= htmlspecialchars(__('technical_specifications_hint'), ENT_QUOTES, 'UTF-8') ?></p>
 
-                    <p
-                        x-show="dynamicFields.length === 0"
-                        x-cloak
-                        class="mt-4 rounded-xl border border-dashed border-zinc-200 bg-zinc-50 px-4 py-3 text-sm text-zinc-500"
-                    >
-                        <?= htmlspecialchars(__('no_category_fields'), ENT_QUOTES, 'UTF-8') ?>
-                    </p>
-
-                    <div x-show="dynamicFields.length > 0" x-cloak class="mt-4 grid gap-4 sm:grid-cols-2">
+                    <div class="mt-4 grid gap-4 sm:grid-cols-2">
                         <template x-for="field in dynamicFields" :key="field.name">
                             <label class="block" :class="field.type === 'textarea' ? 'sm:col-span-2' : ''">
                                 <span class="mb-1.5 block text-sm font-medium text-zinc-700" x-text="resolveFieldLabel(field)"></span>
@@ -1563,13 +1556,19 @@ $i18nScript = json_encode([
             userSearchLoading: false,
             showUserResults: false,
             selectedUser: null,
+            isManualUserFormOpen: false,
+            manualUserForm: {
+                name: '',
+                email: '',
+            },
+            manualUserFormError: '',
+            isManualUserSubmitting: false,
             editAsset: null,
             editForm: {
                 status: 'ready',
                 location_id: '',
             },
             form: {
-                asset_tag: '',
                 serial_number: '',
                 name: '',
                 category_id: '',
@@ -2058,6 +2057,55 @@ $i18nScript = json_encode([
                 this.userSearchLoading = false;
                 this.showUserResults = false;
                 this.selectedUser = null;
+                this.closeManualUserForm();
+            },
+            openManualUserForm() {
+                this.manualUserFormError = '';
+                this.isManualUserFormOpen = true;
+                this.showUserResults = false;
+            },
+            closeManualUserForm() {
+                if (this.isManualUserSubmitting) {
+                    return;
+                }
+
+                this.isManualUserFormOpen = false;
+                this.manualUserForm = { name: '', email: '' };
+                this.manualUserFormError = '';
+            },
+            async submitManualUser() {
+                this.isManualUserSubmitting = true;
+                this.manualUserFormError = '';
+
+                try {
+                    const response = await fetch('/api/users', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            name: this.manualUserForm.name.trim(),
+                            email: this.manualUserForm.email.trim(),
+                        }),
+                    });
+                    const result = await response.json();
+
+                    if (!response.ok) {
+                        this.manualUserFormError = result.message || window.__i18n.manual_user_create_error;
+                        return;
+                    }
+
+                    if (result.data) {
+                        this.selectUser(result.data);
+                    }
+
+                    this.closeManualUserForm();
+                } catch (error) {
+                    this.manualUserFormError = window.__i18n.manual_user_create_error;
+                } finally {
+                    this.isManualUserSubmitting = false;
+                }
             },
             async searchUsers() {
                 this.userSearchLoading = true;
@@ -2097,12 +2145,17 @@ $i18nScript = json_encode([
                 const normalizedId = String(categoryId || '');
                 this.resetDynamicFields();
 
+                const defaultMacFields = [
+                    { name: 'mac_adresi_1', label: window.__i18n.label_mac_address_1 || 'MAC Adresi 1', type: 'text' },
+                    { name: 'mac_adresi_2', label: window.__i18n.label_mac_address_2 || 'MAC Adresi 2', type: 'text' },
+                ];
                 const globalFields = Array.isArray(this.globalCustomFields) ? this.globalCustomFields : [];
                 const categorySpecificFields = normalizedId === ''
                     ? []
                     : (this.categoryFields[normalizedId] || this.categoryFields[Number(normalizedId)] || []);
 
                 const mergedFields = [
+                    ...defaultMacFields,
                     ...(Array.isArray(categorySpecificFields) ? categorySpecificFields : []),
                     ...globalFields,
                 ];
@@ -2148,7 +2201,6 @@ $i18nScript = json_encode([
             },
             buildAddPayload() {
                 const payload = {
-                    asset_tag: this.form.asset_tag.trim(),
                     name: this.form.name.trim(),
                     category_id: Number(this.form.category_id),
                     status: this.form.status,

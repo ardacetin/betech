@@ -54,6 +54,49 @@ class UserController
         ]);
     }
 
+    public function store(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
+    {
+        $payload = $request->getParsedBody();
+
+        if (!is_array($payload)) {
+            $rawBody = (string) $request->getBody();
+
+            if ($rawBody !== '') {
+                try {
+                    $decoded = json_decode($rawBody, true, 512, JSON_THROW_ON_ERROR);
+                    $payload = is_array($decoded) ? $decoded : null;
+                } catch (\JsonException) {
+                    $payload = null;
+                }
+            }
+        }
+
+        if (!is_array($payload)) {
+            return $this->jsonResponse($response, 400, [
+                'status' => 'error',
+                'message' => __('manual_user_invalid_payload'),
+            ]);
+        }
+
+        $name = trim((string) ($payload['name'] ?? ''));
+        $email = trim((string) ($payload['email'] ?? ''));
+
+        try {
+            $user = $this->userModel->createManual($name, $email);
+        } catch (\InvalidArgumentException $exception) {
+            return $this->jsonResponse($response, 422, [
+                'status' => 'error',
+                'message' => $exception->getMessage(),
+            ]);
+        }
+
+        return $this->jsonResponse($response, 201, [
+            'status' => 'success',
+            'message' => __('manual_user_create_success'),
+            'data' => $user,
+        ]);
+    }
+
     public function index(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
     {
         $users = $this->userModel->findAllForPersonnel();

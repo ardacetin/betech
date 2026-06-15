@@ -45,7 +45,7 @@ class AssetViewController
         );
 
         $html = $this->viewRenderer->render('asset_view', [
-            'appName' => 'Betech',
+            'appName' => __('app_name'),
             'pageTitle' => (string) $asset['name'],
             'locale' => Translator::instance()->getLocale(),
             'asset' => $asset,
@@ -130,7 +130,7 @@ class AssetViewController
     private function renderNotFound(ResponseInterface $response): ResponseInterface
     {
         $html = $this->viewRenderer->render('asset_view_not_found', [
-            'appName' => 'Betech',
+            'appName' => __('app_name'),
             'pageTitle' => __('asset_not_found_title'),
             'locale' => Translator::instance()->getLocale(),
         ]);

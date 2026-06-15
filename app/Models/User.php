@@ -197,6 +197,52 @@ class User
     }
 
     /**
+     * Create a local-only user for manual assignment when directory search has no match.
+     *
+     * @return array{id: string, external_id: string, name: string, email: string, department: string|null}
+     */
+    public function createManual(string $name, string $email): array
+    {
+        $trimmedName = trim($name);
+        $normalizedEmail = strtolower(trim($email));
+
+        if ($trimmedName === '') {
+            throw new \InvalidArgumentException(__('manual_user_name_required'));
+        }
+
+        if ($normalizedEmail === '' || filter_var($normalizedEmail, FILTER_VALIDATE_EMAIL) === false) {
+            throw new \InvalidArgumentException(__('manual_user_email_invalid'));
+        }
+
+        if ($this->findByEmail($normalizedEmail) !== null) {
+            throw new \InvalidArgumentException(__('manual_user_email_taken'));
+        }
+
+        $externalId = 'manual-' . bin2hex(random_bytes(8));
+
+        $this->db()->insert('users', [
+            'external_id' => $externalId,
+            'name' => $trimmedName,
+            'email' => $normalizedEmail,
+            'department' => null,
+            'status' => self::STATUS_ACTIVE,
+            'role' => self::ROLE_END_USER,
+            'auth_provider' => self::PROVIDER_LOCAL,
+            'provider_subject' => null,
+        ]);
+
+        $localId = (int) $this->db()->id();
+
+        return [
+            'id' => (string) $localId,
+            'external_id' => $externalId,
+            'name' => $trimmedName,
+            'email' => $normalizedEmail,
+            'department' => null,
+        ];
+    }
+
+    /**
      * Persist or refresh a directory user and return the local integration shape.
      *
      * @param array{id: string, external_id: string, name: string, email: string, department: string|null} $directoryUser

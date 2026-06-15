@@ -1,17 +1,18 @@
-# Betech ITMS
+# BT Yönetim Sistemi (ITMS)
 
-**Betech IT Management System (ITMS)** is a lightweight, open-source, self-hosted platform for tracking IT assets, personnel assignments, and operational workflows inside your own infrastructure. Unlike multi-tenant SaaS products, Betech runs as a **standalone application** on your servers: one organization, one database, full control over data, authentication, and network boundaries.
+**BT Yönetim Sistemi (ITMS)** is a lightweight, open-source, self-hosted platform for tracking IT inventory, personnel assignments, and operational workflows inside your own infrastructure. Unlike multi-tenant SaaS products, ITMS runs as a **standalone application** on your servers: one organization, one database, full control over data, authentication, and network boundaries.
 
-Built with **PHP 8.1+**, **Slim 4**, **Medoo**, **MySQL** (with native JSON columns), **Alpine.js**, and **Tailwind CSS**, Betech combines relational integrity for core records with flexible JSON properties for category-specific technical fields—without external cloud dependencies.
+Built with **PHP 8.1+**, **Slim 4**, **Medoo**, **MySQL** (with native JSON columns), **Alpine.js**, and **Tailwind CSS**, the system combines relational integrity for core records with flexible JSON properties for category-specific technical fields—without external cloud dependencies.
 
 ---
 
 ## Key Features
 
-### Hybrid asset management
+### Envanter Yönetimi (Inventory Management)
 
 - Fixed relational columns for operational data (`asset_tag`, `serial_number`, `name`, `status`, `user_id`, `location_id`, `category_id`).
-- Dynamic **JSON `properties`** column for per-category technical attributes (RAM, CPU, ports, IP address, and custom fields).
+- **Auto-generated inventory tags** in sequential `ENV-####` format (e.g. `ENV-0001`, `ENV-0002`) assigned on create—no manual tag entry required. Tags drive QR code generation on the dashboard.
+- Dynamic **JSON `properties`** column for per-category technical attributes (default MAC address fields, RAM, CPU, ports, IP address, and custom fields).
 - Global optional custom fields configurable from **Sistem Ayarları**.
 
 ### Category-driven dynamic forms
@@ -46,7 +47,7 @@ Built with **PHP 8.1+**, **Slim 4**, **Medoo**, **MySQL** (with native JSON colu
 
 ### Role-based access control (RBAC)
 
-Betech enforces three session-scoped roles stored on the `users.role` column. `RoleMiddleware` guards API routes; the dashboard hides navigation and actions based on the active role.
+BT Yönetim Sistemi (ITMS) enforces three session-scoped roles stored on the `users.role` column. `RoleMiddleware` guards API routes; the dashboard hides navigation and actions based on the active role.
 
 | Role | Scope |
 |------|--------|
@@ -88,6 +89,14 @@ Operational staff (**Super Admin** and **Technician**) can manage active assignm
 | **Personele Devret** (Direct Transfer) | `POST /api/assets/{id}/transfer` | Accepts `{ "user_id": <id> }` and reassigns the asset directly to the new user; logs `Asset transferred from [Old User] to [New User].` |
 
 Both actions are available from the asset list and the history/detail modal when an asset is currently assigned. The transfer dialog reuses the Alpine.js personnel search component for fast handoffs between employees.
+
+### Manual local user creation (non-LDAP assignment)
+
+When directory search (LDAP, Google Workspace, etc.) does not return a match, technicians can click **Manuel Kullanıcı Ekle** in the assignment picker to create a local user on the fly:
+
+- Mini-form captures **Name** and **Email**.
+- `POST /api/users` inserts a local `end_user` with `auth_provider = local`.
+- The new user is selected immediately for zimmet assignment in the same modal flow.
 
 ### QR labels & mobile asset views
 
@@ -139,7 +148,7 @@ All settings persist in the `settings` table. Secrets are never returned by the 
 └─────────────────────────────────────────────────────────────┘
 ```
 
-All application state lives in your MySQL instance. Betech does not require a vendor-hosted backend.
+All application state lives in your MySQL instance. ITMS does not require a vendor-hosted backend.
 
 ---
 
@@ -254,14 +263,14 @@ The included `public/.htaccess` forwards all requests to `index.php`.
 
 Open your application URL in a browser (e.g. `https://itms.yourcompany.local`).
 
-On the first request, Betech will:
+On the first request, ITMS will:
 
 1. Validate database credentials from `.env`.
 2. Create tables from `database/schema.sql` if they do not exist.
 3. Apply incremental migrations for existing installations.
 4. Load default categories, sample users, and system settings from `database/seeds.sql`.
 
-If initialization fails, the response is JSON with a descriptive error (check web server error logs for `[Betech]` entries).
+If initialization fails, the response is JSON with a descriptive error (check web server error logs for `[Betech]` or `[ITMS]` entries).
 
 ### 6. Sign in
 
@@ -328,7 +337,7 @@ The script does not modify `.env` or web server configuration—those remain und
 
 ## Localization (i18n)
 
-Betech ships with built-in internationalization:
+ITMS ships with built-in internationalization:
 
 | Locale | Code | Role |
 |--------|------|------|
@@ -364,17 +373,17 @@ betech/
 
 ## Security notes (self-hosted operators)
 
-- Run Betech behind HTTPS in production; set `APP_URL` to the canonical HTTPS origin.
+- Run ITMS behind HTTPS in production; set `APP_URL` to the canonical HTTPS origin.
 - Change the default `admin@betech.local` password immediately after first login.
 - Store LDAP bind passwords and OAuth client secrets only in the database settings table (never commit `.env` or secrets to Git).
 - Restrict network access to MySQL and LDAP to application servers only.
-- Keep PHP, MySQL, and Betech updated via `deploy.sh` and your OS patch cycle.
+- Keep PHP, MySQL, and ITMS updated via `deploy.sh` and your OS patch cycle.
 
 ---
 
 ## License
 
-Betech is released under the **GNU General Public License v3.0 or later** (GPL-3.0-or-later). See `composer.json` for the SPDX identifier.
+BT Yönetim Sistemi (ITMS) is released under the **GNU General Public License v3.0 or later** (GPL-3.0-or-later). See `composer.json` for the SPDX identifier.
 
 ---
 
