@@ -11,6 +11,7 @@ declare(strict_types=1);
  * @var array{total: int, deployed: int, in_storage: int, broken: int} $metrics
  * @var list<array<string, mixed>> $categories
  * @var string $categoryFieldsJson
+ * @var string $assetQrCodesJson
  */
 
 $statusStyles = [
@@ -455,6 +456,25 @@ $i18nScript = json_encode([
                     </div>
                 </div>
 
+                <div class="mt-6 rounded-xl border border-zinc-200 bg-zinc-50 p-4">
+                    <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                        <div>
+                            <h4 class="text-sm font-semibold text-zinc-900"><?= htmlspecialchars(__('qr_code_title'), ENT_QUOTES, 'UTF-8') ?></h4>
+                            <p class="mt-1 text-xs text-zinc-500"><?= htmlspecialchars(__('qr_code_hint'), ENT_QUOTES, 'UTF-8') ?></p>
+                        </div>
+                        <button
+                            type="button"
+                            @click="printAssetLabel()"
+                            class="inline-flex shrink-0 items-center justify-center rounded-lg border border-zinc-200 bg-white px-3 py-2 text-xs font-medium text-zinc-700 transition hover:bg-zinc-100"
+                        >
+                            <?= htmlspecialchars(__('print_label'), ENT_QUOTES, 'UTF-8') ?>
+                        </button>
+                    </div>
+                    <div class="mt-4 flex justify-center rounded-xl border border-dashed border-zinc-200 bg-white p-4">
+                        <div class="h-36 w-36" x-html="detailQrSvg"></div>
+                    </div>
+                </div>
+
                 <div class="mt-6">
                     <h4 class="text-sm font-semibold text-zinc-900"><?= htmlspecialchars(__('history_title'), ENT_QUOTES, 'UTF-8') ?></h4>
 
@@ -488,6 +508,7 @@ $i18nScript = json_encode([
 <script>
     window.__i18n = <?= $i18nScript ?>;
     window.__categoryFields = <?= $categoryFieldsJson ?>;
+    window.__assetQrCodes = <?= $assetQrCodesJson ?>;
 
     function assetDashboard() {
         return {
@@ -498,6 +519,7 @@ $i18nScript = json_encode([
             addErrorMessage: '',
             editErrorMessage: '',
             detailAsset: null,
+            detailQrSvg: '',
             assetHistory: [],
             historyLoading: false,
             historyError: '',
@@ -562,6 +584,7 @@ $i18nScript = json_encode([
             },
             async openDetailModal(asset) {
                 this.detailAsset = asset;
+                this.detailQrSvg = window.__assetQrCodes?.[asset.id] || '';
                 this.assetHistory = [];
                 this.historyError = '';
                 this.historyLoading = true;
@@ -590,9 +613,88 @@ $i18nScript = json_encode([
             closeDetailModal() {
                 this.isDetailOpen = false;
                 this.detailAsset = null;
+                this.detailQrSvg = '';
                 this.assetHistory = [];
                 this.historyError = '';
                 this.historyLoading = false;
+            },
+            printAssetLabel() {
+                if (!this.detailAsset) {
+                    return;
+                }
+
+                const qrSvg = window.__assetQrCodes?.[this.detailAsset.id] || this.detailQrSvg || '';
+                const assetTag = this.detailAsset.asset_tag || '';
+                const categoryName = this.detailAsset.category_name || '';
+                const printWindow = window.open('', '_blank', 'width=420,height=320');
+
+                if (!printWindow) {
+                    return;
+                }
+
+                printWindow.document.write(`<!DOCTYPE html>
+<html lang="${window.__i18n.locale || 'tr'}">
+<head>
+    <meta charset="UTF-8">
+    <title>${assetTag}</title>
+    <style>
+        @page { size: 62mm 29mm; margin: 2mm; }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            font-family: Arial, Helvetica, sans-serif;
+            color: #111;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+        }
+        .label {
+            width: 58mm;
+            min-height: 25mm;
+            margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            gap: 1.5mm;
+        }
+        .tag {
+            font-size: 11pt;
+            font-weight: 700;
+            line-height: 1.1;
+            letter-spacing: 0.02em;
+        }
+        .category {
+            font-size: 8pt;
+            line-height: 1.2;
+            color: #444;
+        }
+        .qr svg {
+            display: block;
+            width: 18mm;
+            height: 18mm;
+        }
+        @media print {
+            body { margin: 0; }
+            .label { page-break-inside: avoid; }
+        }
+    </style>
+</head>
+<body>
+    <div class="label">
+        <div class="tag">${assetTag}</div>
+        <div class="category">${categoryName}</div>
+        <div class="qr">${qrSvg}</div>
+    </div>
+    <script>
+        window.addEventListener('load', function () {
+            window.focus();
+            window.print();
+        });
+    <\/script>
+</body>
+</html>`);
+                printWindow.document.close();
             },
             resolveHistoryAction(action) {
                 const labels = {

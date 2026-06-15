@@ -77,6 +77,31 @@ class Asset
         return $row === null ? null : $this->normalizeRow($row);
     }
 
+    public function findByIdForView(int $assetId): ?array
+    {
+        $row = $this->db()->get('assets', [
+            '[>]categories' => ['category_id' => 'id'],
+            '[>]users' => ['user_id' => 'id'],
+        ], [
+            'assets.id',
+            'assets.asset_tag',
+            'assets.serial_number',
+            'assets.name',
+            'assets.category_id',
+            'assets.status',
+            'assets.user_id',
+            'assets.properties',
+            'assets.created_at',
+            'assets.updated_at',
+            'category_name' => 'categories.name',
+            'user_name' => 'users.name',
+        ], [
+            'assets.id' => $assetId,
+        ]);
+
+        return $row === null ? null : $this->normalizeRow($row);
+    }
+
     /**
      * @return array{total: int, deployed: int, in_storage: int, broken: int}
      */

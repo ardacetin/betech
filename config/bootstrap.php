@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Controllers\AssetController;
+use App\Controllers\AssetViewController;
 use App\Controllers\HealthController;
 use App\Controllers\UserController;
 use App\Middleware\LanguageMiddleware;
@@ -11,6 +12,7 @@ use App\Models\AssetHistory;
 use App\Models\Category;
 use App\Services\Auth\UserIntegrationFactory;
 use App\Services\DatabaseService;
+use App\Services\QrCodeService;
 use App\Services\Translator;
 use App\Services\ViewRenderer;
 use Dotenv\Dotenv;
@@ -45,11 +47,14 @@ $assetHistoryModel = new AssetHistory($databaseService);
 $categoryModel = new Category($databaseService);
 $userIntegrationFactory = new UserIntegrationFactory($databaseService);
 $viewRenderer = new ViewRenderer($rootPath . '/views');
-$healthController = new HealthController($appConfig, $assetModel, $categoryModel, $viewRenderer);
+$qrCodeService = new QrCodeService($appConfig['url']);
+$healthController = new HealthController($appConfig, $assetModel, $categoryModel, $viewRenderer, $qrCodeService);
 $assetController = new AssetController($assetModel, $assetHistoryModel, $userIntegrationFactory);
+$assetViewController = new AssetViewController($appConfig, $assetModel, $categoryModel, $viewRenderer);
 $userController = new UserController($userIntegrationFactory);
 
 $app->get('/', [$healthController, 'index']);
+$app->get('/assets/view/{id}', [$assetViewController, 'show']);
 $app->get('/api/users/search', [$userController, 'search']);
 $app->post('/api/assets', [$assetController, 'store']);
 $app->put('/api/assets/{id}', [$assetController, 'update']);
