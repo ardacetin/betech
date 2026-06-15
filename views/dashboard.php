@@ -118,6 +118,16 @@ $i18nScript = json_encode([
     'delete_success' => __('delete_success'),
     'delete_error' => __('delete_error'),
     'delete_network_error' => __('delete_network_error'),
+    'return_confirm' => __('return_confirm'),
+    'return_success' => __('return_success'),
+    'return_error' => __('return_error'),
+    'return_network_error' => __('return_network_error'),
+    'transfer_success' => __('transfer_success'),
+    'transfer_error' => __('transfer_error'),
+    'transfer_network_error' => __('transfer_network_error'),
+    'transfer_select_user' => __('transfer_select_user'),
+    'history_action_returned' => __('history_action_returned'),
+    'history_action_transferred' => __('history_action_transferred'),
 ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
 ?>
 <div class="min-h-full" x-data="assetDashboard()">
@@ -406,6 +416,7 @@ $i18nScript = json_encode([
                                                         'name' => (string) $asset['name'],
                                                         'status' => $status,
                                                         'category_name' => (string) ($asset['category_name'] ?? __('unknown_category')),
+                                                        'user_id' => $asset['user_id'] ?? null,
                                                         'user_name' => $asset['user_name'] ?? null,
                                                     ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>)'
                                                     class="rounded-lg border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-700 transition hover:bg-zinc-50"
@@ -436,6 +447,28 @@ $i18nScript = json_encode([
                                                 >
                                                     <?= htmlspecialchars(__('action_print_tutanak'), ENT_QUOTES, 'UTF-8') ?>
                                                 </button>
+                                                <?php if ($canManageAssets): ?>
+                                                <button
+                                                    type="button"
+                                                    @click="returnAssetToStorage(<?= (int) $asset['id'] ?>)"
+                                                    class="rounded-lg border border-amber-200 px-3 py-1.5 text-xs font-medium text-amber-800 transition hover:bg-amber-50"
+                                                >
+                                                    <?= htmlspecialchars(__('action_return_to_storage'), ENT_QUOTES, 'UTF-8') ?>
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    @click='openTransferModal(<?= json_encode([
+                                                        'id' => (int) $asset['id'],
+                                                        'asset_tag' => (string) $asset['asset_tag'],
+                                                        'name' => (string) $asset['name'],
+                                                        'user_id' => $asset['user_id'] ?? null,
+                                                        'user_name' => $asset['user_name'] ?? null,
+                                                    ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>)'
+                                                    class="rounded-lg border border-indigo-200 px-3 py-1.5 text-xs font-medium text-indigo-800 transition hover:bg-indigo-50"
+                                                >
+                                                    <?= htmlspecialchars(__('action_transfer'), ENT_QUOTES, 'UTF-8') ?>
+                                                </button>
+                                                <?php endif; ?>
                                                 <?php endif; ?>
                                                 <?php if ($isSuperAdmin): ?>
                                                 <button
@@ -715,6 +748,120 @@ $i18nScript = json_encode([
                     </div>
                 </div>
             </div>
+
+            <div x-show="canManageAssets && detailAsset?.user_id" x-cloak class="flex flex-wrap gap-2 border-t border-zinc-200 px-6 py-4">
+                <button
+                    type="button"
+                    @click="returnAssetToStorage(detailAsset.id)"
+                    class="inline-flex items-center rounded-lg border border-amber-200 px-3 py-2 text-xs font-medium text-amber-800 transition hover:bg-amber-50"
+                >
+                    <?= htmlspecialchars(__('action_return_to_storage'), ENT_QUOTES, 'UTF-8') ?>
+                </button>
+                <button
+                    type="button"
+                    @click="openTransferModal(detailAsset)"
+                    class="inline-flex items-center rounded-lg border border-indigo-200 px-3 py-2 text-xs font-medium text-indigo-800 transition hover:bg-indigo-50"
+                >
+                    <?= htmlspecialchars(__('action_transfer'), ENT_QUOTES, 'UTF-8') ?>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div
+        x-show="isTransferOpen"
+        x-cloak
+        class="fixed inset-0 z-[60] flex items-center justify-center px-4"
+        @keydown.escape.window="closeTransferModal()"
+    >
+        <div class="absolute inset-0 bg-zinc-900/40 backdrop-blur-sm" @click="closeTransferModal()"></div>
+
+        <div class="relative w-full max-w-md rounded-2xl border border-zinc-200 bg-white shadow-soft">
+            <div class="flex items-center justify-between border-b border-zinc-200 px-6 py-4">
+                <div>
+                    <h3 class="text-lg font-semibold text-zinc-900"><?= htmlspecialchars(__('transfer_modal_title'), ENT_QUOTES, 'UTF-8') ?></h3>
+                    <p class="mt-1 text-sm text-zinc-500"><?= htmlspecialchars(__('transfer_modal_subtitle'), ENT_QUOTES, 'UTF-8') ?></p>
+                </div>
+                <button type="button" @click="closeTransferModal()" class="rounded-lg p-2 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600">&times;</button>
+            </div>
+
+            <div class="px-6 py-5">
+                <div class="rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3">
+                    <p class="text-xs uppercase tracking-wide text-zinc-400"><?= htmlspecialchars(__('col_asset_tag'), ENT_QUOTES, 'UTF-8') ?></p>
+                    <p class="mt-1 text-sm font-semibold text-zinc-900" x-text="transferAsset?.asset_tag"></p>
+                    <p class="mt-2 text-xs text-zinc-500">
+                        <span><?= htmlspecialchars(__('col_assigned_user'), ENT_QUOTES, 'UTF-8') ?>:</span>
+                        <span x-text="transferAsset?.user_name"></span>
+                    </p>
+                </div>
+
+                <p class="mt-4 text-sm text-zinc-600"><?= htmlspecialchars(__('transfer_select_user_hint'), ENT_QUOTES, 'UTF-8') ?></p>
+
+                <div class="relative mt-3">
+                    <div x-show="transferSelectedUser" x-cloak class="mb-3 flex items-center justify-between rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3">
+                        <div>
+                            <p class="text-sm font-medium text-indigo-900" x-text="transferSelectedUser?.name"></p>
+                            <p class="text-xs text-indigo-700" x-text="transferSelectedUser?.email"></p>
+                        </div>
+                        <button type="button" @click="clearTransferUser()" class="text-xs font-medium text-indigo-800 hover:underline">
+                            <?= htmlspecialchars(__('unassign_user'), ENT_QUOTES, 'UTF-8') ?>
+                        </button>
+                    </div>
+                    <input
+                        type="text"
+                        x-model="transferUserSearchQuery"
+                        @input.debounce.300ms="searchTransferUsers()"
+                        @focus="showTransferUserResults = true"
+                        :placeholder="window.__i18n.search_users_placeholder"
+                        class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4"
+                    >
+                    <div
+                        x-show="showTransferUserResults && (transferUserSearchResults.length > 0 || (transferUserSearchQuery !== '' && !transferUserSearchLoading))"
+                        x-cloak
+                        @click.outside="showTransferUserResults = false"
+                        class="absolute z-10 mt-2 max-h-56 w-full overflow-y-auto rounded-xl border border-zinc-200 bg-white shadow-soft"
+                    >
+                        <template x-for="user in transferUserSearchResults" :key="user.id">
+                            <button
+                                type="button"
+                                @click="selectTransferUser(user)"
+                                class="flex w-full flex-col items-start px-4 py-3 text-left hover:bg-zinc-50"
+                            >
+                                <span class="text-sm font-medium text-zinc-900" x-text="user.name"></span>
+                                <span class="text-xs text-zinc-500" x-text="user.email"></span>
+                                <span class="text-xs text-zinc-400" x-text="user.department || ''"></span>
+                            </button>
+                        </template>
+                        <p
+                            x-show="transferUserSearchResults.length === 0 && transferUserSearchQuery !== '' && !transferUserSearchLoading"
+                            class="px-4 py-3 text-sm text-zinc-500"
+                            x-text="window.__i18n.no_users_found"
+                        ></p>
+                    </div>
+                </div>
+
+                <p x-show="transferErrorMessage" x-cloak class="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700" x-text="transferErrorMessage"></p>
+            </div>
+
+            <div class="flex items-center justify-end gap-3 border-t border-zinc-200 px-6 py-4">
+                <button
+                    type="button"
+                    @click="closeTransferModal()"
+                    :disabled="isTransferSubmitting"
+                    class="rounded-xl border border-zinc-200 px-4 py-2.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                    <?= htmlspecialchars(__('cancel'), ENT_QUOTES, 'UTF-8') ?>
+                </button>
+                <button
+                    type="button"
+                    @click="submitTransfer()"
+                    :disabled="isTransferSubmitting"
+                    class="inline-flex items-center gap-2 rounded-xl bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                    <span x-show="isTransferSubmitting"><?= htmlspecialchars(__('saving'), ENT_QUOTES, 'UTF-8') ?></span>
+                    <span x-show="!isTransferSubmitting"><?= htmlspecialchars(__('transfer_submit'), ENT_QUOTES, 'UTF-8') ?></span>
+                </button>
+            </div>
         </div>
     </div>
 </div>
@@ -772,6 +919,15 @@ $i18nScript = json_encode([
             isAddOpen: false,
             isEditOpen: false,
             isDetailOpen: false,
+            isTransferOpen: false,
+            isTransferSubmitting: false,
+            transferAsset: null,
+            transferSelectedUser: null,
+            transferUserSearchQuery: '',
+            transferUserSearchResults: [],
+            transferUserSearchLoading: false,
+            showTransferUserResults: false,
+            transferErrorMessage: '',
             isSubmitting: false,
             addErrorMessage: '',
             editErrorMessage: '',
@@ -911,6 +1067,129 @@ $i18nScript = json_encode([
                     window.location.reload();
                 } catch (error) {
                     window.alert(window.__i18n.delete_network_error);
+                }
+            },
+            async returnAssetToStorage(assetId) {
+                if (!assetId || !window.confirm(window.__i18n.return_confirm)) {
+                    return;
+                }
+
+                try {
+                    const response = await fetch(`/api/assets/${assetId}/return`, {
+                        method: 'POST',
+                        headers: {
+                            'Accept': 'application/json',
+                        },
+                    });
+                    const result = await response.json();
+
+                    if (!response.ok) {
+                        window.alert(result.message || window.__i18n.return_error);
+                        return;
+                    }
+
+                    window.alert(result.message || window.__i18n.return_success);
+                    window.location.reload();
+                } catch (error) {
+                    window.alert(window.__i18n.return_network_error);
+                }
+            },
+            openTransferModal(asset) {
+                this.transferAsset = asset;
+                this.transferErrorMessage = '';
+                this.resetTransferUserSearch();
+                this.isTransferOpen = true;
+            },
+            closeTransferModal() {
+                if (this.isTransferSubmitting) {
+                    return;
+                }
+
+                this.isTransferOpen = false;
+                this.transferAsset = null;
+                this.resetTransferUserSearch();
+                this.transferErrorMessage = '';
+            },
+            resetTransferUserSearch() {
+                this.transferUserSearchQuery = '';
+                this.transferUserSearchResults = [];
+                this.transferUserSearchLoading = false;
+                this.showTransferUserResults = false;
+                this.transferSelectedUser = null;
+            },
+            async searchTransferUsers() {
+                this.transferUserSearchLoading = true;
+
+                try {
+                    const query = encodeURIComponent(this.transferUserSearchQuery.trim());
+                    const response = await fetch(`/api/users/search?q=${query}`, {
+                        headers: {
+                            'Accept': 'application/json',
+                        },
+                    });
+                    const result = await response.json();
+
+                    if (!response.ok) {
+                        this.transferUserSearchResults = [];
+                        return;
+                    }
+
+                    this.transferUserSearchResults = Array.isArray(result.data) ? result.data : [];
+                    this.showTransferUserResults = true;
+                } catch (error) {
+                    this.transferUserSearchResults = [];
+                } finally {
+                    this.transferUserSearchLoading = false;
+                }
+            },
+            selectTransferUser(user) {
+                this.transferSelectedUser = user;
+                this.transferUserSearchQuery = '';
+                this.transferUserSearchResults = [];
+                this.showTransferUserResults = false;
+                this.transferErrorMessage = '';
+            },
+            clearTransferUser() {
+                this.transferSelectedUser = null;
+            },
+            async submitTransfer() {
+                if (!this.transferAsset?.id) {
+                    this.transferErrorMessage = window.__i18n.transfer_error;
+                    return;
+                }
+
+                if (!this.transferSelectedUser?.id) {
+                    this.transferErrorMessage = window.__i18n.transfer_select_user;
+                    return;
+                }
+
+                this.isTransferSubmitting = true;
+                this.transferErrorMessage = '';
+
+                try {
+                    const response = await fetch(`/api/assets/${this.transferAsset.id}/transfer`, {
+                        method: 'POST',
+                        headers: {
+                            'Accept': 'application/json',
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            user_id: Number(this.transferSelectedUser.id),
+                        }),
+                    });
+                    const result = await response.json();
+
+                    if (!response.ok) {
+                        this.transferErrorMessage = result.message || window.__i18n.transfer_error;
+                        return;
+                    }
+
+                    window.alert(result.message || window.__i18n.transfer_success);
+                    window.location.reload();
+                } catch (error) {
+                    this.transferErrorMessage = window.__i18n.transfer_network_error;
+                } finally {
+                    this.isTransferSubmitting = false;
                 }
             },
             async startOffboarding(person) {
@@ -1109,6 +1388,8 @@ $i18nScript = json_encode([
                     status_change: window.__i18n.history_action_status_change,
                     updated: window.__i18n.history_action_updated,
                     offboarded: window.__i18n.history_action_offboarded,
+                    returned: window.__i18n.history_action_returned,
+                    transferred: window.__i18n.history_action_transferred,
                 };
 
                 return labels[action] || action;

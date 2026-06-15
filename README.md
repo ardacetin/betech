@@ -58,6 +58,17 @@ First-time SSO/LDAP users are **auto-provisioned** into the local `users` table 
 
 - **İşten Çıkış Sürecini Başlat** reclaims all assigned assets, sets asset status to `storage`, marks the user as `offboarded`, and writes audit entries automatically.
 
+### One-click asset return and direct personnel transfer
+
+Operational staff (**Super Admin** and **Technician**) can manage active assignments without editing the full asset form:
+
+| Workflow | API | Behavior |
+|----------|-----|----------|
+| **Depoya İade Al** (Return to Storage) | `POST /api/assets/{id}/return` | Clears `user_id`, sets status to `ready`, and logs `Asset returned to IT storage.` in `asset_histories` |
+| **Personele Devret** (Direct Transfer) | `POST /api/assets/{id}/transfer` | Accepts `{ "user_id": <id> }` and reassigns the asset directly to the new user; logs `Asset transferred from [Old User] to [New User].` |
+
+Both actions are available from the asset list and the history/detail modal when an asset is currently assigned. The transfer dialog reuses the Alpine.js personnel search component for fast handoffs between employees.
+
 ### QR labels & mobile asset views
 
 - **Print-ready SVG QR codes** for thermal labels (asset tag encoded in QR payload).

@@ -213,6 +213,180 @@ class AssetController
         ]);
     }
 
+    public function returnToStorage(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
+    {
+        $assetId = (int) ($args['id'] ?? 0);
+
+        if ($assetId <= 0) {
+            return $this->jsonResponse($response, 400, [
+                'status' => 'error',
+                'message' => __('return_invalid_asset'),
+            ]);
+        }
+
+        $existingAsset = $this->assetModel->findById($assetId);
+
+        if ($existingAsset === null) {
+            return $this->jsonResponse($response, 404, [
+                'status' => 'error',
+                'message' => __('return_asset_not_found'),
+            ]);
+        }
+
+        if (($existingAsset['user_id'] ?? null) === null) {
+            return $this->jsonResponse($response, 422, [
+                'status' => 'error',
+                'message' => __('return_not_assigned'),
+            ]);
+        }
+
+        $previousUserId = (int) $existingAsset['user_id'];
+        $previousStatus = (string) ($existingAsset['status'] ?? 'ready');
+
+        try {
+            $asset = $this->assetModel->update($assetId, [
+                'user_id' => null,
+                'status' => 'ready',
+            ]);
+        } catch (\RuntimeException $exception) {
+            return $this->jsonResponse($response, 422, [
+                'status' => 'error',
+                'message' => $exception->getMessage(),
+            ]);
+        }
+
+        if ($asset === null) {
+            return $this->jsonResponse($response, 404, [
+                'status' => 'error',
+                'message' => __('return_asset_not_found'),
+            ]);
+        }
+
+        $this->assetHistoryModel->log(
+            $assetId,
+            'returned',
+            $this->sessionAuthService->userId(),
+            $previousUserId,
+            __('asset_history_returned')
+        );
+
+        if ($previousStatus !== 'ready') {
+            $this->assetHistoryModel->log(
+                $assetId,
+                'status_change',
+                $this->sessionAuthService->userId(),
+                null,
+                sprintf(
+                    __('asset_history_status_changed'),
+                    $previousStatus,
+                    'ready'
+                )
+            );
+        }
+
+        return $this->jsonResponse($response, 200, [
+            'status' => 'success',
+            'message' => __('return_success'),
+            'data' => $asset,
+        ]);
+    }
+
+    public function transfer(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
+    {
+        $assetId = (int) ($args['id'] ?? 0);
+
+        if ($assetId <= 0) {
+            return $this->jsonResponse($response, 400, [
+                'status' => 'error',
+                'message' => __('transfer_invalid_asset'),
+            ]);
+        }
+
+        $existingAsset = $this->assetModel->findById($assetId);
+
+        if ($existingAsset === null) {
+            return $this->jsonResponse($response, 404, [
+                'status' => 'error',
+                'message' => __('transfer_asset_not_found'),
+            ]);
+        }
+
+        if (($existingAsset['user_id'] ?? null) === null) {
+            return $this->jsonResponse($response, 422, [
+                'status' => 'error',
+                'message' => __('transfer_not_assigned'),
+            ]);
+        }
+
+        $payload = $this->resolvePayload($request);
+
+        if ($payload === null || !array_key_exists('user_id', $payload)) {
+            return $this->jsonResponse($response, 400, [
+                'status' => 'error',
+                'message' => __('transfer_missing_user'),
+            ]);
+        }
+
+        $userErrors = $this->validateUserId($payload['user_id']);
+
+        if ($userErrors !== []) {
+            return $this->jsonResponse($response, 422, [
+                'status' => 'error',
+                'message' => __('transfer_invalid_user'),
+                'errors' => ['user_id' => $userErrors],
+            ]);
+        }
+
+        $previousUserId = (int) $existingAsset['user_id'];
+        $newUserId = (int) $payload['user_id'];
+
+        if ($newUserId === $previousUserId) {
+            return $this->jsonResponse($response, 422, [
+                'status' => 'error',
+                'message' => __('transfer_same_user'),
+            ]);
+        }
+
+        try {
+            $asset = $this->assetModel->update($assetId, [
+                'user_id' => $newUserId,
+            ]);
+        } catch (\RuntimeException $exception) {
+            return $this->jsonResponse($response, 422, [
+                'status' => 'error',
+                'message' => $exception->getMessage(),
+            ]);
+        }
+
+        if ($asset === null) {
+            return $this->jsonResponse($response, 404, [
+                'status' => 'error',
+                'message' => __('transfer_asset_not_found'),
+            ]);
+        }
+
+        $oldUserName = $this->resolveUserName($previousUserId) ?? ('user #' . $previousUserId);
+        $newUserName = $this->resolveUserName($newUserId) ?? ('user #' . $newUserId);
+
+        $this->assetHistoryModel->log(
+            $assetId,
+            'transferred',
+            $this->sessionAuthService->userId(),
+            $newUserId,
+            sprintf(
+                __('asset_history_transferred'),
+                $oldUserName,
+                $newUserName
+            )
+        );
+
+        return $this->jsonResponse($response, 200, [
+            'status' => 'success',
+            'message' => __('transfer_success'),
+            'data' => $asset,
+        ]);
+    }
+
     /**
      * @param array<string, mixed> $asset
      */

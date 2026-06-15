@@ -111,6 +111,8 @@ $app->post('/api/users/{id}/offboard', [$userController, 'offboard']);
 $app->get('/api/assets/{id}/tutanak', [$assetTutanakController, 'show']);
 $app->post('/api/assets', [$assetController, 'store']);
 $app->put('/api/assets/{id}', [$assetController, 'update']);
+$app->post('/api/assets/{id}/return', [$assetController, 'returnToStorage']);
+$app->post('/api/assets/{id}/transfer', [$assetController, 'transfer']);
 $app->delete('/api/assets/{id}', [$assetController, 'destroy']);
 $app->get('/api/assets/{id}/history', [$assetController, 'history']);
 
