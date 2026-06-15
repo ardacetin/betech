@@ -10,11 +10,14 @@ use Medoo\Medoo;
 
 class Asset
 {
-    private Medoo $db;
+    public function __construct(
+        private readonly DatabaseService $databaseService
+    ) {
+    }
 
-    public function __construct(DatabaseService $databaseService)
+    private function db(): Medoo
     {
-        $this->db = $databaseService->getConnection();
+        return $this->databaseService->getConnection();
     }
 
     /**
@@ -24,7 +27,7 @@ class Asset
      */
     public function findAll(): array
     {
-        $rows = $this->db->select('assets', '*', [
+        $rows = $this->db()->select('assets', '*', [
             'ORDER' => ['id' => 'DESC'],
         ]);
 
@@ -32,6 +35,61 @@ class Asset
             fn (array $row): array => $this->normalizeRow($row),
             $rows
         );
+    }
+
+    /**
+     * Create a new asset with core columns and hybrid JSON properties.
+     *
+     * @param array<string, mixed> $coreFields
+     * @param array<string, mixed> $properties
+     *
+     * @return array<string, mixed>
+     */
+    public function create(array $coreFields, array $properties): array
+    {
+        $assetTag = trim((string) $coreFields['asset_tag']);
+        $name = trim((string) $coreFields['name']);
+        $categoryId = (int) $coreFields['category_id'];
+        $status = trim((string) ($coreFields['status'] ?? 'ready'));
+        $serialNumber = array_key_exists('serial_number', $coreFields) && $coreFields['serial_number'] !== null
+            ? trim((string) $coreFields['serial_number'])
+            : null;
+
+        if ($serialNumber === '') {
+            $serialNumber = null;
+        }
+
+        $encodedProperties = $properties === []
+            ? null
+            : $this->encodeProperties($properties);
+
+        $this->db()->insert('assets', [
+            'asset_tag' => $assetTag,
+            'serial_number' => $serialNumber,
+            'name' => $name,
+            'category_id' => $categoryId,
+            'status' => $status !== '' ? $status : 'ready',
+            'properties' => $encodedProperties,
+        ]);
+
+        $insertedId = $this->db()->id();
+        $row = $this->db()->get('assets', '*', ['id' => $insertedId]);
+
+        if ($row === null) {
+            throw new \RuntimeException('Asset was inserted but could not be retrieved.');
+        }
+
+        return $this->normalizeRow($row);
+    }
+
+    public function assetTagExists(string $assetTag): bool
+    {
+        return $this->db()->has('assets', ['asset_tag' => $assetTag]);
+    }
+
+    public function categoryExists(int $categoryId): bool
+    {
+        return $this->db()->has('categories', ['id' => $categoryId]);
     }
 
     /**
@@ -67,7 +125,7 @@ class Asset
      */
     public function setProperty(int $assetId, string $key, mixed $value): bool
     {
-        $row = $this->db->get('assets', ['id', 'properties'], ['id' => $assetId]);
+        $row = $this->db()->get('assets', ['id', 'properties'], ['id' => $assetId]);
 
         if ($row === null) {
             return false;
@@ -76,7 +134,7 @@ class Asset
         $properties = $this->decodeProperties($row['properties']);
         $properties[$key] = $value;
 
-        $this->db->update('assets', [
+        $this->db()->update('assets', [
             'properties' => $this->encodeProperties($properties),
             'updated_at' => date('Y-m-d H:i:s'),
         ], [
@@ -93,7 +151,7 @@ class Asset
      */
     public function mergeProperties(int $assetId, array $values): bool
     {
-        $row = $this->db->get('assets', ['id', 'properties'], ['id' => $assetId]);
+        $row = $this->db()->get('assets', ['id', 'properties'], ['id' => $assetId]);
 
         if ($row === null) {
             return false;
@@ -104,7 +162,7 @@ class Asset
             $values
         );
 
-        $this->db->update('assets', [
+        $this->db()->update('assets', [
             'properties' => $this->encodeProperties($properties),
             'updated_at' => date('Y-m-d H:i:s'),
         ], [

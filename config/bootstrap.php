@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Controllers\AssetController;
 use App\Controllers\HealthController;
 use App\Models\Asset;
 use App\Services\DatabaseService;
@@ -20,6 +21,8 @@ $databaseService = new DatabaseService($databaseConfig);
 
 $app = AppFactory::create();
 
+$app->addBodyParsingMiddleware();
+
 $app->addErrorMiddleware(
     $appConfig['debug'],
     $appConfig['debug'],
@@ -28,8 +31,10 @@ $app->addErrorMiddleware(
 
 $assetModel = new Asset($databaseService);
 $healthController = new HealthController($appConfig, $assetModel);
+$assetController = new AssetController($assetModel);
 
 $app->get('/', [$healthController, 'index']);
+$app->post('/api/assets', [$assetController, 'store']);
 
 return [
     'app' => $app,
