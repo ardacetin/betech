@@ -17,6 +17,8 @@ class LicenseController
 
     public function index(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
     {
+        // GET /api/licenses returns only license metadata (no assignments here).
+        // Assignment queries (in model) and POST /assign strictly use personnel_id + JOIN personnel (never users or user_id).
         return $this->jsonResponse($response, 200, [
             'status' => 'success',
             'data' => $this->licenseModel->findAll(),
@@ -99,8 +101,6 @@ class LicenseController
 
         if (array_key_exists('personnel_id', $payload) && $payload['personnel_id'] !== null && $payload['personnel_id'] !== '') {
             $personnelId = (int) $payload['personnel_id'];
-        } elseif (array_key_exists('user_id', $payload) && $payload['user_id'] !== null && $payload['user_id'] !== '') {
-            $personnelId = (int) $payload['user_id'];
         }
 
         try {

@@ -125,7 +125,7 @@ class License
     /**
      * @return array<string, mixed>
      */
-    public function assign(int $licenseId, ?int $assetId, ?int $userId): array
+    public function assign(int $licenseId, ?int $assetId, ?int $personnelId): array
     {
         $license = $this->findById($licenseId);
 
@@ -134,9 +134,9 @@ class License
         }
 
         $hasAsset = $assetId !== null && $assetId > 0;
-        $hasUser = $userId !== null && $userId > 0;
+        $hasPersonnel = $personnelId !== null && $personnelId > 0;
 
-        if ($hasAsset === $hasUser) {
+        if ($hasAsset === $hasPersonnel) {
             throw new \InvalidArgumentException(__('license_assign_target_required'));
         }
 
@@ -148,7 +148,7 @@ class License
             throw new \InvalidArgumentException(__('license_asset_not_found'));
         }
 
-        if ($hasUser && !$this->db()->has('personnel', ['id' => $userId])) {
+        if ($hasPersonnel && !$this->db()->has('personnel', ['id' => $personnelId])) {
             throw new \InvalidArgumentException(__('license_user_not_found'));
         }
 
@@ -159,7 +159,7 @@ class License
         if ($hasAsset) {
             $duplicateConditions['asset_id'] = $assetId;
         } else {
-            $duplicateConditions['personnel_id'] = $userId;
+            $duplicateConditions['personnel_id'] = $personnelId;
         }
 
         if ($this->db()->has('license_assignments', $duplicateConditions)) {
@@ -169,7 +169,7 @@ class License
         $this->db()->insert('license_assignments', [
             'license_id' => $licenseId,
             'asset_id' => $hasAsset ? $assetId : null,
-            'personnel_id' => $hasUser ? $userId : null,
+            'personnel_id' => $hasPersonnel ? $personnelId : null,
         ]);
 
         $assignmentId = (int) $this->db()->id();

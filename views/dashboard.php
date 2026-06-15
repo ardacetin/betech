@@ -224,7 +224,7 @@ $i18nScript = json_encode([
     'manual_user_create_error' => __('manual_user_create_error'),
 ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
 ?>
-<div class="min-h-full" x-data="assetDashboard()" x-init="if (canManageAssets) { fetchCategories(); fetchLocations(); fetchLicenses(); }">
+<div class="min-h-full" x-data="assetDashboard()" x-init="if (canManageAssets) { fetchCategories(); fetchLocations(); fetchLicenses(); } this.isAssignLicenseModalOpen = false;">
     <div class="flex min-h-screen">
         <aside class="hidden w-64 shrink-0 border-r border-zinc-200 bg-white lg:flex lg:flex-col">
             <div class="flex h-16 items-center gap-3 border-b border-zinc-200 px-6">
@@ -1421,7 +1421,7 @@ $i18nScript = json_encode([
                             <?= htmlspecialchars(__('license_assign_type_asset'), ENT_QUOTES, 'UTF-8') ?>
                         </label>
                         <label class="inline-flex items-center gap-2 rounded-xl border border-zinc-200 px-3 py-2 text-sm">
-                            <input type="radio" value="user" x-model="assignLicenseForm.assign_type">
+                            <input type="radio" value="personnel" x-model="assignLicenseForm.assign_type">
                             <?= htmlspecialchars(__('license_assign_type_user'), ENT_QUOTES, 'UTF-8') ?>
                         </label>
                     </div>
@@ -1439,33 +1439,33 @@ $i18nScript = json_encode([
                     </label>
                 </div>
 
-                <div x-show="assignLicenseForm.assign_type === 'user'" x-cloak class="mt-4">
+                <div x-show="assignLicenseForm.assign_type === 'personnel'" x-cloak class="mt-4">
                     <p class="text-sm text-zinc-600"><?= htmlspecialchars(__('license_select_user_hint'), ENT_QUOTES, 'UTF-8') ?></p>
                     <div class="relative mt-3">
-                        <div x-show="assignLicenseSelectedUser" x-cloak class="mb-3 flex items-center justify-between rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3">
+                        <div x-show="assignLicenseSelectedPersonnel" x-cloak class="mb-3 flex items-center justify-between rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3">
                             <div>
-                                <p class="text-sm font-medium text-indigo-900" x-text="assignLicenseSelectedUser?.name"></p>
-                                <p class="text-xs text-indigo-700" x-text="assignLicenseSelectedUser?.email"></p>
+                                <p class="text-sm font-medium text-indigo-900" x-text="assignLicenseSelectedPersonnel?.name"></p>
+                                <p class="text-xs text-indigo-700" x-text="assignLicenseSelectedPersonnel?.email"></p>
                             </div>
-                            <button type="button" @click="clearAssignLicenseUser()" class="text-xs font-medium text-indigo-700 hover:text-indigo-900"><?= htmlspecialchars(__('cancel'), ENT_QUOTES, 'UTF-8') ?></button>
+                            <button type="button" @click="clearAssignLicensePersonnel()" class="text-xs font-medium text-indigo-700 hover:text-indigo-900"><?= htmlspecialchars(__('cancel'), ENT_QUOTES, 'UTF-8') ?></button>
                         </div>
                         <input
                             type="text"
-                            x-model="assignLicenseUserSearchQuery"
-                            @input.debounce.300ms="searchAssignLicenseUsers()"
-                            @focus="showAssignLicenseUserResults = true"
+                            x-model="assignLicensePersonnelSearchQuery"
+                            @input.debounce.300ms="searchAssignLicensePersonnel()"
+                            @focus="showAssignLicensePersonnelResults = true"
                             :placeholder="window.__i18n.search_users_placeholder"
                             class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4"
                         >
-                        <div x-show="showAssignLicenseUserResults && assignLicenseUserSearchResults.length > 0" x-cloak class="absolute z-10 mt-2 w-full overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-soft">
-                            <template x-for="user in assignLicenseUserSearchResults" :key="user.id">
-                                <button type="button" @click="selectAssignLicenseUser(user)" class="block w-full px-4 py-3 text-left hover:bg-zinc-50">
-                                    <p class="text-sm font-medium text-zinc-900" x-text="user.name"></p>
-                                    <p class="text-xs text-zinc-500" x-text="user.email"></p>
+                        <div x-show="showAssignLicensePersonnelResults && assignLicensePersonnelSearchResults.length > 0" x-cloak class="absolute z-10 mt-2 w-full overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-soft">
+                            <template x-for="personnel in assignLicensePersonnelSearchResults" :key="personnel.id">
+                                <button type="button" @click="selectAssignLicensePersonnel(personnel)" class="block w-full px-4 py-3 text-left hover:bg-zinc-50">
+                                    <p class="text-sm font-medium text-zinc-900" x-text="personnel.name"></p>
+                                    <p class="text-xs text-zinc-500" x-text="personnel.email"></p>
                                 </button>
                             </template>
                         </div>
-                        <p x-show="assignLicenseUserSearchLoading" x-cloak class="mt-2 text-xs text-zinc-500"><?= htmlspecialchars(__('history_loading'), ENT_QUOTES, 'UTF-8') ?></p>
+                        <p x-show="assignLicensePersonnelSearchLoading" x-cloak class="mt-2 text-xs text-zinc-500"><?= htmlspecialchars(__('history_loading'), ENT_QUOTES, 'UTF-8') ?></p>
                     </div>
                 </div>
 
@@ -1634,11 +1634,11 @@ $i18nScript = json_encode([
             },
             assignLicenseFormError: '',
             assignLicenseSuccessMessage: '',
-            assignLicenseSelectedUser: null,
-            assignLicenseUserSearchQuery: '',
-            assignLicenseUserSearchResults: [],
-            assignLicenseUserSearchLoading: false,
-            showAssignLicenseUserResults: false,
+            assignLicenseSelectedPersonnel: null,
+            assignLicensePersonnelSearchQuery: '',
+            assignLicensePersonnelSearchResults: [],
+            assignLicensePersonnelSearchLoading: false,
+            showAssignLicensePersonnelResults: false,
             assignLicenseAssignments: [],
             assignLicenseAssignmentsLoading: false,
             assetOptions: Array.isArray(window.__assetOptions) ? window.__assetOptions : [],
@@ -3069,8 +3069,12 @@ $i18nScript = json_encode([
                     const result = await response.json();
 
                     if (!response.ok) {
-                        this.licensesError = result.message || window.__i18n.licenses_fetch_error;
+                        const msg = result.message || window.__i18n.licenses_fetch_error;
+                        this.licensesError = msg;
                         this.licenses = [];
+                        if (response.status === 500) {
+                            alert('Hata: ' + msg);
+                        }
                         return;
                     }
 
@@ -3078,6 +3082,7 @@ $i18nScript = json_encode([
                 } catch (error) {
                     this.licensesError = window.__i18n.licenses_network_error;
                     this.licenses = [];
+                    alert(window.__i18n.licenses_network_error || 'Lisanslar yüklenemedi.');
                 } finally {
                     this.licensesLoading = false;
                 }
@@ -3128,7 +3133,11 @@ $i18nScript = json_encode([
                     const result = await response.json();
 
                     if (!response.ok) {
-                        this.licenseFormError = result.message || window.__i18n.license_create_error;
+                        const msg = result.message || window.__i18n.license_create_error;
+                        this.licenseFormError = msg;
+                        if (response.status === 500) {
+                            alert('Hata: ' + msg);
+                        }
                         return;
                     }
 
@@ -3137,6 +3146,7 @@ $i18nScript = json_encode([
                     await this.fetchLicenses();
                 } catch (error) {
                     this.licenseFormError = window.__i18n.licenses_network_error;
+                    alert(window.__i18n.licenses_network_error || 'Ağ hatası: Lisans oluşturulamadı.');
                 } finally {
                     this.isLicenseSubmitting = false;
                 }
@@ -3149,10 +3159,10 @@ $i18nScript = json_encode([
                 };
                 this.assignLicenseFormError = '';
                 this.assignLicenseSuccessMessage = '';
-                this.assignLicenseSelectedUser = null;
-                this.assignLicenseUserSearchQuery = '';
-                this.assignLicenseUserSearchResults = [];
-                this.showAssignLicenseUserResults = false;
+                this.assignLicenseSelectedPersonnel = null;
+                this.assignLicensePersonnelSearchQuery = '';
+                this.assignLicensePersonnelSearchResults = [];
+                this.showAssignLicensePersonnelResults = false;
                 this.assignLicenseAssignments = [];
                 this.isAssignLicenseModalOpen = true;
 
@@ -3166,6 +3176,17 @@ $i18nScript = json_encode([
                 }
 
                 this.isAssignLicenseModalOpen = false;
+                // ensure clean closed state for the assign modal (prevents stale UI from legacy user/personnel state)
+                this.assignLicenseForm = { license_id: '', assign_type: 'asset', asset_id: '' };
+                this.assignLicenseFormError = '';
+                this.assignLicenseSuccessMessage = '';
+                this.assignLicenseSelectedPersonnel = null;
+                this.assignLicensePersonnelSearchQuery = '';
+                this.assignLicensePersonnelSearchResults = [];
+                this.showAssignLicensePersonnelResults = false;
+                this.assignLicenseAssignments = [];
+                this.assignLicenseAssignmentsLoading = false;
+                this.isAssignLicenseSubmitting = false;
             },
             async loadLicenseAssignments() {
                 const licenseId = Number(this.assignLicenseForm.license_id);
@@ -3185,46 +3206,58 @@ $i18nScript = json_encode([
 
                     if (!response.ok) {
                         this.assignLicenseAssignments = [];
+                        if (response.status === 500) {
+                            const msg = result.message || window.__i18n.license_assign_error || 'Lisans atamaları yüklenirken sunucu hatası oluştu.';
+                            this.assignLicenseFormError = msg;
+                            alert('Hata: ' + msg);
+                        }
                         return;
                     }
 
                     this.assignLicenseAssignments = Array.isArray(result.data) ? result.data : [];
                 } catch (error) {
                     this.assignLicenseAssignments = [];
+                    this.assignLicenseFormError = window.__i18n.licenses_network_error;
+                    alert(window.__i18n.licenses_network_error || 'Ağ hatası oluştu. Lütfen bağlantınızı kontrol edin.');
                 } finally {
                     this.assignLicenseAssignmentsLoading = false;
                 }
             },
-            async searchAssignLicenseUsers() {
-                this.assignLicenseUserSearchLoading = true;
+            async searchAssignLicensePersonnel() {
+                this.assignLicensePersonnelSearchLoading = true;
 
                 try {
-                    const query = encodeURIComponent(this.assignLicenseUserSearchQuery.trim());
+                    const query = encodeURIComponent(this.assignLicensePersonnelSearchQuery.trim());
                     const response = await fetch(`/api/users/search?q=${query}`, {
                         headers: { 'Accept': 'application/json' },
                     });
                     const result = await response.json();
 
                     if (!response.ok) {
-                        this.assignLicenseUserSearchResults = [];
+                        this.assignLicensePersonnelSearchResults = [];
+                        if (response.status === 500) {
+                            const msg = result.message || window.__i18n.licenses_fetch_error || 'Personel aranırken sunucu hatası oluştu.';
+                            alert('Hata: ' + msg);
+                        }
                         return;
                     }
 
-                    this.assignLicenseUserSearchResults = Array.isArray(result.data) ? result.data : [];
+                    this.assignLicensePersonnelSearchResults = Array.isArray(result.data) ? result.data : [];
                 } catch (error) {
-                    this.assignLicenseUserSearchResults = [];
+                    this.assignLicensePersonnelSearchResults = [];
+                    alert(window.__i18n.licenses_network_error || 'Ağ hatası oluştu.');
                 } finally {
-                    this.assignLicenseUserSearchLoading = false;
+                    this.assignLicensePersonnelSearchLoading = false;
                 }
             },
-            selectAssignLicenseUser(user) {
-                this.assignLicenseSelectedUser = user;
-                this.assignLicenseUserSearchQuery = '';
-                this.assignLicenseUserSearchResults = [];
-                this.showAssignLicenseUserResults = false;
+            selectAssignLicensePersonnel(personnel) {
+                this.assignLicenseSelectedPersonnel = personnel;
+                this.assignLicensePersonnelSearchQuery = '';
+                this.assignLicensePersonnelSearchResults = [];
+                this.showAssignLicensePersonnelResults = false;
             },
-            clearAssignLicenseUser() {
-                this.assignLicenseSelectedUser = null;
+            clearAssignLicensePersonnel() {
+                this.assignLicenseSelectedPersonnel = null;
             },
             formatLicenseExpiration(value) {
                 if (!value) {
@@ -3270,9 +3303,11 @@ $i18nScript = json_encode([
                     return `${tag}${name}`;
                 }
 
-                if (assignment?.user_id) {
-                    const name = assignment.user_name || assignment.user_id;
-                    const email = assignment.user_email ? ` (${assignment.user_email})` : '';
+                const personnelId = assignment?.personnel_id ?? assignment?.user_id;
+                if (personnelId) {
+                    const name = assignment?.personnel_name ?? assignment?.user_name ?? personnelId;
+                    const emailVal = assignment?.personnel_email ?? assignment?.user_email;
+                    const email = emailVal ? ` (${emailVal})` : '';
 
                     return `${name}${email}`;
                 }
@@ -3296,8 +3331,8 @@ $i18nScript = json_encode([
                     }
 
                     payload.asset_id = Number(this.assignLicenseForm.asset_id);
-                } else if (this.assignLicenseSelectedUser?.id) {
-                    payload.personnel_id = Number(this.assignLicenseSelectedUser.id);
+                } else if (this.assignLicenseSelectedPersonnel?.id) {
+                    payload.personnel_id = Number(this.assignLicenseSelectedPersonnel.id);
                 } else {
                     this.assignLicenseFormError = window.__i18n.license_assign_error;
                     return;
@@ -3319,16 +3354,21 @@ $i18nScript = json_encode([
                     const result = await response.json();
 
                     if (!response.ok) {
-                        this.assignLicenseFormError = result.message || window.__i18n.license_assign_error;
+                        const msg = result.message || window.__i18n.license_assign_error;
+                        this.assignLicenseFormError = msg;
+                        if (response.status === 500) {
+                            alert('Hata: ' + msg);
+                        }
                         return;
                     }
 
                     this.assignLicenseSuccessMessage = result.message || window.__i18n.license_assign_success;
                     this.assignLicenseForm.asset_id = '';
-                    this.assignLicenseSelectedUser = null;
+                    this.assignLicenseSelectedPersonnel = null;
                     await Promise.all([this.fetchLicenses(), this.loadLicenseAssignments()]);
                 } catch (error) {
                     this.assignLicenseFormError = window.__i18n.licenses_network_error;
+                    alert(window.__i18n.licenses_network_error || 'Ağ hatası: Lisans atanamadı.');
                 } finally {
                     this.isAssignLicenseSubmitting = false;
                 }
@@ -3356,7 +3396,11 @@ $i18nScript = json_encode([
                     const result = await response.json();
 
                     if (!response.ok) {
-                        this.assignLicenseFormError = result.message || window.__i18n.license_unassign_error;
+                        const msg = result.message || window.__i18n.license_unassign_error;
+                        this.assignLicenseFormError = msg;
+                        if (response.status === 500) {
+                            alert('Hata: ' + msg);
+                        }
                         return;
                     }
 
@@ -3364,6 +3408,7 @@ $i18nScript = json_encode([
                     await Promise.all([this.fetchLicenses(), this.loadLicenseAssignments()]);
                 } catch (error) {
                     this.assignLicenseFormError = window.__i18n.licenses_network_error;
+                    alert(window.__i18n.licenses_network_error || 'Ağ hatası: Lisans kaldırılamadı.');
                 }
             },
             initQuillEditor() {
