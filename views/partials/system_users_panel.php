@@ -52,13 +52,23 @@ declare(strict_types=1);
                         </td>
                         <td class="px-6 py-4 text-sm text-zinc-600" x-text="resolveAuthProviderLabel(user.auth_provider)"></td>
                         <td class="px-6 py-4">
-                            <button
-                                type="button"
-                                @click="openSystemUserModal(user)"
-                                class="rounded-lg border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-700 transition hover:bg-zinc-50"
-                            >
-                                <?= htmlspecialchars(__('action_edit_system_user'), ENT_QUOTES, 'UTF-8') ?>
-                            </button>
+                            <div class="flex flex-wrap items-center gap-2">
+                                <button
+                                    type="button"
+                                    @click="openSystemUserModal(user)"
+                                    class="rounded-lg border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-700 transition hover:bg-zinc-50"
+                                >
+                                    <?= htmlspecialchars(__('action_edit_system_user'), ENT_QUOTES, 'UTF-8') ?>
+                                </button>
+                                <button
+                                    type="button"
+                                    @click="deleteSystemUser(user)"
+                                    :disabled="Number(user.id) === Number(currentUserId)"
+                                    class="rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-medium text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                    <?= htmlspecialchars(__('action_delete_system_user'), ENT_QUOTES, 'UTF-8') ?>
+                                </button>
+                            </div>
                         </td>
                     </tr>
                 </template>

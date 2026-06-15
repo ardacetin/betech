@@ -98,7 +98,7 @@ $healthController = new HealthController($appConfig, $assetModel, $categoryModel
 $assetController = new AssetController($assetModel, $assetHistoryModel, $userIntegrationFactory, $userModel, $locationModel, $sessionAuthService);
 $assetViewController = new AssetViewController($appConfig, $assetModel, $categoryModel, $viewRenderer);
 $assetTutanakController = new AssetTutanakController($assetModel, $settingModel, $userModel, $userIntegrationFactory, $zimmetTutanakService, $viewRenderer, $sessionAuthService);
-$userController = new UserController($userIntegrationFactory, $userModel, $assetModel, $assetHistoryModel, $settingModel);
+$userController = new UserController($userIntegrationFactory, $userModel, $assetModel, $assetHistoryModel, $settingModel, $sessionAuthService);
 $analyticsController = new AnalyticsController($analyticsService);
 $settingsController = new SettingsController($settingModel);
 $categoryController = new CategoryController($categoryModel);
@@ -135,6 +135,7 @@ $app->get('/api/users', [$userController, 'personnelIndex']);
 $app->get('/api/system-users', [$userController, 'systemUsersIndex']);
 $app->post('/api/system-users', [$userController, 'storeSystemUser']);
 $app->put('/api/system-users/{id}', [$userController, 'updateSystemUser']);
+$app->delete('/api/system-users/{id}', [$userController, 'destroySystemUser']);
 $app->post('/api/users', [$userController, 'store']);
 $app->get('/api/users/search', [$userController, 'search']);
 $app->post('/api/users/{id}/offboard', [$userController, 'offboard']);

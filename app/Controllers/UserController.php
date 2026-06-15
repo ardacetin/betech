@@ -8,6 +8,7 @@ use App\Models\Asset;
 use App\Models\AssetHistory;
 use App\Models\Setting;
 use App\Models\User;
+use App\Services\Auth\SessionAuthService;
 use App\Services\Auth\UserIntegrationFactory;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
@@ -21,7 +22,8 @@ class UserController
         private readonly User $userModel,
         private readonly Asset $assetModel,
         private readonly AssetHistory $assetHistoryModel,
-        private readonly Setting $settingModel
+        private readonly Setting $settingModel,
+        private readonly SessionAuthService $sessionAuthService
     ) {
     }
 
@@ -199,7 +201,7 @@ class UserController
         $name = trim((string) ($payload['name'] ?? ''));
         $email = trim((string) ($payload['email'] ?? ''));
         $role = trim((string) ($payload['role'] ?? User::ROLE_TECHNICIAN));
-        $password = (string) ($payload['password'] ?? '');
+        $password = trim((string) ($payload['password'] ?? ''));
 
         try {
             $user = $this->userModel->createSystemUser($name, $email, $role, $password);
@@ -275,6 +277,52 @@ class UserController
         ]);
     }
 
+    public function destroySystemUser(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
+    {
+        $userId = (int) ($args['id'] ?? 0);
+        $currentUserId = $this->sessionAuthService->userId() ?? 0;
+
+        if ($userId <= 0) {
+            return $this->jsonResponse($response, 400, [
+                'status' => 'error',
+                'message' => __('system_user_invalid_id'),
+            ]);
+        }
+
+        if ($currentUserId === $userId) {
+            return $this->jsonResponse($response, 422, [
+                'status' => 'error',
+                'message' => __('system_user_delete_self'),
+            ]);
+        }
+
+        try {
+            $deleted = $this->userModel->deleteSystemUser($userId);
+        } catch (\InvalidArgumentException $exception) {
+            return $this->jsonResponse($response, 422, [
+                'status' => 'error',
+                'message' => $exception->getMessage(),
+            ]);
+        } catch (\Throwable) {
+            return $this->jsonResponse($response, 500, [
+                'status' => 'error',
+                'message' => __('system_user_delete_error'),
+            ]);
+        }
+
+        if (!$deleted) {
+            return $this->jsonResponse($response, 404, [
+                'status' => 'error',
+                'message' => __('system_user_not_found'),
+            ]);
+        }
+
+        return $this->jsonResponse($response, 200, [
+            'status' => 'success',
+            'message' => __('system_user_delete_success'),
+        ]);
+    }
+
     public function index(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
     {
         return $this->personnelIndex($request, $response);
@@ -287,14 +335,14 @@ class UserController
     {
         $parsedBody = $request->getParsedBody();
 
-        if (is_array($parsedBody)) {
+        if (is_array($parsedBody) && $parsedBody !== []) {
             return $parsedBody;
         }
 
         $rawBody = (string) $request->getBody();
 
         if ($rawBody === '') {
-            return [];
+            return is_array($parsedBody) ? $parsedBody : [];
         }
 
         try {
@@ -302,7 +350,7 @@ class UserController
 
             return is_array($decoded) ? $decoded : null;
         } catch (\JsonException) {
-            return null;
+            return is_array($parsedBody) ? $parsedBody : null;
         }
     }
 

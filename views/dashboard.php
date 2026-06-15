@@ -198,6 +198,11 @@ $i18nScript = json_encode([
     'system_user_create_error' => __('system_user_create_error'),
     'system_user_update_error' => __('system_user_update_error'),
     'system_user_password_optional' => __('system_user_password_optional'),
+    'system_user_delete_confirm' => __('system_user_delete_confirm'),
+    'system_user_delete_success' => __('system_user_delete_success'),
+    'system_user_delete_error' => __('system_user_delete_error'),
+    'system_user_delete_self' => __('system_user_delete_self'),
+    'action_delete_system_user' => __('action_delete_system_user'),
     'auth_provider_local' => __('auth_provider_local'),
     'auth_provider_ldap' => __('auth_provider_ldap'),
     'auth_provider_google' => __('auth_provider_google'),
@@ -1537,6 +1542,7 @@ $i18nScript = json_encode([
             canAccessSettings: <?= $canAccessSettings ? 'true' : 'false' ?>,
             canAccessPersonnel: <?= $canAccessPersonnel ? 'true' : 'false' ?>,
             canAccessSystemUsers: <?= $canAccessSystemUsers ? 'true' : 'false' ?>,
+            currentUserId: <?= (int) ($currentUserId ?? 0) ?>,
             isSuperAdmin: <?= $isSuperAdmin ? 'true' : 'false' ?>,
             settingsTab: 'general',
             pageTitles: {
@@ -1937,10 +1943,10 @@ $i18nScript = json_encode([
 
                 if (user) {
                     this.systemUserForm = {
-                        id: user.id,
-                        name: user.name || '',
-                        email: user.email || '',
-                        role: user.role || 'technician',
+                        id: Number(user.id),
+                        name: String(user.name || ''),
+                        email: String(user.email || ''),
+                        role: String(user.role || 'technician'),
                         password: '',
                     };
                 } else {
@@ -1974,7 +1980,7 @@ $i18nScript = json_encode([
                     role: this.systemUserForm.role,
                 };
 
-                if (this.systemUserForm.password) {
+                if (this.systemUserForm.password.trim() !== '') {
                     payload.password = this.systemUserForm.password;
                 }
 
@@ -2040,6 +2046,41 @@ $i18nScript = json_encode([
                 } catch (error) {
                     this.systemUsersError = window.__i18n.system_users_network_error;
                     await this.fetchSystemUsers();
+                }
+            },
+            async deleteSystemUser(user) {
+                if (!user?.id) {
+                    return;
+                }
+
+                if (Number(user.id) === Number(this.currentUserId)) {
+                    this.systemUsersError = window.__i18n.system_user_delete_self;
+                    return;
+                }
+
+                if (!window.confirm(window.__i18n.system_user_delete_confirm)) {
+                    return;
+                }
+
+                this.systemUsersSuccessMessage = '';
+                this.systemUsersError = '';
+
+                try {
+                    const response = await fetch(`/api/system-users/${user.id}`, {
+                        method: 'DELETE',
+                        headers: { 'Accept': 'application/json' },
+                    });
+                    const result = await response.json();
+
+                    if (!response.ok) {
+                        this.systemUsersError = result.message || window.__i18n.system_user_delete_error;
+                        return;
+                    }
+
+                    this.systemUsersSuccessMessage = result.message || window.__i18n.system_user_delete_success;
+                    await this.fetchSystemUsers();
+                } catch (error) {
+                    this.systemUsersError = window.__i18n.system_users_network_error;
                 }
             },
             printTutanak(assetId) {

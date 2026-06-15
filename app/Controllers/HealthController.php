@@ -80,6 +80,7 @@ class HealthController
             'canAccessSettings' => $canAccessSettings,
             'canAccessPersonnel' => $canAccessPersonnel,
             'canAccessSystemUsers' => $canAccessSystemUsers,
+            'currentUserId' => $userId,
             'isEndUser' => $isEndUser,
             'isSuperAdmin' => $canAccessSettings,
             'assets' => $assets,

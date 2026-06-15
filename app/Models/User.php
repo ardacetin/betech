@@ -303,7 +303,7 @@ class User
             'password_hash' => password_hash($password, PASSWORD_DEFAULT),
         ]);
 
-        $created = $this->findById((int) $this->db()->id());
+        $created = $this->findSystemUserById((int) $this->db()->id());
 
         if ($created === null) {
             throw new \RuntimeException(__('system_user_create_error'));
@@ -322,9 +322,9 @@ class User
         ?string $email = null,
         ?string $password = null
     ): ?array {
-        $existing = $this->findById($userId);
+        $existing = $this->findSystemUserById($userId);
 
-        if ($existing === null || !$this->isOperationalRole((string) $existing['role'])) {
+        if ($existing === null) {
             return null;
         }
 
@@ -372,19 +372,76 @@ class User
             $payload['role'] = $normalizedRole;
         }
 
-        if ($password !== null && $password !== '') {
-            if (strlen($password) < 8) {
+        $trimmedPassword = $password !== null ? trim($password) : null;
+
+        if ($trimmedPassword !== null && $trimmedPassword !== '') {
+            if (strlen($trimmedPassword) < 8) {
                 throw new \InvalidArgumentException(__('system_user_password_required'));
             }
 
-            $payload['password_hash'] = password_hash($password, PASSWORD_DEFAULT);
+            $payload['password_hash'] = password_hash($trimmedPassword, PASSWORD_DEFAULT);
+            $payload['auth_provider'] = self::PROVIDER_LOCAL;
+            $payload['provider_subject'] = null;
         }
 
         if ($payload !== []) {
             $this->db()->update('users', $payload, ['id' => $userId]);
         }
 
-        return $this->findById($userId);
+        return $this->findSystemUserById($userId);
+    }
+
+    public function deleteSystemUser(int $userId): bool
+    {
+        $existing = $this->findSystemUserById($userId);
+
+        if ($existing === null) {
+            return false;
+        }
+
+        if ((string) $existing['role'] === self::ROLE_SUPER_ADMIN
+            && $this->countUsersByRole(self::ROLE_SUPER_ADMIN) <= 1) {
+            throw new \InvalidArgumentException(__('system_user_last_super_admin'));
+        }
+
+        $this->db()->delete('users', [
+            'id' => $userId,
+        ]);
+
+        return true;
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    public function findSystemUserById(int $userId): ?array
+    {
+        $row = $this->db()->get('users', [
+            'id',
+            'external_id',
+            'name',
+            'email',
+            'department',
+            'status',
+            'role',
+            'auth_provider',
+            'last_login_at',
+            'created_at',
+        ], [
+            'id' => $userId,
+        ]);
+
+        if ($row === null) {
+            return null;
+        }
+
+        $normalized = $this->normalizeRow($row);
+
+        if (!$this->isOperationalRole((string) $normalized['role'])) {
+            return null;
+        }
+
+        return $normalized;
     }
 
     public function countUsersByRole(string $role): int
@@ -445,23 +502,55 @@ class User
      */
     public function authenticateLocal(string $email, string $password): ?array
     {
-        $user = $this->findByEmail($email);
+        $normalizedEmail = strtolower(trim($email));
 
-        if ($user === null) {
+        if ($normalizedEmail === '' || $password === '') {
             return null;
         }
 
-        if (($user['status'] ?? self::STATUS_ACTIVE) !== self::STATUS_ACTIVE) {
+        $row = $this->db()->get('users', [
+            'id',
+            'external_id',
+            'name',
+            'email',
+            'department',
+            'status',
+            'auth_provider',
+            'password_hash',
+            'role',
+            'created_at',
+        ], [
+            'email' => $normalizedEmail,
+        ]);
+
+        if ($row === null) {
             return null;
         }
 
-        $passwordHash = (string) ($user['password_hash'] ?? '');
+        if (($row['status'] ?? self::STATUS_ACTIVE) !== self::STATUS_ACTIVE) {
+            return null;
+        }
+
+        $passwordHash = (string) ($row['password_hash'] ?? '');
 
         if ($passwordHash === '' || !password_verify($password, $passwordHash)) {
             return null;
         }
 
-        $this->touchLastLogin((int) $user['id']);
+        $userId = (int) $row['id'];
+
+        if (password_needs_rehash($passwordHash, PASSWORD_DEFAULT)) {
+            $this->db()->update('users', [
+                'password_hash' => password_hash($password, PASSWORD_DEFAULT),
+            ], [
+                'id' => $userId,
+            ]);
+        }
+
+        $this->touchLastLogin($userId);
+
+        $user = $this->normalizeRow($row);
+        unset($user['password_hash']);
 
         return $user;
     }

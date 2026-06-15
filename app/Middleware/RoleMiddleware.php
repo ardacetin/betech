@@ -177,6 +177,11 @@ class RoleMiddleware implements MiddlewareInterface
                 'roles' => [User::ROLE_SUPER_ADMIN],
             ],
             [
+                'methods' => ['DELETE'],
+                'pattern' => '/api/system-users/{id}',
+                'roles' => [User::ROLE_SUPER_ADMIN],
+            ],
+            [
                 'methods' => ['POST'],
                 'pattern' => '/api/users',
                 'roles' => $operational,
