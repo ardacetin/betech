@@ -99,6 +99,10 @@ class DatabaseInitializer
                 }
             }
 
+            foreach ($this->patchLoginAttemptsTable($connection) as $warning) {
+                $warnings[] = $warning;
+            }
+
             return new DatabaseInitializationResult(true, null, $warnings);
         } catch (PDOException $exception) {
             return new DatabaseInitializationResult(
@@ -438,6 +442,27 @@ class DatabaseInitializer
     private function getPersonnelTableMigrationPath(): string
     {
         return dirname($this->schemaPath) . '/migrations/009_separate_personnel_table.sql';
+    }
+
+    /**
+     * @param object $connection Medoo instance
+     *
+     * @return list<string>
+     */
+    private function patchLoginAttemptsTable(object $connection): array
+    {
+        if ($this->tableExists($connection, 'login_attempts')) {
+            return [];
+        }
+
+        $this->applySqlFile($connection, $this->getLoginAttemptsTableMigrationPath());
+
+        return ['Self-healed database: created login_attempts table.'];
+    }
+
+    private function getLoginAttemptsTableMigrationPath(): string
+    {
+        return dirname($this->schemaPath) . '/migrations/010_create_login_attempts_table.sql';
     }
 
     /**

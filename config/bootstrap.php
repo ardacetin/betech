@@ -17,7 +17,9 @@ use App\Handlers\HttpErrorHandler;
 use App\Middleware\AuthMiddleware;
 use App\Middleware\CsrfMiddleware;
 use App\Middleware\LanguageMiddleware;
+use App\Middleware\RateLimitMiddleware;
 use App\Middleware\RoleMiddleware;
+use App\Middleware\SecurityHeadersMiddleware;
 use App\Models\Asset;
 use App\Models\AssetHistory;
 use App\Models\Category;
@@ -33,6 +35,7 @@ use App\Services\Auth\OAuthService;
 use App\Services\Auth\SessionAuthService;
 use App\Services\Auth\UserIntegrationFactory;
 use App\Services\DatabaseService;
+use App\Services\LoginAttemptService;
 use App\Services\QrCodeService;
 use App\Services\Translator;
 use App\Services\ViewRenderer;
@@ -48,7 +51,12 @@ $dotenv->safeLoad();
 $appConfig = require $rootPath . '/config/app.php';
 $databaseConfig = require $rootPath . '/config/database.php';
 
+$isHttps = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+    || (isset($_SERVER['SERVER_PORT']) && (string) $_SERVER['SERVER_PORT'] === '443')
+    || (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && strtolower((string) $_SERVER['HTTP_X_FORWARDED_PROTO']) === 'https');
+
 $databaseService = new DatabaseService($databaseConfig);
+$loginAttemptService = new LoginAttemptService($databaseService);
 
 $app = AppFactory::create();
 
@@ -63,6 +71,7 @@ $personnelModel = new Personnel($databaseService);
 $sessionAuthService = new SessionAuthService();
 $publicPaths = [
     '/login',
+    '/api/login',
     '/logout',
     '/auth/oauth/{provider}',
     '/auth/callback/{provider}',
@@ -70,7 +79,9 @@ $publicPaths = [
 ];
 $app->add(new RoleMiddleware($sessionAuthService, $publicPaths, RoleMiddleware::defaultRules()));
 $app->add(new AuthMiddleware($sessionAuthService, $publicPaths, $userModel));
-$app->add(new CsrfMiddleware($sessionAuthService));
+$app->add(new CsrfMiddleware($sessionAuthService, ['/api/login']));
+$app->add(new RateLimitMiddleware($loginAttemptService));
+$app->add(new SecurityHeadersMiddleware($isHttps));
 
 $displayErrorDetails = $appConfig['display_error_details'] && !$appConfig['is_production'];
 $appLogger = new AppLogger($rootPath . '/logs/app.log');
@@ -78,7 +89,8 @@ $errorMiddleware = $app->addErrorMiddleware($displayErrorDetails, true, true);
 $errorHandler = new HttpErrorHandler(
     $app->getCallableResolver(),
     $app->getResponseFactory(),
-    $appLogger
+    $appLogger,
+    $isHttps
 );
 $errorMiddleware->setDefaultErrorHandler($errorHandler);
 
@@ -101,6 +113,7 @@ $authController = new AuthController(
     $userModel,
     $personnelModel,
     $sessionAuthService,
+    $loginAttemptService,
     $ldapAuthenticator,
     $oauthService,
     $viewRenderer
@@ -118,6 +131,7 @@ $licenseController = new LicenseController($licenseModel);
 
 $app->get('/login', [$authController, 'showLoginForm']);
 $app->post('/login', [$authController, 'login']);
+$app->post('/api/login', [$authController, 'apiLogin']);
 $app->get('/logout', [$authController, 'logout']);
 $app->get('/auth/oauth/{provider}', [$authController, 'startOAuth']);
 $app->get('/auth/callback/{provider}', [$authController, 'handleOAuthCallback']);

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Handlers;
 
 use App\Services\AppLogger;
+use App\Services\SecurityHeaders;
 use Psr\Http\Message\ResponseFactoryInterface;
 use Psr\Http\Message\ResponseInterface;
 use Slim\Handlers\ErrorHandler;
@@ -18,6 +19,7 @@ class HttpErrorHandler extends ErrorHandler
         CallableResolverInterface $callableResolver,
         ResponseFactoryInterface $responseFactory,
         private readonly AppLogger $appLogger,
+        private readonly bool $isHttps = false,
     ) {
         parent::__construct($callableResolver, $responseFactory);
     }
@@ -34,7 +36,7 @@ class HttpErrorHandler extends ErrorHandler
     protected function respond(): ResponseInterface
     {
         if ($this->displayErrorDetails) {
-            return parent::respond();
+            return SecurityHeaders::apply(parent::respond(), $this->isHttps);
         }
 
         $statusCode = $this->statusCode >= 400 ? $this->statusCode : 500;
@@ -45,7 +47,10 @@ class HttpErrorHandler extends ErrorHandler
                 'error' => self::GENERIC_ERROR_MESSAGE,
             ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE));
 
-            return $response->withHeader('Content-Type', 'application/json; charset=utf-8');
+            return SecurityHeaders::apply(
+                $response->withHeader('Content-Type', 'application/json; charset=utf-8'),
+                $this->isHttps
+            );
         }
 
         $response->getBody()->write(
@@ -56,7 +61,10 @@ class HttpErrorHandler extends ErrorHandler
             . '</body></html>'
         );
 
-        return $response->withHeader('Content-Type', 'text/html; charset=utf-8');
+        return SecurityHeaders::apply(
+            $response->withHeader('Content-Type', 'text/html; charset=utf-8'),
+            $this->isHttps
+        );
     }
 
     private function shouldReturnJson(): bool

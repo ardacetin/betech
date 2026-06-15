@@ -404,7 +404,24 @@ betech/
 
 ## Security notes (self-hosted operators)
 
+### Transport and session hardening
+
 - Run ITMS behind HTTPS in production; set `APP_URL` to the canonical HTTPS origin.
+- Session cookies use `HttpOnly`, `SameSite=Lax`, and `Secure` when the request is served over HTTPS (`public/index.php`).
+
+### Application-layer protections (public internet)
+
+- **Login rate limiting** — `RateLimitMiddleware` blocks brute-force attempts on `POST /api/login` and `POST /login`. Each client IP may trigger at most **5 failed login attempts within 15 minutes**; further attempts receive HTTP **429** with `{"error":"Çok fazla hatalı giriş denemesi. Lütfen 15 dakika sonra tekrar deneyin."}`. Attempts are stored in the `login_attempts` table (migration `010_create_login_attempts_table.sql`) and cleared after a successful login.
+- **Security response headers** — `SecurityHeadersMiddleware` applies globally:
+  - `Strict-Transport-Security: max-age=31536000; includeSubDomains` (HTTPS deployments only)
+  - `X-Frame-Options: DENY`
+  - `X-Content-Type-Options: nosniff`
+  - `Content-Security-Policy` allowing scripts/styles from `'self'`, Tailwind CDN, jsDelivr (Alpine.js, Quill.js), and Google Fonts
+- **CSRF protection** — state-changing requests require a valid session CSRF token (`CsrfMiddleware`); `POST /api/login` is exempt so programmatic clients can authenticate.
+- **Error disclosure** — set `APP_ENV=production` and `DISPLAY_ERROR_DETAILS=false` so stack traces are not shown to browsers; unhandled exceptions are logged to `logs/app.log` via `AppLogger`.
+
+### Operational hygiene
+
 - Change the default `admin@betech.local` password immediately after first login.
 - Store LDAP bind passwords and OAuth client secrets only in the database settings table (never commit `.env` or secrets to Git).
 - Restrict network access to MySQL and LDAP to application servers only.
