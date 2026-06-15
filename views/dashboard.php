@@ -6,6 +6,7 @@ declare(strict_types=1);
  * @var string $appName
  * @var string $pageTitle
  * @var string $environment
+ * @var string $locale
  * @var list<array<string, mixed>> $assets
  * @var array{total: int, deployed: int, in_storage: int, broken: int} $metrics
  * @var list<array<string, mixed>> $categories
@@ -18,6 +19,12 @@ $statusStyles = [
     'broken' => 'bg-rose-50 text-rose-700 ring-rose-600/20',
 ];
 
+$translateStatus = static function (string $status): string {
+    $key = 'status_' . $status;
+
+    return __($key);
+};
+
 $formatPropertyValue = static function (mixed $value): string {
     if (is_array($value)) {
         return json_encode($value, JSON_UNESCAPED_UNICODE) ?: '';
@@ -29,6 +36,18 @@ $formatPropertyValue = static function (mixed $value): string {
 
     return (string) $value;
 };
+
+$metricCards = [
+    ['label' => __('metric_total_assets'), 'value' => $metrics['total'], 'hint' => __('metric_total_hint')],
+    ['label' => __('metric_deployed'), 'value' => $metrics['deployed'], 'hint' => __('metric_deployed_hint')],
+    ['label' => __('metric_in_storage'), 'value' => $metrics['in_storage'], 'hint' => __('metric_in_storage_hint')],
+    ['label' => __('metric_broken'), 'value' => $metrics['broken'], 'hint' => __('metric_broken_hint')],
+];
+
+$i18nScript = json_encode([
+    'create_error' => __('create_error'),
+    'network_error' => __('network_error'),
+], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
 ?>
 <div class="min-h-full" x-data="assetDashboard()">
     <div class="flex min-h-screen">
@@ -37,60 +56,65 @@ $formatPropertyValue = static function (mixed $value): string {
                 <div class="flex h-9 w-9 items-center justify-center rounded-xl bg-zinc-900 text-sm font-semibold text-white">B</div>
                 <div>
                     <p class="text-sm font-semibold text-zinc-900"><?= htmlspecialchars($appName, ENT_QUOTES, 'UTF-8') ?></p>
-                    <p class="text-xs text-zinc-500">IT Asset Management</p>
+                    <p class="text-xs text-zinc-500"><?= htmlspecialchars(__('app_subtitle'), ENT_QUOTES, 'UTF-8') ?></p>
                 </div>
             </div>
 
             <nav class="flex-1 space-y-1 p-4">
                 <a href="/" class="flex items-center gap-3 rounded-lg bg-zinc-100 px-3 py-2 text-sm font-medium text-zinc-900">
                     <span class="h-2 w-2 rounded-full bg-zinc-900"></span>
-                    Assets
+                    <?= htmlspecialchars(__('nav_assets'), ENT_QUOTES, 'UTF-8') ?>
                 </a>
                 <span class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-zinc-400">
                     <span class="h-2 w-2 rounded-full bg-zinc-300"></span>
-                    Categories
+                    <?= htmlspecialchars(__('nav_categories'), ENT_QUOTES, 'UTF-8') ?>
                 </span>
                 <span class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-zinc-400">
                     <span class="h-2 w-2 rounded-full bg-zinc-300"></span>
-                    Settings
+                    <?= htmlspecialchars(__('nav_settings'), ENT_QUOTES, 'UTF-8') ?>
                 </span>
             </nav>
 
             <div class="border-t border-zinc-200 p-4">
-                <p class="text-xs uppercase tracking-wide text-zinc-400">Environment</p>
+                <p class="text-xs uppercase tracking-wide text-zinc-400"><?= htmlspecialchars(__('environment'), ENT_QUOTES, 'UTF-8') ?></p>
                 <p class="mt-1 text-sm font-medium text-zinc-700"><?= htmlspecialchars($environment, ENT_QUOTES, 'UTF-8') ?></p>
             </div>
         </aside>
 
         <main class="flex-1">
             <header class="sticky top-0 z-10 border-b border-zinc-200 bg-white/90 backdrop-blur">
-                <div class="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
+                <div class="mx-auto flex max-w-7xl items-center justify-between gap-4 px-6 py-4">
                     <div>
                         <h1 class="text-2xl font-semibold tracking-tight text-zinc-900"><?= htmlspecialchars($pageTitle, ENT_QUOTES, 'UTF-8') ?></h1>
-                        <p class="mt-1 text-sm text-zinc-500">Monitor inventory, status, and hybrid asset properties.</p>
+                        <p class="mt-1 text-sm text-zinc-500"><?= htmlspecialchars(__('page_subtitle'), ENT_QUOTES, 'UTF-8') ?></p>
                     </div>
-                    <button
-                        type="button"
-                        @click="openModal()"
-                        class="inline-flex items-center gap-2 rounded-xl bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white shadow-soft transition hover:bg-zinc-800"
-                    >
-                        <span class="text-lg leading-none">+</span>
-                        Add Asset
-                    </button>
+                    <div class="flex items-center gap-3">
+                        <div class="inline-flex items-center rounded-xl border border-zinc-200 bg-white p-1 shadow-soft">
+                            <span class="sr-only"><?= htmlspecialchars(__('language'), ENT_QUOTES, 'UTF-8') ?></span>
+                            <a
+                                href="<?= htmlspecialchars(lang_url('tr'), ENT_QUOTES, 'UTF-8') ?>"
+                                class="<?= ($locale ?? 'tr') === 'tr' ? 'bg-zinc-900 text-white' : 'text-zinc-600 hover:bg-zinc-100' ?> rounded-lg px-3 py-1.5 text-xs font-semibold transition"
+                            >TR</a>
+                            <a
+                                href="<?= htmlspecialchars(lang_url('en'), ENT_QUOTES, 'UTF-8') ?>"
+                                class="<?= ($locale ?? 'tr') === 'en' ? 'bg-zinc-900 text-white' : 'text-zinc-600 hover:bg-zinc-100' ?> rounded-lg px-3 py-1.5 text-xs font-semibold transition"
+                            >EN</a>
+                        </div>
+                        <button
+                            type="button"
+                            @click="openModal()"
+                            class="inline-flex items-center gap-2 rounded-xl bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white shadow-soft transition hover:bg-zinc-800"
+                        >
+                            <span class="text-lg leading-none">+</span>
+                            <?= htmlspecialchars(__('add_asset'), ENT_QUOTES, 'UTF-8') ?>
+                        </button>
+                    </div>
                 </div>
             </header>
 
             <div class="mx-auto max-w-7xl space-y-8 px-6 py-8">
                 <section class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                    <?php
-                    $metricCards = [
-                        ['label' => 'Total Assets', 'value' => $metrics['total'], 'hint' => 'All registered items'],
-                        ['label' => 'Deployed', 'value' => $metrics['deployed'], 'hint' => 'Currently in use'],
-                        ['label' => 'In Storage', 'value' => $metrics['in_storage'], 'hint' => 'Ready or stored'],
-                        ['label' => 'Broken', 'value' => $metrics['broken'], 'hint' => 'Needs attention'],
-                    ];
-                    foreach ($metricCards as $card):
-                    ?>
+                    <?php foreach ($metricCards as $card): ?>
                     <article class="rounded-2xl border border-zinc-200 bg-white p-5 shadow-soft">
                         <p class="text-sm font-medium text-zinc-500"><?= htmlspecialchars($card['label'], ENT_QUOTES, 'UTF-8') ?></p>
                         <p class="mt-3 text-3xl font-semibold tracking-tight text-zinc-900"><?= (int) $card['value'] ?></p>
@@ -101,26 +125,28 @@ $formatPropertyValue = static function (mixed $value): string {
 
                 <section class="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-soft">
                     <div class="border-b border-zinc-200 px-6 py-4">
-                        <h2 class="text-lg font-semibold text-zinc-900">Asset Inventory</h2>
-                        <p class="mt-1 text-sm text-zinc-500">Core fields with dynamic JSON properties rendered as pills.</p>
+                        <h2 class="text-lg font-semibold text-zinc-900"><?= htmlspecialchars(__('inventory_title'), ENT_QUOTES, 'UTF-8') ?></h2>
+                        <p class="mt-1 text-sm text-zinc-500"><?= htmlspecialchars(__('inventory_subtitle'), ENT_QUOTES, 'UTF-8') ?></p>
                     </div>
 
                     <div class="overflow-x-auto">
                         <table class="min-w-full divide-y divide-zinc-200">
                             <thead class="bg-zinc-50">
                                 <tr>
-                                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500">Asset Tag</th>
-                                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500">Name</th>
-                                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500">Category</th>
-                                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500">Status</th>
-                                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500">Properties</th>
+                                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500"><?= htmlspecialchars(__('col_asset_tag'), ENT_QUOTES, 'UTF-8') ?></th>
+                                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500"><?= htmlspecialchars(__('col_name'), ENT_QUOTES, 'UTF-8') ?></th>
+                                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500"><?= htmlspecialchars(__('col_category'), ENT_QUOTES, 'UTF-8') ?></th>
+                                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500"><?= htmlspecialchars(__('col_status'), ENT_QUOTES, 'UTF-8') ?></th>
+                                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500"><?= htmlspecialchars(__('col_properties'), ENT_QUOTES, 'UTF-8') ?></th>
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-zinc-100 bg-white">
                                 <?php if ($assets === []): ?>
                                 <tr>
                                     <td colspan="5" class="px-6 py-12 text-center text-sm text-zinc-500">
-                                        No assets yet. Use <span class="font-medium text-zinc-700">Add Asset</span> to create your first record.
+                                        <?= htmlspecialchars(__('empty_assets_prefix'), ENT_QUOTES, 'UTF-8') ?>
+                                        <span class="font-medium text-zinc-700"><?= htmlspecialchars(__('add_asset'), ENT_QUOTES, 'UTF-8') ?></span>
+                                        <?= htmlspecialchars(__('empty_assets_suffix'), ENT_QUOTES, 'UTF-8') ?>
                                     </td>
                                 </tr>
                                 <?php else: ?>
@@ -137,17 +163,17 @@ $formatPropertyValue = static function (mixed $value): string {
                                             <?= htmlspecialchars((string) $asset['name'], ENT_QUOTES, 'UTF-8') ?>
                                         </td>
                                         <td class="px-6 py-4 text-sm text-zinc-600">
-                                            <?= htmlspecialchars((string) ($asset['category_name'] ?? 'Unknown'), ENT_QUOTES, 'UTF-8') ?>
+                                            <?= htmlspecialchars((string) ($asset['category_name'] ?? __('unknown_category')), ENT_QUOTES, 'UTF-8') ?>
                                         </td>
                                         <td class="px-6 py-4">
                                             <span class="inline-flex rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-inset <?= $statusClass ?>">
-                                                <?= htmlspecialchars(ucfirst($status), ENT_QUOTES, 'UTF-8') ?>
+                                                <?= htmlspecialchars($translateStatus($status), ENT_QUOTES, 'UTF-8') ?>
                                             </span>
                                         </td>
                                         <td class="px-6 py-4">
                                             <div class="flex max-w-xl flex-wrap gap-2">
                                                 <?php if ($properties === []): ?>
-                                                    <span class="text-xs text-zinc-400">No dynamic properties</span>
+                                                    <span class="text-xs text-zinc-400"><?= htmlspecialchars(__('no_properties'), ENT_QUOTES, 'UTF-8') ?></span>
                                                 <?php else: ?>
                                                     <?php foreach ($properties as $key => $value): ?>
                                                     <span class="inline-flex items-center gap-1 rounded-full bg-zinc-100 px-2.5 py-1 text-xs text-zinc-700">
@@ -180,8 +206,8 @@ $formatPropertyValue = static function (mixed $value): string {
         <div class="relative w-full max-w-2xl rounded-2xl border border-zinc-200 bg-white shadow-soft">
             <div class="flex items-center justify-between border-b border-zinc-200 px-6 py-4">
                 <div>
-                    <h3 class="text-lg font-semibold text-zinc-900">Add Asset</h3>
-                    <p class="mt-1 text-sm text-zinc-500">Core fields map to columns. Extra fields become JSON properties.</p>
+                    <h3 class="text-lg font-semibold text-zinc-900"><?= htmlspecialchars(__('modal_add_asset'), ENT_QUOTES, 'UTF-8') ?></h3>
+                    <p class="mt-1 text-sm text-zinc-500"><?= htmlspecialchars(__('modal_subtitle'), ENT_QUOTES, 'UTF-8') ?></p>
                 </div>
                 <button type="button" @click="closeModal()" class="rounded-lg p-2 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600">&times;</button>
             </div>
@@ -189,21 +215,21 @@ $formatPropertyValue = static function (mixed $value): string {
             <form @submit.prevent="submitForm" class="max-h-[70vh] overflow-y-auto px-6 py-5">
                 <div class="grid gap-4 sm:grid-cols-2">
                     <label class="block sm:col-span-1">
-                        <span class="mb-1.5 block text-sm font-medium text-zinc-700">Asset Tag *</span>
+                        <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('label_asset_tag'), ENT_QUOTES, 'UTF-8') ?></span>
                         <input x-model="form.asset_tag" type="text" required class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4">
                     </label>
                     <label class="block sm:col-span-1">
-                        <span class="mb-1.5 block text-sm font-medium text-zinc-700">Serial Number</span>
+                        <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('label_serial_number'), ENT_QUOTES, 'UTF-8') ?></span>
                         <input x-model="form.serial_number" type="text" class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4">
                     </label>
                     <label class="block sm:col-span-2">
-                        <span class="mb-1.5 block text-sm font-medium text-zinc-700">Name *</span>
+                        <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('label_name'), ENT_QUOTES, 'UTF-8') ?></span>
                         <input x-model="form.name" type="text" required class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4">
                     </label>
                     <label class="block sm:col-span-1">
-                        <span class="mb-1.5 block text-sm font-medium text-zinc-700">Category *</span>
+                        <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('label_category'), ENT_QUOTES, 'UTF-8') ?></span>
                         <select x-model="form.category_id" required class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4">
-                            <option value="">Select category</option>
+                            <option value=""><?= htmlspecialchars(__('select_category'), ENT_QUOTES, 'UTF-8') ?></option>
                             <?php foreach ($categories as $category): ?>
                             <option value="<?= (int) $category['id'] ?>">
                                 <?= htmlspecialchars((string) $category['name'], ENT_QUOTES, 'UTF-8') ?>
@@ -212,38 +238,38 @@ $formatPropertyValue = static function (mixed $value): string {
                         </select>
                     </label>
                     <label class="block sm:col-span-1">
-                        <span class="mb-1.5 block text-sm font-medium text-zinc-700">Status</span>
+                        <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('label_status'), ENT_QUOTES, 'UTF-8') ?></span>
                         <select x-model="form.status" class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4">
-                            <option value="ready">Ready</option>
-                            <option value="deployed">Deployed</option>
-                            <option value="storage">Storage</option>
-                            <option value="broken">Broken</option>
+                            <option value="ready"><?= htmlspecialchars(__('status_ready'), ENT_QUOTES, 'UTF-8') ?></option>
+                            <option value="deployed"><?= htmlspecialchars(__('status_deployed'), ENT_QUOTES, 'UTF-8') ?></option>
+                            <option value="storage"><?= htmlspecialchars(__('status_storage'), ENT_QUOTES, 'UTF-8') ?></option>
+                            <option value="broken"><?= htmlspecialchars(__('status_broken'), ENT_QUOTES, 'UTF-8') ?></option>
                         </select>
                     </label>
                 </div>
 
                 <div class="mt-6 border-t border-zinc-200 pt-5">
-                    <h4 class="text-sm font-semibold text-zinc-900">Dynamic Properties</h4>
-                    <p class="mt-1 text-xs text-zinc-500">These values are stored in the hybrid JSON properties column.</p>
+                    <h4 class="text-sm font-semibold text-zinc-900"><?= htmlspecialchars(__('dynamic_properties'), ENT_QUOTES, 'UTF-8') ?></h4>
+                    <p class="mt-1 text-xs text-zinc-500"><?= htmlspecialchars(__('dynamic_properties_hint'), ENT_QUOTES, 'UTF-8') ?></p>
                     <div class="mt-4 grid gap-4 sm:grid-cols-2">
                         <label class="block">
-                            <span class="mb-1.5 block text-sm font-medium text-zinc-700">RAM</span>
+                            <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('label_ram'), ENT_QUOTES, 'UTF-8') ?></span>
                             <input x-model="form.ram" type="text" placeholder="16GB" class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4">
                         </label>
                         <label class="block">
-                            <span class="mb-1.5 block text-sm font-medium text-zinc-700">CPU</span>
+                            <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('label_cpu'), ENT_QUOTES, 'UTF-8') ?></span>
                             <input x-model="form.cpu" type="text" placeholder="Intel i7" class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4">
                         </label>
                         <label class="block">
-                            <span class="mb-1.5 block text-sm font-medium text-zinc-700">Storage</span>
+                            <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('label_storage'), ENT_QUOTES, 'UTF-8') ?></span>
                             <input x-model="form.storage" type="text" placeholder="512GB SSD" class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4">
                         </label>
                         <label class="block">
-                            <span class="mb-1.5 block text-sm font-medium text-zinc-700">MAC Address</span>
+                            <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('label_mac_address'), ENT_QUOTES, 'UTF-8') ?></span>
                             <input x-model="form.mac_address" type="text" placeholder="00:11:22:33:44:55" class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4">
                         </label>
                         <label class="block sm:col-span-2">
-                            <span class="mb-1.5 block text-sm font-medium text-zinc-700">IP Address</span>
+                            <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('label_ip_address'), ENT_QUOTES, 'UTF-8') ?></span>
                             <input x-model="form.ip_address" type="text" placeholder="192.168.1.10" class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4">
                         </label>
                     </div>
@@ -252,14 +278,14 @@ $formatPropertyValue = static function (mixed $value): string {
                 <div x-show="errorMessage" x-cloak class="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700" x-text="errorMessage"></div>
 
                 <div class="mt-6 flex items-center justify-end gap-3 border-t border-zinc-200 pt-5">
-                    <button type="button" @click="closeModal()" class="rounded-xl px-4 py-2.5 text-sm font-medium text-zinc-600 hover:bg-zinc-100">Cancel</button>
+                    <button type="button" @click="closeModal()" class="rounded-xl px-4 py-2.5 text-sm font-medium text-zinc-600 hover:bg-zinc-100"><?= htmlspecialchars(__('cancel'), ENT_QUOTES, 'UTF-8') ?></button>
                     <button
                         type="submit"
                         :disabled="isSubmitting"
                         class="inline-flex items-center gap-2 rounded-xl bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60"
                     >
-                        <span x-show="isSubmitting">Saving...</span>
-                        <span x-show="!isSubmitting">Create Asset</span>
+                        <span x-show="isSubmitting"><?= htmlspecialchars(__('saving'), ENT_QUOTES, 'UTF-8') ?></span>
+                        <span x-show="!isSubmitting"><?= htmlspecialchars(__('create_asset'), ENT_QUOTES, 'UTF-8') ?></span>
                     </button>
                 </div>
             </form>
@@ -270,6 +296,8 @@ $formatPropertyValue = static function (mixed $value): string {
 <style>[x-cloak] { display: none !important; }</style>
 
 <script>
+    window.__i18n = <?= $i18nScript ?>;
+
     function assetDashboard() {
         return {
             isOpen: false,
@@ -340,7 +368,7 @@ $formatPropertyValue = static function (mixed $value): string {
                                 .flat()
                                 .join(' ');
                         } else {
-                            this.errorMessage = result.message || 'Unable to create asset.';
+                            this.errorMessage = result.message || window.__i18n.create_error;
                         }
 
                         return;
@@ -348,7 +376,7 @@ $formatPropertyValue = static function (mixed $value): string {
 
                     window.location.reload();
                 } catch (error) {
-                    this.errorMessage = 'Network error while creating the asset.';
+                    this.errorMessage = window.__i18n.network_error;
                 } finally {
                     this.isSubmitting = false;
                 }

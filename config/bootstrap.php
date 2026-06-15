@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 use App\Controllers\AssetController;
 use App\Controllers\HealthController;
+use App\Middleware\LanguageMiddleware;
 use App\Models\Asset;
 use App\Models\Category;
 use App\Services\DatabaseService;
+use App\Services\Translator;
 use App\Services\ViewRenderer;
 use Dotenv\Dotenv;
 use Slim\Factory\AppFactory;
@@ -23,6 +25,10 @@ $databaseService = new DatabaseService($databaseConfig);
 
 $app = AppFactory::create();
 
+$translator = new Translator($rootPath . '/lang');
+Translator::initialize($translator);
+
+$app->add(new LanguageMiddleware($translator));
 $app->addBodyParsingMiddleware();
 
 $app->addErrorMiddleware(

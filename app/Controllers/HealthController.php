@@ -6,6 +6,7 @@ namespace App\Controllers;
 
 use App\Models\Asset;
 use App\Models\Category;
+use App\Services\Translator;
 use App\Services\ViewRenderer;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
@@ -27,8 +28,9 @@ class HealthController
     {
         $html = $this->viewRenderer->render('dashboard', [
             'appName' => 'Betech',
-            'pageTitle' => 'Asset Dashboard',
+            'pageTitle' => __('page_title'),
             'environment' => $this->appConfig['env'],
+            'locale' => Translator::instance()->getLocale(),
             'assets' => $this->assetModel->findAllForDashboard(),
             'metrics' => $this->assetModel->getMetrics(),
             'categories' => $this->categoryModel->findAll(),
