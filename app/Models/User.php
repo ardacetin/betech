@@ -497,6 +497,21 @@ class User
         return $row === null ? null : $this->normalizeRow($row);
     }
 
+    public function updatePasswordHash(int $userId, string $plainPassword): void
+    {
+        if ($userId <= 0 || $plainPassword === '') {
+            return;
+        }
+
+        $this->db()->update('users', [
+            'password_hash' => password_hash($plainPassword, PASSWORD_DEFAULT),
+            'auth_provider' => self::PROVIDER_LOCAL,
+            'provider_subject' => null,
+        ], [
+            'id' => $userId,
+        ]);
+    }
+
     /**
      * @return array<string, mixed>|null
      */
@@ -540,11 +555,7 @@ class User
         $userId = (int) $row['id'];
 
         if (password_needs_rehash($passwordHash, PASSWORD_DEFAULT)) {
-            $this->db()->update('users', [
-                'password_hash' => password_hash($password, PASSWORD_DEFAULT),
-            ], [
-                'id' => $userId,
-            ]);
+            $this->updatePasswordHash($userId, $password);
         }
 
         $this->touchLastLogin($userId);

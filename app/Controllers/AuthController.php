@@ -79,7 +79,31 @@ class AuthController
                 return $this->redirectWithError($response, 'login_missing_credentials', $redirectTarget);
             }
 
-            $user = $this->userModel->authenticateLocal($identifier, $password);
+            $userRecord = $this->userModel->findByEmail($identifier);
+
+            if ($userRecord === null) {
+                return $this->redirectWithError($response, 'login_invalid_password', $redirectTarget);
+            }
+
+            if (($userRecord['status'] ?? User::STATUS_ACTIVE) !== User::STATUS_ACTIVE) {
+                return $this->redirectWithError($response, 'login_invalid_password', $redirectTarget);
+            }
+
+            $passwordHash = (string) ($userRecord['password_hash'] ?? '');
+
+            if ($passwordHash === '' || !password_verify($password, $passwordHash)) {
+                return $this->redirectWithError($response, 'login_invalid_password', $redirectTarget);
+            }
+
+            $userId = (int) $userRecord['id'];
+
+            if (password_needs_rehash($passwordHash, PASSWORD_DEFAULT)) {
+                $this->userModel->updatePasswordHash($userId, $password);
+            }
+
+            $this->userModel->touchLastLogin($userId);
+
+            $user = $this->userModel->findById($userId);
 
             if ($user === null) {
                 return $this->redirectWithError($response, 'login_invalid_password', $redirectTarget);
