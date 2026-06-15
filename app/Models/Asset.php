@@ -103,6 +103,22 @@ class Asset
     }
 
     /**
+     * @return list<array<string, mixed>>
+     */
+    public function findAllByUserId(int $userId): array
+    {
+        $rows = $this->db()->select('assets', '*', [
+            'user_id' => $userId,
+            'ORDER' => ['id' => 'ASC'],
+        ]);
+
+        return array_map(
+            fn (array $row): array => $this->normalizeRow($row),
+            $rows
+        );
+    }
+
+    /**
      * @return array{total: int, deployed: int, in_storage: int, broken: int}
      */
     public function getMetrics(): array

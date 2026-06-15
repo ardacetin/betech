@@ -59,6 +59,11 @@ class DatabaseInitializer
                     $this->applySqlFile($connection, $this->getSettingsTableMigrationPath());
                     $warnings[] = 'Applied migration: created settings table.';
                 }
+
+                if (!$this->usersStatusColumnExists($connection)) {
+                    $this->applySqlFile($connection, $this->getUsersStatusColumnMigrationPath());
+                    $warnings[] = 'Applied migration: added users.status column.';
+                }
             }
 
             if (is_readable($this->seedsPath)) {
@@ -127,6 +132,21 @@ class DatabaseInitializer
     private function getSettingsTableMigrationPath(): string
     {
         return dirname($this->schemaPath) . '/migrations/003_create_settings_table.sql';
+    }
+
+    private function getUsersStatusColumnMigrationPath(): string
+    {
+        return dirname($this->schemaPath) . '/migrations/004_add_users_status_column.sql';
+    }
+
+    /**
+     * @param object $connection Medoo instance
+     */
+    private function usersStatusColumnExists(object $connection): bool
+    {
+        $statement = $connection->query("SHOW COLUMNS FROM users LIKE 'status'");
+
+        return $statement !== false && $statement->rowCount() > 0;
     }
 
     /**

@@ -15,6 +15,7 @@ declare(strict_types=1);
  * @var string $assetQrCodesJson
  * @var string $settingsJson
  * @var string $globalCustomFieldsJson
+ * @var string $personnelJson
  */
 
 $statusStyles = [
@@ -99,6 +100,13 @@ $i18nScript = json_encode([
     'settings_auth_google_hint' => __('settings_auth_google_hint'),
     'settings_auth_azure' => __('settings_auth_azure'),
     'settings_auth_azure_hint' => __('settings_auth_azure_hint'),
+    'history_action_offboarded' => __('history_action_offboarded'),
+    'offboard_confirm' => __('offboard_confirm'),
+    'offboard_success' => __('offboard_success'),
+    'offboard_error' => __('offboard_error'),
+    'offboard_network_error' => __('offboard_network_error'),
+    'personnel_status_active' => __('personnel_status_active'),
+    'personnel_status_offboarded' => __('personnel_status_offboarded'),
 ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
 ?>
 <div class="min-h-full" x-data="assetDashboard()">
@@ -128,6 +136,15 @@ $i18nScript = json_encode([
                 </span>
                 <button
                     type="button"
+                    @click="activeView = 'personnel'"
+                    class="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm font-medium transition"
+                    :class="activeView === 'personnel' ? 'bg-zinc-100 text-zinc-900' : 'text-zinc-600 hover:bg-zinc-50'"
+                >
+                    <span class="h-2 w-2 rounded-full" :class="activeView === 'personnel' ? 'bg-zinc-900' : 'bg-zinc-300'"></span>
+                    <?= htmlspecialchars(__('nav_personnel'), ENT_QUOTES, 'UTF-8') ?>
+                </button>
+                <button
+                    type="button"
                     @click="activeView = 'settings'"
                     class="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm font-medium transition"
                     :class="activeView === 'settings' ? 'bg-zinc-100 text-zinc-900' : 'text-zinc-600 hover:bg-zinc-50'"
@@ -149,11 +166,11 @@ $i18nScript = json_encode([
                     <div>
                         <h1
                             class="text-2xl font-semibold tracking-tight text-zinc-900"
-                            x-text="activeView === 'settings' ? '<?= htmlspecialchars(__('settings_page_title'), ENT_QUOTES, 'UTF-8') ?>' : '<?= htmlspecialchars($pageTitle, ENT_QUOTES, 'UTF-8') ?>'"
+                            x-text="resolvePageTitle()"
                         ></h1>
                         <p
                             class="mt-1 text-sm text-zinc-500"
-                            x-text="activeView === 'settings' ? '<?= htmlspecialchars(__('settings_page_subtitle'), ENT_QUOTES, 'UTF-8') ?>' : '<?= htmlspecialchars(__('page_subtitle'), ENT_QUOTES, 'UTF-8') ?>'"
+                            x-text="resolvePageSubtitle()"
                         ></p>
                     </div>
                     <div class="flex items-center gap-3">
@@ -383,6 +400,15 @@ $i18nScript = json_encode([
                                                 >
                                                     <?= htmlspecialchars(__('action_assign'), ENT_QUOTES, 'UTF-8') ?>
                                                 </button>
+                                                <?php if (!empty($asset['user_id'])): ?>
+                                                <button
+                                                    type="button"
+                                                    @click="printTutanak(<?= (int) $asset['id'] ?>)"
+                                                    class="rounded-lg border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-700 transition hover:bg-zinc-50"
+                                                >
+                                                    <?= htmlspecialchars(__('action_print_tutanak'), ENT_QUOTES, 'UTF-8') ?>
+                                                </button>
+                                                <?php endif; ?>
                                             </div>
                                         </td>
                                     </tr>
@@ -395,6 +421,7 @@ $i18nScript = json_encode([
                 </div>
 
                 <?php require __DIR__ . '/partials/settings_panel.php'; ?>
+                <?php require __DIR__ . '/partials/personnel_panel.php'; ?>
             </div>
         </main>
     </div>
@@ -660,10 +687,21 @@ $i18nScript = json_encode([
     window.__analytics = <?= $analyticsJson ?>;
     window.__settings = <?= $settingsJson ?>;
     window.__globalCustomFields = <?= $globalCustomFieldsJson ?>;
+    window.__personnel = <?= $personnelJson ?? '[]' ?>;
 
     function assetDashboard() {
         return {
             activeView: 'assets',
+            pageTitles: {
+                assets: <?= json_encode($pageTitle, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
+                settings: <?= json_encode(__('settings_page_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
+                personnel: <?= json_encode(__('personnel_page_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
+            },
+            pageSubtitles: {
+                assets: <?= json_encode(__('page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
+                settings: <?= json_encode(__('settings_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
+                personnel: <?= json_encode(__('personnel_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
+            },
             isAddOpen: false,
             isEditOpen: false,
             isDetailOpen: false,
@@ -727,6 +765,57 @@ $i18nScript = json_encode([
             settingsErrorMessage: '',
             settingsSuccessMessage: '',
             globalCustomFields: Array.isArray(window.__globalCustomFields) ? window.__globalCustomFields : [],
+            personnel: Array.isArray(window.__personnel) ? window.__personnel : [],
+            isOffboarding: false,
+            offboardSuccessMessage: '',
+            offboardErrorMessage: '',
+            resolvePageTitle() {
+                return this.pageTitles[this.activeView] || this.pageTitles.assets;
+            },
+            resolvePageSubtitle() {
+                return this.pageSubtitles[this.activeView] || this.pageSubtitles.assets;
+            },
+            resolvePersonnelStatus(status) {
+                return status === 'offboarded'
+                    ? window.__i18n.personnel_status_offboarded
+                    : window.__i18n.personnel_status_active;
+            },
+            printTutanak(assetId) {
+                window.open(`/api/assets/${assetId}/tutanak`, '_blank', 'noopener,noreferrer');
+            },
+            async startOffboarding(person) {
+                if (!person?.id || !window.confirm(window.__i18n.offboard_confirm)) {
+                    return;
+                }
+
+                this.isOffboarding = true;
+                this.offboardSuccessMessage = '';
+                this.offboardErrorMessage = '';
+
+                try {
+                    const response = await fetch(`/api/users/${person.id}/offboard`, {
+                        method: 'POST',
+                        headers: {
+                            'Accept': 'application/json',
+                        },
+                    });
+                    const result = await response.json();
+
+                    if (!response.ok) {
+                        this.offboardErrorMessage = result.message || window.__i18n.offboard_error;
+                        return;
+                    }
+
+                    this.offboardSuccessMessage = result.message || window.__i18n.offboard_success;
+                    person.status = 'offboarded';
+                    person.assigned_asset_count = 0;
+                    window.setTimeout(() => window.location.reload(), 1200);
+                } catch (error) {
+                    this.offboardErrorMessage = window.__i18n.offboard_network_error;
+                } finally {
+                    this.isOffboarding = false;
+                }
+            },
             openAddModal() {
                 this.addErrorMessage = '';
                 this.resetDynamicFields();
@@ -889,6 +978,7 @@ $i18nScript = json_encode([
                     unassigned: window.__i18n.history_action_unassigned,
                     status_change: window.__i18n.history_action_status_change,
                     updated: window.__i18n.history_action_updated,
+                    offboarded: window.__i18n.history_action_offboarded,
                 };
 
                 return labels[action] || action;

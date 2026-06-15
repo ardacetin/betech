@@ -7,6 +7,7 @@ namespace App\Controllers;
 use App\Models\Asset;
 use App\Models\Category;
 use App\Models\Setting;
+use App\Models\User;
 use App\Services\AnalyticsService;
 use App\Services\QrCodeService;
 use App\Services\Translator;
@@ -26,7 +27,8 @@ class HealthController
         private readonly ViewRenderer $viewRenderer,
         private readonly QrCodeService $qrCodeService,
         private readonly AnalyticsService $analyticsService,
-        private readonly Setting $settingModel
+        private readonly Setting $settingModel,
+        private readonly User $userModel
     ) {
     }
 
@@ -36,6 +38,19 @@ class HealthController
         $assets = $this->assetModel->findAllForDashboard();
         $analytics = $this->analyticsService->getDashboardStats();
         $settings = $this->settingModel->getAdminBundle();
+        $personnel = $this->userModel->findAllForPersonnel();
+        $assetCounts = $this->userModel->assignedAssetCountsByUserId();
+        $personnelRows = array_map(
+            static function (array $user) use ($assetCounts): array {
+                $userId = (int) $user['id'];
+
+                return [
+                    ...$user,
+                    'assigned_asset_count' => $assetCounts[$userId] ?? 0,
+                ];
+            },
+            $personnel
+        );
         $assetQrCodes = [];
 
         foreach ($assets as $asset) {
@@ -66,6 +81,8 @@ class HealthController
                 $settings['custom_fields'],
                 JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE
             ),
+            'personnel' => $personnelRows,
+            'personnelJson' => json_encode($personnelRows, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE),
         ]);
 
         $response->getBody()->write($html);

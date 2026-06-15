@@ -20,6 +20,7 @@ class LocalDriver implements UserIntegrationInterface
         $conditions = [
             'ORDER' => ['name' => 'ASC'],
             'LIMIT' => 20,
+            'status' => 'active',
         ];
 
         $trimmedQuery = trim($query);
@@ -58,6 +59,7 @@ class LocalDriver implements UserIntegrationInterface
                 'name',
                 'email',
                 'department',
+                'status',
             ], [
                 'id' => (int) $id,
             ]);
@@ -70,6 +72,7 @@ class LocalDriver implements UserIntegrationInterface
                 'name',
                 'email',
                 'department',
+                'status',
             ], [
                 'external_id' => $id,
             ]);
