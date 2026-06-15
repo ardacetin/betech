@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Middleware;
 
+use App\Services\ClientIpResolver;
 use App\Services\LoginAttemptService;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
@@ -20,6 +21,7 @@ class RateLimitMiddleware implements MiddlewareInterface
      */
     public function __construct(
         private readonly LoginAttemptService $loginAttemptService,
+        private readonly ClientIpResolver $clientIpResolver,
         private readonly array $protectedPaths = ['/api/login', '/login']
     ) {
     }
@@ -33,7 +35,7 @@ class RateLimitMiddleware implements MiddlewareInterface
             return $handler->handle($request);
         }
 
-        $ipAddress = LoginAttemptService::resolveClientIpFromRequest($request);
+        $ipAddress = $this->clientIpResolver->resolveFromRequest($request);
 
         if ($this->loginAttemptService->isRateLimited($ipAddress)) {
             return $this->rateLimitResponse();

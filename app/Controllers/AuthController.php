@@ -10,6 +10,7 @@ use App\Models\User;
 use App\Services\Auth\LdapAuthenticator;
 use App\Services\Auth\OAuthService;
 use App\Services\Auth\SessionAuthService;
+use App\Services\ClientIpResolver;
 use App\Services\LoginAttemptService;
 use App\Services\Translator;
 use App\Services\ViewRenderer;
@@ -28,6 +29,7 @@ class AuthController
         private readonly Personnel $personnelModel,
         private readonly SessionAuthService $sessionAuthService,
         private readonly LoginAttemptService $loginAttemptService,
+        private readonly ClientIpResolver $clientIpResolver,
         private readonly LdapAuthenticator $ldapAuthenticator,
         private readonly OAuthService $oauthService,
         private readonly ViewRenderer $viewRenderer
@@ -67,7 +69,7 @@ class AuthController
     {
         Translator::instance()->setLocale('tr');
 
-        $clientIp = LoginAttemptService::resolveClientIpFromRequest($request);
+        $clientIp = $this->clientIpResolver->resolveFromRequest($request);
         $parsedBody = $request->getParsedBody();
         $payload = is_array($parsedBody) ? $parsedBody : [];
         $mode = strtolower(trim((string) ($payload['mode'] ?? 'local')));
@@ -166,7 +168,7 @@ class AuthController
     {
         Translator::instance()->setLocale('tr');
 
-        $clientIp = LoginAttemptService::resolveClientIpFromRequest($request);
+        $clientIp = $this->clientIpResolver->resolveFromRequest($request);
         $parsedBody = $request->getParsedBody();
         $payload = is_array($parsedBody) ? $parsedBody : [];
         $mode = strtolower(trim((string) ($payload['mode'] ?? 'local')));

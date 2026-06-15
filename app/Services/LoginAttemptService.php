@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Services;
 
-use Psr\Http\Message\ServerRequestInterface;
 use Medoo\Medoo;
 
 class LoginAttemptService
@@ -71,29 +70,6 @@ class LoginAttemptService
             'ip_address' => $ipAddress,
             'attempted_at[<]' => date('Y-m-d H:i:s', time() - (self::WINDOW_MINUTES * 60)),
         ]);
-    }
-
-    public static function resolveClientIpFromRequest(ServerRequestInterface $request): string
-    {
-        $serverParams = $request->getServerParams();
-        $candidates = [
-            $serverParams['HTTP_X_FORWARDED_FOR'] ?? null,
-            $serverParams['REMOTE_ADDR'] ?? null,
-        ];
-
-        foreach ($candidates as $candidate) {
-            if (!is_string($candidate) || trim($candidate) === '') {
-                continue;
-            }
-
-            $first = trim(explode(',', $candidate)[0]);
-
-            if (filter_var($first, FILTER_VALIDATE_IP) !== false) {
-                return $first;
-            }
-        }
-
-        return '';
     }
 
     private function normalizeIpAddress(string $ipAddress): string

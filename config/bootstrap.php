@@ -34,6 +34,7 @@ use App\Services\Auth\LdapAuthenticator;
 use App\Services\Auth\OAuthService;
 use App\Services\Auth\SessionAuthService;
 use App\Services\Auth\UserIntegrationFactory;
+use App\Services\ClientIpResolver;
 use App\Services\DatabaseService;
 use App\Services\LoginAttemptService;
 use App\Services\QrCodeService;
@@ -57,6 +58,7 @@ $isHttps = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
 
 $databaseService = new DatabaseService($databaseConfig);
 $loginAttemptService = new LoginAttemptService($databaseService);
+$clientIpResolver = new ClientIpResolver($appConfig['trusted_proxies']);
 
 $app = AppFactory::create();
 
@@ -80,11 +82,11 @@ $publicPaths = [
 $app->add(new RoleMiddleware($sessionAuthService, $publicPaths, RoleMiddleware::defaultRules()));
 $app->add(new AuthMiddleware($sessionAuthService, $publicPaths, $userModel));
 $app->add(new CsrfMiddleware($sessionAuthService, ['/api/login']));
-$app->add(new RateLimitMiddleware($loginAttemptService));
+$app->add(new RateLimitMiddleware($loginAttemptService, $clientIpResolver));
 $app->add(new SecurityHeadersMiddleware($isHttps));
 
 $displayErrorDetails = $appConfig['display_error_details'] && !$appConfig['is_production'];
-$appLogger = new AppLogger($rootPath . '/logs/app.log');
+$appLogger = new AppLogger($rootPath . '/logs/app.log', $clientIpResolver);
 $errorMiddleware = $app->addErrorMiddleware($displayErrorDetails, true, true);
 $errorHandler = new HttpErrorHandler(
     $app->getCallableResolver(),
@@ -114,15 +116,16 @@ $authController = new AuthController(
     $personnelModel,
     $sessionAuthService,
     $loginAttemptService,
+    $clientIpResolver,
     $ldapAuthenticator,
     $oauthService,
     $viewRenderer
 );
 $healthController = new HealthController($appConfig, $assetModel, $categoryModel, $viewRenderer, $qrCodeService, $analyticsService, $settingModel, $userModel, $sessionAuthService);
-$assetController = new AssetController($assetModel, $assetHistoryModel, $userIntegrationFactory, $personnelModel, $userModel, $locationModel, $sessionAuthService);
+$assetController = new AssetController($assetModel, $assetHistoryModel, $userIntegrationFactory, $personnelModel, $userModel, $locationModel, $sessionAuthService, $clientIpResolver);
 $assetViewController = new AssetViewController($appConfig, $assetModel, $categoryModel, $viewRenderer);
 $assetTutanakController = new AssetTutanakController($assetModel, $settingModel, $personnelModel, $userModel, $userIntegrationFactory, $zimmetTutanakService, $viewRenderer, $sessionAuthService);
-$userController = new UserController($userIntegrationFactory, $userModel, $personnelModel, $assetModel, $assetHistoryModel, $settingModel, $sessionAuthService);
+$userController = new UserController($userIntegrationFactory, $userModel, $personnelModel, $assetModel, $assetHistoryModel, $settingModel, $sessionAuthService, $clientIpResolver);
 $analyticsController = new AnalyticsController($analyticsService);
 $settingsController = new SettingsController($settingModel);
 $categoryController = new CategoryController($categoryModel);

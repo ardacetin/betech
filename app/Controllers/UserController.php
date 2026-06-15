@@ -11,6 +11,7 @@ use App\Models\Setting;
 use App\Models\User;
 use App\Services\Auth\SessionAuthService;
 use App\Services\Auth\UserIntegrationFactory;
+use App\Services\ClientIpResolver;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 
@@ -25,7 +26,8 @@ class UserController
         private readonly Asset $assetModel,
         private readonly AssetHistory $assetHistoryModel,
         private readonly Setting $settingModel,
-        private readonly SessionAuthService $sessionAuthService
+        private readonly SessionAuthService $sessionAuthService,
+        private readonly ClientIpResolver $clientIpResolver
     ) {
     }
 
@@ -403,7 +405,7 @@ class UserController
                 'offboarded',
                 $this->sessionAuthService->userId(),
                 $personnelId,
-                self::OFFBOARD_HISTORY_NOTE
+                $this->appendClientIpToNotes(self::OFFBOARD_HISTORY_NOTE, $request)
             );
 
             $reclaimedAssets[] = [
@@ -424,6 +426,23 @@ class UserController
                 'reclaimed_count' => count($reclaimedAssets),
             ],
         ]);
+    }
+
+    private function appendClientIpToNotes(?string $notes, ServerRequestInterface $request): ?string
+    {
+        $clientIp = $this->clientIpResolver->resolveFromRequest($request);
+
+        if ($clientIp === '') {
+            return $notes;
+        }
+
+        $suffix = sprintf('[client_ip: %s]', $clientIp);
+
+        if ($notes === null || trim($notes) === '') {
+            return $suffix;
+        }
+
+        return $notes . ' ' . $suffix;
     }
 
     /**

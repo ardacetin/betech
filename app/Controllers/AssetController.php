@@ -11,6 +11,7 @@ use App\Models\Personnel;
 use App\Models\User;
 use App\Services\Auth\SessionAuthService;
 use App\Services\Auth\UserIntegrationFactory;
+use App\Services\ClientIpResolver;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 
@@ -33,7 +34,8 @@ class AssetController
         private readonly Personnel $personnelModel,
         private readonly User $userModel,
         private readonly Location $locationModel,
-        private readonly SessionAuthService $sessionAuthService
+        private readonly SessionAuthService $sessionAuthService,
+        private readonly ClientIpResolver $clientIpResolver
     ) {
     }
 
@@ -65,7 +67,7 @@ class AssetController
 
         try {
             $asset = $this->assetModel->create($coreFields, $properties);
-            $this->logAssetCreation($asset, $coreFields);
+            $this->logAssetCreation($request, $asset, $coreFields);
         } catch (\RuntimeException $exception) {
             return $this->jsonResponse($response, 422, [
                 'status' => 'error',
@@ -140,7 +142,7 @@ class AssetController
                 $coreFields,
                 array_key_exists('properties', $payload) ? $properties : null
             );
-            $this->logAssetUpdates($assetId, $existingAsset, $coreFields);
+            $this->logAssetUpdates($request, $assetId, $existingAsset, $coreFields);
         } catch (\RuntimeException $exception) {
             return $this->jsonResponse($response, 422, [
                 'status' => 'error',
@@ -268,7 +270,8 @@ class AssetController
             ]);
         }
 
-        $this->assetHistoryModel->log(
+        $this->logAssetHistory(
+            $request,
             $assetId,
             'returned',
             $this->sessionAuthService->userId(),
@@ -277,7 +280,8 @@ class AssetController
         );
 
         if ($previousStatus !== 'ready') {
-            $this->assetHistoryModel->log(
+            $this->logAssetHistory(
+                $request,
                 $assetId,
                 'status_change',
                 $this->sessionAuthService->userId(),
@@ -374,7 +378,8 @@ class AssetController
         $oldUserName = $this->resolvePersonnelName($previousUserId) ?? ('personnel #' . $previousUserId);
         $newUserName = $this->resolvePersonnelName($newUserId) ?? ('personnel #' . $newUserId);
 
-        $this->assetHistoryModel->log(
+        $this->logAssetHistory(
+            $request,
             $assetId,
             'transferred',
             $this->sessionAuthService->userId(),
@@ -419,11 +424,12 @@ class AssetController
      * @param array<string, mixed> $asset
      * @param array<string, mixed> $coreFields
      */
-    private function logAssetCreation(array $asset, array $coreFields): void
+    private function logAssetCreation(ServerRequestInterface $request, array $asset, array $coreFields): void
     {
         $assetId = (int) $asset['id'];
 
-        $this->assetHistoryModel->log(
+        $this->logAssetHistory(
+            $request,
             $assetId,
             'created',
             null,
@@ -436,7 +442,8 @@ class AssetController
                 $locationId = (int) $coreFields['location_id'];
                 $locationName = $this->resolveLocationName($locationId);
 
-                $this->assetHistoryModel->log(
+                $this->logAssetHistory(
+                    $request,
                     $assetId,
                     'location_moved',
                     null,
@@ -454,7 +461,8 @@ class AssetController
         $targetUserId = (int) $coreFields['personnel_id'];
         $targetUserName = $this->resolvePersonnelName($targetUserId);
 
-        $this->assetHistoryModel->log(
+        $this->logAssetHistory(
+            $request,
             $assetId,
             'assigned',
             null,
@@ -469,7 +477,8 @@ class AssetController
             $locationId = (int) $coreFields['location_id'];
             $locationName = $this->resolveLocationName($locationId);
 
-            $this->assetHistoryModel->log(
+            $this->logAssetHistory(
+                $request,
                 $assetId,
                 'location_moved',
                 null,
@@ -486,10 +495,11 @@ class AssetController
      * @param array<string, mixed> $existingAsset
      * @param array<string, mixed> $coreFields
      */
-    private function logAssetUpdates(int $assetId, array $existingAsset, array $coreFields): void
+    private function logAssetUpdates(ServerRequestInterface $request, int $assetId, array $existingAsset, array $coreFields): void
     {
         if (array_key_exists('personnel_id', $coreFields)) {
             $this->logAssignmentChange(
+                $request,
                 $assetId,
                 $existingAsset['personnel_id'] ?? null,
                 $coreFields['personnel_id']
@@ -498,6 +508,7 @@ class AssetController
 
         if (array_key_exists('location_id', $coreFields)) {
             $this->logLocationChange(
+                $request,
                 $assetId,
                 $existingAsset['location_id'] ?? null,
                 $coreFields['location_id']
@@ -509,7 +520,8 @@ class AssetController
             $newStatus = (string) $coreFields['status'];
 
             if ($oldStatus !== $newStatus) {
-                $this->assetHistoryModel->log(
+                $this->logAssetHistory(
+                    $request,
                     $assetId,
                     'status_change',
                     null,
@@ -520,7 +532,7 @@ class AssetController
         }
     }
 
-    private function logAssignmentChange(int $assetId, mixed $previousUserId, mixed $nextUserId): void
+    private function logAssignmentChange(ServerRequestInterface $request, int $assetId, mixed $previousUserId, mixed $nextUserId): void
     {
         $oldUserId = $previousUserId !== null ? (int) $previousUserId : null;
         $newUserId = $nextUserId !== null ? (int) $nextUserId : null;
@@ -532,7 +544,8 @@ class AssetController
         if ($newUserId === null) {
             $oldUserName = $this->resolvePersonnelName($oldUserId);
 
-            $this->assetHistoryModel->log(
+            $this->logAssetHistory(
+                $request,
                 $assetId,
                 'unassigned',
                 null,
@@ -549,7 +562,8 @@ class AssetController
         $newUserName = $this->resolvePersonnelName($newUserId);
 
         if ($oldUserId === null) {
-            $this->assetHistoryModel->log(
+            $this->logAssetHistory(
+                $request,
                 $assetId,
                 'assigned',
                 null,
@@ -565,7 +579,8 @@ class AssetController
 
         $oldUserName = $this->resolvePersonnelName($oldUserId);
 
-        $this->assetHistoryModel->log(
+        $this->logAssetHistory(
+            $request,
             $assetId,
             'assigned',
             null,
@@ -578,7 +593,7 @@ class AssetController
         );
     }
 
-    private function logLocationChange(int $assetId, mixed $previousLocationId, mixed $nextLocationId): void
+    private function logLocationChange(ServerRequestInterface $request, int $assetId, mixed $previousLocationId, mixed $nextLocationId): void
     {
         $oldLocationId = $previousLocationId !== null ? (int) $previousLocationId : null;
         $newLocationId = $nextLocationId !== null ? (int) $nextLocationId : null;
@@ -590,7 +605,8 @@ class AssetController
         if ($newLocationId === null) {
             $oldLocationName = $this->resolveLocationName($oldLocationId);
 
-            $this->assetHistoryModel->log(
+            $this->logAssetHistory(
+                $request,
                 $assetId,
                 'location_moved',
                 null,
@@ -607,7 +623,8 @@ class AssetController
         $newLocationName = $this->resolveLocationName($newLocationId);
 
         if ($oldLocationId === null) {
-            $this->assetHistoryModel->log(
+            $this->logAssetHistory(
+                $request,
                 $assetId,
                 'location_moved',
                 null,
@@ -623,7 +640,8 @@ class AssetController
 
         $oldLocationName = $this->resolveLocationName($oldLocationId);
 
-        $this->assetHistoryModel->log(
+        $this->logAssetHistory(
+            $request,
             $assetId,
             'location_moved',
             null,
@@ -960,5 +978,39 @@ class AssetController
         return $response
             ->withHeader('Content-Type', 'application/json')
             ->withStatus($statusCode);
+    }
+
+    private function logAssetHistory(
+        ServerRequestInterface $request,
+        int $assetId,
+        string $action,
+        ?int $userId,
+        ?int $targetPersonnelId,
+        ?string $notes
+    ): void {
+        $this->assetHistoryModel->log(
+            $assetId,
+            $action,
+            $userId,
+            $targetPersonnelId,
+            $this->appendClientIpToNotes($notes, $request)
+        );
+    }
+
+    private function appendClientIpToNotes(?string $notes, ServerRequestInterface $request): ?string
+    {
+        $clientIp = $this->clientIpResolver->resolveFromRequest($request);
+
+        if ($clientIp === '') {
+            return $notes;
+        }
+
+        $suffix = sprintf('[client_ip: %s]', $clientIp);
+
+        if ($notes === null || trim($notes) === '') {
+            return $suffix;
+        }
+
+        return $notes . ' ' . $suffix;
     }
 }

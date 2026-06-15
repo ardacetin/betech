@@ -10,7 +10,8 @@ use Throwable;
 class AppLogger
 {
     public function __construct(
-        private readonly string $logFilePath
+        private readonly string $logFilePath,
+        private readonly ClientIpResolver $clientIpResolver
     ) {
     }
 
@@ -18,6 +19,7 @@ class AppLogger
     {
         $entry = [
             'timestamp' => date('c'),
+            'client_ip' => $this->clientIpResolver->resolveFromRequest($request),
             'method' => $request->getMethod(),
             'path' => $request->getUri()->getPath(),
             'query' => $request->getUri()->getQuery(),
