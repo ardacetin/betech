@@ -37,8 +37,8 @@ class SecurityHeaders
             "img-src 'self' data: blob:",
             "font-src 'self' https://fonts.gstatic.com data:",
             "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com",
-            "script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://cdn.jsdelivr.net",
-            "connect-src 'self'",
+            "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://static.cloudflareinsights.com",
+            "connect-src 'self' https://cdn.jsdelivr.net https://cloudflareinsights.com",
         ];
 
         return implode('; ', $directives);
