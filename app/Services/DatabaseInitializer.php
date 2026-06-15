@@ -60,7 +60,10 @@ class DatabaseInitializer
                     $warnings[] = 'Applied migration: created settings table.';
                 }
 
-                foreach ($this->patchLegacyUsersStatusColumn($connection) as $warning) {
+            }
+
+            if ($this->usersTableExists($connection)) {
+                foreach ($this->patchUsersTableColumns($connection) as $warning) {
                     $warnings[] = $warning;
                 }
             }
@@ -79,8 +82,8 @@ class DatabaseInitializer
                 $warnings[] = $warning;
             }
 
-            if ($this->usersTableExists($connection)) {
-                foreach ($this->patchUsersTableColumns($connection) as $warning) {
+            if ($this->tableExists($connection, 'personnel')) {
+                foreach ($this->patchPersonnelTableColumns($connection) as $warning) {
                     $warnings[] = $warning;
                 }
             }
@@ -165,47 +168,7 @@ class DatabaseInitializer
     }
 
     /**
-     * Add users.status only on legacy unified-user schemas that still have department.
-     * Post-separation databases store status on personnel; never reference users.department.
-     *
-     * @param object $connection Medoo instance
-     *
-     * @return list<string>
-     */
-    private function patchLegacyUsersStatusColumn(object $connection): array
-    {
-        $warnings = [];
-
-        if (!$this->usersTableExists($connection) || $this->usersStatusColumnExists($connection)) {
-            return $warnings;
-        }
-
-        if ($this->tableExists($connection, 'personnel')) {
-            return $warnings;
-        }
-
-        if (!$this->columnExists($connection, 'users', 'department')) {
-            return $warnings;
-        }
-
-        $afterColumn = $this->resolveUsersAlterAfterColumn($connection, 'department', 'email');
-        $connection->query(
-            sprintf(
-                "ALTER TABLE users ADD COLUMN status VARCHAR(32) NOT NULL DEFAULT 'active' AFTER %s",
-                $afterColumn
-            )
-        );
-        $warnings[] = 'Applied migration: added users.status column.';
-
-        if (!$this->indexExists($connection, 'users', 'idx_users_status')) {
-            $connection->query('ALTER TABLE users ADD KEY idx_users_status (status)');
-        }
-
-        return $warnings;
-    }
-
-    /**
-     * Self-heal legacy users tables by adding auth and RBAC columns when missing.
+     * Self-heal auth-only users columns: id, name, email, password_hash, role.
      *
      * @param object $connection Medoo instance
      *
@@ -215,41 +178,6 @@ class DatabaseInitializer
     {
         $warnings = [];
 
-        if ($this->tableExists($connection, 'personnel')
-            && !$this->usersTableHasLegacyPersonnelColumns($connection)) {
-            if (!$this->columnExists($connection, 'users', 'password_hash')) {
-                $connection->query(
-                    'ALTER TABLE users ADD COLUMN password_hash VARCHAR(255) NULL AFTER email'
-                );
-                $warnings[] = 'Self-healed users table: added password_hash column.';
-            }
-
-            if (!$this->columnExists($connection, 'users', 'role')) {
-                $afterColumn = $this->resolveUsersAlterAfterColumn($connection, 'password_hash', 'email');
-                $connection->query(
-                    sprintf(
-                        "ALTER TABLE users ADD COLUMN role VARCHAR(50) NOT NULL DEFAULT 'super_admin' AFTER %s",
-                        $afterColumn
-                    )
-                );
-                $warnings[] = 'Self-healed users table: added role column.';
-            }
-
-            if ($this->columnExists($connection, 'users', 'role')
-                && !$this->indexExists($connection, 'users', 'idx_users_role')) {
-                $connection->query('ALTER TABLE users ADD KEY idx_users_role (role)');
-                $warnings[] = 'Self-healed users table: added idx_users_role index.';
-            }
-
-            if ($this->columnExists($connection, 'users', 'role')) {
-                $connection->query(
-                    "UPDATE users SET role = 'super_admin' WHERE email = 'admin@betech.local' AND role = 'end_user'"
-                );
-            }
-
-            return $warnings;
-        }
-
         if (!$this->columnExists($connection, 'users', 'password_hash')) {
             $connection->query(
                 'ALTER TABLE users ADD COLUMN password_hash VARCHAR(255) NULL AFTER email'
@@ -257,48 +185,13 @@ class DatabaseInitializer
             $warnings[] = 'Self-healed users table: added password_hash column.';
         }
 
-        if (!$this->columnExists($connection, 'users', 'auth_provider')) {
-            $passwordAnchor = $this->columnExists($connection, 'users', 'password_hash')
-                ? 'password_hash'
-                : 'email';
-            $connection->query(
-                sprintf(
-                    "ALTER TABLE users ADD COLUMN auth_provider VARCHAR(32) NOT NULL DEFAULT 'local' AFTER %s",
-                    $passwordAnchor
-                )
-            );
-            $warnings[] = 'Self-healed users table: added auth_provider column.';
-        }
-
-        if (!$this->columnExists($connection, 'users', 'provider_subject')) {
-            $providerAnchor = $this->columnExists($connection, 'users', 'auth_provider')
-                ? 'auth_provider'
-                : ($this->columnExists($connection, 'users', 'password_hash') ? 'password_hash' : 'email');
-            $connection->query(
-                sprintf(
-                    'ALTER TABLE users ADD COLUMN provider_subject VARCHAR(255) NULL AFTER %s',
-                    $providerAnchor
-                )
-            );
-            $warnings[] = 'Self-healed users table: added provider_subject column.';
-        }
-
-        if (!$this->columnExists($connection, 'users', 'last_login_at')) {
-            $afterColumn = $this->resolveUsersAlterAfterColumn($connection, 'status', 'department', 'password_hash', 'email');
-            $connection->query(
-                sprintf(
-                    'ALTER TABLE users ADD COLUMN last_login_at DATETIME NULL AFTER %s',
-                    $afterColumn
-                )
-            );
-            $warnings[] = 'Self-healed users table: added last_login_at column.';
-        }
-
         if (!$this->columnExists($connection, 'users', 'role')) {
-            $afterColumn = $this->resolveUsersAlterAfterColumn($connection, 'status', 'department', 'password_hash', 'email');
+            $afterColumn = $this->resolveUsersAlterAfterColumn($connection, 'password_hash', 'email');
+            $defaultRole = $this->usersTableHasLegacyPersonnelColumns($connection) ? 'end_user' : 'super_admin';
             $connection->query(
                 sprintf(
-                    "ALTER TABLE users ADD COLUMN role VARCHAR(50) NOT NULL DEFAULT 'end_user' AFTER %s",
+                    "ALTER TABLE users ADD COLUMN role VARCHAR(50) NOT NULL DEFAULT '%s' AFTER %s",
+                    $defaultRole,
                     $afterColumn
                 )
             );
@@ -311,22 +204,72 @@ class DatabaseInitializer
             $warnings[] = 'Self-healed users table: added idx_users_role index.';
         }
 
-        if ($this->columnExists($connection, 'users', 'auth_provider')
-            && !$this->indexExists($connection, 'users', 'idx_users_auth_provider')) {
-            $connection->query('ALTER TABLE users ADD KEY idx_users_auth_provider (auth_provider)');
-            $warnings[] = 'Self-healed users table: added idx_users_auth_provider index.';
-        }
-
-        if ($this->columnExists($connection, 'users', 'provider_subject')
-            && !$this->indexExists($connection, 'users', 'idx_users_provider_subject')) {
-            $connection->query('ALTER TABLE users ADD KEY idx_users_provider_subject (provider_subject)');
-            $warnings[] = 'Self-healed users table: added idx_users_provider_subject index.';
-        }
-
         if ($this->columnExists($connection, 'users', 'role')) {
             $connection->query(
                 "UPDATE users SET role = 'super_admin' WHERE email = 'admin@betech.local' AND role = 'end_user'"
             );
+        }
+
+        return $warnings;
+    }
+
+    /**
+     * Self-heal personnel directory columns on the personnel table.
+     *
+     * @param object $connection Medoo instance
+     *
+     * @return list<string>
+     */
+    private function patchPersonnelTableColumns(object $connection): array
+    {
+        $warnings = [];
+
+        $columnDefinitions = [
+            'department' => 'VARCHAR(120) DEFAULT NULL',
+            'title' => 'VARCHAR(255) DEFAULT NULL',
+            'external_id' => 'VARCHAR(128) DEFAULT NULL',
+            'provider' => "VARCHAR(32) NOT NULL DEFAULT 'local'",
+            'status' => "VARCHAR(32) NOT NULL DEFAULT 'active'",
+            'created_at' => 'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP',
+        ];
+
+        foreach ($columnDefinitions as $column => $definition) {
+            if ($this->columnExists($connection, 'personnel', $column)) {
+                continue;
+            }
+
+            $afterColumn = $this->resolvePersonnelAlterAfterColumn($connection, $column);
+            $connection->query(
+                sprintf(
+                    'ALTER TABLE personnel ADD COLUMN %s %s AFTER %s',
+                    $column,
+                    $definition,
+                    $afterColumn
+                )
+            );
+            $warnings[] = sprintf('Self-healed personnel table: added %s column.', $column);
+        }
+
+        $indexes = [
+            'idx_personnel_department' => 'department',
+            'idx_personnel_external_id' => 'external_id',
+            'idx_personnel_provider' => 'provider',
+            'idx_personnel_status' => 'status',
+        ];
+
+        foreach ($indexes as $indexName => $column) {
+            if (!$this->columnExists($connection, 'personnel', $column)) {
+                continue;
+            }
+
+            if ($this->indexExists($connection, 'personnel', $indexName)) {
+                continue;
+            }
+
+            $connection->query(
+                sprintf('ALTER TABLE personnel ADD KEY %s (%s)', $indexName, $column)
+            );
+            $warnings[] = sprintf('Self-healed personnel table: added %s index.', $indexName);
         }
 
         return $warnings;
@@ -349,16 +292,12 @@ class DatabaseInitializer
         }
 
         if ($this->usersTableExists($connection)
-            && $this->tableExists($connection, 'personnel')
-            && $this->columnExists($connection, 'users', 'role')) {
-            $needsPersonnelMigration = $this->usersTableHasLegacyPersonnelColumns($connection)
-                || (
-                    (int) $connection->count('users', ['role' => 'end_user']) > 0
-                    && (
-                        $this->columnExists($connection, 'users', 'department')
-                        || $this->columnExists($connection, 'users', 'external_id')
-                    )
-                );
+            && $this->tableExists($connection, 'personnel')) {
+            $needsPersonnelMigration = $this->usersTableHasLegacyPersonnelColumns($connection);
+
+            if (!$needsPersonnelMigration && $this->columnExists($connection, 'users', 'role')) {
+                $needsPersonnelMigration = (int) $connection->count('users', ['role' => 'end_user']) > 0;
+            }
 
             if ($needsPersonnelMigration) {
                 $this->migrateLegacyPersonnelFromUsers($connection);
@@ -458,9 +397,11 @@ class DatabaseInitializer
         foreach ([
             'external_id' => 'uq_users_external_id',
             'department' => 'idx_users_department',
+            'title' => null,
             'status' => 'idx_users_status',
             'auth_provider' => 'idx_users_auth_provider',
             'provider_subject' => 'idx_users_provider_subject',
+            'provider' => null,
             'last_login_at' => null,
             'created_at' => null,
         ] as $column => $indexName) {
@@ -707,20 +648,15 @@ class DatabaseInitializer
     /**
      * @param object $connection Medoo instance
      */
-    private function usersStatusColumnExists(object $connection): bool
-    {
-        $statement = $connection->query("SHOW COLUMNS FROM users LIKE 'status'");
-
-        return $statement !== false && $statement->rowCount() > 0;
-    }
-
-    /**
-     * @param object $connection Medoo instance
-     */
     private function usersTableHasLegacyPersonnelColumns(object $connection): bool
     {
-        return $this->columnExists($connection, 'users', 'external_id')
-            || $this->columnExists($connection, 'users', 'department');
+        foreach (['external_id', 'department', 'title', 'provider', 'auth_provider', 'provider_subject', 'status'] as $column) {
+            if ($this->columnExists($connection, 'users', $column)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -734,36 +670,47 @@ class DatabaseInitializer
         $departmentSelect = $this->columnExists($connection, 'users', 'department')
             ? 'u.department'
             : 'NULL';
+        $titleSelect = $this->columnExists($connection, 'users', 'title')
+            ? 'u.title'
+            : 'NULL';
         $externalIdSelect = $this->columnExists($connection, 'users', 'external_id')
             ? 'u.external_id'
             : 'NULL';
-        $providerSelect = $this->columnExists($connection, 'users', 'auth_provider')
-            ? "COALESCE(u.auth_provider, 'local')"
-            : "'local'";
+        $providerSelect = $this->columnExists($connection, 'users', 'provider')
+            ? "COALESCE(u.provider, 'local')"
+            : ($this->columnExists($connection, 'users', 'auth_provider')
+                ? "COALESCE(u.auth_provider, 'local')"
+                : "'local'");
         $statusSelect = $this->columnExists($connection, 'users', 'status')
             ? "COALESCE(u.status, 'active')"
             : "'active'";
         $createdAtSelect = $this->columnExists($connection, 'users', 'created_at')
             ? 'u.created_at'
             : 'CURRENT_TIMESTAMP';
+        $whereClause = $this->columnExists($connection, 'users', 'role')
+            ? "u.role = 'end_user'"
+            : '1=1';
 
         $connection->query(sprintf(
             'INSERT INTO personnel (id, name, email, department, title, external_id, provider, status, created_at)
-            SELECT u.id, u.name, u.email, %1$s, NULL, %2$s, %3$s, %4$s, %5$s
+            SELECT u.id, u.name, u.email, %1$s, %2$s, %3$s, %4$s, %5$s, %6$s
             FROM users u
-            WHERE u.role = \'end_user\'
+            WHERE %7$s
             ON DUPLICATE KEY UPDATE
                 personnel.name = VALUES(name),
                 personnel.email = VALUES(email),
                 personnel.department = VALUES(department),
+                personnel.title = VALUES(title),
                 personnel.external_id = COALESCE(personnel.external_id, VALUES(external_id)),
                 personnel.provider = VALUES(provider),
                 personnel.status = VALUES(status)',
             $departmentSelect,
+            $titleSelect,
             $externalIdSelect,
             $providerSelect,
             $statusSelect,
-            $createdAtSelect
+            $createdAtSelect,
+            $whereClause
         ));
     }
 
@@ -775,6 +722,29 @@ class DatabaseInitializer
     {
         foreach ($preferredColumns as $column) {
             if ($this->columnExists($connection, 'users', $column)) {
+                return $column;
+            }
+        }
+
+        return 'email';
+    }
+
+    /**
+     * @param object $connection Medoo instance
+     */
+    private function resolvePersonnelAlterAfterColumn(object $connection, string $targetColumn): string
+    {
+        $chain = [
+            'department' => ['email', 'name'],
+            'title' => ['department', 'email', 'name'],
+            'external_id' => ['title', 'department', 'email', 'name'],
+            'provider' => ['external_id', 'title', 'department', 'email', 'name'],
+            'status' => ['provider', 'external_id', 'title', 'department', 'email', 'name'],
+            'created_at' => ['status', 'provider', 'external_id', 'title', 'department', 'email', 'name'],
+        ];
+
+        foreach ($chain[$targetColumn] ?? ['email'] as $column) {
+            if ($this->columnExists($connection, 'personnel', $column)) {
                 return $column;
             }
         }
