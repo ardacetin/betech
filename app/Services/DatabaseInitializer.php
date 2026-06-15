@@ -44,6 +44,11 @@ class DatabaseInitializer
                     );
                     $warnings[] = 'Applied migration: added categories.fields JSON column.';
                 }
+
+                if (!$this->usersTableExists($connection)) {
+                    $this->applySqlFile($connection, $this->getUsersTableMigrationPath());
+                    $warnings[] = 'Applied migration: created users table.';
+                }
             }
 
             if (is_readable($this->seedsPath)) {
@@ -87,6 +92,21 @@ class DatabaseInitializer
         $statement = $connection->query("SHOW TABLES LIKE 'assets'");
 
         return $statement !== false && $statement->rowCount() > 0;
+    }
+
+    /**
+     * @param object $connection Medoo instance
+     */
+    private function usersTableExists(object $connection): bool
+    {
+        $statement = $connection->query("SHOW TABLES LIKE 'users'");
+
+        return $statement !== false && $statement->rowCount() > 0;
+    }
+
+    private function getUsersTableMigrationPath(): string
+    {
+        return dirname($this->schemaPath) . '/migrations/001_create_users_table.sql';
     }
 
     /**

@@ -47,9 +47,12 @@ $metricCards = [
 
 $i18nScript = json_encode([
     'create_error' => __('create_error'),
+    'update_error' => __('update_error'),
     'network_error' => __('network_error'),
     'locale' => $locale ?? 'tr',
     'no_category_fields' => __('no_category_fields'),
+    'no_users_found' => __('no_users_found'),
+    'search_users_placeholder' => __('search_users_placeholder'),
 ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
 ?>
 <div class="min-h-full" x-data="assetDashboard()">
@@ -105,7 +108,7 @@ $i18nScript = json_encode([
                         </div>
                         <button
                             type="button"
-                            @click="openModal()"
+                            @click="openAddModal()"
                             class="inline-flex items-center gap-2 rounded-xl bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white shadow-soft transition hover:bg-zinc-800"
                         >
                             <span class="text-lg leading-none">+</span>
@@ -140,13 +143,15 @@ $i18nScript = json_encode([
                                     <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500"><?= htmlspecialchars(__('col_name'), ENT_QUOTES, 'UTF-8') ?></th>
                                     <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500"><?= htmlspecialchars(__('col_category'), ENT_QUOTES, 'UTF-8') ?></th>
                                     <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500"><?= htmlspecialchars(__('col_status'), ENT_QUOTES, 'UTF-8') ?></th>
+                                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500"><?= htmlspecialchars(__('col_assigned_user'), ENT_QUOTES, 'UTF-8') ?></th>
                                     <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500"><?= htmlspecialchars(__('col_properties'), ENT_QUOTES, 'UTF-8') ?></th>
+                                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500"><?= htmlspecialchars(__('col_actions'), ENT_QUOTES, 'UTF-8') ?></th>
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-zinc-100 bg-white">
                                 <?php if ($assets === []): ?>
                                 <tr>
-                                    <td colspan="5" class="px-6 py-12 text-center text-sm text-zinc-500">
+                                    <td colspan="7" class="px-6 py-12 text-center text-sm text-zinc-500">
                                         <?= htmlspecialchars(__('empty_assets_prefix'), ENT_QUOTES, 'UTF-8') ?>
                                         <span class="font-medium text-zinc-700"><?= htmlspecialchars(__('add_asset'), ENT_QUOTES, 'UTF-8') ?></span>
                                         <?= htmlspecialchars(__('empty_assets_suffix'), ENT_QUOTES, 'UTF-8') ?>
@@ -173,6 +178,13 @@ $i18nScript = json_encode([
                                                 <?= htmlspecialchars($translateStatus($status), ENT_QUOTES, 'UTF-8') ?>
                                             </span>
                                         </td>
+                                        <td class="px-6 py-4 text-sm text-zinc-600">
+                                            <?php if (!empty($asset['user_name'])): ?>
+                                                <?= htmlspecialchars((string) $asset['user_name'], ENT_QUOTES, 'UTF-8') ?>
+                                            <?php else: ?>
+                                                <span class="text-zinc-400"><?= htmlspecialchars(__('not_assigned'), ENT_QUOTES, 'UTF-8') ?></span>
+                                            <?php endif; ?>
+                                        </td>
                                         <td class="px-6 py-4">
                                             <div class="flex max-w-xl flex-wrap gap-2">
                                                 <?php if ($properties === []): ?>
@@ -187,6 +199,22 @@ $i18nScript = json_encode([
                                                 <?php endif; ?>
                                             </div>
                                         </td>
+                                        <td class="px-6 py-4">
+                                            <button
+                                                type="button"
+                                                @click='openEditModal(<?= json_encode([
+                                                    'id' => (int) $asset['id'],
+                                                    'asset_tag' => (string) $asset['asset_tag'],
+                                                    'name' => (string) $asset['name'],
+                                                    'status' => $status,
+                                                    'user_id' => $asset['user_id'] ?? null,
+                                                    'user_name' => $asset['user_name'] ?? null,
+                                                ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>)'
+                                                class="rounded-lg border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-700 transition hover:bg-zinc-50"
+                                            >
+                                                <?= htmlspecialchars(__('action_assign'), ENT_QUOTES, 'UTF-8') ?>
+                                            </button>
+                                        </td>
                                     </tr>
                                     <?php endforeach; ?>
                                 <?php endif; ?>
@@ -199,12 +227,12 @@ $i18nScript = json_encode([
     </div>
 
     <div
-        x-show="isOpen"
+        x-show="isAddOpen"
         x-cloak
         class="fixed inset-0 z-50 flex items-center justify-center px-4"
-        @keydown.escape.window="closeModal()"
+        @keydown.escape.window="closeAddModal()"
     >
-        <div class="absolute inset-0 bg-zinc-900/40 backdrop-blur-sm" @click="closeModal()"></div>
+        <div class="absolute inset-0 bg-zinc-900/40 backdrop-blur-sm" @click="closeAddModal()"></div>
 
         <div class="relative w-full max-w-2xl rounded-2xl border border-zinc-200 bg-white shadow-soft">
             <div class="flex items-center justify-between border-b border-zinc-200 px-6 py-4">
@@ -212,10 +240,10 @@ $i18nScript = json_encode([
                     <h3 class="text-lg font-semibold text-zinc-900"><?= htmlspecialchars(__('modal_add_asset'), ENT_QUOTES, 'UTF-8') ?></h3>
                     <p class="mt-1 text-sm text-zinc-500"><?= htmlspecialchars(__('modal_subtitle'), ENT_QUOTES, 'UTF-8') ?></p>
                 </div>
-                <button type="button" @click="closeModal()" class="rounded-lg p-2 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600">&times;</button>
+                <button type="button" @click="closeAddModal()" class="rounded-lg p-2 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600">&times;</button>
             </div>
 
-            <form @submit.prevent="submitForm" class="max-h-[70vh] overflow-y-auto px-6 py-5">
+            <form @submit.prevent="submitAddForm" class="max-h-[70vh] overflow-y-auto px-6 py-5">
                 <div class="grid gap-4 sm:grid-cols-2">
                     <label class="block sm:col-span-1">
                         <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('label_asset_tag'), ENT_QUOTES, 'UTF-8') ?></span>
@@ -257,6 +285,12 @@ $i18nScript = json_encode([
                 </div>
 
                 <div class="mt-6 border-t border-zinc-200 pt-5">
+                    <h4 class="text-sm font-semibold text-zinc-900"><?= htmlspecialchars(__('label_assign_user'), ENT_QUOTES, 'UTF-8') ?></h4>
+                    <p class="mt-1 text-xs text-zinc-500"><?= htmlspecialchars(__('assign_user_hint'), ENT_QUOTES, 'UTF-8') ?></p>
+                    <?php require __DIR__ . '/partials/user_picker.php'; ?>
+                </div>
+
+                <div class="mt-6 border-t border-zinc-200 pt-5">
                     <h4 class="text-sm font-semibold text-zinc-900"><?= htmlspecialchars(__('technical_specifications'), ENT_QUOTES, 'UTF-8') ?></h4>
                     <p class="mt-1 text-xs text-zinc-500"><?= htmlspecialchars(__('technical_specifications_hint'), ENT_QUOTES, 'UTF-8') ?></p>
 
@@ -289,10 +323,10 @@ $i18nScript = json_encode([
                     </div>
                 </div>
 
-                <div x-show="errorMessage" x-cloak class="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700" x-text="errorMessage"></div>
+                <div x-show="addErrorMessage" x-cloak class="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700" x-text="addErrorMessage"></div>
 
                 <div class="mt-6 flex items-center justify-end gap-3 border-t border-zinc-200 pt-5">
-                    <button type="button" @click="closeModal()" class="rounded-xl px-4 py-2.5 text-sm font-medium text-zinc-600 hover:bg-zinc-100"><?= htmlspecialchars(__('cancel'), ENT_QUOTES, 'UTF-8') ?></button>
+                    <button type="button" @click="closeAddModal()" class="rounded-xl px-4 py-2.5 text-sm font-medium text-zinc-600 hover:bg-zinc-100"><?= htmlspecialchars(__('cancel'), ENT_QUOTES, 'UTF-8') ?></button>
                     <button
                         type="submit"
                         :disabled="isSubmitting"
@@ -300,6 +334,64 @@ $i18nScript = json_encode([
                     >
                         <span x-show="isSubmitting"><?= htmlspecialchars(__('saving'), ENT_QUOTES, 'UTF-8') ?></span>
                         <span x-show="!isSubmitting"><?= htmlspecialchars(__('create_asset'), ENT_QUOTES, 'UTF-8') ?></span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div
+        x-show="isEditOpen"
+        x-cloak
+        class="fixed inset-0 z-50 flex items-center justify-center px-4"
+        @keydown.escape.window="closeEditModal()"
+    >
+        <div class="absolute inset-0 bg-zinc-900/40 backdrop-blur-sm" @click="closeEditModal()"></div>
+
+        <div class="relative w-full max-w-xl rounded-2xl border border-zinc-200 bg-white shadow-soft">
+            <div class="flex items-center justify-between border-b border-zinc-200 px-6 py-4">
+                <div>
+                    <h3 class="text-lg font-semibold text-zinc-900"><?= htmlspecialchars(__('modal_edit_asset'), ENT_QUOTES, 'UTF-8') ?></h3>
+                    <p class="mt-1 text-sm text-zinc-500"><?= htmlspecialchars(__('modal_edit_subtitle'), ENT_QUOTES, 'UTF-8') ?></p>
+                </div>
+                <button type="button" @click="closeEditModal()" class="rounded-lg p-2 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600">&times;</button>
+            </div>
+
+            <form @submit.prevent="submitEditForm" class="max-h-[70vh] overflow-y-auto px-6 py-5">
+                <div class="rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3">
+                    <p class="text-xs uppercase tracking-wide text-zinc-400"><?= htmlspecialchars(__('col_asset_tag'), ENT_QUOTES, 'UTF-8') ?></p>
+                    <p class="mt-1 text-sm font-semibold text-zinc-900" x-text="editAsset?.asset_tag"></p>
+                    <p class="mt-3 text-xs uppercase tracking-wide text-zinc-400"><?= htmlspecialchars(__('col_name'), ENT_QUOTES, 'UTF-8') ?></p>
+                    <p class="mt-1 text-sm text-zinc-700" x-text="editAsset?.name"></p>
+                </div>
+
+                <label class="mt-5 block">
+                    <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('label_status'), ENT_QUOTES, 'UTF-8') ?></span>
+                    <select x-model="editForm.status" class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4">
+                        <option value="ready"><?= htmlspecialchars(__('status_ready'), ENT_QUOTES, 'UTF-8') ?></option>
+                        <option value="deployed"><?= htmlspecialchars(__('status_deployed'), ENT_QUOTES, 'UTF-8') ?></option>
+                        <option value="storage"><?= htmlspecialchars(__('status_storage'), ENT_QUOTES, 'UTF-8') ?></option>
+                        <option value="broken"><?= htmlspecialchars(__('status_broken'), ENT_QUOTES, 'UTF-8') ?></option>
+                    </select>
+                </label>
+
+                <div class="mt-6 border-t border-zinc-200 pt-5">
+                    <h4 class="text-sm font-semibold text-zinc-900"><?= htmlspecialchars(__('label_assign_user'), ENT_QUOTES, 'UTF-8') ?></h4>
+                    <p class="mt-1 text-xs text-zinc-500"><?= htmlspecialchars(__('assign_user_hint'), ENT_QUOTES, 'UTF-8') ?></p>
+                    <?php require __DIR__ . '/partials/user_picker.php'; ?>
+                </div>
+
+                <div x-show="editErrorMessage" x-cloak class="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700" x-text="editErrorMessage"></div>
+
+                <div class="mt-6 flex items-center justify-end gap-3 border-t border-zinc-200 pt-5">
+                    <button type="button" @click="closeEditModal()" class="rounded-xl px-4 py-2.5 text-sm font-medium text-zinc-600 hover:bg-zinc-100"><?= htmlspecialchars(__('cancel'), ENT_QUOTES, 'UTF-8') ?></button>
+                    <button
+                        type="submit"
+                        :disabled="isSubmitting"
+                        class="inline-flex items-center gap-2 rounded-xl bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                        <span x-show="isSubmitting"><?= htmlspecialchars(__('saving'), ENT_QUOTES, 'UTF-8') ?></span>
+                        <span x-show="!isSubmitting"><?= htmlspecialchars(__('save_changes'), ENT_QUOTES, 'UTF-8') ?></span>
                     </button>
                 </div>
             </form>
@@ -315,12 +407,23 @@ $i18nScript = json_encode([
 
     function assetDashboard() {
         return {
-            isOpen: false,
+            isAddOpen: false,
+            isEditOpen: false,
             isSubmitting: false,
-            errorMessage: '',
+            addErrorMessage: '',
+            editErrorMessage: '',
             categoryFields: window.__categoryFields || {},
             dynamicFields: [],
             dynamicValues: {},
+            userSearchQuery: '',
+            userSearchResults: [],
+            userSearchLoading: false,
+            showUserResults: false,
+            selectedUser: null,
+            editAsset: null,
+            editForm: {
+                status: 'ready',
+            },
             form: {
                 asset_tag: '',
                 serial_number: '',
@@ -328,21 +431,90 @@ $i18nScript = json_encode([
                 category_id: '',
                 status: 'ready',
             },
-            openModal() {
-                this.errorMessage = '';
+            openAddModal() {
+                this.addErrorMessage = '';
                 this.resetDynamicFields();
-                this.isOpen = true;
+                this.resetUserSearch();
+                this.isAddOpen = true;
             },
-            closeModal() {
+            closeAddModal() {
                 if (this.isSubmitting) {
                     return;
                 }
 
-                this.isOpen = false;
+                this.isAddOpen = false;
+            },
+            openEditModal(asset) {
+                this.editErrorMessage = '';
+                this.editAsset = asset;
+                this.editForm.status = asset.status || 'ready';
+                this.resetUserSearch();
+
+                if (asset.user_id) {
+                    this.selectedUser = {
+                        id: String(asset.user_id),
+                        name: asset.user_name || '',
+                        email: '',
+                        department: null,
+                    };
+                } else {
+                    this.selectedUser = null;
+                }
+
+                this.isEditOpen = true;
+            },
+            closeEditModal() {
+                if (this.isSubmitting) {
+                    return;
+                }
+
+                this.isEditOpen = false;
+                this.editAsset = null;
             },
             resetDynamicFields() {
                 this.dynamicFields = [];
                 this.dynamicValues = {};
+            },
+            resetUserSearch() {
+                this.userSearchQuery = '';
+                this.userSearchResults = [];
+                this.userSearchLoading = false;
+                this.showUserResults = false;
+                this.selectedUser = null;
+            },
+            async searchUsers() {
+                this.userSearchLoading = true;
+
+                try {
+                    const query = encodeURIComponent(this.userSearchQuery.trim());
+                    const response = await fetch(`/api/users/search?q=${query}`, {
+                        headers: {
+                            'Accept': 'application/json',
+                        },
+                    });
+                    const result = await response.json();
+
+                    if (!response.ok) {
+                        this.userSearchResults = [];
+                        return;
+                    }
+
+                    this.userSearchResults = Array.isArray(result.data) ? result.data : [];
+                    this.showUserResults = true;
+                } catch (error) {
+                    this.userSearchResults = [];
+                } finally {
+                    this.userSearchLoading = false;
+                }
+            },
+            selectUser(user) {
+                this.selectedUser = user;
+                this.userSearchQuery = '';
+                this.userSearchResults = [];
+                this.showUserResults = false;
+            },
+            clearSelectedUser() {
+                this.selectedUser = null;
             },
             loadCategoryFields(categoryId) {
                 const normalizedId = String(categoryId || '');
@@ -370,7 +542,7 @@ $i18nScript = json_encode([
 
                 return field.label || field.name;
             },
-            buildPayload() {
+            buildAddPayload() {
                 const payload = {
                     asset_tag: this.form.asset_tag.trim(),
                     name: this.form.name.trim(),
@@ -380,6 +552,10 @@ $i18nScript = json_encode([
 
                 if (this.form.serial_number.trim() !== '') {
                     payload.serial_number = this.form.serial_number.trim();
+                }
+
+                if (this.selectedUser?.id) {
+                    payload.user_id = Number(this.selectedUser.id);
                 }
 
                 this.dynamicFields.forEach((field) => {
@@ -400,9 +576,15 @@ $i18nScript = json_encode([
 
                 return payload;
             },
-            async submitForm() {
+            buildEditPayload() {
+                return {
+                    status: this.editForm.status,
+                    user_id: this.selectedUser?.id ? Number(this.selectedUser.id) : null,
+                };
+            },
+            async submitAddForm() {
                 this.isSubmitting = true;
-                this.errorMessage = '';
+                this.addErrorMessage = '';
 
                 try {
                     const response = await fetch('/api/assets', {
@@ -411,18 +593,18 @@ $i18nScript = json_encode([
                             'Content-Type': 'application/json',
                             'Accept': 'application/json',
                         },
-                        body: JSON.stringify(this.buildPayload()),
+                        body: JSON.stringify(this.buildAddPayload()),
                     });
 
                     const result = await response.json();
 
                     if (!response.ok) {
                         if (result.errors) {
-                            this.errorMessage = Object.values(result.errors)
+                            this.addErrorMessage = Object.values(result.errors)
                                 .flat()
                                 .join(' ');
                         } else {
-                            this.errorMessage = result.message || window.__i18n.create_error;
+                            this.addErrorMessage = result.message || window.__i18n.create_error;
                         }
 
                         return;
@@ -430,7 +612,46 @@ $i18nScript = json_encode([
 
                     window.location.reload();
                 } catch (error) {
-                    this.errorMessage = window.__i18n.network_error;
+                    this.addErrorMessage = window.__i18n.network_error;
+                } finally {
+                    this.isSubmitting = false;
+                }
+            },
+            async submitEditForm() {
+                if (!this.editAsset?.id) {
+                    return;
+                }
+
+                this.isSubmitting = true;
+                this.editErrorMessage = '';
+
+                try {
+                    const response = await fetch(`/api/assets/${this.editAsset.id}`, {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json',
+                        },
+                        body: JSON.stringify(this.buildEditPayload()),
+                    });
+
+                    const result = await response.json();
+
+                    if (!response.ok) {
+                        if (result.errors) {
+                            this.editErrorMessage = Object.values(result.errors)
+                                .flat()
+                                .join(' ');
+                        } else {
+                            this.editErrorMessage = result.message || window.__i18n.update_error;
+                        }
+
+                        return;
+                    }
+
+                    window.location.reload();
+                } catch (error) {
+                    this.editErrorMessage = window.__i18n.network_error;
                 } finally {
                     this.isSubmitting = false;
                 }

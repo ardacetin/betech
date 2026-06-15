@@ -44,22 +44,37 @@ class Asset
      */
     public function findAllForDashboard(): array
     {
-        $assets = $this->findAll();
-        $categories = $this->db()->select('categories', ['id', 'name']);
-        $categoryNames = [];
+        $rows = $this->db()->select('assets', [
+            '[>]categories' => ['category_id' => 'id'],
+            '[>]users' => ['user_id' => 'id'],
+        ], [
+            'assets.id',
+            'assets.asset_tag',
+            'assets.serial_number',
+            'assets.name',
+            'assets.category_id',
+            'assets.status',
+            'assets.user_id',
+            'assets.properties',
+            'assets.created_at',
+            'assets.updated_at',
+            'category_name' => 'categories.name',
+            'user_name' => 'users.name',
+        ], [
+            'ORDER' => ['assets.id' => 'DESC'],
+        ]);
 
-        foreach ($categories as $category) {
-            $categoryNames[(int) $category['id']] = (string) $category['name'];
-        }
+        return array_map(
+            fn (array $row): array => $this->normalizeRow($row),
+            $rows
+        );
+    }
 
-        foreach ($assets as &$asset) {
-            $categoryId = (int) ($asset['category_id'] ?? 0);
-            $asset['category_name'] = $categoryNames[$categoryId] ?? 'Unknown';
-        }
+    public function findById(int $assetId): ?array
+    {
+        $row = $this->db()->get('assets', '*', ['id' => $assetId]);
 
-        unset($asset);
-
-        return $assets;
+        return $row === null ? null : $this->normalizeRow($row);
     }
 
     /**
@@ -107,6 +122,7 @@ class Asset
             'name' => $name,
             'category_id' => $categoryId,
             'status' => $status !== '' ? $status : 'ready',
+            'user_id' => array_key_exists('user_id', $coreFields) ? $coreFields['user_id'] : null,
             'properties' => $encodedProperties,
         ]);
 
@@ -120,9 +136,80 @@ class Asset
         return $this->normalizeRow($row);
     }
 
-    public function assetTagExists(string $assetTag): bool
+    /**
+     * Update an existing asset with core columns and optional hybrid JSON properties.
+     *
+     * @param array<string, mixed> $coreFields
+     * @param array<string, mixed>|null $properties Null keeps existing properties unchanged.
+     *
+     * @return array<string, mixed>|null
+     */
+    public function update(int $assetId, array $coreFields, ?array $properties = null): ?array
     {
-        return $this->db()->has('assets', ['asset_tag' => $assetTag]);
+        $existing = $this->db()->get('assets', '*', ['id' => $assetId]);
+
+        if ($existing === null) {
+            return null;
+        }
+
+        $updateData = [];
+
+        if (array_key_exists('asset_tag', $coreFields)) {
+            $updateData['asset_tag'] = trim((string) $coreFields['asset_tag']);
+        }
+
+        if (array_key_exists('name', $coreFields)) {
+            $updateData['name'] = trim((string) $coreFields['name']);
+        }
+
+        if (array_key_exists('serial_number', $coreFields)) {
+            $serialNumber = $coreFields['serial_number'] !== null
+                ? trim((string) $coreFields['serial_number'])
+                : null;
+            $updateData['serial_number'] = $serialNumber === '' ? null : $serialNumber;
+        }
+
+        if (array_key_exists('category_id', $coreFields)) {
+            $updateData['category_id'] = (int) $coreFields['category_id'];
+        }
+
+        if (array_key_exists('status', $coreFields)) {
+            $status = trim((string) $coreFields['status']);
+            $updateData['status'] = $status !== '' ? $status : 'ready';
+        }
+
+        if (array_key_exists('user_id', $coreFields)) {
+            $updateData['user_id'] = $coreFields['user_id'];
+        }
+
+        if ($properties !== null) {
+            $updateData['properties'] = $properties === []
+                ? null
+                : $this->encodeProperties($properties);
+        }
+
+        if ($updateData === []) {
+            return $this->normalizeRow($existing);
+        }
+
+        $updateData['updated_at'] = date('Y-m-d H:i:s');
+
+        $this->db()->update('assets', $updateData, ['id' => $assetId]);
+
+        $row = $this->db()->get('assets', '*', ['id' => $assetId]);
+
+        return $row === null ? null : $this->normalizeRow($row);
+    }
+
+    public function assetTagExists(string $assetTag, ?int $ignoreAssetId = null): bool
+    {
+        $conditions = ['asset_tag' => $assetTag];
+
+        if ($ignoreAssetId !== null) {
+            $conditions['id[!]'] = $ignoreAssetId;
+        }
+
+        return $this->db()->has('assets', $conditions);
     }
 
     public function categoryExists(int $categoryId): bool
@@ -239,6 +326,14 @@ class Asset
 
         if (isset($row['category_id'])) {
             $row['category_id'] = (int) $row['category_id'];
+        }
+
+        if (array_key_exists('category_name', $row) && $row['category_name'] === null) {
+            $row['category_name'] = null;
+        }
+
+        if (array_key_exists('user_name', $row) && $row['user_name'] === null) {
+            $row['user_name'] = null;
         }
 
         if (array_key_exists('user_id', $row) && $row['user_id'] !== null) {

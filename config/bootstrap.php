@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 use App\Controllers\AssetController;
 use App\Controllers\HealthController;
+use App\Controllers\UserController;
 use App\Middleware\LanguageMiddleware;
 use App\Models\Asset;
 use App\Models\Category;
+use App\Services\Auth\UserIntegrationFactory;
 use App\Services\DatabaseService;
 use App\Services\Translator;
 use App\Services\ViewRenderer;
@@ -39,12 +41,16 @@ $app->addErrorMiddleware(
 
 $assetModel = new Asset($databaseService);
 $categoryModel = new Category($databaseService);
+$userIntegrationFactory = new UserIntegrationFactory($databaseService);
 $viewRenderer = new ViewRenderer($rootPath . '/views');
 $healthController = new HealthController($appConfig, $assetModel, $categoryModel, $viewRenderer);
-$assetController = new AssetController($assetModel);
+$assetController = new AssetController($assetModel, $userIntegrationFactory);
+$userController = new UserController($userIntegrationFactory);
 
 $app->get('/', [$healthController, 'index']);
+$app->get('/api/users/search', [$userController, 'search']);
 $app->post('/api/assets', [$assetController, 'store']);
+$app->put('/api/assets/{id}', [$assetController, 'update']);
 
 return [
     'app' => $app,

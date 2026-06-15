@@ -21,3 +21,14 @@ INSERT INTO categories (name, slug, fields) VALUES
 ON DUPLICATE KEY UPDATE
     name = VALUES(name),
     fields = IF(categories.fields IS NULL, VALUES(fields), categories.fields);
+
+INSERT INTO users (external_id, name, email, department) VALUES
+('USR-001', 'Ayşe Yılmaz', 'ayse.yilmaz@betech.local', 'IT'),
+('USR-002', 'Mehmet Demir', 'mehmet.demir@betech.local', 'Finans'),
+('USR-003', 'Zeynep Kaya', 'zeynep.kaya@betech.local', 'İnsan Kaynakları'),
+('USR-004', 'Can Öztürk', 'can.ozturk@betech.local', 'Operasyon'),
+('USR-005', 'Elif Arslan', 'elif.arslan@betech.local', 'IT')
+ON DUPLICATE KEY UPDATE
+    name = VALUES(name),
+    email = VALUES(email),
+    department = VALUES(department);
