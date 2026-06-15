@@ -88,6 +88,13 @@ class DatabaseInitializer
                 $warnings[] = 'Seed file is missing. Default categories were not loaded.';
             }
 
+            if ($this->usersTableExists($connection)
+                && $this->columnExists($connection, 'users', 'password_hash')) {
+                foreach ($this->patchDefaultAdminPassword($connection) as $warning) {
+                    $warnings[] = $warning;
+                }
+            }
+
             return new DatabaseInitializationResult(true, null, $warnings);
         } catch (PDOException $exception) {
             return new DatabaseInitializationResult(
@@ -244,6 +251,49 @@ class DatabaseInitializer
                 "UPDATE users SET role = 'super_admin' WHERE email = 'admin@betech.local' AND role = 'end_user'"
             );
         }
+
+        return $warnings;
+    }
+
+    /**
+     * Migrate legacy plain-text default admin passwords to Bcrypt on startup.
+     *
+     * @param object $connection Medoo instance
+     *
+     * @return list<string>
+     */
+    private function patchDefaultAdminPassword(object $connection): array
+    {
+        $warnings = [];
+        $defaultAdminEmail = 'admin@betech.local';
+
+        $row = $connection->get('users', ['password_hash'], [
+            'email' => $defaultAdminEmail,
+        ]);
+
+        if ($row === null) {
+            return $warnings;
+        }
+
+        $passwordHash = (string) ($row['password_hash'] ?? '');
+
+        if (str_starts_with($passwordHash, '$2y$')) {
+            return $warnings;
+        }
+
+        $updatePayload = [
+            'password_hash' => password_hash('123456', PASSWORD_DEFAULT),
+        ];
+
+        if ($this->columnExists($connection, 'users', 'auth_provider')) {
+            $updatePayload['auth_provider'] = 'local';
+        }
+
+        $connection->update('users', $updatePayload, [
+            'email' => $defaultAdminEmail,
+        ]);
+
+        $warnings[] = 'Self-healed default admin password: migrated to Bcrypt hash.';
 
         return $warnings;
     }
