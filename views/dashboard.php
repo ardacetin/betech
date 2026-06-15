@@ -2515,7 +2515,7 @@ $i18nScript = json_encode([
                     const result = await response.json();
 
                     if (!response.ok) {
-                        this.locationsError = result.message || window.__i18n.locations_fetch_error;
+                        this.locationsError = result.error || result.message || window.__i18n.locations_fetch_error;
                         this.locations = [];
                         return;
                     }
@@ -2622,7 +2622,7 @@ $i18nScript = json_encode([
                     const result = await response.json();
 
                     if (!response.ok) {
-                        this.locationsError = result.message || window.__i18n.location_delete_error;
+                        this.locationsError = result.error || result.message || window.__i18n.location_delete_error;
                         return;
                     }
 

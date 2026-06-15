@@ -179,22 +179,17 @@ class LocationController
             ]);
         }
 
-        $assetCount = $this->locationModel->countAssets($locationId);
-
-        if ($assetCount > 0) {
-            return $this->jsonResponse($response, 422, [
-                'status' => 'error',
-                'message' => __('location_delete_in_use'),
-                'asset_count' => $assetCount,
+        if ($this->locationModel->countAssets($locationId) > 0) {
+            return $this->jsonResponse($response, 400, [
+                'error' => 'Bu lokasyonda kayıtlı envanterler var. Silmeden önce envanterleri başka yere aktarın.',
             ]);
         }
 
         try {
             $deleted = $this->locationModel->delete($locationId);
         } catch (\RuntimeException) {
-            return $this->jsonResponse($response, 422, [
-                'status' => 'error',
-                'message' => __('location_delete_in_use'),
+            return $this->jsonResponse($response, 400, [
+                'error' => 'Bu lokasyonda kayıtlı envanterler var. Silmeden önce envanterleri başka yere aktarın.',
             ]);
         }
 
