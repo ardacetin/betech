@@ -26,6 +26,8 @@ class HealthController
 
     public function index(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
     {
+        $categories = $this->categoryModel->findAll();
+
         $html = $this->viewRenderer->render('dashboard', [
             'appName' => 'Betech',
             'pageTitle' => __('page_title'),
@@ -33,7 +35,11 @@ class HealthController
             'locale' => Translator::instance()->getLocale(),
             'assets' => $this->assetModel->findAllForDashboard(),
             'metrics' => $this->assetModel->getMetrics(),
-            'categories' => $this->categoryModel->findAll(),
+            'categories' => $categories,
+            'categoryFieldsJson' => json_encode(
+                $this->categoryModel->fieldMapByCategoryId(),
+                JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE
+            ),
         ]);
 
         $response->getBody()->write($html);

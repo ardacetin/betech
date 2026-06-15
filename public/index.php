@@ -10,7 +10,8 @@ $bootstrap = require __DIR__ . '/../config/bootstrap.php';
 
 $databaseInitializer = new DatabaseInitializer(
     $bootstrap['db'],
-    dirname(__DIR__) . '/database/schema.sql'
+    dirname(__DIR__) . '/database/schema.sql',
+    dirname(__DIR__) . '/database/seeds.sql'
 );
 
 $initializationResult = $databaseInitializer->initialize();
@@ -29,6 +30,10 @@ if (!$initializationResult->isSuccessful()) {
     ], JSON_THROW_ON_ERROR);
 
     exit(1);
+}
+
+foreach ($initializationResult->getWarnings() as $warning) {
+    error_log('[Betech] Database warning: ' . $warning);
 }
 
 $bootstrap['app']->run();

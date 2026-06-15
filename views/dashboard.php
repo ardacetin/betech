@@ -10,6 +10,7 @@ declare(strict_types=1);
  * @var list<array<string, mixed>> $assets
  * @var array{total: int, deployed: int, in_storage: int, broken: int} $metrics
  * @var list<array<string, mixed>> $categories
+ * @var string $categoryFieldsJson
  */
 
 $statusStyles = [
@@ -47,6 +48,8 @@ $metricCards = [
 $i18nScript = json_encode([
     'create_error' => __('create_error'),
     'network_error' => __('network_error'),
+    'locale' => $locale ?? 'tr',
+    'no_category_fields' => __('no_category_fields'),
 ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
 ?>
 <div class="min-h-full" x-data="assetDashboard()">
@@ -228,7 +231,12 @@ $i18nScript = json_encode([
                     </label>
                     <label class="block sm:col-span-1">
                         <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('label_category'), ENT_QUOTES, 'UTF-8') ?></span>
-                        <select x-model="form.category_id" required class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4">
+                        <select
+                            x-model="form.category_id"
+                            @change="loadCategoryFields(form.category_id)"
+                            required
+                            class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4"
+                        >
                             <option value=""><?= htmlspecialchars(__('select_category'), ENT_QUOTES, 'UTF-8') ?></option>
                             <?php foreach ($categories as $category): ?>
                             <option value="<?= (int) $category['id'] ?>">
@@ -249,29 +257,35 @@ $i18nScript = json_encode([
                 </div>
 
                 <div class="mt-6 border-t border-zinc-200 pt-5">
-                    <h4 class="text-sm font-semibold text-zinc-900"><?= htmlspecialchars(__('dynamic_properties'), ENT_QUOTES, 'UTF-8') ?></h4>
-                    <p class="mt-1 text-xs text-zinc-500"><?= htmlspecialchars(__('dynamic_properties_hint'), ENT_QUOTES, 'UTF-8') ?></p>
-                    <div class="mt-4 grid gap-4 sm:grid-cols-2">
-                        <label class="block">
-                            <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('label_ram'), ENT_QUOTES, 'UTF-8') ?></span>
-                            <input x-model="form.ram" type="text" placeholder="16GB" class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4">
-                        </label>
-                        <label class="block">
-                            <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('label_cpu'), ENT_QUOTES, 'UTF-8') ?></span>
-                            <input x-model="form.cpu" type="text" placeholder="Intel i7" class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4">
-                        </label>
-                        <label class="block">
-                            <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('label_storage'), ENT_QUOTES, 'UTF-8') ?></span>
-                            <input x-model="form.storage" type="text" placeholder="512GB SSD" class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4">
-                        </label>
-                        <label class="block">
-                            <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('label_mac_address'), ENT_QUOTES, 'UTF-8') ?></span>
-                            <input x-model="form.mac_address" type="text" placeholder="00:11:22:33:44:55" class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4">
-                        </label>
-                        <label class="block sm:col-span-2">
-                            <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('label_ip_address'), ENT_QUOTES, 'UTF-8') ?></span>
-                            <input x-model="form.ip_address" type="text" placeholder="192.168.1.10" class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4">
-                        </label>
+                    <h4 class="text-sm font-semibold text-zinc-900"><?= htmlspecialchars(__('technical_specifications'), ENT_QUOTES, 'UTF-8') ?></h4>
+                    <p class="mt-1 text-xs text-zinc-500"><?= htmlspecialchars(__('technical_specifications_hint'), ENT_QUOTES, 'UTF-8') ?></p>
+
+                    <p
+                        x-show="dynamicFields.length === 0"
+                        x-cloak
+                        class="mt-4 rounded-xl border border-dashed border-zinc-200 bg-zinc-50 px-4 py-3 text-sm text-zinc-500"
+                    >
+                        <?= htmlspecialchars(__('no_category_fields'), ENT_QUOTES, 'UTF-8') ?>
+                    </p>
+
+                    <div x-show="dynamicFields.length > 0" x-cloak class="mt-4 grid gap-4 sm:grid-cols-2">
+                        <template x-for="field in dynamicFields" :key="field.name">
+                            <label class="block" :class="field.type === 'textarea' ? 'sm:col-span-2' : ''">
+                                <span class="mb-1.5 block text-sm font-medium text-zinc-700" x-text="resolveFieldLabel(field)"></span>
+                                <input
+                                    x-show="field.type !== 'textarea'"
+                                    :type="field.type === 'number' ? 'number' : 'text'"
+                                    x-model="dynamicValues[field.name]"
+                                    class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4"
+                                >
+                                <textarea
+                                    x-show="field.type === 'textarea'"
+                                    x-model="dynamicValues[field.name]"
+                                    rows="3"
+                                    class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4"
+                                ></textarea>
+                            </label>
+                        </template>
                     </div>
                 </div>
 
@@ -297,26 +311,26 @@ $i18nScript = json_encode([
 
 <script>
     window.__i18n = <?= $i18nScript ?>;
+    window.__categoryFields = <?= $categoryFieldsJson ?>;
 
     function assetDashboard() {
         return {
             isOpen: false,
             isSubmitting: false,
             errorMessage: '',
+            categoryFields: window.__categoryFields || {},
+            dynamicFields: [],
+            dynamicValues: {},
             form: {
                 asset_tag: '',
                 serial_number: '',
                 name: '',
                 category_id: '',
                 status: 'ready',
-                ram: '',
-                cpu: '',
-                storage: '',
-                mac_address: '',
-                ip_address: '',
             },
             openModal() {
                 this.errorMessage = '';
+                this.resetDynamicFields();
                 this.isOpen = true;
             },
             closeModal() {
@@ -325,6 +339,36 @@ $i18nScript = json_encode([
                 }
 
                 this.isOpen = false;
+            },
+            resetDynamicFields() {
+                this.dynamicFields = [];
+                this.dynamicValues = {};
+            },
+            loadCategoryFields(categoryId) {
+                const normalizedId = String(categoryId || '');
+                this.resetDynamicFields();
+
+                if (normalizedId === '') {
+                    return;
+                }
+
+                const fields = this.categoryFields[normalizedId] || this.categoryFields[Number(normalizedId)] || [];
+                this.dynamicFields = Array.isArray(fields) ? fields : [];
+
+                this.dynamicFields.forEach((field) => {
+                    if (!field || !field.name) {
+                        return;
+                    }
+
+                    this.dynamicValues[field.name] = '';
+                });
+            },
+            resolveFieldLabel(field) {
+                if (window.__i18n.locale === 'en' && field.label_en) {
+                    return field.label_en;
+                }
+
+                return field.label || field.name;
             },
             buildPayload() {
                 const payload = {
@@ -338,10 +382,20 @@ $i18nScript = json_encode([
                     payload.serial_number = this.form.serial_number.trim();
                 }
 
-                ['ram', 'cpu', 'storage', 'mac_address', 'ip_address'].forEach((field) => {
-                    if (this.form[field].trim() !== '') {
-                        payload[field] = this.form[field].trim();
+                this.dynamicFields.forEach((field) => {
+                    if (!field || !field.name) {
+                        return;
                     }
+
+                    const rawValue = this.dynamicValues[field.name];
+
+                    if (rawValue === undefined || rawValue === null || String(rawValue).trim() === '') {
+                        return;
+                    }
+
+                    payload[field.name] = field.type === 'number'
+                        ? Number(rawValue)
+                        : String(rawValue).trim();
                 });
 
                 return payload;

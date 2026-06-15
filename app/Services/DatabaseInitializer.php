@@ -11,7 +11,8 @@ class DatabaseInitializer
 {
     public function __construct(
         private readonly DatabaseService $databaseService,
-        private readonly string $schemaPath
+        private readonly string $schemaPath,
+        private readonly string $seedsPath
     ) {
     }
 
@@ -32,14 +33,26 @@ class DatabaseInitializer
 
         try {
             $connection = $this->databaseService->getConnection();
+            $warnings = [];
 
-            if ($this->assetsTableExists($connection)) {
-                return new DatabaseInitializationResult(true);
+            if (!$this->assetsTableExists($connection)) {
+                $this->applySqlFile($connection, $this->schemaPath);
+            } else {
+                if (!$this->categoriesFieldsColumnExists($connection)) {
+                    $connection->query(
+                        'ALTER TABLE categories ADD COLUMN fields JSON NULL AFTER slug'
+                    );
+                    $warnings[] = 'Applied migration: added categories.fields JSON column.';
+                }
             }
 
-            $this->applySchema($connection, $this->schemaPath);
+            if (is_readable($this->seedsPath)) {
+                $this->applySqlFile($connection, $this->seedsPath);
+            } else {
+                $warnings[] = 'Seed file is missing. Default categories were not loaded.';
+            }
 
-            return new DatabaseInitializationResult(true);
+            return new DatabaseInitializationResult(true, null, $warnings);
         } catch (PDOException $exception) {
             return new DatabaseInitializationResult(
                 false,
@@ -79,12 +92,22 @@ class DatabaseInitializer
     /**
      * @param object $connection Medoo instance
      */
-    private function applySchema(object $connection, string $schemaPath): void
+    private function categoriesFieldsColumnExists(object $connection): bool
     {
-        $sql = file_get_contents($schemaPath);
+        $statement = $connection->query("SHOW COLUMNS FROM categories LIKE 'fields'");
+
+        return $statement !== false && $statement->rowCount() > 0;
+    }
+
+    /**
+     * @param object $connection Medoo instance
+     */
+    private function applySqlFile(object $connection, string $sqlPath): void
+    {
+        $sql = file_get_contents($sqlPath);
 
         if ($sql === false) {
-            throw new RuntimeException(sprintf('Unable to read database schema file: %s', $schemaPath));
+            throw new RuntimeException(sprintf('Unable to read SQL file: %s', $sqlPath));
         }
 
         foreach ($this->parseSqlStatements($sql) as $statement) {
