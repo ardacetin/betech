@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Controllers\AnalyticsController;
 use App\Controllers\AssetController;
 use App\Controllers\AssetViewController;
 use App\Controllers\HealthController;
@@ -10,6 +11,7 @@ use App\Middleware\LanguageMiddleware;
 use App\Models\Asset;
 use App\Models\AssetHistory;
 use App\Models\Category;
+use App\Services\AnalyticsService;
 use App\Services\Auth\UserIntegrationFactory;
 use App\Services\DatabaseService;
 use App\Services\QrCodeService;
@@ -48,13 +50,16 @@ $categoryModel = new Category($databaseService);
 $userIntegrationFactory = new UserIntegrationFactory($databaseService);
 $viewRenderer = new ViewRenderer($rootPath . '/views');
 $qrCodeService = new QrCodeService($appConfig['url']);
-$healthController = new HealthController($appConfig, $assetModel, $categoryModel, $viewRenderer, $qrCodeService);
+$analyticsService = new AnalyticsService($databaseService);
+$healthController = new HealthController($appConfig, $assetModel, $categoryModel, $viewRenderer, $qrCodeService, $analyticsService);
 $assetController = new AssetController($assetModel, $assetHistoryModel, $userIntegrationFactory);
 $assetViewController = new AssetViewController($appConfig, $assetModel, $categoryModel, $viewRenderer);
 $userController = new UserController($userIntegrationFactory);
+$analyticsController = new AnalyticsController($analyticsService);
 
 $app->get('/', [$healthController, 'index']);
 $app->get('/assets/view/{id}', [$assetViewController, 'show']);
+$app->get('/api/analytics/summary', [$analyticsController, 'summary']);
 $app->get('/api/users/search', [$userController, 'search']);
 $app->post('/api/assets', [$assetController, 'store']);
 $app->put('/api/assets/{id}', [$assetController, 'update']);

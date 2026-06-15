@@ -8,7 +8,8 @@ declare(strict_types=1);
  * @var string $environment
  * @var string $locale
  * @var list<array<string, mixed>> $assets
- * @var array{total: int, deployed: int, in_storage: int, broken: int} $metrics
+ * @var array<string, mixed> $analytics
+ * @var string $analyticsJson
  * @var list<array<string, mixed>> $categories
  * @var string $categoryFieldsJson
  * @var string $assetQrCodesJson
@@ -39,12 +40,35 @@ $formatPropertyValue = static function (mixed $value): string {
     return (string) $value;
 };
 
-$metricCards = [
-    ['label' => __('metric_total_assets'), 'value' => $metrics['total'], 'hint' => __('metric_total_hint')],
-    ['label' => __('metric_deployed'), 'value' => $metrics['deployed'], 'hint' => __('metric_deployed_hint')],
-    ['label' => __('metric_in_storage'), 'value' => $metrics['in_storage'], 'hint' => __('metric_in_storage_hint')],
-    ['label' => __('metric_broken'), 'value' => $metrics['broken'], 'hint' => __('metric_broken_hint')],
+$statusChartColors = [
+    'ready' => 'bg-sky-500',
+    'deployed' => 'bg-emerald-500',
+    'storage' => 'bg-amber-500',
+    'broken' => 'bg-rose-500',
 ];
+
+$categoryChartColors = [
+    'bg-zinc-800',
+    'bg-sky-500',
+    'bg-emerald-500',
+    'bg-amber-500',
+    'bg-violet-500',
+    'bg-rose-500',
+];
+
+$summaryCards = [
+    ['label' => __('metric_total_assets'), 'value' => $analytics['summary_cards']['total'], 'hint' => __('metric_total_hint')],
+    ['label' => __('metric_deployed'), 'value' => $analytics['summary_cards']['deployed'], 'hint' => __('metric_deployed_hint')],
+    ['label' => __('metric_in_storage'), 'value' => $analytics['summary_cards']['in_storage'], 'hint' => __('metric_in_storage_hint')],
+    ['label' => __('metric_broken'), 'value' => $analytics['summary_cards']['broken'], 'hint' => __('metric_broken_hint')],
+];
+
+$assignedPercentage = (float) ($analytics['assignment']['assigned_percentage'] ?? 0);
+$assignmentGradient = sprintf(
+    'conic-gradient(#18181b 0%% %.1f%%, #e4e4e7 %.1f%% 100%%)',
+    $assignedPercentage,
+    $assignedPercentage
+);
 
 $i18nScript = json_encode([
     'create_error' => __('create_error'),
@@ -128,14 +152,104 @@ $i18nScript = json_encode([
             </header>
 
             <div class="mx-auto max-w-7xl space-y-8 px-6 py-8">
-                <section class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                    <?php foreach ($metricCards as $card): ?>
-                    <article class="rounded-2xl border border-zinc-200 bg-white p-5 shadow-soft">
-                        <p class="text-sm font-medium text-zinc-500"><?= htmlspecialchars($card['label'], ENT_QUOTES, 'UTF-8') ?></p>
-                        <p class="mt-3 text-3xl font-semibold tracking-tight text-zinc-900"><?= (int) $card['value'] ?></p>
-                        <p class="mt-2 text-xs text-zinc-400"><?= htmlspecialchars($card['hint'], ENT_QUOTES, 'UTF-8') ?></p>
-                    </article>
-                    <?php endforeach; ?>
+                <section class="space-y-4">
+                    <div>
+                        <h2 class="text-lg font-semibold tracking-tight text-zinc-900"><?= htmlspecialchars(__('analytics_title'), ENT_QUOTES, 'UTF-8') ?></h2>
+                        <p class="mt-1 text-sm text-zinc-500"><?= htmlspecialchars(__('analytics_subtitle'), ENT_QUOTES, 'UTF-8') ?></p>
+                    </div>
+
+                    <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                        <?php foreach ($summaryCards as $card): ?>
+                        <article class="rounded-2xl border border-zinc-200 bg-white p-5 shadow-soft">
+                            <p class="text-sm font-medium text-zinc-500"><?= htmlspecialchars($card['label'], ENT_QUOTES, 'UTF-8') ?></p>
+                            <p class="mt-3 text-3xl font-semibold tracking-tight text-zinc-900"><?= (int) $card['value'] ?></p>
+                            <p class="mt-2 text-xs text-zinc-400"><?= htmlspecialchars($card['hint'], ENT_QUOTES, 'UTF-8') ?></p>
+                        </article>
+                        <?php endforeach; ?>
+                    </div>
+
+                    <div class="grid gap-4 lg:grid-cols-3">
+                        <article class="rounded-2xl border border-zinc-200 bg-white p-5 shadow-soft">
+                            <h3 class="text-sm font-semibold text-zinc-900"><?= htmlspecialchars(__('analytics_status_distribution'), ENT_QUOTES, 'UTF-8') ?></h3>
+                            <div class="mt-5 space-y-4">
+                                <?php foreach ($analytics['by_status'] as $row):
+                                    $statusKey = (string) $row['status'];
+                                    $barColor = $statusChartColors[$statusKey] ?? 'bg-zinc-500';
+                                    $barWidth = max(0, min(100, (float) $row['percentage']));
+                                ?>
+                                <div>
+                                    <div class="flex items-center justify-between gap-3 text-sm">
+                                        <span class="font-medium text-zinc-700"><?= htmlspecialchars($translateStatus($statusKey), ENT_QUOTES, 'UTF-8') ?></span>
+                                        <span class="tabular-nums text-zinc-500"><?= (int) $row['count'] ?> · <?= number_format((float) $row['percentage'], 1) ?>%</span>
+                                    </div>
+                                    <div class="mt-2 h-2 overflow-hidden rounded-full bg-zinc-100">
+                                        <div class="h-2 rounded-full transition-all duration-500 <?= $barColor ?>" style="width: <?= $barWidth ?>%"></div>
+                                    </div>
+                                </div>
+                                <?php endforeach; ?>
+                            </div>
+                        </article>
+
+                        <article class="rounded-2xl border border-zinc-200 bg-white p-5 shadow-soft">
+                            <h3 class="text-sm font-semibold text-zinc-900"><?= htmlspecialchars(__('analytics_category_distribution'), ENT_QUOTES, 'UTF-8') ?></h3>
+                            <?php if ($analytics['by_category'] === []): ?>
+                                <p class="mt-5 rounded-xl border border-dashed border-zinc-200 bg-zinc-50 px-4 py-6 text-sm text-zinc-500">
+                                    <?= htmlspecialchars(__('analytics_no_category_data'), ENT_QUOTES, 'UTF-8') ?>
+                                </p>
+                            <?php else: ?>
+                                <div class="mt-5 space-y-4">
+                                    <?php foreach ($analytics['by_category'] as $index => $row):
+                                        $barColor = $categoryChartColors[$index % count($categoryChartColors)];
+                                        $barWidth = max(0, min(100, (float) $row['percentage']));
+                                    ?>
+                                    <div>
+                                        <div class="flex items-center justify-between gap-3 text-sm">
+                                            <span class="truncate font-medium text-zinc-700"><?= htmlspecialchars((string) $row['category_name'], ENT_QUOTES, 'UTF-8') ?></span>
+                                            <span class="shrink-0 tabular-nums text-zinc-500"><?= (int) $row['count'] ?> · <?= number_format((float) $row['percentage'], 1) ?>%</span>
+                                        </div>
+                                        <div class="mt-2 h-2 overflow-hidden rounded-full bg-zinc-100">
+                                            <div class="h-2 rounded-full transition-all duration-500 <?= $barColor ?>" style="width: <?= $barWidth ?>%"></div>
+                                        </div>
+                                    </div>
+                                    <?php endforeach; ?>
+                                </div>
+                            <?php endif; ?>
+                        </article>
+
+                        <article class="rounded-2xl border border-zinc-200 bg-white p-5 shadow-soft">
+                            <h3 class="text-sm font-semibold text-zinc-900"><?= htmlspecialchars(__('analytics_assignment_overview'), ENT_QUOTES, 'UTF-8') ?></h3>
+                            <div class="mt-5 flex flex-col items-center gap-6 sm:flex-row sm:items-center sm:justify-between">
+                                <div class="relative flex h-36 w-36 shrink-0 items-center justify-center rounded-full" style="background: <?= htmlspecialchars($assignmentGradient, ENT_QUOTES, 'UTF-8') ?>">
+                                    <div class="flex h-28 w-28 flex-col items-center justify-center rounded-full bg-white shadow-soft">
+                                        <span class="text-2xl font-semibold tabular-nums text-zinc-900"><?= number_format($assignedPercentage, 1) ?>%</span>
+                                        <span class="mt-1 text-[10px] uppercase tracking-wide text-zinc-400"><?= htmlspecialchars(__('analytics_assigned'), ENT_QUOTES, 'UTF-8') ?></span>
+                                    </div>
+                                </div>
+                                <div class="w-full space-y-3 sm:flex-1">
+                                    <div class="flex items-center justify-between rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3">
+                                        <div class="flex items-center gap-2">
+                                            <span class="h-2.5 w-2.5 rounded-full bg-zinc-900"></span>
+                                            <span class="text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('analytics_assigned'), ENT_QUOTES, 'UTF-8') ?></span>
+                                        </div>
+                                        <span class="text-sm tabular-nums text-zinc-600">
+                                            <?= (int) $analytics['assignment']['assigned'] ?>
+                                            (<?= number_format((float) $analytics['assignment']['assigned_percentage'], 1) ?>%)
+                                        </span>
+                                    </div>
+                                    <div class="flex items-center justify-between rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3">
+                                        <div class="flex items-center gap-2">
+                                            <span class="h-2.5 w-2.5 rounded-full bg-zinc-300"></span>
+                                            <span class="text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('analytics_unassigned'), ENT_QUOTES, 'UTF-8') ?></span>
+                                        </div>
+                                        <span class="text-sm tabular-nums text-zinc-600">
+                                            <?= (int) $analytics['assignment']['unassigned'] ?>
+                                            (<?= number_format((float) $analytics['assignment']['unassigned_percentage'], 1) ?>%)
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        </article>
+                    </div>
                 </section>
 
                 <section class="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-soft">
@@ -509,6 +623,7 @@ $i18nScript = json_encode([
     window.__i18n = <?= $i18nScript ?>;
     window.__categoryFields = <?= $categoryFieldsJson ?>;
     window.__assetQrCodes = <?= $assetQrCodesJson ?>;
+    window.__analytics = <?= $analyticsJson ?>;
 
     function assetDashboard() {
         return {
