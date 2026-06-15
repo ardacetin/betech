@@ -64,15 +64,11 @@ class DatabaseInitializer
                     $this->applySqlFile($connection, $this->getUsersStatusColumnMigrationPath());
                     $warnings[] = 'Applied migration: added users.status column.';
                 }
+            }
 
-                if (!$this->usersAuthColumnsExist($connection)) {
-                    $this->applySqlFile($connection, $this->getUsersAuthColumnsMigrationPath());
-                    $warnings[] = 'Applied migration: added users authentication columns.';
-                }
-
-                if (!$this->usersRoleColumnExists($connection)) {
-                    $this->applySqlFile($connection, $this->getUsersRoleColumnMigrationPath());
-                    $warnings[] = 'Applied migration: added users.role column.';
+            if ($this->usersTableExists($connection)) {
+                foreach ($this->patchUsersTableColumns($connection) as $warning) {
+                    $warnings[] = $warning;
                 }
             }
 
@@ -149,22 +145,107 @@ class DatabaseInitializer
         return dirname($this->schemaPath) . '/migrations/004_add_users_status_column.sql';
     }
 
-    private function getUsersAuthColumnsMigrationPath(): string
+    /**
+     * Self-heal legacy users tables by adding auth and RBAC columns when missing.
+     *
+     * @param object $connection Medoo instance
+     *
+     * @return list<string>
+     */
+    private function patchUsersTableColumns(object $connection): array
     {
-        return dirname($this->schemaPath) . '/migrations/005_add_user_auth_columns.sql';
-    }
+        $warnings = [];
 
-    private function getUsersRoleColumnMigrationPath(): string
-    {
-        return dirname($this->schemaPath) . '/migrations/006_add_users_role_column.sql';
+        if (!$this->columnExists($connection, 'users', 'password_hash')) {
+            $connection->query(
+                'ALTER TABLE users ADD COLUMN password_hash VARCHAR(255) NULL AFTER email'
+            );
+            $warnings[] = 'Self-healed users table: added password_hash column.';
+        }
+
+        if (!$this->columnExists($connection, 'users', 'auth_provider')) {
+            $passwordAnchor = $this->columnExists($connection, 'users', 'password_hash')
+                ? 'password_hash'
+                : 'email';
+            $connection->query(
+                sprintf(
+                    "ALTER TABLE users ADD COLUMN auth_provider VARCHAR(32) NOT NULL DEFAULT 'local' AFTER %s",
+                    $passwordAnchor
+                )
+            );
+            $warnings[] = 'Self-healed users table: added auth_provider column.';
+        }
+
+        if (!$this->columnExists($connection, 'users', 'provider_subject')) {
+            $providerAnchor = $this->columnExists($connection, 'users', 'auth_provider')
+                ? 'auth_provider'
+                : ($this->columnExists($connection, 'users', 'password_hash') ? 'password_hash' : 'email');
+            $connection->query(
+                sprintf(
+                    'ALTER TABLE users ADD COLUMN provider_subject VARCHAR(255) NULL AFTER %s',
+                    $providerAnchor
+                )
+            );
+            $warnings[] = 'Self-healed users table: added provider_subject column.';
+        }
+
+        if (!$this->columnExists($connection, 'users', 'last_login_at')) {
+            $afterColumn = $this->columnExists($connection, 'users', 'status') ? 'status' : 'department';
+            $connection->query(
+                sprintf(
+                    'ALTER TABLE users ADD COLUMN last_login_at DATETIME NULL AFTER %s',
+                    $afterColumn
+                )
+            );
+            $warnings[] = 'Self-healed users table: added last_login_at column.';
+        }
+
+        if (!$this->columnExists($connection, 'users', 'role')) {
+            $afterColumn = $this->columnExists($connection, 'users', 'status') ? 'status' : 'department';
+            $connection->query(
+                sprintf(
+                    "ALTER TABLE users ADD COLUMN role VARCHAR(50) NOT NULL DEFAULT 'end_user' AFTER %s",
+                    $afterColumn
+                )
+            );
+            $warnings[] = 'Self-healed users table: added role column.';
+        }
+
+        if ($this->columnExists($connection, 'users', 'role')
+            && !$this->indexExists($connection, 'users', 'idx_users_role')) {
+            $connection->query('ALTER TABLE users ADD KEY idx_users_role (role)');
+            $warnings[] = 'Self-healed users table: added idx_users_role index.';
+        }
+
+        if ($this->columnExists($connection, 'users', 'auth_provider')
+            && !$this->indexExists($connection, 'users', 'idx_users_auth_provider')) {
+            $connection->query('ALTER TABLE users ADD KEY idx_users_auth_provider (auth_provider)');
+            $warnings[] = 'Self-healed users table: added idx_users_auth_provider index.';
+        }
+
+        if ($this->columnExists($connection, 'users', 'provider_subject')
+            && !$this->indexExists($connection, 'users', 'idx_users_provider_subject')) {
+            $connection->query('ALTER TABLE users ADD KEY idx_users_provider_subject (provider_subject)');
+            $warnings[] = 'Self-healed users table: added idx_users_provider_subject index.';
+        }
+
+        if ($this->columnExists($connection, 'users', 'role')) {
+            $connection->query(
+                "UPDATE users SET role = 'super_admin' WHERE email = 'admin@betech.local' AND role = 'end_user'"
+            );
+        }
+
+        return $warnings;
     }
 
     /**
      * @param object $connection Medoo instance
      */
-    private function usersAuthColumnsExist(object $connection): bool
+    private function columnExists(object $connection, string $table, string $column): bool
     {
-        $statement = $connection->query("SHOW COLUMNS FROM users LIKE 'password_hash'");
+        $statement = $connection->query(
+            sprintf("SHOW COLUMNS FROM `%s` LIKE '%s'", $this->escapeIdentifier($table), $column)
+        );
 
         return $statement !== false && $statement->rowCount() > 0;
     }
@@ -172,11 +253,18 @@ class DatabaseInitializer
     /**
      * @param object $connection Medoo instance
      */
-    private function usersRoleColumnExists(object $connection): bool
+    private function indexExists(object $connection, string $table, string $indexName): bool
     {
-        $statement = $connection->query("SHOW COLUMNS FROM users LIKE 'role'");
+        $statement = $connection->query(
+            sprintf("SHOW INDEX FROM `%s` WHERE Key_name = '%s'", $this->escapeIdentifier($table), $indexName)
+        );
 
         return $statement !== false && $statement->rowCount() > 0;
+    }
+
+    private function escapeIdentifier(string $identifier): string
+    {
+        return str_replace('`', '``', $identifier);
     }
 
     /**
