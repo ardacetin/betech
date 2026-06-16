@@ -72,94 +72,34 @@ class AuthController
         $clientIp = $this->clientIpResolver->resolveFromRequest($request);
         $parsedBody = $request->getParsedBody();
         $payload = is_array($parsedBody) ? $parsedBody : [];
-        $mode = strtolower(trim((string) ($payload['mode'] ?? 'local')));
         $identifier = trim((string) ($payload['identifier'] ?? $payload['email'] ?? $payload['username'] ?? ''));
         $password = trim((string) ($payload['password'] ?? $_POST['password'] ?? ''));
-        $providers = $this->settingModel->getLoginProviders();
         $redirectTarget = $this->sanitizeRedirect((string) ($payload['redirect'] ?? ''));
 
-        if ($mode === 'local') {
-            if (!$providers['local']) {
-                return $this->redirectWithError($response, 'login_provider_disabled', $redirectTarget);
-            }
-
-            if ($identifier === '' || $password === '') {
-                return $this->redirectWithError($response, 'login_missing_credentials', $redirectTarget);
-            }
-
-            $userRecord = $this->userModel->findByEmail($identifier);
-
-            if ($userRecord === null) {
-                $this->loginAttemptService->recordFailure($clientIp);
-
-                return $this->redirectWithError($response, 'login_invalid_password', $redirectTarget);
-            }
-
-            $passwordHash = (string) ($userRecord['password_hash'] ?? '');
-
-            if ($passwordHash === '' || !password_verify($password, $passwordHash)) {
-                $this->loginAttemptService->recordFailure($clientIp);
-
-                return $this->redirectWithError($response, 'login_invalid_password', $redirectTarget);
-            }
-
-            $userId = (int) $userRecord['id'];
-
-            if (password_needs_rehash($passwordHash, PASSWORD_DEFAULT)) {
-                $this->userModel->updatePasswordHash($userId, $password);
-            }
-
-            $user = $this->userModel->findById($userId);
-
-            if ($user === null) {
-                $this->loginAttemptService->recordFailure($clientIp);
-
-                return $this->redirectWithError($response, 'login_invalid_password', $redirectTarget);
-            }
-
-            $this->loginAttemptService->clearFailures($clientIp);
-            $this->sessionLoginFromUser($user);
-
-            return $response->withHeader('Location', $redirectTarget)->withStatus(302);
+        if ($identifier === '' || $password === '') {
+            return $this->redirectWithError($response, 'login_missing_credentials', $redirectTarget);
         }
 
-        if ($mode === 'ldap') {
-            if (!$providers['ldap']) {
-                return $this->redirectWithError($response, 'login_provider_disabled', $redirectTarget);
-            }
+        $userRecord = $this->userModel->findByEmail($identifier);
 
-            if ($identifier === '' || $password === '') {
-                return $this->redirectWithError($response, 'login_missing_credentials', $redirectTarget);
-            }
+        if ($userRecord === null) {
+            $this->loginAttemptService->recordFailure($clientIp);
 
-            $ldapProfile = $this->ldapAuthenticator->authenticate($identifier, $password);
-
-            if ($ldapProfile === null) {
-                $this->loginAttemptService->recordFailure($clientIp);
-
-                return $this->redirectWithError($response, 'login_ldap_failed', $redirectTarget);
-            }
-
-            $systemUser = $this->userModel->findByEmail($ldapProfile['email']);
-
-            if ($systemUser !== null) {
-                $this->loginAttemptService->clearFailures($clientIp);
-                $this->sessionLoginFromUser($systemUser);
-
-                return $response->withHeader('Location', $redirectTarget)->withStatus(302);
-            }
-
-            $person = $this->personnelModel->provisionFromAuth([
-                ...$ldapProfile,
-                'auth_provider' => Personnel::PROVIDER_LDAP,
-                'provider_subject' => $ldapProfile['external_id'],
-            ]);
-
-            $this->loginAttemptService->clearFailures($clientIp);
-            $this->sessionLoginFromPersonnel($person);
-
-            return $response->withHeader('Location', $redirectTarget)->withStatus(302);
+            return $this->redirectWithError($response, 'login_invalid_password', $redirectTarget);
         }
+
+        $role = User::normalizeRoleStatic((string) ($userRecord['role'] ?? ''));
+        $provider = $this->resolveUserAuthProvider($userRecord);
+
+        if ($role === User::ROLE_SUPER_ADMIN || $provider === User::PROVIDER_LOCAL) {
+            return $this->completeLocalDatabaseLogin($response, $clientIp, $userRecord, $password, $redirectTarget);
+        }
+
+        if ($provider === User::PROVIDER_LDAP) {
+            return $this->completeLdapUserLogin($response, $clientIp, $userRecord, $identifier, $password, $redirectTarget);
+        }
+
+        $this->loginAttemptService->recordFailure($clientIp);
 
         return $this->redirectWithError($response, 'login_provider_disabled', $redirectTarget);
     }
@@ -335,6 +275,113 @@ class AuthController
         return $response
             ->withHeader('Location', $authorizationUrl)
             ->withStatus(302);
+    }
+
+    /**
+     * @param array<string, mixed> $userRecord
+     */
+    private function completeLocalDatabaseLogin(
+        ResponseInterface $response,
+        string $clientIp,
+        array $userRecord,
+        string $password,
+        string $redirectTarget
+    ): ResponseInterface {
+
+        $passwordHash = (string) ($userRecord['password_hash'] ?? '');
+
+        if ($passwordHash === '' || !password_verify($password, $passwordHash)) {
+            $this->loginAttemptService->recordFailure($clientIp);
+
+            return $this->redirectWithError($response, 'login_invalid_password', $redirectTarget);
+        }
+
+        $userId = (int) $userRecord['id'];
+
+        if (password_needs_rehash($passwordHash, PASSWORD_DEFAULT)) {
+            $this->userModel->updatePasswordHash($userId, $password);
+        }
+
+        $user = $this->userModel->findById($userId);
+
+        if ($user === null) {
+            $this->loginAttemptService->recordFailure($clientIp);
+
+            return $this->redirectWithError($response, 'login_invalid_password', $redirectTarget);
+        }
+
+        $this->loginAttemptService->clearFailures($clientIp);
+        $this->sessionLoginFromUser($user);
+
+        return $response->withHeader('Location', $redirectTarget)->withStatus(302);
+    }
+
+    /**
+     * @param array<string, mixed> $userRecord
+     */
+    private function completeLdapUserLogin(
+        ResponseInterface $response,
+        string $clientIp,
+        array $userRecord,
+        string $identifier,
+        string $password,
+        string $redirectTarget
+    ): ResponseInterface {
+        $providers = $this->settingModel->getLoginProviders();
+
+        if (!$providers['ldap']) {
+            return $this->redirectWithError($response, 'login_provider_disabled', $redirectTarget);
+        }
+
+        $ldapProfile = $this->ldapAuthenticator->authenticate($identifier, $password);
+
+        if ($ldapProfile === null) {
+            $this->loginAttemptService->recordFailure($clientIp);
+
+            return $this->redirectWithError($response, 'login_ldap_failed', $redirectTarget);
+        }
+
+        $profileEmail = strtolower(trim((string) ($ldapProfile['email'] ?? '')));
+        $userEmail = strtolower(trim((string) ($userRecord['email'] ?? '')));
+
+        if ($profileEmail !== '' && $userEmail !== '' && $profileEmail !== $userEmail) {
+            $this->loginAttemptService->recordFailure($clientIp);
+
+            return $this->redirectWithError($response, 'login_ldap_failed', $redirectTarget);
+        }
+
+        $user = $this->userModel->findById((int) $userRecord['id']);
+
+        if ($user === null) {
+            $this->loginAttemptService->recordFailure($clientIp);
+
+            return $this->redirectWithError($response, 'login_ldap_failed', $redirectTarget);
+        }
+
+        $this->loginAttemptService->clearFailures($clientIp);
+        $this->sessionLoginFromUser($user);
+
+        return $response->withHeader('Location', $redirectTarget)->withStatus(302);
+    }
+
+    /**
+     * @param array<string, mixed> $userRecord
+     */
+    private function resolveUserAuthProvider(array $userRecord): string
+    {
+        foreach (['provider', 'auth_provider'] as $column) {
+            if (!isset($userRecord[$column])) {
+                continue;
+            }
+
+            $value = strtolower(trim((string) $userRecord[$column]));
+
+            if ($value !== '') {
+                return $value;
+            }
+        }
+
+        return User::PROVIDER_LOCAL;
     }
 
     private function sessionLoginFromPersonnel(array $person): void
