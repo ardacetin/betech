@@ -190,6 +190,10 @@ class DatabaseInitializer
             return ['Users table rebuild migration is missing or unreadable.'];
         }
 
+        if ($this->tableExists($connection, 'asset_histories')) {
+            $this->dropForeignKeyIfExists($connection, 'asset_histories', 'fk_asset_histories_user_id');
+        }
+
         $this->applySqlFile($connection, $migrationPath);
 
         return ['Applied migration: rebuilt users table with fresh system-user schema.'];
@@ -383,7 +387,8 @@ class DatabaseInitializer
             && $this->columnExists($connection, 'assets', 'user_id')
             && !$this->columnExists($connection, 'assets', 'personnel_id')) {
             $this->dropForeignKeyIfExists($connection, 'assets', 'fk_assets_user_id');
-            $connection->query(
+            $this->safeQuery(
+                $connection,
                 'ALTER TABLE assets CHANGE user_id personnel_id BIGINT UNSIGNED DEFAULT NULL'
             );
             $warnings[] = 'Self-healed assets table: renamed user_id to personnel_id.';
@@ -393,10 +398,10 @@ class DatabaseInitializer
             && $this->columnExists($connection, 'assets', 'personnel_id')
             && !$this->indexExists($connection, 'assets', 'idx_assets_personnel_id')) {
             if ($this->indexExists($connection, 'assets', 'idx_assets_user_id')) {
-                $connection->query('ALTER TABLE assets DROP INDEX idx_assets_user_id');
+                $this->safeQuery($connection, 'ALTER TABLE assets DROP INDEX idx_assets_user_id');
             }
 
-            $connection->query('ALTER TABLE assets ADD KEY idx_assets_personnel_id (personnel_id)');
+            $this->safeQuery($connection, 'ALTER TABLE assets ADD KEY idx_assets_personnel_id (personnel_id)');
             $warnings[] = 'Self-healed assets table: added idx_assets_personnel_id index.';
         }
 
@@ -404,7 +409,8 @@ class DatabaseInitializer
             && $this->tableExists($connection, 'personnel')
             && $this->columnExists($connection, 'assets', 'personnel_id')
             && !$this->foreignKeyExists($connection, 'assets', 'fk_assets_personnel_id')) {
-            $connection->query(
+            $this->safeQuery(
+                $connection,
                 'ALTER TABLE assets ADD CONSTRAINT fk_assets_personnel_id FOREIGN KEY (personnel_id) REFERENCES personnel (id) ON DELETE SET NULL ON UPDATE CASCADE'
             );
             $warnings[] = 'Self-healed assets table: added fk_assets_personnel_id foreign key.';
@@ -414,7 +420,8 @@ class DatabaseInitializer
             && $this->columnExists($connection, 'license_assignments', 'user_id')
             && !$this->columnExists($connection, 'license_assignments', 'personnel_id')) {
             $this->dropForeignKeyIfExists($connection, 'license_assignments', 'fk_license_assignments_user_id');
-            $connection->query(
+            $this->safeQuery(
+                $connection,
                 'ALTER TABLE license_assignments CHANGE user_id personnel_id BIGINT UNSIGNED DEFAULT NULL'
             );
             $warnings[] = 'Self-healed license_assignments table: renamed user_id to personnel_id.';
@@ -424,10 +431,10 @@ class DatabaseInitializer
             && $this->columnExists($connection, 'license_assignments', 'personnel_id')
             && !$this->indexExists($connection, 'license_assignments', 'idx_license_assignments_personnel_id')) {
             if ($this->indexExists($connection, 'license_assignments', 'idx_license_assignments_user_id')) {
-                $connection->query('ALTER TABLE license_assignments DROP INDEX idx_license_assignments_user_id');
+                $this->safeQuery($connection, 'ALTER TABLE license_assignments DROP INDEX idx_license_assignments_user_id');
             }
 
-            $connection->query('ALTER TABLE license_assignments ADD KEY idx_license_assignments_personnel_id (personnel_id)');
+            $this->safeQuery($connection, 'ALTER TABLE license_assignments ADD KEY idx_license_assignments_personnel_id (personnel_id)');
             $warnings[] = 'Self-healed license_assignments table: added idx_license_assignments_personnel_id index.';
         }
 
@@ -435,7 +442,8 @@ class DatabaseInitializer
             && $this->tableExists($connection, 'personnel')
             && $this->columnExists($connection, 'license_assignments', 'personnel_id')
             && !$this->foreignKeyExists($connection, 'license_assignments', 'fk_license_assignments_personnel_id')) {
-            $connection->query(
+            $this->safeQuery(
+                $connection,
                 'ALTER TABLE license_assignments ADD CONSTRAINT fk_license_assignments_personnel_id FOREIGN KEY (personnel_id) REFERENCES personnel (id) ON DELETE CASCADE ON UPDATE CASCADE'
             );
             $warnings[] = 'Self-healed license_assignments table: added fk_license_assignments_personnel_id foreign key.';
@@ -445,7 +453,8 @@ class DatabaseInitializer
             && $this->columnExists($connection, 'asset_histories', 'target_user_id')
             && !$this->columnExists($connection, 'asset_histories', 'target_personnel_id')) {
             $this->dropForeignKeyIfExists($connection, 'asset_histories', 'fk_asset_histories_target_user_id');
-            $connection->query(
+            $this->safeQuery(
+                $connection,
                 'ALTER TABLE asset_histories CHANGE target_user_id target_personnel_id BIGINT UNSIGNED DEFAULT NULL'
             );
             $warnings[] = 'Self-healed asset_histories table: renamed target_user_id to target_personnel_id.';
@@ -455,7 +464,8 @@ class DatabaseInitializer
             && $this->tableExists($connection, 'personnel')
             && $this->columnExists($connection, 'asset_histories', 'target_personnel_id')
             && !$this->foreignKeyExists($connection, 'asset_histories', 'fk_asset_histories_target_personnel_id')) {
-            $connection->query(
+            $this->safeQuery(
+                $connection,
                 'ALTER TABLE asset_histories ADD CONSTRAINT fk_asset_histories_target_personnel_id FOREIGN KEY (target_personnel_id) REFERENCES personnel (id) ON DELETE SET NULL ON UPDATE CASCADE'
             );
             $warnings[] = 'Self-healed asset_histories table: added fk_asset_histories_target_personnel_id foreign key.';
@@ -477,18 +487,18 @@ class DatabaseInitializer
             'provider_subject' => 'idx_users_provider_subject',
             'provider' => null,
             'last_login_at' => null,
-            'created_at' => null,
         ] as $column => $indexName) {
             if (!$this->columnExists($connection, 'users', $column)) {
                 continue;
             }
 
             if ($indexName !== null && $this->indexExists($connection, 'users', $indexName)) {
-                $connection->query(sprintf('ALTER TABLE users DROP INDEX %s', $indexName));
+                $this->safeQuery($connection, sprintf('ALTER TABLE users DROP INDEX %s', $indexName));
             }
 
-            $connection->query(sprintf('ALTER TABLE users DROP COLUMN %s', $column));
-            $warnings[] = sprintf('Self-healed users table: dropped legacy column %s.', $column);
+            if ($this->safeQuery($connection, sprintf('ALTER TABLE users DROP COLUMN %s', $column))) {
+                $warnings[] = sprintf('Self-healed users table: dropped legacy column %s.', $column);
+            }
         }
 
         return $warnings;
@@ -529,13 +539,45 @@ class DatabaseInitializer
             return;
         }
 
-        $connection->query(
+        $this->safeQuery(
+            $connection,
             sprintf(
                 'ALTER TABLE `%s` DROP FOREIGN KEY %s',
                 $this->escapeIdentifier($table),
                 $constraintName
             )
         );
+    }
+
+    /**
+     * Run a schema mutation query without aborting boot when the target is already gone.
+     *
+     * @param object $connection Medoo instance
+     */
+    private function safeQuery(object $connection, string $sql): bool
+    {
+        try {
+            $connection->query($sql);
+
+            return true;
+        } catch (\Throwable) {
+            return false;
+        }
+    }
+
+    /**
+     * Statements that should not crash initialization if already applied or missing.
+     */
+    private function isFailSafeSchemaStatement(string $statement): bool
+    {
+        $normalized = strtolower(trim($statement));
+
+        return str_contains($normalized, 'drop foreign key')
+            || str_contains($normalized, 'drop column')
+            || str_contains($normalized, 'drop index')
+            || str_contains($normalized, ' drop key ')
+            || str_contains($normalized, 'add constraint')
+            || preg_match('/\bdrop\s+table\s+if\s+exists\b/', $normalized) === 1;
     }
 
     /**
@@ -903,6 +945,11 @@ class DatabaseInitializer
         }
 
         foreach ($this->parseSqlStatements($sql) as $statement) {
+            if ($this->isFailSafeSchemaStatement($statement)) {
+                $this->safeQuery($connection, $statement);
+                continue;
+            }
+
             $connection->query($statement);
         }
     }

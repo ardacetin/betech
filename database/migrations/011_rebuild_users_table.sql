@@ -1,9 +1,8 @@
 -- Fresh users table for system operator accounts (auth only).
 -- Drops legacy users data; personnel lives in the personnel table.
+-- FK drop is handled in PHP (dropForeignKeyIfExists) before this file runs.
 
 SET FOREIGN_KEY_CHECKS = 0;
-
-ALTER TABLE asset_histories DROP FOREIGN KEY fk_asset_histories_user_id;
 
 UPDATE asset_histories SET user_id = NULL WHERE user_id IS NOT NULL;
 
