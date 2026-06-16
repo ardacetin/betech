@@ -36,8 +36,6 @@ class RateLimitMiddleware implements MiddlewareInterface
         }
 
         $ipAddress = $this->clientIpResolver->resolveFromRequest($request);
-        // Temporary: allow login attempts to reach the controller after rollout lockouts.
-        $this->loginAttemptService->clearFailures($ipAddress);
 
         if ($this->loginAttemptService->isRateLimited($ipAddress)) {
             return $this->rateLimitResponse($path);
