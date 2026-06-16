@@ -76,7 +76,7 @@ class AuthController
         $payload = is_array($parsedBody) ? $parsedBody : [];
         $mode = strtolower(trim((string) ($payload['mode'] ?? 'local')));
         $identifier = trim((string) ($payload['identifier'] ?? $payload['email'] ?? $payload['username'] ?? ''));
-        $password = (string) ($payload['password'] ?? '');
+        $password = trim((string) ($payload['password'] ?? $_POST['password'] ?? ''));
         $providers = $this->settingModel->getLoginProviders();
         $redirectTarget = $this->sanitizeRedirect((string) ($payload['redirect'] ?? ''));
 
@@ -100,6 +100,10 @@ class AuthController
             $passwordHash = (string) ($userRecord['password_hash'] ?? '');
 
             if ($passwordHash === '' || !password_verify($password, $passwordHash)) {
+                if (!password_verify($password, $passwordHash)) {
+                    die('<h3>DEBUG MODE</h3><b>Submitted Pass:</b> ' . htmlspecialchars($password) . ' (Length: ' . strlen($password) . ')<br><b>DB Hash:</b> ' . htmlspecialchars($passwordHash) . '<br><b>DB Hash Length:</b> ' . strlen($passwordHash) . '<br><i>If DB Hash Length is exactly 50 or less, your database column is truncating the 60-character Bcrypt hash!</i>');
+                }
+
                 $this->loginAttemptService->recordFailure($clientIp);
 
                 return $this->redirectWithError($response, 'login_invalid_password', $redirectTarget);
