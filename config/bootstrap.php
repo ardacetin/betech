@@ -52,9 +52,7 @@ $dotenv->safeLoad();
 $appConfig = require $rootPath . '/config/app.php';
 $databaseConfig = require $rootPath . '/config/database.php';
 
-$isHttps = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
-    || (isset($_SERVER['SERVER_PORT']) && (string) $_SERVER['SERVER_PORT'] === '443')
-    || (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && strtolower((string) $_SERVER['HTTP_X_FORWARDED_PROTO']) === 'https');
+$isHttps = request_is_https();
 
 $databaseService = new DatabaseService($databaseConfig);
 $loginAttemptService = new LoginAttemptService($databaseService);
@@ -81,7 +79,7 @@ $publicPaths = [
 ];
 $app->add(new RoleMiddleware($sessionAuthService, $publicPaths, RoleMiddleware::defaultRules()));
 $app->add(new AuthMiddleware($sessionAuthService, $publicPaths, $userModel));
-$app->add(new CsrfMiddleware($sessionAuthService, ['/api/login']));
+$app->add(new CsrfMiddleware($sessionAuthService, ['/login', '/api/login']));
 $app->add(new RateLimitMiddleware($loginAttemptService, $clientIpResolver));
 $app->add(new SecurityHeadersMiddleware($isHttps));
 

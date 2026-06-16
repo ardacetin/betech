@@ -70,6 +70,8 @@ class AuthController
         Translator::instance()->setLocale('tr');
 
         $clientIp = $this->clientIpResolver->resolveFromRequest($request);
+        // Temporary: unblock IPs locked out during auth hardening rollout.
+        $this->loginAttemptService->clearFailures($clientIp);
         $parsedBody = $request->getParsedBody();
         $payload = is_array($parsedBody) ? $parsedBody : [];
         $mode = strtolower(trim((string) ($payload['mode'] ?? 'local')));
@@ -169,6 +171,8 @@ class AuthController
         Translator::instance()->setLocale('tr');
 
         $clientIp = $this->clientIpResolver->resolveFromRequest($request);
+        // Temporary: unblock IPs locked out during auth hardening rollout.
+        $this->loginAttemptService->clearFailures($clientIp);
         $parsedBody = $request->getParsedBody();
         $payload = is_array($parsedBody) ? $parsedBody : [];
         $mode = strtolower(trim((string) ($payload['mode'] ?? 'local')));

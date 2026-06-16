@@ -94,10 +94,15 @@ class DatabaseInitializer
                 $warnings[] = 'Seed file is missing. Default categories were not loaded.';
             }
 
-            if ($this->usersTableExists($connection)
-                && $this->columnExists($connection, 'users', 'password_hash')) {
-                foreach ($this->patchDefaultAdminPassword($connection) as $warning) {
+            if ($this->usersTableExists($connection)) {
+                foreach ($this->ensureDefaultAdminExists($connection) as $warning) {
                     $warnings[] = $warning;
+                }
+
+                if ($this->columnExists($connection, 'users', 'password_hash')) {
+                    foreach ($this->patchDefaultAdminPassword($connection) as $warning) {
+                        $warnings[] = $warning;
+                    }
                 }
             }
 
@@ -462,6 +467,41 @@ class DatabaseInitializer
                 $constraintName
             )
         );
+    }
+
+    /**
+     * Ensure the default local super-admin exists after migrations or table splits.
+     *
+     * @param object $connection Medoo instance
+     *
+     * @return list<string>
+     */
+    private function ensureDefaultAdminExists(object $connection): array
+    {
+        $defaultAdminEmail = 'admin@betech.local';
+
+        if ($connection->has('users', ['email' => $defaultAdminEmail])) {
+            return [];
+        }
+
+        $insertPayload = [
+            'name' => 'Sistem Yöneticisi',
+            'email' => $defaultAdminEmail,
+            'password_hash' => password_hash('123456', PASSWORD_DEFAULT),
+            'role' => 'super_admin',
+        ];
+
+        if (!$this->columnExists($connection, 'users', 'password_hash')) {
+            unset($insertPayload['password_hash']);
+        }
+
+        if (!$this->columnExists($connection, 'users', 'role')) {
+            unset($insertPayload['role']);
+        }
+
+        $connection->insert('users', $insertPayload);
+
+        return ['Self-healed default admin: created admin@betech.local account.'];
     }
 
     /**

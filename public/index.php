@@ -11,9 +11,7 @@ $rootPath = dirname(__DIR__);
 
 Dotenv::createImmutable($rootPath)->safeLoad();
 
-$isHttps = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
-    || (isset($_SERVER['SERVER_PORT']) && (string) $_SERVER['SERVER_PORT'] === '443')
-    || (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && strtolower((string) $_SERVER['HTTP_X_FORWARDED_PROTO']) === 'https');
+$isHttps = request_is_https();
 
 ini_set('session.use_strict_mode', '1');
 ini_set('session.use_only_cookies', '1');

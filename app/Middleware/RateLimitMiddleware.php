@@ -36,9 +36,11 @@ class RateLimitMiddleware implements MiddlewareInterface
         }
 
         $ipAddress = $this->clientIpResolver->resolveFromRequest($request);
+        // Temporary: allow login attempts to reach the controller after rollout lockouts.
+        $this->loginAttemptService->clearFailures($ipAddress);
 
         if ($this->loginAttemptService->isRateLimited($ipAddress)) {
-            return $this->rateLimitResponse();
+            return $this->rateLimitResponse($path);
         }
 
         return $handler->handle($request);
@@ -49,8 +51,14 @@ class RateLimitMiddleware implements MiddlewareInterface
         return in_array($path, $this->protectedPaths, true);
     }
 
-    private function rateLimitResponse(): ResponseInterface
+    private function rateLimitResponse(string $path): ResponseInterface
     {
+        if ($path === '/login') {
+            $query = http_build_query(['error' => 'login_rate_limited']);
+
+            return (new Response(302))->withHeader('Location', '/login?' . $query);
+        }
+
         $response = new Response(429);
         $response->getBody()->write(json_encode([
             'error' => self::RATE_LIMIT_MESSAGE,
