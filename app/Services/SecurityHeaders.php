@@ -37,7 +37,7 @@ class SecurityHeaders
             "img-src 'self' data: blob:",
             "font-src 'self' https://fonts.gstatic.com data:",
             "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com",
-            "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://static.cloudflareinsights.com",
+            "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://static.cloudflareinsights.com",
             "connect-src 'self' https://cdn.jsdelivr.net https://cloudflareinsights.com",
         ];
 
