@@ -157,44 +157,39 @@ class RoleMiddleware implements MiddlewareInterface
                 'roles' => $operational,
             ],
             [
-                'methods' => ['GET'],
-                'pattern' => '/api/users',
+                'methods' => ['POST'],
+                'pattern' => '/api/personnel',
                 'roles' => $operational,
             ],
             [
                 'methods' => ['GET'],
-                'pattern' => '/api/system-users',
+                'pattern' => '/api/personnel/search',
+                'roles' => $operational,
+            ],
+            [
+                'methods' => ['POST'],
+                'pattern' => '/api/personnel/{id}/offboard',
+                'roles' => $operational,
+            ],
+            [
+                'methods' => ['GET'],
+                'pattern' => '/api/users',
                 'roles' => [User::ROLE_SUPER_ADMIN],
             ],
             [
                 'methods' => ['POST'],
-                'pattern' => '/api/system-users',
+                'pattern' => '/api/users',
                 'roles' => [User::ROLE_SUPER_ADMIN],
             ],
             [
                 'methods' => ['PUT'],
-                'pattern' => '/api/system-users/{id}',
+                'pattern' => '/api/users/{id}',
                 'roles' => [User::ROLE_SUPER_ADMIN],
             ],
             [
                 'methods' => ['DELETE'],
-                'pattern' => '/api/system-users/{id}',
+                'pattern' => '/api/users/{id}',
                 'roles' => [User::ROLE_SUPER_ADMIN],
-            ],
-            [
-                'methods' => ['POST'],
-                'pattern' => '/api/users',
-                'roles' => $operational,
-            ],
-            [
-                'methods' => ['GET'],
-                'pattern' => '/api/users/search',
-                'roles' => $operational,
-            ],
-            [
-                'methods' => ['POST'],
-                'pattern' => '/api/users/{id}/offboard',
-                'roles' => $operational,
             ],
             [
                 'methods' => ['POST'],

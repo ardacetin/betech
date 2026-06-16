@@ -31,7 +31,6 @@ declare(strict_types=1);
                     <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500"><?= htmlspecialchars(__('system_users_col_name'), ENT_QUOTES, 'UTF-8') ?></th>
                     <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500"><?= htmlspecialchars(__('system_users_col_email'), ENT_QUOTES, 'UTF-8') ?></th>
                     <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500"><?= htmlspecialchars(__('system_users_col_role'), ENT_QUOTES, 'UTF-8') ?></th>
-                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500"><?= htmlspecialchars(__('system_users_col_provider'), ENT_QUOTES, 'UTF-8') ?></th>
                     <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500"><?= htmlspecialchars(__('col_actions'), ENT_QUOTES, 'UTF-8') ?></th>
                 </tr>
             </thead>
@@ -40,17 +39,7 @@ declare(strict_types=1);
                     <tr class="hover:bg-zinc-50/80">
                         <td class="px-6 py-4 text-sm font-medium text-zinc-900" x-text="user.name"></td>
                         <td class="px-6 py-4 text-sm text-zinc-600" x-text="user.email"></td>
-                        <td class="px-6 py-4">
-                            <select
-                                :value="user.role"
-                                @change="updateSystemUserRole(user, $event.target.value)"
-                                class="rounded-lg border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-700 outline-none focus:border-zinc-400"
-                            >
-                                <option value="super_admin"><?= htmlspecialchars(__('role_super_admin'), ENT_QUOTES, 'UTF-8') ?></option>
-                                <option value="technician"><?= htmlspecialchars(__('role_technician'), ENT_QUOTES, 'UTF-8') ?></option>
-                            </select>
-                        </td>
-                        <td class="px-6 py-4 text-sm text-zinc-600" x-text="resolveAuthProviderLabel(user.auth_provider)"></td>
+                        <td class="px-6 py-4 text-sm text-zinc-600" x-text="resolveSystemUserRoleLabel(user.role)"></td>
                         <td class="px-6 py-4">
                             <div class="flex flex-wrap items-center gap-2">
                                 <button

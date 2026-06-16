@@ -12,13 +12,15 @@ class User
     public const ROLE_SUPER_ADMIN = 'super_admin';
     public const ROLE_TECHNICIAN = 'technician';
     public const ROLE_END_USER = 'end_user';
-    /** @deprecated Personnel records live in the personnel table; kept for session/RBAC compatibility. */
+    /** @deprecated Personnel records live in the personnel table. */
     public const ROLE_PERSONNEL = 'end_user';
 
     public const PROVIDER_LOCAL = 'local';
     public const PROVIDER_LDAP = 'ldap';
     public const PROVIDER_GOOGLE = 'google';
     public const PROVIDER_MICROSOFT = 'microsoft';
+
+    public const MIN_PASSWORD_LENGTH = 8;
 
     public function __construct(
         private readonly DatabaseService $databaseService
@@ -28,20 +30,20 @@ class User
     /**
      * @return list<array<string, mixed>>
      */
-    public function findAllSystemUsers(): array
+    public function findAll(): array
     {
         $rows = $this->db()->select('users', [
             'id',
             'name',
             'email',
             'role',
+            'created_at',
         ], [
-            'role' => [self::ROLE_SUPER_ADMIN, self::ROLE_TECHNICIAN],
             'ORDER' => ['name' => 'ASC'],
         ]);
 
         return array_map(
-            fn (array $row): array => $this->normalizeRow($row),
+            fn (array $row): array => $this->normalizePublicRow($row),
             $rows
         );
     }
@@ -49,7 +51,7 @@ class User
     /**
      * @return array<string, mixed>
      */
-    public function createSystemUser(string $name, string $email, string $role, string $password): array
+    public function create(string $name, string $email, string $role, string $password): array
     {
         $trimmedName = trim($name);
         $normalizedEmail = strtolower(trim($email));
@@ -67,7 +69,7 @@ class User
             throw new \InvalidArgumentException(__('system_user_role_invalid'));
         }
 
-        if (strlen($password) < 8) {
+        if (strlen($password) < self::MIN_PASSWORD_LENGTH) {
             throw new \InvalidArgumentException(__('system_user_password_required'));
         }
 
@@ -82,7 +84,7 @@ class User
             'password_hash' => password_hash($password, PASSWORD_DEFAULT),
         ]);
 
-        $created = $this->findSystemUserById((int) $this->db()->id());
+        $created = $this->findById((int) $this->db()->id());
 
         if ($created === null) {
             throw new \RuntimeException(__('system_user_create_error'));
@@ -94,14 +96,14 @@ class User
     /**
      * @return array<string, mixed>|null
      */
-    public function updateSystemUser(
+    public function update(
         int $userId,
-        ?string $role = null,
         ?string $name = null,
         ?string $email = null,
+        ?string $role = null,
         ?string $password = null
     ): ?array {
-        $existing = $this->findSystemUserById($userId);
+        $existing = $this->findById($userId);
 
         if ($existing === null) {
             return null;
@@ -151,26 +153,28 @@ class User
             $payload['role'] = $normalizedRole;
         }
 
-        $trimmedPassword = $password !== null ? trim($password) : null;
+        if ($password !== null) {
+            $trimmedPassword = trim($password);
 
-        if ($trimmedPassword !== null && $trimmedPassword !== '') {
-            if (strlen($trimmedPassword) < 8) {
-                throw new \InvalidArgumentException(__('system_user_password_required'));
+            if ($trimmedPassword !== '') {
+                if (strlen($trimmedPassword) < self::MIN_PASSWORD_LENGTH) {
+                    throw new \InvalidArgumentException(__('system_user_password_required'));
+                }
+
+                $payload['password_hash'] = password_hash($trimmedPassword, PASSWORD_DEFAULT);
             }
-
-            $payload['password_hash'] = password_hash($trimmedPassword, PASSWORD_DEFAULT);
         }
 
         if ($payload !== []) {
             $this->db()->update('users', $payload, ['id' => $userId]);
         }
 
-        return $this->findSystemUserById($userId);
+        return $this->findById($userId);
     }
 
-    public function deleteSystemUser(int $userId): bool
+    public function delete(int $userId): bool
     {
-        $existing = $this->findSystemUserById($userId);
+        $existing = $this->findById($userId);
 
         if ($existing === null) {
             return false;
@@ -188,33 +192,6 @@ class User
         return true;
     }
 
-    /**
-     * @return array<string, mixed>|null
-     */
-    public function findSystemUserById(int $userId): ?array
-    {
-        $row = $this->db()->get('users', [
-            'id',
-            'name',
-            'email',
-            'role',
-        ], [
-            'id' => $userId,
-        ]);
-
-        if ($row === null) {
-            return null;
-        }
-
-        $normalized = $this->normalizeRow($row);
-
-        if (!$this->isOperationalRole((string) $normalized['role'])) {
-            return null;
-        }
-
-        return $normalized;
-    }
-
     public function countUsersByRole(string $role): int
     {
         return $this->db()->count('users', [
@@ -222,6 +199,9 @@ class User
         ]);
     }
 
+    /**
+     * @return array<string, mixed>|null
+     */
     public function findById(int $userId): ?array
     {
         $row = $this->db()->get('users', [
@@ -229,11 +209,12 @@ class User
             'name',
             'email',
             'role',
+            'created_at',
         ], [
             'id' => $userId,
         ]);
 
-        return $row === null ? null : $this->normalizeRow($row);
+        return $row === null ? null : $this->normalizePublicRow($row);
     }
 
     public function findByEmail(string $email): ?array
@@ -250,11 +231,12 @@ class User
             'email',
             'password_hash',
             'role',
+            'created_at',
         ], [
             'email' => $normalizedEmail,
         ]);
 
-        return $row === null ? null : $this->normalizeRow($row);
+        return $row === null ? null : $this->normalizeAuthRow($row);
     }
 
     public function updatePasswordHash(int $userId, string $plainPassword): void
@@ -307,12 +289,28 @@ class User
      *
      * @return array<string, mixed>
      */
-    private function normalizeRow(array $row): array
+    private function normalizePublicRow(array $row): array
     {
         $row['id'] = (int) $row['id'];
         $row['role'] = $this->normalizeRole(isset($row['role']) ? (string) $row['role'] : null);
 
         return $row;
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     *
+     * @return array<string, mixed>
+     */
+    private function normalizeAuthRow(array $row): array
+    {
+        $normalized = $this->normalizePublicRow($row);
+
+        if (array_key_exists('password_hash', $row)) {
+            $normalized['password_hash'] = (string) $row['password_hash'];
+        }
+
+        return $normalized;
     }
 
     private function db(): Medoo

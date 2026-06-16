@@ -198,6 +198,9 @@ $i18nScript = json_encode([
     'system_user_create_error' => __('system_user_create_error'),
     'system_user_update_error' => __('system_user_update_error'),
     'system_user_password_optional' => __('system_user_password_optional'),
+    'system_user_password_min_hint' => __('system_user_password_min_hint'),
+    'role_super_admin' => __('role_super_admin'),
+    'role_technician' => __('role_technician'),
     'system_user_delete_confirm' => __('system_user_delete_confirm'),
     'system_user_delete_success' => __('system_user_delete_success'),
     'system_user_delete_error' => __('system_user_delete_error'),
@@ -1309,6 +1312,7 @@ $i18nScript = json_encode([
                     <label class="block sm:col-span-1">
                         <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('system_user_password_label'), ENT_QUOTES, 'UTF-8') ?></span>
                         <input type="password" x-model="systemUserForm.password" :required="!systemUserForm.id" minlength="8" class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4" :placeholder="systemUserForm.id ? window.__i18n.system_user_password_optional : ''">
+                        <span class="mt-1 block text-xs text-zinc-500"><?= htmlspecialchars(__('system_user_password_min_hint'), ENT_QUOTES, 'UTF-8') ?></span>
                     </label>
                 </div>
 
@@ -1898,6 +1902,14 @@ $i18nScript = json_encode([
                     this.personnelSyncing = false;
                 }
             },
+            resolveSystemUserRoleLabel(role) {
+                const labels = {
+                    super_admin: window.__i18n.role_super_admin,
+                    technician: window.__i18n.role_technician,
+                };
+
+                return labels[String(role || '')] || String(role || '');
+            },
             resolveAuthProviderLabel(provider) {
                 const key = String(provider || 'local');
                 const labels = {
@@ -1918,7 +1930,7 @@ $i18nScript = json_encode([
                 this.systemUsersError = '';
 
                 try {
-                    const response = await fetch('/api/system-users', {
+                    const response = await fetch('/api/users', {
                         headers: { 'Accept': 'application/json' },
                     });
                     const result = await response.json();
@@ -1986,7 +1998,7 @@ $i18nScript = json_encode([
 
                 try {
                     const response = await fetch(
-                        isEdit ? `/api/system-users/${this.systemUserForm.id}` : '/api/system-users',
+                        isEdit ? `/api/users/${this.systemUserForm.id}` : '/api/users',
                         {
                             method: isEdit ? 'PUT' : 'POST',
                             headers: {
@@ -2016,38 +2028,6 @@ $i18nScript = json_encode([
                     this.isSystemUserSubmitting = false;
                 }
             },
-            async updateSystemUserRole(user, role) {
-                if (!user?.id || !role || user.role === role) {
-                    return;
-                }
-
-                this.systemUsersSuccessMessage = '';
-                this.systemUsersError = '';
-
-                try {
-                    const response = await fetch(`/api/system-users/${user.id}`, {
-                        method: 'PUT',
-                        headers: {
-                            'Accept': 'application/json',
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify({ role }),
-                    });
-                    const result = await response.json();
-
-                    if (!response.ok) {
-                        this.systemUsersError = result.message || window.__i18n.system_user_update_error;
-                        await this.fetchSystemUsers();
-                        return;
-                    }
-
-                    user.role = role;
-                    this.systemUsersSuccessMessage = result.message || window.__i18n.system_user_update_success;
-                } catch (error) {
-                    this.systemUsersError = window.__i18n.system_users_network_error;
-                    await this.fetchSystemUsers();
-                }
-            },
             async deleteSystemUser(user) {
                 if (!user?.id) {
                     return;
@@ -2066,7 +2046,7 @@ $i18nScript = json_encode([
                 this.systemUsersError = '';
 
                 try {
-                    const response = await fetch(`/api/system-users/${user.id}`, {
+                    const response = await fetch(`/api/users/${user.id}`, {
                         method: 'DELETE',
                         headers: { 'Accept': 'application/json' },
                     });
@@ -2164,7 +2144,7 @@ $i18nScript = json_encode([
 
                 try {
                     const query = encodeURIComponent(this.transferUserSearchQuery.trim());
-                    const response = await fetch(`/api/users/search?q=${query}`, {
+                    const response = await fetch(`/api/personnel/search?q=${query}`, {
                         headers: {
                             'Accept': 'application/json',
                         },
@@ -2244,7 +2224,7 @@ $i18nScript = json_encode([
                 this.offboardErrorMessage = '';
 
                 try {
-                    const response = await fetch(`/api/users/${person.id}/offboard`, {
+                    const response = await fetch(`/api/personnel/${person.id}/offboard`, {
                         method: 'POST',
                         headers: {
                             'Accept': 'application/json',
@@ -2500,7 +2480,7 @@ $i18nScript = json_encode([
                 this.manualUserFormError = '';
 
                 try {
-                    const response = await fetch('/api/users', {
+                    const response = await fetch('/api/personnel', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
@@ -2534,7 +2514,7 @@ $i18nScript = json_encode([
 
                 try {
                     const query = encodeURIComponent(this.userSearchQuery.trim());
-                    const response = await fetch(`/api/users/search?q=${query}`, {
+                    const response = await fetch(`/api/personnel/search?q=${query}`, {
                         headers: {
                             'Accept': 'application/json',
                         },
@@ -3228,7 +3208,7 @@ $i18nScript = json_encode([
 
                 try {
                     const query = encodeURIComponent(this.assignLicensePersonnelSearchQuery.trim());
-                    const response = await fetch(`/api/users/search?q=${query}`, {
+                    const response = await fetch(`/api/personnel/search?q=${query}`, {
                         headers: { 'Accept': 'application/json' },
                     });
                     const result = await response.json();

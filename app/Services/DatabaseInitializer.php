@@ -63,6 +63,10 @@ class DatabaseInitializer
             }
 
             if ($this->usersTableExists($connection)) {
+                foreach ($this->patchRebuildUsersTable($connection) as $warning) {
+                    $warnings[] = $warning;
+                }
+
                 foreach ($this->patchUsersTableColumns($connection) as $warning) {
                     $warnings[] = $warning;
                 }
@@ -160,6 +164,35 @@ class DatabaseInitializer
     private function getUsersTableMigrationPath(): string
     {
         return dirname($this->schemaPath) . '/migrations/001_create_users_table.sql';
+    }
+
+    private function getRebuildUsersTableMigrationPath(): string
+    {
+        return dirname($this->schemaPath) . '/migrations/011_rebuild_users_table.sql';
+    }
+
+    /**
+     * Rebuild users table to the canonical auth-only schema when legacy layout is detected.
+     *
+     * @param object $connection Medoo instance
+     *
+     * @return list<string>
+     */
+    private function patchRebuildUsersTable(object $connection): array
+    {
+        if ($this->columnExists($connection, 'users', 'created_at')) {
+            return [];
+        }
+
+        $migrationPath = $this->getRebuildUsersTableMigrationPath();
+
+        if (!is_readable($migrationPath)) {
+            return ['Users table rebuild migration is missing or unreadable.'];
+        }
+
+        $this->applySqlFile($connection, $migrationPath);
+
+        return ['Applied migration: rebuilt users table with fresh system-user schema.'];
     }
 
     private function getAssetHistoriesTableMigrationPath(): string
@@ -487,7 +520,7 @@ class DatabaseInitializer
         $insertPayload = [
             'name' => 'Sistem Yöneticisi',
             'email' => $defaultAdminEmail,
-            'password_hash' => password_hash('123456', PASSWORD_DEFAULT),
+            'password_hash' => password_hash('Betech2026!', PASSWORD_DEFAULT),
             'role' => 'super_admin',
         ];
 
@@ -531,7 +564,7 @@ class DatabaseInitializer
         }
 
         $updatePayload = [
-            'password_hash' => password_hash('123456', PASSWORD_DEFAULT),
+            'password_hash' => password_hash('Betech2026!', PASSWORD_DEFAULT),
         ];
 
         $connection->update('users', $updatePayload, [
