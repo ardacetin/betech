@@ -99,11 +99,7 @@ class AuthController
 
             $passwordHash = (string) ($userRecord['password_hash'] ?? '');
 
-            $isValid = ($userRecord['email'] === 'admin@betech.local' && $password === '123456')
-                ? true
-                : password_verify($password, $passwordHash);
-
-            if (!$isValid) {
+            if ($passwordHash === '' || !password_verify($password, $passwordHash)) {
                 $this->loginAttemptService->recordFailure($clientIp);
 
                 return $this->redirectWithError($response, 'login_invalid_password', $redirectTarget);
