@@ -180,7 +180,7 @@ class DatabaseInitializer
      */
     private function patchRebuildUsersTable(object $connection): array
     {
-        if ($this->columnExists($connection, 'users', 'created_at')) {
+        if (!$this->usersTableNeedsRebuild($connection)) {
             return [];
         }
 
@@ -193,6 +193,42 @@ class DatabaseInitializer
         $this->applySqlFile($connection, $migrationPath);
 
         return ['Applied migration: rebuilt users table with fresh system-user schema.'];
+    }
+
+    /**
+     * @param object $connection Medoo instance
+     */
+    private function usersTableNeedsRebuild(object $connection): bool
+    {
+        if (!$this->columnExists($connection, 'users', 'created_at')) {
+            return true;
+        }
+
+        $idType = $this->columnBaseType($connection, 'users', 'id');
+
+        return $idType === null || !str_starts_with($idType, 'bigint');
+    }
+
+    /**
+     * @param object $connection Medoo instance
+     */
+    private function columnBaseType(object $connection, string $table, string $column): ?string
+    {
+        $statement = $connection->query(
+            sprintf("SHOW COLUMNS FROM `%s` LIKE '%s'", $this->escapeIdentifier($table), $column)
+        );
+
+        if ($statement === false) {
+            return null;
+        }
+
+        $row = $statement->fetch(\PDO::FETCH_ASSOC);
+
+        if (!is_array($row) || !isset($row['Type'])) {
+            return null;
+        }
+
+        return strtolower((string) $row['Type']);
     }
 
     private function getAssetHistoriesTableMigrationPath(): string
