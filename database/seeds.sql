@@ -35,7 +35,6 @@ INSERT INTO users (name, email, password_hash, role) VALUES
 ('Sistem Yöneticisi', 'admin@betech.local', '$2y$12$gKwuiE9St/UBa3ENhW7aT.yVeD1UPf2Ov9Fhcqa2PMoNAD.sHAt3e', 'super_admin')
 ON DUPLICATE KEY UPDATE
     name = VALUES(name),
-    password_hash = VALUES(password_hash),
     role = 'super_admin';
 
 INSERT INTO personnel (external_id, name, email, department, provider, status) VALUES
