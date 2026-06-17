@@ -3,6 +3,8 @@
 /.env
 composer.phar
 /logs/*.log
+/storage/backups/*
+!/storage/backups/.htaccess
 
 # IDE and editor files
 /.vscode/
