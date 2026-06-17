@@ -282,6 +282,7 @@ return [
     'settings_tab_general' => 'General',
     'settings_tab_categories' => 'Categories',
     'settings_tab_locations' => 'Locations',
+    'settings_tab_system_users' => 'System Users',
     'settings_auth_title' => 'Authentication Driver',
     'settings_auth_hint' => 'Choose the active integration for user search and assignment workflows.',
     'settings_auth_local' => 'Local Database',

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 ?>
-<section x-show="activeView === 'system_users'" x-cloak class="space-y-6">
+<section x-show="activeView === 'settings' && settingsTab === 'system_users'" x-cloak class="space-y-6">
     <div class="flex flex-wrap items-start justify-between gap-4">
         <div>
             <h2 class="text-lg font-semibold tracking-tight text-zinc-900"><?= htmlspecialchars(__('system_users_page_title'), ENT_QUOTES, 'UTF-8') ?></h2>

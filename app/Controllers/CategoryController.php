@@ -45,6 +45,12 @@ class CategoryController
             ]);
         }
 
+        $payloadId = (int) ($payload['id'] ?? 0);
+
+        if ($payloadId > 0) {
+            return $this->update($request, $response, ['id' => (string) $payloadId]);
+        }
+
         $errors = $this->validatePayload($payload, true);
 
         if ($errors !== []) {
@@ -190,10 +196,24 @@ class CategoryController
 
         try {
             $deleted = $this->categoryModel->delete($categoryId);
-        } catch (\RuntimeException $exception) {
+        } catch (\RuntimeException) {
             return $this->jsonResponse($response, 422, [
                 'status' => 'error',
                 'message' => __('category_delete_in_use'),
+                'asset_count' => $assetCount > 0 ? $assetCount : $this->categoryModel->countAssets($categoryId),
+            ]);
+        } catch (\Throwable) {
+            if ($this->categoryModel->countAssets($categoryId) > 0) {
+                return $this->jsonResponse($response, 422, [
+                    'status' => 'error',
+                    'message' => __('category_delete_in_use'),
+                    'asset_count' => $this->categoryModel->countAssets($categoryId),
+                ]);
+            }
+
+            return $this->jsonResponse($response, 500, [
+                'status' => 'error',
+                'message' => __('category_delete_error'),
             ]);
         }
 

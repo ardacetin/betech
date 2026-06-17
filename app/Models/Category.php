@@ -137,11 +137,15 @@ class Category
             throw new \RuntimeException('Category is in use by existing assets.');
         }
 
-        $this->db()->delete('categories', [
-            'id' => $id,
-        ]);
+        try {
+            $this->db()->delete('categories', [
+                'id' => $id,
+            ]);
+        } catch (\PDOException) {
+            throw new \RuntimeException('Category is in use by existing assets.');
+        }
 
-        return true;
+        return $this->findById($id) === null;
     }
 
     public function countAssets(int $categoryId): int

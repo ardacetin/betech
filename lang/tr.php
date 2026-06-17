@@ -281,6 +281,7 @@ return [
     'settings_tab_general' => 'Genel',
     'settings_tab_categories' => 'Kategoriler',
     'settings_tab_locations' => 'Lokasyonlar',
+    'settings_tab_system_users' => 'Sistem Kullanıcıları',
     'settings_auth_title' => 'Kimlik Doğrulama Sürücüsü',
     'settings_auth_hint' => 'Kullanıcı arama ve zimmet işlemleri için aktif entegrasyonu seçin.',
     'settings_auth_local' => 'Yerel Veritabanı',

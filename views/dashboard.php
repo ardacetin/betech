@@ -227,7 +227,7 @@ $i18nScript = json_encode([
     'manual_user_create_error' => __('manual_user_create_error'),
 ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
 ?>
-<div class="min-h-full" x-data="assetDashboard()" x-init="if (canManageAssets) { fetchCategories(); fetchLocations(); fetchLicenses(); } this.isAssignLicenseModalOpen = false;">
+<div class="min-h-full" x-data="assetDashboard()" x-init="restoreDashboardView(); if (canManageAssets) { fetchCategories(); fetchLocations(); fetchLicenses(); } this.isAssignLicenseModalOpen = false;">
     <div class="flex min-h-screen">
         <aside class="hidden w-64 shrink-0 border-r border-zinc-200 bg-white lg:flex lg:flex-col">
             <div class="flex h-16 items-center gap-3 border-b border-zinc-200 px-6">
@@ -268,17 +268,6 @@ $i18nScript = json_encode([
                 >
                     <span class="h-2 w-2 rounded-full" :class="activeView === 'personnel' ? 'bg-zinc-900' : 'bg-zinc-300'"></span>
                     <?= htmlspecialchars(__('nav_personnel'), ENT_QUOTES, 'UTF-8') ?>
-                </button>
-                <?php endif; ?>
-                <?php if ($canAccessSystemUsers): ?>
-                <button
-                    type="button"
-                    @click="activeView = 'system_users'; fetchSystemUsers()"
-                    class="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm font-medium transition"
-                    :class="activeView === 'system_users' ? 'bg-zinc-100 text-zinc-900' : 'text-zinc-600 hover:bg-zinc-50'"
-                >
-                    <span class="h-2 w-2 rounded-full" :class="activeView === 'system_users' ? 'bg-zinc-900' : 'bg-zinc-300'"></span>
-                    <?= htmlspecialchars(__('nav_system_users'), ENT_QUOTES, 'UTF-8') ?>
                 </button>
                 <?php endif; ?>
                 <?php if ($canAccessSettings): ?>
@@ -357,7 +346,7 @@ $i18nScript = json_encode([
                         </button>
                         <button
                             type="button"
-                            x-show="activeView === 'system_users' && canAccessSystemUsers"
+                            x-show="activeView === 'settings' && settingsTab === 'system_users' && canAccessSystemUsers"
                             @click="openSystemUserModal()"
                             class="inline-flex items-center gap-2 rounded-xl bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white shadow-soft transition hover:bg-zinc-800"
                         >
@@ -667,12 +656,10 @@ $i18nScript = json_encode([
                 <?php require __DIR__ . '/partials/settings_panel.php'; ?>
                 <?php require __DIR__ . '/partials/categories_panel.php'; ?>
                 <?php require __DIR__ . '/partials/locations_panel.php'; ?>
+                <?php require __DIR__ . '/partials/system_users_panel.php'; ?>
                 <?php endif; ?>
                 <?php if ($canAccessPersonnel): ?>
                 <?php require __DIR__ . '/partials/personnel_panel.php'; ?>
-                <?php endif; ?>
-                <?php if ($canAccessSystemUsers): ?>
-                <?php require __DIR__ . '/partials/system_users_panel.php'; ?>
                 <?php endif; ?>
             </div>
         </main>
@@ -1094,7 +1081,7 @@ $i18nScript = json_encode([
         <div class="relative w-full max-w-2xl rounded-2xl border border-zinc-200 bg-white shadow-soft">
             <div class="flex items-center justify-between border-b border-zinc-200 px-6 py-4">
                 <div>
-                    <h3 class="text-lg font-semibold text-zinc-900" x-text="categoryForm.id ? '<?= htmlspecialchars(__('edit_category'), ENT_QUOTES, 'UTF-8') ?>' : '<?= htmlspecialchars(__('add_category'), ENT_QUOTES, 'UTF-8') ?>'"></h3>
+                    <h3 class="text-lg font-semibold text-zinc-900" x-text="editingCategoryId ? '<?= htmlspecialchars(__('edit_category'), ENT_QUOTES, 'UTF-8') ?>' : '<?= htmlspecialchars(__('add_category'), ENT_QUOTES, 'UTF-8') ?>'"></h3>
                     <p class="mt-1 text-sm text-zinc-500"><?= htmlspecialchars(__('modal_category_subtitle'), ENT_QUOTES, 'UTF-8') ?></p>
                 </div>
                 <button type="button" @click="closeCategoryModal()" class="rounded-lg p-2 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600">&times;</button>
@@ -1553,6 +1540,8 @@ $i18nScript = json_encode([
                 assets: <?= json_encode($isEndUser ? __('page_title_end_user') : $pageTitle, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 licenses: <?= json_encode(__('licenses_page_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 settings: <?= json_encode(__('settings_page_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
+                categories: <?= json_encode(__('categories_page_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
+                locations: <?= json_encode(__('locations_page_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 personnel: <?= json_encode(__('personnel_page_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 system_users: <?= json_encode(__('system_users_page_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
             },
@@ -1560,6 +1549,8 @@ $i18nScript = json_encode([
                 assets: <?= json_encode($isEndUser ? __('page_subtitle_end_user') : __('page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 licenses: <?= json_encode(__('licenses_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 settings: <?= json_encode(__('settings_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
+                categories: <?= json_encode(__('categories_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
+                locations: <?= json_encode(__('locations_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 personnel: <?= json_encode(__('personnel_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 system_users: <?= json_encode(__('system_users_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
             },
@@ -1581,6 +1572,7 @@ $i18nScript = json_encode([
             categoriesSuccessMessage: '',
             isCategoryModalOpen: false,
             isCategorySubmitting: false,
+            editingCategoryId: null,
             categoryForm: {
                 id: null,
                 name: '',
@@ -1774,10 +1766,95 @@ $i18nScript = json_encode([
             offboardSuccessMessage: '',
             offboardErrorMessage: '',
             resolvePageTitle() {
+                if (this.activeView === 'settings') {
+                    const tabTitles = {
+                        general: this.pageTitles.settings,
+                        categories: this.pageTitles.categories,
+                        locations: this.pageTitles.locations,
+                        system_users: this.pageTitles.system_users,
+                    };
+
+                    return tabTitles[this.settingsTab] || this.pageTitles.settings;
+                }
+
                 return this.pageTitles[this.activeView] || this.pageTitles.assets;
             },
             resolvePageSubtitle() {
+                if (this.activeView === 'settings') {
+                    const tabSubtitles = {
+                        general: this.pageSubtitles.settings,
+                        categories: this.pageSubtitles.categories,
+                        locations: this.pageSubtitles.locations,
+                        system_users: this.pageSubtitles.system_users,
+                    };
+
+                    return tabSubtitles[this.settingsTab] || this.pageSubtitles.settings;
+                }
+
                 return this.pageSubtitles[this.activeView] || this.pageSubtitles.assets;
+            },
+            persistDashboardView() {
+                sessionStorage.setItem('betechDashboardView', JSON.stringify({
+                    activeView: this.activeView,
+                    settingsTab: this.settingsTab,
+                }));
+            },
+            restoreDashboardView() {
+                const raw = sessionStorage.getItem('betechDashboardView');
+
+                if (!raw) {
+                    return;
+                }
+
+                sessionStorage.removeItem('betechDashboardView');
+
+                try {
+                    const saved = JSON.parse(raw);
+
+                    if (saved.activeView === 'system_users') {
+                        this.activeView = 'settings';
+                        this.settingsTab = 'system_users';
+                    } else if (saved.activeView) {
+                        this.activeView = saved.activeView;
+                    }
+
+                    if (saved.settingsTab && saved.activeView !== 'system_users') {
+                        this.settingsTab = saved.settingsTab;
+                    }
+
+                    if (this.activeView === 'settings' && this.settingsTab === 'general') {
+                        this.$nextTick(() => this.initQuillEditor());
+                    }
+
+                    if (this.activeView === 'settings' && this.settingsTab === 'categories') {
+                        this.fetchCategories();
+                    }
+
+                    if (this.activeView === 'settings' && this.settingsTab === 'locations') {
+                        this.fetchLocations();
+                    }
+
+                    if (this.activeView === 'settings' && this.settingsTab === 'system_users') {
+                        this.fetchSystemUsers();
+                    }
+                } catch (error) {
+                    // Ignore invalid persisted view state.
+                }
+            },
+            apiErrorMessage(result, fallback) {
+                if (!result || typeof result !== 'object') {
+                    return fallback;
+                }
+
+                if (typeof result.message === 'string' && result.message !== '') {
+                    return result.message;
+                }
+
+                if (typeof result.error === 'string' && result.error !== '') {
+                    return result.error;
+                }
+
+                return fallback;
             },
             resolvePersonnelStatus(status) {
                 return status === 'offboarded'
@@ -2730,7 +2807,7 @@ $i18nScript = json_encode([
                 this.settingsForm.custom_fields.splice(index, 1);
             },
             async fetchCategories() {
-                if (!this.canManageAssets) {
+                if (!this.canAccessSettings) {
                     return;
                 }
 
@@ -2783,20 +2860,19 @@ $i18nScript = json_encode([
                 this.categoryFormError = '';
                 this.categoriesSuccessMessage = '';
 
-                if (category) {
-                    this.categoryForm = {
-                        id: category.id,
-                        name: category.name || '',
-                        fields: Array.isArray(category.fields)
-                            ? JSON.parse(JSON.stringify(category.fields))
-                            : [],
-                    };
+                const categoryId = category?.id != null ? Number(category.id) : null;
+                this.editingCategoryId = Number.isInteger(categoryId) && categoryId > 0 ? categoryId : null;
+
+                if (this.editingCategoryId) {
+                    this.categoryForm.id = this.editingCategoryId;
+                    this.categoryForm.name = category?.name || '';
+                    this.categoryForm.fields = Array.isArray(category?.fields)
+                        ? JSON.parse(JSON.stringify(category.fields))
+                        : [];
                 } else {
-                    this.categoryForm = {
-                        id: null,
-                        name: '',
-                        fields: [],
-                    };
+                    this.categoryForm.id = null;
+                    this.categoryForm.name = '';
+                    this.categoryForm.fields = [];
                 }
 
                 this.isCategoryModalOpen = true;
@@ -2807,6 +2883,8 @@ $i18nScript = json_encode([
                 }
 
                 this.isCategoryModalOpen = false;
+                this.editingCategoryId = null;
+                this.categoryForm.id = null;
                 this.categoryFormError = '';
             },
             addCategoryField() {
@@ -2820,7 +2898,7 @@ $i18nScript = json_encode([
                 this.categoryForm.fields.splice(index, 1);
             },
             buildCategoryPayload() {
-                return {
+                const payload = {
                     name: this.categoryForm.name.trim(),
                     fields: this.categoryForm.fields
                         .filter((field) => field && (field.name?.trim() || field.label?.trim()))
@@ -2830,6 +2908,16 @@ $i18nScript = json_encode([
                             type: field.type || 'text',
                         })),
                 };
+
+                const categoryId = this.editingCategoryId != null
+                    ? Number(this.editingCategoryId)
+                    : Number(this.categoryForm.id);
+
+                if (Number.isInteger(categoryId) && categoryId > 0) {
+                    payload.id = categoryId;
+                }
+
+                return payload;
             },
             async submitCategoryForm() {
                 this.isCategorySubmitting = true;
@@ -2837,8 +2925,11 @@ $i18nScript = json_encode([
                 this.categoriesSuccessMessage = '';
 
                 const payload = this.buildCategoryPayload();
-                const isEdit = Boolean(this.categoryForm.id);
-                const url = isEdit ? `/api/categories/${this.categoryForm.id}` : '/api/categories';
+                const categoryId = this.editingCategoryId != null
+                    ? Number(this.editingCategoryId)
+                    : Number(this.categoryForm.id);
+                const isEdit = Number.isInteger(categoryId) && categoryId > 0;
+                const url = isEdit ? `/api/categories/${categoryId}` : '/api/categories';
                 const method = isEdit ? 'PUT' : 'POST';
 
                 try {
@@ -2850,21 +2941,25 @@ $i18nScript = json_encode([
                         },
                         body: JSON.stringify(payload),
                     });
-                    const result = await response.json();
+                    const result = await response.json().catch(() => ({}));
 
                     if (!response.ok) {
-                        this.categoryFormError = result.message || (isEdit
-                            ? window.__i18n.category_update_error
-                            : window.__i18n.category_create_error);
+                        this.categoryFormError = this.apiErrorMessage(
+                            result,
+                            isEdit ? window.__i18n.category_update_error : window.__i18n.category_create_error
+                        );
                         return;
                     }
 
                     this.isCategoryModalOpen = false;
-                    this.categoriesSuccessMessage = result.message || (isEdit
-                        ? window.__i18n.category_update_success
-                        : window.__i18n.category_create_success);
+                    this.editingCategoryId = null;
+                    this.categoryForm.id = null;
+                    this.categoriesSuccessMessage = this.apiErrorMessage(
+                        result,
+                        isEdit ? window.__i18n.category_update_success : window.__i18n.category_create_success
+                    );
                     await this.fetchCategories();
-                    window.setTimeout(() => window.location.reload(), 900);
+                    this.persistDashboardView();
                 } catch (error) {
                     this.categoryFormError = window.__i18n.categories_network_error;
                 } finally {
@@ -2872,7 +2967,13 @@ $i18nScript = json_encode([
                 }
             },
             async deleteCategory(category) {
-                if (!category?.id || !window.confirm(window.__i18n.category_delete_confirm)) {
+                const categoryId = Number(category?.id);
+
+                if (!Number.isInteger(categoryId) || categoryId <= 0) {
+                    return;
+                }
+
+                if (!window.confirm(window.__i18n.category_delete_confirm)) {
                     return;
                 }
 
@@ -2880,22 +2981,28 @@ $i18nScript = json_encode([
                 this.categoriesError = '';
 
                 try {
-                    const response = await fetch(`/api/categories/${category.id}`, {
+                    const response = await fetch(`/api/categories/${categoryId}`, {
                         method: 'DELETE',
                         headers: {
                             'Accept': 'application/json',
                         },
                     });
-                    const result = await response.json();
+                    const result = await response.json().catch(() => ({}));
 
                     if (!response.ok) {
-                        this.categoriesError = result.message || window.__i18n.category_delete_error;
+                        this.categoriesError = this.apiErrorMessage(
+                            result,
+                            window.__i18n.category_delete_error
+                        );
                         return;
                     }
 
-                    this.categoriesSuccessMessage = result.message || window.__i18n.category_delete_success;
+                    this.categoriesSuccessMessage = this.apiErrorMessage(
+                        result,
+                        window.__i18n.category_delete_success
+                    );
                     await this.fetchCategories();
-                    window.setTimeout(() => window.location.reload(), 900);
+                    this.persistDashboardView();
                 } catch (error) {
                     this.categoriesError = window.__i18n.categories_network_error;
                 }
