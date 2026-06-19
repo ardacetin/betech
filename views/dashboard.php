@@ -523,7 +523,7 @@ $i18nScript = json_encode([
                             @click="openImportModal()"
                             class="inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-4 py-2.5 text-sm font-medium text-zinc-700 shadow-soft transition hover:bg-zinc-50"
                         >
-                            <?= htmlspecialchars(__('import_assets'), ENT_QUOTES, 'UTF-8') ?>
+                            <?= htmlspecialchars(__('inventory_import_excel'), ENT_QUOTES, 'UTF-8') ?>
                         </button>
                         <button
                             type="button"
@@ -1039,26 +1039,30 @@ $i18nScript = json_encode([
         <div class="relative w-full max-w-lg rounded-2xl border border-zinc-200 bg-white shadow-soft">
             <div class="flex items-center justify-between border-b border-zinc-200 px-6 py-4">
                 <div>
-                    <h3 class="text-lg font-semibold text-zinc-900"><?= htmlspecialchars(__('import_modal_title'), ENT_QUOTES, 'UTF-8') ?></h3>
-                    <p class="mt-1 text-sm text-zinc-500"><?= htmlspecialchars(__('import_modal_subtitle'), ENT_QUOTES, 'UTF-8') ?></p>
+                    <h3 class="text-lg font-semibold text-zinc-900"><?= htmlspecialchars(__('inventory_import_modal_title'), ENT_QUOTES, 'UTF-8') ?></h3>
+                    <p class="mt-1 text-sm text-zinc-500"><?= htmlspecialchars(__('inventory_import_modal_subtitle'), ENT_QUOTES, 'UTF-8') ?></p>
                 </div>
                 <button type="button" @click="closeImportModal()" class="rounded-lg p-2 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600">&times;</button>
             </div>
 
             <div class="px-6 py-5">
                 <a
-                    href="/api/assets/import/template"
+                    href="/api/inventory/import/template"
                     class="inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-2.5 text-sm font-medium text-zinc-700 transition hover:bg-zinc-100"
-                    download="asset_import_template.csv"
+                    download="inventory_import_template.csv"
                 >
                     <?= htmlspecialchars(__('import_download_template'), ENT_QUOTES, 'UTF-8') ?>
                 </a>
 
+                <p class="mt-4 rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-xs leading-relaxed text-zinc-600">
+                    <?= htmlspecialchars(__('inventory_import_required_columns'), ENT_QUOTES, 'UTF-8') ?>
+                </p>
+
                 <label class="mt-5 block">
-                    <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('import_select_file'), ENT_QUOTES, 'UTF-8') ?></span>
+                    <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('inventory_import_select_file'), ENT_QUOTES, 'UTF-8') ?></span>
                     <input
                         type="file"
-                        accept=".csv,text/csv"
+                        accept=".csv,.xlsx,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
                         @change="onImportFileSelected($event)"
                         class="block w-full text-sm text-zinc-600 file:mr-4 file:rounded-lg file:border-0 file:bg-zinc-900 file:px-4 file:py-2 file:text-sm file:font-medium file:text-white hover:file:bg-zinc-800"
                     >
@@ -3743,7 +3747,7 @@ $i18nScript = json_encode([
             },
             async submitImport() {
                 if (!this.importFile) {
-                    this.importErrorMessage = window.__i18n.import_file_missing || 'Please select a CSV file.';
+                    this.importErrorMessage = window.__i18n.import_file_missing || 'Please select a file.';
                     return;
                 }
 
@@ -3756,7 +3760,7 @@ $i18nScript = json_encode([
                 formData.append('file', this.importFile);
 
                 try {
-                    const response = await fetch('/api/assets/import', {
+                    const response = await fetch('/api/inventory/import', {
                         method: 'POST',
                         headers: {
                             'Accept': 'application/json',
@@ -3765,8 +3769,12 @@ $i18nScript = json_encode([
                     });
                     const result = await response.json().catch(() => ({}));
                     const data = result?.data ?? {};
-                    const errors = Array.isArray(data.errors) ? data.errors : [];
+                    const errors = [
+                        ...(Array.isArray(data.errors) ? data.errors : []),
+                        ...(Array.isArray(data.warnings) ? data.warnings : []),
+                    ];
                     const imported = Number(data.imported ?? 0);
+                    const updated = Number(data.updated ?? 0);
                     const failed = Number(data.failed ?? 0);
                     const message = this.apiErrorMessage(result, '');
 
@@ -3781,7 +3789,7 @@ $i18nScript = json_encode([
                     this.importResultErrors = errors;
                     this.setImportSummary(message, false, errors);
 
-                    if (imported > 0) {
+                    if (imported > 0 || updated > 0) {
                         window.setTimeout(() => window.location.reload(), 1200);
                     }
                 } catch (error) {

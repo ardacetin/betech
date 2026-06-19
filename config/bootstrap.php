@@ -18,6 +18,7 @@ use App\Controllers\DashboardController;
 use App\Controllers\EndUserController;
 use App\Controllers\TicketController;
 use App\Controllers\HealthController;
+use App\Controllers\InventoryImportController;
 use App\Controllers\SettingsController;
 use App\Controllers\UserController;
 use App\Handlers\HttpErrorHandler;
@@ -53,6 +54,7 @@ use App\Services\DatabaseBackupService;
 use App\Services\DatabaseService;
 use App\Services\R2BackupStorage;
 use App\Services\EndUserContextService;
+use App\Services\InventoryImportService;
 use App\Services\IpAddressGenerator;
 use App\Services\IpamCsvImportService;
 use App\Services\LoginAttemptService;
@@ -133,6 +135,13 @@ $qrCodeService = new QrCodeService($appConfig['url']);
 $analyticsService = new AnalyticsService($databaseService);
 $zimmetTutanakService = new ZimmetTutanakService();
 $assetCsvImportService = new AssetCsvImportService($assetModel, $categoryModel, $locationModel);
+$inventoryImportService = new InventoryImportService($assetModel, $categoryModel, $locationModel, $personnelModel);
+$inventoryImportController = new InventoryImportController(
+    $inventoryImportService,
+    $assetHistoryModel,
+    $sessionAuthService,
+    $auditLogger
+);
 $ldapAuthenticator = new LdapAuthenticator($settingModel);
 $auditLogModel = new AuditLog($databaseService);
 $auditChangeFormatter = new AuditChangeFormatter();
@@ -269,6 +278,8 @@ $app->post('/api/assets', [$assetController, 'store']);
 $app->get('/api/assets/import/template', [$assetController, 'importTemplate']);
 $app->get('/api/assets/export', [$assetController, 'exportCsv']);
 $app->post('/api/assets/import', [$assetController, 'importCsv']);
+$app->get('/api/inventory/import/template', [$inventoryImportController, 'template']);
+$app->post('/api/inventory/import', [$inventoryImportController, 'import']);
 $app->put('/api/assets/{id}', [$assetController, 'update']);
 $app->post('/api/assets/{id}/assign', [$assetController, 'assign']);
 $app->post('/api/assets/{id}/return', [$assetController, 'returnToStorage']);

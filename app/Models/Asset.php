@@ -361,6 +361,26 @@ class Asset
         return $this->db()->has('assets', $conditions);
     }
 
+    /**
+     * @return array<string, mixed>|null
+     */
+    public function findBySerialNumber(string $serialNumber): ?array
+    {
+        $trimmed = trim($serialNumber);
+
+        if ($trimmed === '') {
+            return null;
+        }
+
+        $row = $this->db()->get('assets', '*', ['serial_number' => $trimmed]);
+
+        if (!is_array($row) || $row === []) {
+            return null;
+        }
+
+        return $this->normalizeRow($row);
+    }
+
     public function generateNextAssetTag(): string
     {
         $rows = $this->db()->select('assets', ['asset_tag'], [
