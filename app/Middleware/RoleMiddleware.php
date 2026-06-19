@@ -343,26 +343,6 @@ class RoleMiddleware implements MiddlewareInterface
                 'roles' => $operational,
             ],
             [
-                'methods' => ['GET'],
-                'pattern' => '/api/users',
-                'roles' => [User::ROLE_ADMIN],
-            ],
-            [
-                'methods' => ['POST'],
-                'pattern' => '/api/users',
-                'roles' => [User::ROLE_ADMIN],
-            ],
-            [
-                'methods' => ['PUT'],
-                'pattern' => '/api/users/{id}',
-                'roles' => [User::ROLE_ADMIN],
-            ],
-            [
-                'methods' => ['DELETE'],
-                'pattern' => '/api/users/{id}',
-                'roles' => [User::ROLE_ADMIN],
-            ],
-            [
                 'methods' => ['POST'],
                 'pattern' => '/api/assets',
                 'roles' => $operational,

@@ -83,34 +83,36 @@ declare(strict_types=1);
                                 ></span>
                             </td>
                             <td class="px-6 py-4">
-                                <select
-                                    x-show="isSuperAdmin && person.status !== 'offboarded'"
-                                    x-cloak
-                                    class="rounded-lg border border-zinc-200 bg-white px-2.5 py-1.5 text-xs font-medium text-zinc-700 focus:border-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-200 disabled:cursor-not-allowed disabled:opacity-60"
-                                    :value="person.role || 'user'"
-                                    :disabled="personnelRoleUpdating === person.id"
-                                    @change="updatePersonnelRole(person, $event.target.value)"
-                                >
-                                    <option value="user"><?= htmlspecialchars(__('personnel_role_user'), ENT_QUOTES, 'UTF-8') ?></option>
-                                    <option value="admin"><?= htmlspecialchars(__('personnel_role_admin'), ENT_QUOTES, 'UTF-8') ?></option>
-                                </select>
                                 <span
-                                    x-show="!isSuperAdmin || person.status === 'offboarded'"
-                                    class="text-xs text-zinc-600"
+                                    class="inline-flex rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-inset"
+                                    :class="resolvePersonnelRoleBadgeClass(person.role)"
                                     x-text="resolvePersonnelRoleLabel(person.role)"
                                 ></span>
                             </td>
                             <td class="px-6 py-4">
-                                <button
-                                    type="button"
-                                    x-show="person.status !== 'offboarded'"
-                                    @click="startOffboarding(person)"
-                                    :disabled="isOffboarding"
-                                    class="rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-medium text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
-                                >
-                                    <?= htmlspecialchars(__('action_start_offboarding'), ENT_QUOTES, 'UTF-8') ?>
-                                </button>
-                                <span x-show="person.status === 'offboarded'" class="text-xs text-zinc-400"><?= htmlspecialchars(__('personnel_offboarded_label'), ENT_QUOTES, 'UTF-8') ?></span>
+                                <div class="flex flex-wrap items-center gap-2">
+                                    <select
+                                        x-show="isSuperAdmin && person.status !== 'offboarded'"
+                                        x-cloak
+                                        class="rounded-lg border border-zinc-200 bg-white px-2.5 py-1.5 text-xs font-medium text-zinc-700 focus:border-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-200 disabled:cursor-not-allowed disabled:opacity-60"
+                                        :value="person.role || 'user'"
+                                        :disabled="personnelRoleUpdating === person.id"
+                                        @change="updatePersonnelRole(person, $event.target.value)"
+                                    >
+                                        <option value="user"><?= htmlspecialchars(__('personnel_role_user'), ENT_QUOTES, 'UTF-8') ?></option>
+                                        <option value="admin"><?= htmlspecialchars(__('personnel_role_admin'), ENT_QUOTES, 'UTF-8') ?></option>
+                                    </select>
+                                    <button
+                                        type="button"
+                                        x-show="person.status !== 'offboarded'"
+                                        @click="startOffboarding(person)"
+                                        :disabled="isOffboarding"
+                                        class="rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-medium text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
+                                    >
+                                        <?= htmlspecialchars(__('action_start_offboarding'), ENT_QUOTES, 'UTF-8') ?>
+                                    </button>
+                                    <span x-show="person.status === 'offboarded'" class="text-xs text-zinc-400"><?= htmlspecialchars(__('personnel_offboarded_label'), ENT_QUOTES, 'UTF-8') ?></span>
+                                </div>
                             </td>
                         </tr>
                     </template>

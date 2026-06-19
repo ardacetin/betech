@@ -544,7 +544,7 @@ return [
     'personnel_col_department' => 'Department',
     'personnel_col_assets' => 'Assigned Assets',
     'personnel_col_status' => 'Status',
-    'personnel_col_role' => 'Access Role',
+    'personnel_col_role' => 'Permission',
     'personnel_role_user' => 'User',
     'personnel_role_admin' => 'System Administrator',
     'personnel_role_invalid' => 'Invalid access role.',

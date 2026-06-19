@@ -33,16 +33,6 @@ declare(strict_types=1);
         >
             <?= htmlspecialchars(__('settings_tab_locations'), ENT_QUOTES, 'UTF-8') ?>
         </button>
-        <?php if ($canAccessSystemUsers): ?>
-        <button
-            type="button"
-            @click="settingsTab = 'system_users'; fetchSystemUsers()"
-            class="rounded-lg px-3 py-2 text-sm font-medium transition"
-            :class="settingsTab === 'system_users' ? 'bg-zinc-900 text-white' : 'text-zinc-600 hover:bg-zinc-100'"
-        >
-            <?= htmlspecialchars(__('settings_tab_system_users'), ENT_QUOTES, 'UTF-8') ?>
-        </button>
-        <?php endif; ?>
         <?php if ($canAccessSettings): ?>
         <button
             type="button"

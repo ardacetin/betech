@@ -568,7 +568,7 @@ return [
     'personnel_col_department' => 'Departman',
     'personnel_col_assets' => 'Zimmetli Envanter',
     'personnel_col_status' => 'Durum',
-    'personnel_col_role' => 'Erişim Rolü',
+    'personnel_col_role' => 'Yetki',
     'personnel_role_user' => 'Kullanıcı',
     'personnel_role_admin' => 'Sistem Yöneticisi',
     'personnel_role_invalid' => 'Geçersiz erişim rolü.',

@@ -23,7 +23,6 @@ class UserController
 
     public function __construct(
         private readonly UserIntegrationFactory $userIntegrationFactory,
-        private readonly User $userModel,
         private readonly Personnel $personnelModel,
         private readonly Asset $assetModel,
         private readonly AssetHistory $assetHistoryModel,
@@ -31,150 +30,6 @@ class UserController
         private readonly SessionAuthService $sessionAuthService,
         private readonly ClientIpResolver $clientIpResolver
     ) {
-    }
-
-    public function index(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
-    {
-        return $this->jsonResponse($response, 200, [
-            'status' => 'success',
-            'data' => $this->userModel->findAll(),
-        ]);
-    }
-
-    public function store(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
-    {
-        $payload = $this->resolvePayload($request);
-
-        if ($payload === null) {
-            return $this->jsonResponse($response, 400, [
-                'status' => 'error',
-                'message' => __('system_user_invalid_payload'),
-            ]);
-        }
-
-        $name = trim((string) ($payload['name'] ?? ''));
-        $email = trim((string) ($payload['email'] ?? ''));
-        $role = trim((string) ($payload['role'] ?? User::ROLE_TECHNICIAN));
-        $password = (string) ($payload['password'] ?? '');
-
-        try {
-            $user = $this->userModel->create($name, $email, $role, $password);
-        } catch (\InvalidArgumentException $exception) {
-            return $this->jsonResponse($response, 422, [
-                'status' => 'error',
-                'message' => $exception->getMessage(),
-            ]);
-        } catch (\Throwable) {
-            return $this->jsonResponse($response, 500, [
-                'status' => 'error',
-                'message' => __('system_user_create_error'),
-            ]);
-        }
-
-        return $this->jsonResponse($response, 201, [
-            'status' => 'success',
-            'message' => __('system_user_create_success'),
-            'data' => $user,
-        ]);
-    }
-
-    public function update(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
-    {
-        $userId = (int) ($args['id'] ?? 0);
-
-        if ($userId <= 0) {
-            return $this->jsonResponse($response, 400, [
-                'status' => 'error',
-                'message' => __('system_user_invalid_id'),
-            ]);
-        }
-
-        $payload = $this->resolvePayload($request);
-
-        if ($payload === null) {
-            return $this->jsonResponse($response, 400, [
-                'status' => 'error',
-                'message' => __('system_user_invalid_payload'),
-            ]);
-        }
-
-        $name = array_key_exists('name', $payload) ? trim((string) $payload['name']) : null;
-        $email = array_key_exists('email', $payload) ? trim((string) $payload['email']) : null;
-        $role = array_key_exists('role', $payload) ? trim((string) $payload['role']) : null;
-        $password = array_key_exists('password', $payload) ? (string) $payload['password'] : null;
-
-        try {
-            $user = $this->userModel->update($userId, $name, $email, $role, $password);
-        } catch (\InvalidArgumentException $exception) {
-            return $this->jsonResponse($response, 422, [
-                'status' => 'error',
-                'message' => $exception->getMessage(),
-            ]);
-        } catch (\Throwable) {
-            return $this->jsonResponse($response, 500, [
-                'status' => 'error',
-                'message' => __('system_user_update_error'),
-            ]);
-        }
-
-        if ($user === null) {
-            return $this->jsonResponse($response, 404, [
-                'status' => 'error',
-                'message' => __('system_user_not_found'),
-            ]);
-        }
-
-        return $this->jsonResponse($response, 200, [
-            'status' => 'success',
-            'message' => __('system_user_update_success'),
-            'data' => $user,
-        ]);
-    }
-
-    public function destroy(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
-    {
-        $userId = (int) ($args['id'] ?? 0);
-        $currentUserId = $this->sessionAuthService->userId() ?? 0;
-
-        if ($userId <= 0) {
-            return $this->jsonResponse($response, 400, [
-                'status' => 'error',
-                'message' => __('system_user_invalid_id'),
-            ]);
-        }
-
-        if ($currentUserId === $userId) {
-            return $this->jsonResponse($response, 403, [
-                'status' => 'error',
-                'message' => __('system_user_delete_self'),
-            ]);
-        }
-
-        try {
-            $deleted = $this->userModel->delete($userId);
-        } catch (\InvalidArgumentException $exception) {
-            return $this->jsonResponse($response, 422, [
-                'status' => 'error',
-                'message' => $exception->getMessage(),
-            ]);
-        } catch (\Throwable) {
-            return $this->jsonResponse($response, 500, [
-                'status' => 'error',
-                'message' => __('system_user_delete_error'),
-            ]);
-        }
-
-        if (!$deleted) {
-            return $this->jsonResponse($response, 404, [
-                'status' => 'error',
-                'message' => __('system_user_not_found'),
-            ]);
-        }
-
-        return $this->jsonResponse($response, 200, [
-            'status' => 'success',
-            'message' => __('system_user_delete_success'),
-        ]);
     }
 
     public function searchPersonnel(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
@@ -436,6 +291,13 @@ class UserController
 
     public function updatePersonnelRole(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
     {
+        if (User::normalizeRoleStatic($this->sessionAuthService->role()) !== User::ROLE_ADMIN) {
+            return $this->jsonResponse($response, 403, [
+                'status' => 'error',
+                'message' => __('portal_access_denied'),
+            ]);
+        }
+
         $personnelId = (int) ($args['id'] ?? 0);
         $payload = $this->resolvePayload($request) ?? [];
         $role = trim((string) ($payload['role'] ?? ''));

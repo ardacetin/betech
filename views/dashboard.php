@@ -22,7 +22,6 @@ $userRole = $userRole ?? 'end_user';
 $canManageAssets = $canManageAssets ?? false;
 $canAccessSettings = $canAccessSettings ?? false;
 $canAccessPersonnel = $canAccessPersonnel ?? false;
-$canAccessSystemUsers = $canAccessSystemUsers ?? false;
 $isEndUser = $isEndUser ?? false;
 $isSuperAdmin = $isSuperAdmin ?? false;
 
@@ -186,25 +185,6 @@ $i18nScript = json_encode([
     'location_delete_confirm' => __('location_delete_confirm'),
     'location_delete_in_use' => __('location_delete_in_use'),
     'history_action_location_moved' => __('history_action_location_moved'),
-    'system_users_fetch_error' => __('system_users_fetch_error'),
-    'system_users_network_error' => __('system_users_network_error'),
-    'system_user_create_success' => __('system_user_create_success'),
-    'system_user_update_success' => __('system_user_update_success'),
-    'system_user_create_error' => __('system_user_create_error'),
-    'system_user_update_error' => __('system_user_update_error'),
-    'system_user_password_optional' => __('system_user_password_optional'),
-    'system_user_password_min_hint' => __('system_user_password_min_hint'),
-    'role_super_admin' => __('role_super_admin'),
-    'role_technician' => __('role_technician'),
-    'system_user_delete_confirm' => __('system_user_delete_confirm'),
-    'system_user_delete_success' => __('system_user_delete_success'),
-    'system_user_delete_error' => __('system_user_delete_error'),
-    'system_user_delete_self' => __('system_user_delete_self'),
-    'action_delete_system_user' => __('action_delete_system_user'),
-    'auth_provider_local' => __('auth_provider_local'),
-    'auth_provider_ldap' => __('auth_provider_ldap'),
-    'auth_provider_google' => __('auth_provider_google'),
-    'auth_provider_microsoft' => __('auth_provider_microsoft'),
     'licenses_fetch_error' => __('licenses_fetch_error'),
     'licenses_network_error' => __('licenses_network_error'),
     'license_create_success' => __('license_create_success'),
@@ -520,15 +500,6 @@ $i18nScript = json_encode([
                         </button>
                         <button
                             type="button"
-                            x-show="activeView === 'settings' && settingsTab === 'system_users' && canAccessSystemUsers"
-                            @click="openSystemUserModal()"
-                            class="inline-flex items-center gap-2 rounded-xl bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white shadow-soft transition hover:bg-zinc-800"
-                        >
-                            <span class="text-lg leading-none">+</span>
-                            <?= htmlspecialchars(__('add_system_user'), ENT_QUOTES, 'UTF-8') ?>
-                        </button>
-                        <button
-                            type="button"
                             x-show="activeView === 'licenses' && canManageAssets"
                             @click="openLicenseModal()"
                             class="inline-flex items-center gap-2 rounded-xl bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white shadow-soft transition hover:bg-zinc-800"
@@ -790,7 +761,6 @@ $i18nScript = json_encode([
                 <?php require __DIR__ . '/partials/settings_panel.php'; ?>
                 <?php require __DIR__ . '/partials/categories_panel.php'; ?>
                 <?php require __DIR__ . '/partials/locations_panel.php'; ?>
-                <?php require __DIR__ . '/partials/system_users_panel.php'; ?>
                 <?php endif; ?>
                 <?php if ($canAccessPersonnel): ?>
                 <?php require __DIR__ . '/partials/personnel_panel.php'; ?>
@@ -1649,62 +1619,6 @@ $i18nScript = json_encode([
     </div>
 
     <div
-        x-show="isSystemUserModalOpen"
-        x-cloak
-        class="fixed inset-0 z-[60] flex items-center justify-center px-4"
-        @keydown.escape.window="closeSystemUserModal()"
-    >
-        <div class="absolute inset-0 bg-zinc-900/40 backdrop-blur-sm" @click="closeSystemUserModal()"></div>
-
-        <div class="relative w-full max-w-xl rounded-2xl border border-zinc-200 bg-white shadow-soft">
-            <div class="flex items-center justify-between border-b border-zinc-200 px-6 py-4">
-                <div>
-                    <h3 class="text-lg font-semibold text-zinc-900" x-text="systemUserForm.id ? '<?= htmlspecialchars(__('edit_system_user'), ENT_QUOTES, 'UTF-8') ?>' : '<?= htmlspecialchars(__('add_system_user'), ENT_QUOTES, 'UTF-8') ?>'"></h3>
-                    <p class="mt-1 text-sm text-zinc-500"><?= htmlspecialchars(__('system_user_modal_subtitle'), ENT_QUOTES, 'UTF-8') ?></p>
-                </div>
-                <button type="button" @click="closeSystemUserModal()" class="rounded-lg p-2 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600">&times;</button>
-            </div>
-
-            <form @submit.prevent="submitSystemUserForm" class="px-6 py-5">
-                <div class="grid gap-4 sm:grid-cols-2">
-                    <label class="block sm:col-span-2">
-                        <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('system_users_col_name'), ENT_QUOTES, 'UTF-8') ?></span>
-                        <input type="text" x-model="systemUserForm.name" required class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4">
-                    </label>
-                    <label class="block sm:col-span-2">
-                        <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('system_users_col_email'), ENT_QUOTES, 'UTF-8') ?></span>
-                        <input type="email" x-model="systemUserForm.email" required class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4">
-                    </label>
-                    <label class="block sm:col-span-1">
-                        <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('system_users_col_role'), ENT_QUOTES, 'UTF-8') ?></span>
-                        <select x-model="systemUserForm.role" class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4">
-                            <option value="super_admin"><?= htmlspecialchars(__('role_super_admin'), ENT_QUOTES, 'UTF-8') ?></option>
-                            <option value="technician"><?= htmlspecialchars(__('role_technician'), ENT_QUOTES, 'UTF-8') ?></option>
-                        </select>
-                    </label>
-                    <label class="block sm:col-span-1">
-                        <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('system_user_password_label'), ENT_QUOTES, 'UTF-8') ?></span>
-                        <input type="password" x-model="systemUserForm.password" :required="!systemUserForm.id" minlength="8" class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4" :placeholder="systemUserForm.id ? window.__i18n.system_user_password_optional : ''">
-                        <span class="mt-1 block text-xs text-zinc-500"><?= htmlspecialchars(__('system_user_password_min_hint'), ENT_QUOTES, 'UTF-8') ?></span>
-                    </label>
-                </div>
-
-                <p x-show="systemUserFormError" x-cloak class="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700" x-text="systemUserFormError"></p>
-
-                <div class="mt-6 flex items-center justify-end gap-3 border-t border-zinc-200 pt-5">
-                    <button type="button" @click="closeSystemUserModal()" :disabled="isSystemUserSubmitting" class="rounded-xl border border-zinc-200 px-4 py-2.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60">
-                        <?= htmlspecialchars(__('cancel'), ENT_QUOTES, 'UTF-8') ?>
-                    </button>
-                    <button type="submit" :disabled="isSystemUserSubmitting" class="inline-flex items-center gap-2 rounded-xl bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60">
-                        <span x-show="isSystemUserSubmitting"><?= htmlspecialchars(__('saving'), ENT_QUOTES, 'UTF-8') ?></span>
-                        <span x-show="!isSystemUserSubmitting"><?= htmlspecialchars(__('save_changes'), ENT_QUOTES, 'UTF-8') ?></span>
-                    </button>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <div
         x-show="isLicenseModalOpen"
         x-cloak
         class="fixed inset-0 z-[60] flex items-center justify-center px-4"
@@ -2184,7 +2098,6 @@ $i18nScript = json_encode([
             canManageAssets: <?= $canManageAssets ? 'true' : 'false' ?>,
             canAccessSettings: <?= $canAccessSettings ? 'true' : 'false' ?>,
             canAccessPersonnel: <?= $canAccessPersonnel ? 'true' : 'false' ?>,
-            canAccessSystemUsers: <?= $canAccessSystemUsers ? 'true' : 'false' ?>,
             currentUserId: <?= (int) ($currentUserId ?? 0) ?>,
             currentUserEmail: <?= json_encode($currentUserEmail ?? '', JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
             isSuperAdmin: <?= $isSuperAdmin ? 'true' : 'false' ?>,
@@ -2200,7 +2113,6 @@ $i18nScript = json_encode([
                 categories: <?= json_encode(__('categories_page_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 locations: <?= json_encode(__('locations_page_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 personnel: <?= json_encode(__('personnel_page_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
-                system_users: <?= json_encode(__('system_users_page_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 smtp: <?= json_encode(__('settings_tab_smtp'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 audit_logs: <?= json_encode(__('audit_logs_page_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
             },
@@ -2215,7 +2127,6 @@ $i18nScript = json_encode([
                 categories: <?= json_encode(__('categories_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 locations: <?= json_encode(__('locations_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 personnel: <?= json_encode(__('personnel_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
-                system_users: <?= json_encode(__('system_users_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 smtp: <?= json_encode(__('settings_smtp_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 audit_logs: <?= json_encode(__('audit_logs_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
             },
@@ -2283,20 +2194,6 @@ $i18nScript = json_encode([
                 description: '',
             },
             locationFormError: '',
-            systemUsers: [],
-            systemUsersLoading: false,
-            systemUsersError: '',
-            systemUsersSuccessMessage: '',
-            isSystemUserModalOpen: false,
-            isSystemUserSubmitting: false,
-            systemUserForm: {
-                id: null,
-                name: '',
-                email: '',
-                role: 'technician',
-                password: '',
-            },
-            systemUserFormError: '',
             licenses: [],
             licensesLoading: false,
             licensesError: '',
@@ -2615,7 +2512,6 @@ $i18nScript = json_encode([
                         general: this.pageTitles.settings,
                         categories: this.pageTitles.categories,
                         locations: this.pageTitles.locations,
-                        system_users: this.pageTitles.system_users,
                         smtp: this.pageTitles.smtp,
                     };
 
@@ -2630,7 +2526,6 @@ $i18nScript = json_encode([
                         general: this.pageSubtitles.settings,
                         categories: this.pageSubtitles.categories,
                         locations: this.pageSubtitles.locations,
-                        system_users: this.pageSubtitles.system_users,
                         smtp: this.pageSubtitles.smtp,
                     };
 
@@ -2657,14 +2552,11 @@ $i18nScript = json_encode([
                 try {
                     const saved = JSON.parse(raw);
 
-                    if (saved.activeView === 'system_users') {
-                        this.activeView = 'settings';
-                        this.settingsTab = 'system_users';
-                    } else if (saved.activeView) {
+                    if (saved.activeView) {
                         this.activeView = saved.activeView;
                     }
 
-                    if (saved.settingsTab && saved.activeView !== 'system_users') {
+                    if (saved.settingsTab) {
                         this.settingsTab = saved.settingsTab;
                     }
 
@@ -2678,10 +2570,6 @@ $i18nScript = json_encode([
 
                     if (this.activeView === 'settings' && this.settingsTab === 'locations') {
                         this.fetchLocations();
-                    }
-
-                    if (this.activeView === 'settings' && this.settingsTab === 'system_users') {
-                        this.fetchSystemUsers();
                     }
 
                     if (this.activeView === 'dashboard') {
@@ -2900,6 +2788,11 @@ $i18nScript = json_encode([
                     ? window.__i18n.personnel_role_admin
                     : window.__i18n.personnel_role_user;
             },
+            resolvePersonnelRoleBadgeClass(role) {
+                return role === 'admin'
+                    ? 'bg-emerald-50 text-emerald-700 ring-emerald-600/20'
+                    : 'bg-zinc-100 text-zinc-600 ring-zinc-500/20';
+            },
             async updatePersonnelRole(person, role) {
                 if (!this.isSuperAdmin || !person?.id || person.role === role) {
                     return;
@@ -3054,167 +2947,6 @@ $i18nScript = json_encode([
                     this.personnelSyncError = window.__i18n.personnel_network_error;
                 } finally {
                     this.personnelSyncing = false;
-                }
-            },
-            resolveSystemUserRoleLabel(role) {
-                const labels = {
-                    super_admin: window.__i18n.role_super_admin,
-                    technician: window.__i18n.role_technician,
-                };
-
-                return labels[String(role || '')] || String(role || '');
-            },
-            resolveAuthProviderLabel(provider) {
-                const key = String(provider || 'local');
-                const labels = {
-                    local: window.__i18n.auth_provider_local,
-                    ldap: window.__i18n.auth_provider_ldap,
-                    google: window.__i18n.auth_provider_google,
-                    microsoft: window.__i18n.auth_provider_microsoft,
-                };
-
-                return labels[key] || key;
-            },
-            async fetchSystemUsers() {
-                if (!this.canAccessSystemUsers) {
-                    return;
-                }
-
-                this.systemUsersLoading = true;
-                this.systemUsersError = '';
-
-                try {
-                    const response = await fetch('/api/users', {
-                        headers: { 'Accept': 'application/json' },
-                    });
-                    const result = await response.json();
-
-                    if (!response.ok) {
-                        this.systemUsersError = result.message || window.__i18n.system_users_fetch_error;
-                        this.systemUsers = [];
-                        return;
-                    }
-
-                    this.systemUsers = Array.isArray(result.data) ? result.data : [];
-                } catch (error) {
-                    this.systemUsersError = window.__i18n.system_users_network_error;
-                    this.systemUsers = [];
-                } finally {
-                    this.systemUsersLoading = false;
-                }
-            },
-            openSystemUserModal(user = null) {
-                this.systemUserFormError = '';
-                this.systemUsersSuccessMessage = '';
-
-                if (user) {
-                    this.systemUserForm = {
-                        id: Number(user.id),
-                        name: String(user.name || ''),
-                        email: String(user.email || ''),
-                        role: String(user.role || 'technician'),
-                        password: '',
-                    };
-                } else {
-                    this.systemUserForm = {
-                        id: null,
-                        name: '',
-                        email: '',
-                        role: 'technician',
-                        password: '',
-                    };
-                }
-
-                this.isSystemUserModalOpen = true;
-            },
-            closeSystemUserModal() {
-                if (this.isSystemUserSubmitting) {
-                    return;
-                }
-
-                this.isSystemUserModalOpen = false;
-                this.systemUserFormError = '';
-            },
-            async submitSystemUserForm() {
-                this.systemUserFormError = '';
-                this.isSystemUserSubmitting = true;
-
-                const isEdit = Boolean(this.systemUserForm.id);
-                const payload = {
-                    name: this.systemUserForm.name,
-                    email: this.systemUserForm.email,
-                    role: this.systemUserForm.role,
-                };
-
-                if (this.systemUserForm.password.trim() !== '') {
-                    payload.password = this.systemUserForm.password;
-                }
-
-                try {
-                    const response = await fetch(
-                        isEdit ? `/api/users/${this.systemUserForm.id}` : '/api/users',
-                        {
-                            method: isEdit ? 'PUT' : 'POST',
-                            headers: {
-                                'Accept': 'application/json',
-                                'Content-Type': 'application/json',
-                            },
-                            body: JSON.stringify(payload),
-                        }
-                    );
-                    const result = await response.json();
-
-                    if (!response.ok) {
-                        this.systemUserFormError = result.message || (isEdit
-                            ? window.__i18n.system_user_update_error
-                            : window.__i18n.system_user_create_error);
-                        return;
-                    }
-
-                    this.isSystemUserModalOpen = false;
-                    this.systemUsersSuccessMessage = result.message || (isEdit
-                        ? window.__i18n.system_user_update_success
-                        : window.__i18n.system_user_create_success);
-                    await this.fetchSystemUsers();
-                } catch (error) {
-                    this.systemUserFormError = window.__i18n.system_users_network_error;
-                } finally {
-                    this.isSystemUserSubmitting = false;
-                }
-            },
-            async deleteSystemUser(user) {
-                if (!user?.id) {
-                    return;
-                }
-
-                if (Number(user.id) === Number(this.currentUserId)) {
-                    this.systemUsersError = window.__i18n.system_user_delete_self;
-                    return;
-                }
-
-                if (!window.confirm(window.__i18n.system_user_delete_confirm)) {
-                    return;
-                }
-
-                this.systemUsersSuccessMessage = '';
-                this.systemUsersError = '';
-
-                try {
-                    const response = await fetch(`/api/users/${user.id}`, {
-                        method: 'DELETE',
-                        headers: { 'Accept': 'application/json' },
-                    });
-                    const result = await response.json();
-
-                    if (!response.ok) {
-                        this.systemUsersError = result.message || window.__i18n.system_user_delete_error;
-                        return;
-                    }
-
-                    this.systemUsersSuccessMessage = result.message || window.__i18n.system_user_delete_success;
-                    await this.fetchSystemUsers();
-                } catch (error) {
-                    this.systemUsersError = window.__i18n.system_users_network_error;
                 }
             },
             printTutanak(assetId) {

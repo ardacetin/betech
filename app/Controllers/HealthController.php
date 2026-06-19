@@ -64,7 +64,6 @@ class HealthController
         }
 
         $canAccessSettings = $this->userModel->isSuperAdmin($role);
-        $canAccessSystemUsers = $canAccessSettings;
         $canAccessPersonnel = $canManageAssets;
 
         $categories = $this->categoryModel->findAll();
@@ -95,7 +94,6 @@ class HealthController
             'canManageAssets' => $canManageAssets,
             'canAccessSettings' => $canAccessSettings,
             'canAccessPersonnel' => $canAccessPersonnel,
-            'canAccessSystemUsers' => $canAccessSystemUsers,
             'currentUserId' => $userId,
             'currentUserEmail' => $currentUserEmail,
             'isEndUser' => false,
