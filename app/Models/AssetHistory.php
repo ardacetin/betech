@@ -33,6 +33,42 @@ class AssetHistory
     /**
      * @return list<array<string, mixed>>
      */
+    public function findRecent(int $limit = 5): array
+    {
+        $limit = max(1, min(20, $limit));
+
+        $rows = $this->db()->select('asset_histories', [
+            '[>]assets' => ['asset_id' => 'id'],
+            '[>]personnel(target_personnel)' => ['target_personnel_id' => 'id'],
+            '[>]users(actor)' => ['user_id' => 'id'],
+        ], [
+            'asset_histories.id',
+            'asset_histories.asset_id',
+            'asset_histories.action',
+            'asset_histories.user_id',
+            'asset_histories.target_personnel_id',
+            'asset_histories.notes',
+            'asset_histories.created_at',
+            'assets.name(asset_name)',
+            'target_personnel.name(target_personnel_name)',
+            'actor.name(actor_name)',
+        ], [
+            'ORDER' => [
+                'asset_histories.created_at' => 'DESC',
+                'asset_histories.id' => 'DESC',
+            ],
+            'LIMIT' => $limit,
+        ]);
+
+        return array_map(
+            fn (array $row): array => $this->normalizeRow($row),
+            $rows
+        );
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
     public function findByAssetId(int $assetId): array
     {
         $rows = $this->db()->select('asset_histories', [

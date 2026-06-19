@@ -10,6 +10,7 @@ use App\Controllers\LocationController;
 use App\Controllers\AssetTutanakController;
 use App\Controllers\AssetViewController;
 use App\Controllers\AuthController;
+use App\Controllers\DashboardController;
 use App\Controllers\HealthController;
 use App\Controllers\SettingsController;
 use App\Controllers\UserController;
@@ -127,6 +128,7 @@ $assetViewController = new AssetViewController($appConfig, $assetModel, $categor
 $assetTutanakController = new AssetTutanakController($assetModel, $settingModel, $personnelModel, $userModel, $userIntegrationFactory, $zimmetTutanakService, $viewRenderer, $sessionAuthService);
 $userController = new UserController($userIntegrationFactory, $userModel, $personnelModel, $assetModel, $assetHistoryModel, $settingModel, $sessionAuthService, $clientIpResolver);
 $analyticsController = new AnalyticsController($analyticsService);
+$dashboardController = new DashboardController($analyticsService, $assetHistoryModel);
 $settingsController = new SettingsController($settingModel);
 $categoryController = new CategoryController($categoryModel);
 $locationController = new LocationController($locationModel);
@@ -141,6 +143,7 @@ $app->get('/auth/callback/{provider}', [$authController, 'handleOAuthCallback'])
 $app->get('/', [$healthController, 'index']);
 $app->get('/assets/view/{id}', [$assetViewController, 'show']);
 $app->get('/api/analytics/summary', [$analyticsController, 'summary']);
+$app->get('/api/dashboard/stats', [$dashboardController, 'stats']);
 $app->get('/api/settings', [$settingsController, 'show']);
 $app->put('/api/settings', [$settingsController, 'update']);
 $app->get('/api/categories', [$categoryController, 'index']);

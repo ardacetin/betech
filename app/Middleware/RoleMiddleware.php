@@ -248,6 +248,11 @@ class RoleMiddleware implements MiddlewareInterface
             ],
             [
                 'methods' => ['GET'],
+                'pattern' => '/api/dashboard/stats',
+                'roles' => $operational,
+            ],
+            [
+                'methods' => ['GET'],
                 'pattern' => '/api/assets/{id}/tutanak',
                 'roles' => [User::ROLE_SUPER_ADMIN, User::ROLE_TECHNICIAN, User::ROLE_END_USER],
             ],

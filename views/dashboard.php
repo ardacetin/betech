@@ -66,36 +66,6 @@ $formatLocationLabel = static function (?string $building, ?string $name): strin
     return $building . ' / ' . $name;
 };
 
-$statusChartColors = [
-    'ready' => 'bg-sky-500',
-    'deployed' => 'bg-emerald-500',
-    'storage' => 'bg-amber-500',
-    'broken' => 'bg-rose-500',
-];
-
-$categoryChartColors = [
-    'bg-zinc-800',
-    'bg-sky-500',
-    'bg-emerald-500',
-    'bg-amber-500',
-    'bg-violet-500',
-    'bg-rose-500',
-];
-
-$summaryCards = [
-    ['label' => __('metric_total_assets'), 'value' => $analytics['summary_cards']['total'], 'hint' => __('metric_total_hint')],
-    ['label' => __('metric_deployed'), 'value' => $analytics['summary_cards']['deployed'], 'hint' => __('metric_deployed_hint')],
-    ['label' => __('metric_in_storage'), 'value' => $analytics['summary_cards']['in_storage'], 'hint' => __('metric_in_storage_hint')],
-    ['label' => __('metric_broken'), 'value' => $analytics['summary_cards']['broken'], 'hint' => __('metric_broken_hint')],
-];
-
-$assignedPercentage = (float) ($analytics['assignment']['assigned_percentage'] ?? 0);
-$assignmentGradient = sprintf(
-    'conic-gradient(#18181b 0%% %.1f%%, #e4e4e7 %.1f%% 100%%)',
-    $assignedPercentage,
-    $assignedPercentage
-);
-
 $assetOptions = array_map(
     static fn (array $asset): array => [
         'id' => (int) $asset['id'],
@@ -240,9 +210,19 @@ $i18nScript = json_encode([
     'add_manual_user' => __('add_manual_user'),
     'manual_user_create_button' => __('manual_user_create_button'),
     'manual_user_create_error' => __('manual_user_create_error'),
+    'dashboard_activity_assigned' => __('dashboard_activity_assigned'),
+    'dashboard_activity_transferred' => __('dashboard_activity_transferred'),
+    'dashboard_activity_returned' => __('dashboard_activity_returned'),
+    'dashboard_activity_created' => __('dashboard_activity_created'),
+    'dashboard_activity_updated' => __('dashboard_activity_updated'),
+    'dashboard_activity_offboarded' => __('dashboard_activity_offboarded'),
+    'dashboard_activity_unassigned' => __('dashboard_activity_unassigned'),
+    'dashboard_activity_status_change' => __('dashboard_activity_status_change'),
+    'dashboard_activity_location_moved' => __('dashboard_activity_location_moved'),
+    'dashboard_activity_generic' => __('dashboard_activity_generic'),
 ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
 ?>
-<div class="min-h-full" x-data="assetDashboard()" x-init="restoreDashboardView(); if (canManageAssets) { fetchCategories(); fetchLocations(); fetchLicenses(); } this.isAssignLicenseModalOpen = false;">
+<div class="min-h-full" x-data="assetDashboard()" x-init="restoreDashboardView(); if (canManageAssets) { fetchCategories(); fetchLocations(); fetchLicenses(); if (activeView === 'dashboard') { fetchDashboardStats(); } } this.isAssignLicenseModalOpen = false;">
     <div class="flex min-h-screen">
         <aside class="hidden w-64 shrink-0 border-r border-zinc-200 bg-white lg:flex lg:flex-col">
             <div class="flex h-16 items-center gap-3 border-b border-zinc-200 px-6">
@@ -254,6 +234,17 @@ $i18nScript = json_encode([
             </div>
 
             <nav class="flex-1 space-y-1 p-4">
+                <?php if ($canManageAssets): ?>
+                <button
+                    type="button"
+                    @click="activeView = 'dashboard'; fetchDashboardStats()"
+                    class="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm font-medium transition"
+                    :class="activeView === 'dashboard' ? 'bg-zinc-100 text-zinc-900' : 'text-zinc-600 hover:bg-zinc-50'"
+                >
+                    <span class="h-2 w-2 rounded-full" :class="activeView === 'dashboard' ? 'bg-zinc-900' : 'bg-zinc-300'"></span>
+                    <?= htmlspecialchars(__('nav_dashboard'), ENT_QUOTES, 'UTF-8') ?>
+                </button>
+                <?php endif; ?>
                 <button
                     type="button"
                     @click="activeView = 'assets'"
@@ -334,6 +325,19 @@ $i18nScript = json_encode([
                         </div>
                         <button
                             type="button"
+                            x-show="activeView === 'dashboard' && canManageAssets"
+                            @click="fetchDashboardStats()"
+                            :disabled="dashboardLoading"
+                            class="inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-4 py-2.5 text-sm font-medium text-zinc-700 shadow-soft transition hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                            <svg x-show="dashboardLoading" x-cloak class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                            </svg>
+                            <?= htmlspecialchars(__('dashboard_refresh'), ENT_QUOTES, 'UTF-8') ?>
+                        </button>
+                        <button
+                            type="button"
                             x-show="activeView === 'assets' && canManageAssets"
                             @click="exportAssets()"
                             class="inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-4 py-2.5 text-sm font-medium text-zinc-700 shadow-soft transition hover:bg-zinc-50"
@@ -398,109 +402,11 @@ $i18nScript = json_encode([
             </header>
 
             <div class="mx-auto max-w-7xl space-y-8 px-6 py-8">
-                <div x-show="activeView === 'assets'" x-cloak class="space-y-8">
-                <?php if (!$isEndUser): ?>
-                <section class="space-y-4">
-                    <div>
-                        <h2 class="text-lg font-semibold tracking-tight text-zinc-900"><?= htmlspecialchars(__('analytics_title'), ENT_QUOTES, 'UTF-8') ?></h2>
-                        <p class="mt-1 text-sm text-zinc-500"><?= htmlspecialchars(__('analytics_subtitle'), ENT_QUOTES, 'UTF-8') ?></p>
-                    </div>
-
-                    <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                        <?php foreach ($summaryCards as $card): ?>
-                        <article class="rounded-2xl border border-zinc-200 bg-white p-5 shadow-soft">
-                            <p class="text-sm font-medium text-zinc-500"><?= htmlspecialchars($card['label'], ENT_QUOTES, 'UTF-8') ?></p>
-                            <p class="mt-3 text-3xl font-semibold tracking-tight text-zinc-900"><?= (int) $card['value'] ?></p>
-                            <p class="mt-2 text-xs text-zinc-400"><?= htmlspecialchars($card['hint'], ENT_QUOTES, 'UTF-8') ?></p>
-                        </article>
-                        <?php endforeach; ?>
-                    </div>
-
-                    <div class="grid gap-4 lg:grid-cols-3">
-                        <article class="rounded-2xl border border-zinc-200 bg-white p-5 shadow-soft">
-                            <h3 class="text-sm font-semibold text-zinc-900"><?= htmlspecialchars(__('analytics_status_distribution'), ENT_QUOTES, 'UTF-8') ?></h3>
-                            <div class="mt-5 space-y-4">
-                                <?php foreach ($analytics['by_status'] as $row):
-                                    $statusKey = (string) $row['status'];
-                                    $barColor = $statusChartColors[$statusKey] ?? 'bg-zinc-500';
-                                    $barWidth = max(0, min(100, (float) $row['percentage']));
-                                ?>
-                                <div>
-                                    <div class="flex items-center justify-between gap-3 text-sm">
-                                        <span class="font-medium text-zinc-700"><?= htmlspecialchars($translateStatus($statusKey), ENT_QUOTES, 'UTF-8') ?></span>
-                                        <span class="tabular-nums text-zinc-500"><?= (int) $row['count'] ?> · <?= number_format((float) $row['percentage'], 1) ?>%</span>
-                                    </div>
-                                    <div class="mt-2 h-2 overflow-hidden rounded-full bg-zinc-100">
-                                        <div class="h-2 rounded-full transition-all duration-500 <?= $barColor ?>" style="width: <?= htmlspecialchars((string) $barWidth, ENT_QUOTES, 'UTF-8') ?>%"></div>
-                                    </div>
-                                </div>
-                                <?php endforeach; ?>
-                            </div>
-                        </article>
-
-                        <article class="rounded-2xl border border-zinc-200 bg-white p-5 shadow-soft">
-                            <h3 class="text-sm font-semibold text-zinc-900"><?= htmlspecialchars(__('analytics_category_distribution'), ENT_QUOTES, 'UTF-8') ?></h3>
-                            <?php if ($analytics['by_category'] === []): ?>
-                                <p class="mt-5 rounded-xl border border-dashed border-zinc-200 bg-zinc-50 px-4 py-6 text-sm text-zinc-500">
-                                    <?= htmlspecialchars(__('analytics_no_category_data'), ENT_QUOTES, 'UTF-8') ?>
-                                </p>
-                            <?php else: ?>
-                                <div class="mt-5 space-y-4">
-                                    <?php foreach ($analytics['by_category'] as $index => $row):
-                                        $barColor = $categoryChartColors[$index % count($categoryChartColors)];
-                                        $barWidth = max(0, min(100, (float) $row['percentage']));
-                                    ?>
-                                    <div>
-                                        <div class="flex items-center justify-between gap-3 text-sm">
-                                            <span class="truncate font-medium text-zinc-700"><?= htmlspecialchars((string) $row['category_name'], ENT_QUOTES, 'UTF-8') ?></span>
-                                            <span class="shrink-0 tabular-nums text-zinc-500"><?= (int) $row['count'] ?> · <?= number_format((float) $row['percentage'], 1) ?>%</span>
-                                        </div>
-                                        <div class="mt-2 h-2 overflow-hidden rounded-full bg-zinc-100">
-                                            <div class="h-2 rounded-full transition-all duration-500 <?= $barColor ?>" style="width: <?= htmlspecialchars((string) $barWidth, ENT_QUOTES, 'UTF-8') ?>%"></div>
-                                        </div>
-                                    </div>
-                                    <?php endforeach; ?>
-                                </div>
-                            <?php endif; ?>
-                        </article>
-
-                        <article class="rounded-2xl border border-zinc-200 bg-white p-5 shadow-soft">
-                            <h3 class="text-sm font-semibold text-zinc-900"><?= htmlspecialchars(__('analytics_assignment_overview'), ENT_QUOTES, 'UTF-8') ?></h3>
-                            <div class="mt-5 flex flex-col items-center gap-6 sm:flex-row sm:items-center sm:justify-between">
-                                <div class="relative flex h-36 w-36 shrink-0 items-center justify-center rounded-full" style="background: <?= htmlspecialchars($assignmentGradient, ENT_QUOTES, 'UTF-8') ?>">
-                                    <div class="flex h-28 w-28 flex-col items-center justify-center rounded-full bg-white shadow-soft">
-                                        <span class="text-2xl font-semibold tabular-nums text-zinc-900"><?= number_format($assignedPercentage, 1) ?>%</span>
-                                        <span class="mt-1 text-[10px] uppercase tracking-wide text-zinc-400"><?= htmlspecialchars(__('analytics_assigned'), ENT_QUOTES, 'UTF-8') ?></span>
-                                    </div>
-                                </div>
-                                <div class="w-full space-y-3 sm:flex-1">
-                                    <div class="flex items-center justify-between rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3">
-                                        <div class="flex items-center gap-2">
-                                            <span class="h-2.5 w-2.5 rounded-full bg-zinc-900"></span>
-                                            <span class="text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('analytics_assigned'), ENT_QUOTES, 'UTF-8') ?></span>
-                                        </div>
-                                        <span class="text-sm tabular-nums text-zinc-600">
-                                            <?= (int) $analytics['assignment']['assigned'] ?>
-                                            (<?= number_format((float) $analytics['assignment']['assigned_percentage'], 1) ?>%)
-                                        </span>
-                                    </div>
-                                    <div class="flex items-center justify-between rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3">
-                                        <div class="flex items-center gap-2">
-                                            <span class="h-2.5 w-2.5 rounded-full bg-zinc-300"></span>
-                                            <span class="text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('analytics_unassigned'), ENT_QUOTES, 'UTF-8') ?></span>
-                                        </div>
-                                        <span class="text-sm tabular-nums text-zinc-600">
-                                            <?= (int) $analytics['assignment']['unassigned'] ?>
-                                            (<?= number_format((float) $analytics['assignment']['unassigned_percentage'], 1) ?>%)
-                                        </span>
-                                    </div>
-                                </div>
-                            </div>
-                        </article>
-                    </div>
-                </section>
+                <?php if ($canManageAssets): ?>
+                    <?php require __DIR__ . '/partials/dashboard_home_panel.php'; ?>
                 <?php endif; ?>
 
+                <div x-show="activeView === 'assets'" x-cloak class="space-y-8">
                 <section class="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-soft">
                     <div class="border-b border-zinc-200 px-6 py-4">
                         <h2 class="text-lg font-semibold text-zinc-900"><?= htmlspecialchars($isEndUser ? __('inventory_title_end_user') : __('inventory_title'), ENT_QUOTES, 'UTF-8') ?></h2>
@@ -1823,6 +1729,7 @@ $i18nScript = json_encode([
 
 <link href="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.snow.css" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 
 <script>
     window.__i18n = <?= $i18nScript ?>;
@@ -1836,7 +1743,11 @@ $i18nScript = json_encode([
 
     function assetDashboard() {
         return {
-            activeView: 'assets',
+            activeView: <?= $canManageAssets ? "'dashboard'" : "'assets'" ?>,
+            dashboardStats: null,
+            dashboardLoading: false,
+            dashboardError: '',
+            categoryChart: null,
             userRole: <?= json_encode($userRole, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
             canManageAssets: <?= $canManageAssets ? 'true' : 'false' ?>,
             canAccessSettings: <?= $canAccessSettings ? 'true' : 'false' ?>,
@@ -1846,7 +1757,8 @@ $i18nScript = json_encode([
             isSuperAdmin: <?= $isSuperAdmin ? 'true' : 'false' ?>,
             settingsTab: 'general',
             pageTitles: {
-                assets: <?= json_encode($isEndUser ? __('page_title_end_user') : $pageTitle, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
+                dashboard: <?= json_encode(__('dashboard_page_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
+                assets: <?= json_encode($isEndUser ? __('page_title_end_user') : __('nav_assets'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 licenses: <?= json_encode(__('licenses_page_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 settings: <?= json_encode(__('settings_page_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 categories: <?= json_encode(__('categories_page_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
@@ -1855,6 +1767,7 @@ $i18nScript = json_encode([
                 system_users: <?= json_encode(__('system_users_page_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
             },
             pageSubtitles: {
+                dashboard: <?= json_encode(__('dashboard_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 assets: <?= json_encode($isEndUser ? __('page_subtitle_end_user') : __('page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 licenses: <?= json_encode(__('licenses_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 settings: <?= json_encode(__('settings_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
@@ -2170,6 +2083,10 @@ $i18nScript = json_encode([
                     if (this.activeView === 'settings' && this.settingsTab === 'system_users') {
                         this.fetchSystemUsers();
                     }
+
+                    if (this.activeView === 'dashboard') {
+                        this.fetchDashboardStats();
+                    }
                 } catch (error) {
                     // Ignore invalid persisted view state.
                 }
@@ -2188,6 +2105,146 @@ $i18nScript = json_encode([
                 }
 
                 return fallback;
+            },
+            async fetchDashboardStats() {
+                if (!this.canManageAssets || this.dashboardLoading) {
+                    return;
+                }
+
+                this.dashboardLoading = true;
+                this.dashboardError = '';
+
+                try {
+                    const response = await fetch('/api/dashboard/stats', {
+                        headers: { Accept: 'application/json' },
+                    });
+                    const result = await response.json();
+
+                    if (!response.ok) {
+                        this.dashboardError = this.apiErrorMessage(result, window.__i18n.network_error);
+                        return;
+                    }
+
+                    this.dashboardStats = result.data || null;
+                    this.$nextTick(() => {
+                        this.$nextTick(() => this.renderCategoryChart());
+                    });
+                } catch (error) {
+                    this.dashboardError = window.__i18n.network_error;
+                } finally {
+                    this.dashboardLoading = false;
+                }
+            },
+            renderCategoryChart() {
+                if (typeof Chart === 'undefined') {
+                    return;
+                }
+
+                const canvas = document.getElementById('dashboardCategoryChart');
+
+                if (!canvas || !this.dashboardStats) {
+                    return;
+                }
+
+                const categories = Array.isArray(this.dashboardStats.by_category)
+                    ? this.dashboardStats.by_category
+                    : [];
+
+                if (categories.length === 0) {
+                    if (this.categoryChart) {
+                        this.categoryChart.destroy();
+                        this.categoryChart = null;
+                    }
+
+                    return;
+                }
+
+                if (this.categoryChart) {
+                    this.categoryChart.destroy();
+                }
+
+                const palette = ['#18181b', '#0ea5e9', '#10b981', '#f59e0b', '#8b5cf6', '#f43f5e', '#64748b', '#14b8a6'];
+
+                this.categoryChart = new Chart(canvas, {
+                    type: 'doughnut',
+                    data: {
+                        labels: categories.map((row) => String(row.category_name || '')),
+                        datasets: [{
+                            data: categories.map((row) => Number(row.count || 0)),
+                            backgroundColor: categories.map((_, index) => palette[index % palette.length]),
+                            borderWidth: 0,
+                            hoverOffset: 6,
+                        }],
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        cutout: '72%',
+                        plugins: {
+                            legend: {
+                                position: 'bottom',
+                                labels: {
+                                    usePointStyle: true,
+                                    pointStyle: 'circle',
+                                    padding: 18,
+                                    color: '#52525b',
+                                    font: {
+                                        size: 11,
+                                        family: 'Inter, ui-sans-serif, system-ui, sans-serif',
+                                    },
+                                },
+                            },
+                            tooltip: {
+                                backgroundColor: '#18181b',
+                                titleColor: '#fafafa',
+                                bodyColor: '#e4e4e7',
+                                borderColor: '#3f3f46',
+                                borderWidth: 1,
+                                padding: 10,
+                            },
+                        },
+                    },
+                });
+            },
+            formatDashboardActivity(activity) {
+                const assetName = String(activity?.asset_name || 'Asset');
+                const person = String(activity?.target_user_name || activity?.target_personnel_name || '—');
+                const action = String(activity?.action || '');
+                const templates = {
+                    assigned: window.__i18n.dashboard_activity_assigned,
+                    transferred: window.__i18n.dashboard_activity_transferred,
+                    returned: window.__i18n.dashboard_activity_returned,
+                    created: window.__i18n.dashboard_activity_created,
+                    updated: window.__i18n.dashboard_activity_updated,
+                    offboarded: window.__i18n.dashboard_activity_offboarded,
+                    unassigned: window.__i18n.dashboard_activity_unassigned,
+                    status_change: window.__i18n.dashboard_activity_status_change,
+                    location_moved: window.__i18n.dashboard_activity_location_moved,
+                };
+                const template = templates[action] || window.__i18n.dashboard_activity_generic;
+
+                return template
+                    .replace(':asset', assetName)
+                    .replace(':person', person)
+                    .replace(':action', action.replace(/_/g, ' '));
+            },
+            formatDashboardActivityTime(value) {
+                if (!value) {
+                    return '';
+                }
+
+                const date = new Date(String(value).replace(' ', 'T'));
+
+                if (Number.isNaN(date.getTime())) {
+                    return String(value);
+                }
+
+                const locale = window.__i18n.locale === 'en' ? 'en-US' : 'tr-TR';
+
+                return new Intl.DateTimeFormat(locale, {
+                    dateStyle: 'medium',
+                    timeStyle: 'short',
+                }).format(date);
             },
             resolvePersonnelStatus(status) {
                 return status === 'offboarded'
