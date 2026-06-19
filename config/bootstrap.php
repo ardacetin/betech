@@ -136,16 +136,16 @@ $analyticsService = new AnalyticsService($databaseService);
 $zimmetTutanakService = new ZimmetTutanakService();
 $assetCsvImportService = new AssetCsvImportService($assetModel, $categoryModel, $locationModel);
 $inventoryImportService = new InventoryImportService($assetModel, $categoryModel, $locationModel, $personnelModel);
+$ldapAuthenticator = new LdapAuthenticator($settingModel);
+$auditLogModel = new AuditLog($databaseService);
+$auditChangeFormatter = new AuditChangeFormatter();
+$auditLogger = new AuditLogger($auditLogModel, $auditChangeFormatter, $clientIpResolver);
 $inventoryImportController = new InventoryImportController(
     $inventoryImportService,
     $assetHistoryModel,
     $sessionAuthService,
     $auditLogger
 );
-$ldapAuthenticator = new LdapAuthenticator($settingModel);
-$auditLogModel = new AuditLog($databaseService);
-$auditChangeFormatter = new AuditChangeFormatter();
-$auditLogger = new AuditLogger($auditLogModel, $auditChangeFormatter, $clientIpResolver);
     $authController = new AuthController(
         $appConfig,
         $personnelModel,
