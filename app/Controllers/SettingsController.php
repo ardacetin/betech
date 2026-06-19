@@ -60,7 +60,7 @@ class SettingsController
         }
 
         if (array_key_exists('custom_fields', $payload)) {
-            $this->settingModel->setJson('custom_fields', $payload['custom_fields']);
+            $this->settingModel->setJson('custom_fields', $this->normalizeCustomFields($payload['custom_fields']));
         }
 
         if (array_key_exists('ldap_config', $payload) && is_array($payload['ldap_config'])) {
@@ -110,10 +110,10 @@ class SettingsController
                     continue;
                 }
 
-                $name = trim((string) ($field['name'] ?? ''));
+                $label = trim((string) ($field['label'] ?? ''));
 
-                if ($name === '') {
-                    $errors['custom_fields'][] = sprintf('Custom field at index %d requires a name.', $index);
+                if ($label === '') {
+                    $errors['custom_fields'][] = sprintf('Custom field at index %d requires a label.', $index);
                 }
 
                 $type = trim((string) ($field['type'] ?? 'text'));
@@ -175,6 +175,58 @@ class SettingsController
         }
 
         return $errors;
+    }
+
+    /**
+     * @param mixed $fields
+     *
+     * @return list<array{name: string, label: string, type: string}>
+     */
+    private function normalizeCustomFields(mixed $fields): array
+    {
+        if (!is_array($fields)) {
+            return [];
+        }
+
+        $normalized = [];
+        $usedNames = [];
+
+        foreach ($fields as $field) {
+            if (!is_array($field)) {
+                continue;
+            }
+
+            $label = trim((string) ($field['label'] ?? ''));
+
+            if ($label === '') {
+                continue;
+            }
+
+            $type = trim((string) ($field['type'] ?? 'text'));
+
+            if (!in_array($type, self::ALLOWED_FIELD_TYPES, true)) {
+                $type = 'text';
+            }
+
+            $name = custom_field_code_from_label($label);
+            $baseName = $name;
+            $suffix = 2;
+
+            while (in_array($name, $usedNames, true)) {
+                $name = $baseName . '_' . $suffix;
+                ++$suffix;
+            }
+
+            $usedNames[] = $name;
+
+            $normalized[] = [
+                'name' => $name,
+                'label' => $label,
+                'type' => $type,
+            ];
+        }
+
+        return $normalized;
     }
 
     /**

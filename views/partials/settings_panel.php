@@ -238,20 +238,12 @@ declare(strict_types=1);
             <div x-show="settingsForm.custom_fields.length > 0" x-cloak class="mt-5 space-y-3">
                 <template x-for="(field, index) in settingsForm.custom_fields" :key="index">
                     <div class="grid gap-3 rounded-xl border border-zinc-200 bg-zinc-50 p-4 sm:grid-cols-12">
-                        <label class="block sm:col-span-3">
-                            <span class="mb-1 block text-xs font-medium text-zinc-600"><?= htmlspecialchars(__('settings_field_name'), ENT_QUOTES, 'UTF-8') ?></span>
-                            <input
-                                type="text"
-                                x-model="field.name"
-                                class="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-400"
-                                placeholder="location"
-                            >
-                        </label>
-                        <label class="block sm:col-span-4">
+                        <label class="block sm:col-span-7">
                             <span class="mb-1 block text-xs font-medium text-zinc-600"><?= htmlspecialchars(__('settings_field_label'), ENT_QUOTES, 'UTF-8') ?></span>
                             <input
                                 type="text"
                                 x-model="field.label"
+                                @input="syncCustomFieldCode(index)"
                                 class="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-400"
                                 placeholder="<?= htmlspecialchars(__('settings_field_label_placeholder'), ENT_QUOTES, 'UTF-8') ?>"
                             >

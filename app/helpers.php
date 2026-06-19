@@ -53,3 +53,40 @@ function request_is_https(): bool
 
     return false;
 }
+
+/**
+ * Build a stable custom field code from a human-readable label.
+ */
+function custom_field_code_from_label(string $label): string
+{
+    $map = [
+        'ç' => 'c',
+        'Ç' => 'c',
+        'ğ' => 'g',
+        'Ğ' => 'g',
+        'ı' => 'i',
+        'I' => 'i',
+        'İ' => 'i',
+        'ö' => 'o',
+        'Ö' => 'o',
+        'ş' => 's',
+        'Ş' => 's',
+        'ü' => 'u',
+        'Ü' => 'u',
+    ];
+
+    $normalized = strtr(trim($label), $map);
+    $normalized = mb_strtolower($normalized, 'UTF-8');
+    $name = preg_replace('/[^a-z0-9]+/', '_', $normalized) ?? '';
+    $name = trim($name, '_');
+
+    if ($name === '') {
+        return 'field';
+    }
+
+    if (preg_match('/^[0-9]/', $name)) {
+        $name = 'field_' . $name;
+    }
+
+    return $name;
+}

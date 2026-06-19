@@ -3840,6 +3840,65 @@ $i18nScript = json_encode([
             removeCustomField(index) {
                 this.settingsForm.custom_fields.splice(index, 1);
             },
+            generateCustomFieldCode(label) {
+                const turkishMap = {
+                    ç: 'c',
+                    Ç: 'c',
+                    ğ: 'g',
+                    Ğ: 'g',
+                    ı: 'i',
+                    I: 'i',
+                    İ: 'i',
+                    ö: 'o',
+                    Ö: 'o',
+                    ş: 's',
+                    Ş: 's',
+                    ü: 'u',
+                    Ü: 'u',
+                };
+
+                let normalized = String(label ?? '').trim();
+
+                normalized = normalized
+                    .split('')
+                    .map((character) => turkishMap[character] ?? character)
+                    .join('')
+                    .toLowerCase()
+                    .normalize('NFD')
+                    .replace(/[\u0300-\u036f]/g, '')
+                    .replace(/[^a-z0-9\s_]/g, '')
+                    .replace(/\s+/g, '_')
+                    .replace(/_+/g, '_')
+                    .replace(/^_|_$/g, '');
+
+                if (normalized === '') {
+                    return 'field';
+                }
+
+                if (/^[0-9]/.test(normalized)) {
+                    normalized = `field_${normalized}`;
+                }
+
+                return normalized;
+            },
+            syncCustomFieldCode(index) {
+                const field = this.settingsForm.custom_fields[index];
+
+                if (!field) {
+                    return;
+                }
+
+                field.name = this.generateCustomFieldCode(field.label);
+            },
+            prepareCustomFieldsForSave() {
+                return this.settingsForm.custom_fields
+                    .filter((field) => String(field?.label ?? '').trim() !== '')
+                    .map((field) => ({
+                        name: this.generateCustomFieldCode(field.label),
+                        label: String(field.label).trim(),
+                        type: field.type || 'text',
+                    }));
+            },
             async fetchCategories() {
                 if (!this.canAccessSettings) {
                     return;
@@ -5117,7 +5176,7 @@ $i18nScript = json_encode([
                         body: JSON.stringify({
                             active_auth_driver: this.settingsForm.active_auth_driver,
                             zimmet_template: this.settingsForm.zimmet_template,
-                            custom_fields: this.settingsForm.custom_fields,
+                            custom_fields: this.prepareCustomFieldsForSave(),
                             ldap_config: this.settingsForm.ldap_config,
                             google_config: this.settingsForm.google_config,
                             login_config: this.settingsForm.login_config,
