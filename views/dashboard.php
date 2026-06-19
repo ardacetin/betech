@@ -349,30 +349,38 @@ $i18nScript = json_encode([
 ?>
 <div class="min-h-full" x-data="assetDashboard()" x-init="restoreDashboardView(); if (isEndUser) { initEndUserPortal(); } else if (canManageAssets) { fetchCategories(); fetchLocations(); fetchLicenses(); fetchConsumables(); fetchTickets(); if (activeView === 'dashboard') { fetchDashboardStats(); } } this.isAssignLicenseModalOpen = false;">
     <div class="flex min-h-screen">
-        <aside class="hidden w-64 shrink-0 border-r border-zinc-200 bg-white lg:flex lg:flex-col">
-            <div class="flex h-16 items-center gap-3 border-b border-zinc-200 px-6">
-                <div class="flex h-9 w-9 items-center justify-center rounded-xl bg-zinc-900 text-sm font-semibold text-white">B</div>
-                <div>
-                    <p class="text-sm font-semibold text-zinc-900"><?= htmlspecialchars($appName, ENT_QUOTES, 'UTF-8') ?></p>
-                    <p class="text-xs text-zinc-500"><?= htmlspecialchars(__('app_subtitle'), ENT_QUOTES, 'UTF-8') ?></p>
+        <aside class="sticky top-0 hidden h-screen w-64 shrink-0 flex-col border-r border-gray-200 bg-white lg:flex">
+            <div class="flex h-16 shrink-0 items-center gap-2.5 border-b border-gray-200 px-5">
+                <div class="flex h-9 w-9 items-center justify-center rounded-xl bg-gray-900 text-sm font-semibold text-white">B</div>
+                <div class="flex items-center">
+                    <span class="text-xl font-bold tracking-tight text-gray-900">ITMS</span>
+                    <span class="ml-2 rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-500">Pro</span>
                 </div>
             </div>
 
             <?php require __DIR__ . '/partials/sidebar_nav.php'; ?>
 
-            <div class="border-t border-zinc-200 p-4 space-y-3">
-                <?php if (!$isEndUser): ?>
-                <p class="text-xs uppercase tracking-wide text-zinc-400"><?= htmlspecialchars(__('environment'), ENT_QUOTES, 'UTF-8') ?></p>
-                <p class="text-sm font-medium text-zinc-700"><?= htmlspecialchars($environment, ENT_QUOTES, 'UTF-8') ?></p>
-                <?php elseif ($userName !== '' || $userEmail !== ''): ?>
-                <p class="truncate text-sm font-medium text-zinc-700"><?= htmlspecialchars($userName !== '' ? $userName : $userEmail, ENT_QUOTES, 'UTF-8') ?></p>
-                <?php if ($userName !== '' && $userEmail !== ''): ?>
-                <p class="truncate text-xs text-zinc-500"><?= htmlspecialchars($userEmail, ENT_QUOTES, 'UTF-8') ?></p>
-                <?php endif; ?>
-                <?php endif; ?>
-                <a href="/logout" class="inline-flex items-center text-sm font-medium text-zinc-600 transition hover:text-zinc-900">
-                    <?= htmlspecialchars(__('nav_logout'), ENT_QUOTES, 'UTF-8') ?>
-                </a>
+            <?php
+                $sidebarPrimaryLabel = $userName !== '' ? $userName : ($userEmail !== '' ? $userEmail : __('app_name'));
+                $sidebarRoleLabel = $isEndUser ? __('personnel_role_user') : __('personnel_role_admin');
+            ?>
+            <div class="mt-auto shrink-0 border-t border-gray-200 bg-gray-50 p-4">
+                <div class="flex items-center justify-between gap-3">
+                    <div class="min-w-0">
+                        <p class="truncate text-sm font-medium text-gray-900"><?= htmlspecialchars($sidebarPrimaryLabel, ENT_QUOTES, 'UTF-8') ?></p>
+                        <p class="truncate text-xs text-gray-500"><?= htmlspecialchars($sidebarRoleLabel, ENT_QUOTES, 'UTF-8') ?></p>
+                    </div>
+                    <a
+                        href="/logout"
+                        title="<?= htmlspecialchars(__('nav_logout'), ENT_QUOTES, 'UTF-8') ?>"
+                        aria-label="<?= htmlspecialchars(__('nav_logout'), ENT_QUOTES, 'UTF-8') ?>"
+                        class="shrink-0 rounded-lg p-2 text-gray-400 transition-colors hover:bg-white hover:text-red-600"
+                    >
+                        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75" />
+                        </svg>
+                    </a>
+                </div>
             </div>
         </aside>
 
@@ -2082,6 +2090,27 @@ $i18nScript = json_encode([
 
 <style>
     [x-cloak] { display: none !important; }
+
+    .sidebar-scroll {
+        scrollbar-width: thin;
+        scrollbar-color: transparent transparent;
+    }
+    .sidebar-scroll:hover {
+        scrollbar-color: #d4d4d8 transparent;
+    }
+    .sidebar-scroll::-webkit-scrollbar {
+        width: 6px;
+    }
+    .sidebar-scroll::-webkit-scrollbar-track {
+        background: transparent;
+    }
+    .sidebar-scroll::-webkit-scrollbar-thumb {
+        background-color: transparent;
+        border-radius: 9999px;
+    }
+    .sidebar-scroll:hover::-webkit-scrollbar-thumb {
+        background-color: #d4d4d8;
+    }
 
     #zimmet-quill-wrapper .ql-toolbar.ql-snow {
         border: 0;
