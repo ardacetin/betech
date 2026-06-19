@@ -2,7 +2,9 @@
   "name": "betech",
   "private": true,
   "scripts": {
-    "build:css": "tailwindcss -i ./resources/css/app.css -o ./public/css/app.css --minify"
+    "dev": "tailwindcss -i ./resources/css/app.css -o ./public/css/app.css --watch",
+    "build": "tailwindcss -i ./resources/css/app.css -o ./public/css/app.css --minify",
+    "build:css": "npm run build"
   },
   "devDependencies": {
     "tailwindcss": "^3.4.17"
