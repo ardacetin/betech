@@ -56,6 +56,8 @@ class AssetTutanakController
 
         $assignedPerson = $this->resolveAssignedPersonnel((int) $personnelId, $asset);
         $template = $this->settingModel->get('zimmet_template', '') ?? '';
+        $transactionDate = date('d.m.Y');
+        $operatorName = $this->resolveOperatorName();
 
         if (trim($template) === '') {
             return $this->renderError($response, __('tutanak_template_missing'), 422);
@@ -65,7 +67,9 @@ class AssetTutanakController
             'personnel_name' => $assignedPerson['name'] ?? (string) ($asset['personnel_name'] ?? $asset['user_name'] ?? ''),
             'asset_name' => (string) $asset['name'],
             'serial_number' => (string) ($asset['serial_number'] ?? '-'),
-            'date' => date('d.m.Y'),
+            'asset_tag' => (string) ($asset['asset_tag'] ?? '-'),
+            'category_name' => (string) ($asset['category_name'] ?? '-'),
+            'date' => $transactionDate,
         ]);
 
         $html = $this->viewRenderer->render('tutanak', [
@@ -73,6 +77,8 @@ class AssetTutanakController
             'locale' => Translator::instance()->getLocale(),
             'asset' => $asset,
             'assignedUser' => $assignedPerson,
+            'operatorName' => $operatorName,
+            'transactionDate' => $transactionDate,
             'body' => $body,
         ]);
 
@@ -138,5 +144,18 @@ class AssetTutanakController
         $assignedPersonnelId = $asset['personnel_id'] ?? null;
 
         return $assignedPersonnelId !== null && (int) $assignedPersonnelId === $sessionUserId;
+    }
+
+    private function resolveOperatorName(): string
+    {
+        $userId = $this->sessionAuthService->userId();
+
+        if ($userId === null) {
+            return '';
+        }
+
+        $user = $this->userModel->findById($userId);
+
+        return trim((string) ($user['name'] ?? ''));
     }
 }

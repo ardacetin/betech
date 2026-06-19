@@ -11,6 +11,8 @@ class ZimmetTutanakService
      *     personnel_name?: string,
      *     asset_name?: string,
      *     serial_number?: string,
+     *     asset_tag?: string,
+     *     category_name?: string,
      *     date?: string
      * } $data
      */
@@ -20,6 +22,8 @@ class ZimmetTutanakService
             '{personnel_name}' => $this->escapeValue($data['personnel_name'] ?? ''),
             '{asset_name}' => $this->escapeValue($data['asset_name'] ?? ''),
             '{serial_number}' => $this->escapeValue($data['serial_number'] ?? ''),
+            '{asset_tag}' => $this->escapeValue($data['asset_tag'] ?? ''),
+            '{category_name}' => $this->escapeValue($data['category_name'] ?? ''),
             '{date}' => $this->escapeValue($data['date'] ?? date('d.m.Y')),
         ];
 

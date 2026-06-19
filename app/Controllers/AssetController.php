@@ -221,6 +221,140 @@ class AssetController
         ]);
     }
 
+    public function assign(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
+    {
+        $assetId = (int) ($args['id'] ?? 0);
+
+        if ($assetId <= 0) {
+            return $this->jsonResponse($response, 400, [
+                'status' => 'error',
+                'message' => __('assign_invalid_asset'),
+            ]);
+        }
+
+        $existingAsset = $this->assetModel->findById($assetId);
+
+        if ($existingAsset === null) {
+            return $this->jsonResponse($response, 404, [
+                'status' => 'error',
+                'message' => __('assign_asset_not_found'),
+            ]);
+        }
+
+        if (($existingAsset['personnel_id'] ?? null) !== null) {
+            return $this->jsonResponse($response, 422, [
+                'status' => 'error',
+                'message' => __('assign_already_assigned'),
+            ]);
+        }
+
+        $payload = $this->resolvePayload($request);
+
+        if ($payload === null || !array_key_exists('personnel_id', $payload)) {
+            return $this->jsonResponse($response, 400, [
+                'status' => 'error',
+                'message' => __('assign_missing_user'),
+            ]);
+        }
+
+        $userErrors = $this->validatePersonnelId($payload['personnel_id']);
+
+        if ($userErrors !== []) {
+            return $this->jsonResponse($response, 422, [
+                'status' => 'error',
+                'message' => __('assign_invalid_user'),
+                'errors' => ['personnel_id' => $userErrors],
+            ]);
+        }
+
+        $personnelId = (int) $payload['personnel_id'];
+        $person = $this->personnelModel->findById($personnelId);
+
+        if ($person !== null && ($person['status'] ?? '') === Personnel::STATUS_OFFBOARDED) {
+            return $this->jsonResponse($response, 422, [
+                'status' => 'error',
+                'message' => __('assign_offboarded_user'),
+            ]);
+        }
+
+        $updateFields = [
+            'personnel_id' => $personnelId,
+            'status' => 'deployed',
+        ];
+
+        if (array_key_exists('location_id', $payload)) {
+            $locationErrors = $this->validateLocationId($payload['location_id']);
+
+            if ($locationErrors !== []) {
+                return $this->jsonResponse($response, 422, [
+                    'status' => 'error',
+                    'message' => __('assign_invalid_location'),
+                    'errors' => ['location_id' => $locationErrors],
+                ]);
+            }
+
+            if ($payload['location_id'] !== null && $payload['location_id'] !== '') {
+                $updateFields['location_id'] = (int) $payload['location_id'];
+            }
+        }
+
+        $previousStatus = (string) ($existingAsset['status'] ?? 'ready');
+        $previousLocationId = $existingAsset['location_id'] ?? null;
+
+        try {
+            $asset = $this->assetModel->update($assetId, $updateFields);
+        } catch (\RuntimeException $exception) {
+            return $this->jsonResponse($response, 422, [
+                'status' => 'error',
+                'message' => $exception->getMessage(),
+            ]);
+        }
+
+        if ($asset === null) {
+            return $this->jsonResponse($response, 404, [
+                'status' => 'error',
+                'message' => __('assign_asset_not_found'),
+            ]);
+        }
+
+        $personnelName = $this->resolvePersonnelName($personnelId) ?? ('personnel #' . $personnelId);
+
+        $this->logAssetHistory(
+            $request,
+            $assetId,
+            'assigned',
+            $this->actorUserId(),
+            $personnelId,
+            sprintf(__('asset_history_assigned_to'), $personnelName)
+        );
+
+        if ($previousStatus !== 'deployed') {
+            $this->logAssetHistory(
+                $request,
+                $assetId,
+                'status_change',
+                $this->actorUserId(),
+                null,
+                sprintf(__('asset_history_status_changed'), $previousStatus, 'deployed')
+            );
+        }
+
+        if (array_key_exists('location_id', $updateFields)) {
+            $this->logLocationChange(
+                $request,
+                $assetId,
+                $previousLocationId,
+                $updateFields['location_id']
+            );
+        }
+
+        return $this->jsonResponse($response, 200, [
+            'status' => 'success',
+            'message' => __('assign_success'),
+            'data' => $asset,
+        ]);
+    }
+
     public function returnToStorage(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
     {
         $assetId = (int) ($args['id'] ?? 0);
@@ -274,7 +408,7 @@ class AssetController
             $request,
             $assetId,
             'returned',
-            $this->sessionAuthService->userId(),
+            $this->actorUserId(),
             $previousUserId,
             __('asset_history_returned')
         );
@@ -284,7 +418,7 @@ class AssetController
                 $request,
                 $assetId,
                 'status_change',
-                $this->sessionAuthService->userId(),
+                $this->actorUserId(),
                 null,
                 sprintf(
                     __('asset_history_status_changed'),
@@ -349,6 +483,7 @@ class AssetController
 
         $previousUserId = (int) $existingAsset['personnel_id'];
         $newUserId = (int) $payload['personnel_id'];
+        $previousStatus = (string) ($existingAsset['status'] ?? 'ready');
 
         if ($newUserId === $previousUserId) {
             return $this->jsonResponse($response, 422, [
@@ -357,10 +492,25 @@ class AssetController
             ]);
         }
 
-        try {
-            $asset = $this->assetModel->update($assetId, [
-                'personnel_id' => $newUserId,
+        $person = $this->personnelModel->findById($newUserId);
+
+        if ($person !== null && ($person['status'] ?? '') === Personnel::STATUS_OFFBOARDED) {
+            return $this->jsonResponse($response, 422, [
+                'status' => 'error',
+                'message' => __('transfer_offboarded_user'),
             ]);
+        }
+
+        $updateFields = [
+            'personnel_id' => $newUserId,
+        ];
+
+        if ($previousStatus !== 'deployed') {
+            $updateFields['status'] = 'deployed';
+        }
+
+        try {
+            $asset = $this->assetModel->update($assetId, $updateFields);
         } catch (\RuntimeException $exception) {
             return $this->jsonResponse($response, 422, [
                 'status' => 'error',
@@ -382,7 +532,7 @@ class AssetController
             $request,
             $assetId,
             'transferred',
-            $this->sessionAuthService->userId(),
+            $this->actorUserId(),
             $newUserId,
             sprintf(
                 __('asset_history_transferred'),
@@ -390,6 +540,17 @@ class AssetController
                 $newUserName
             )
         );
+
+        if ($previousStatus !== 'deployed') {
+            $this->logAssetHistory(
+                $request,
+                $assetId,
+                'status_change',
+                $this->actorUserId(),
+                null,
+                sprintf(__('asset_history_status_changed'), $previousStatus, 'deployed')
+            );
+        }
 
         return $this->jsonResponse($response, 200, [
             'status' => 'success',
@@ -524,9 +685,9 @@ class AssetController
                     $request,
                     $assetId,
                     'status_change',
+                    $this->actorUserId(),
                     null,
-                    null,
-                    sprintf('Status changed from %s to %s', $oldStatus, $newStatus)
+                    sprintf(__('asset_history_status_changed'), $oldStatus, $newStatus)
                 );
             }
         }
@@ -536,6 +697,7 @@ class AssetController
     {
         $oldUserId = $previousUserId !== null ? (int) $previousUserId : null;
         $newUserId = $nextUserId !== null ? (int) $nextUserId : null;
+        $actorUserId = $this->actorUserId();
 
         if ($oldUserId === $newUserId) {
             return;
@@ -548,10 +710,10 @@ class AssetController
                 $request,
                 $assetId,
                 'unassigned',
-                null,
+                $actorUserId,
                 $oldUserId,
                 sprintf(
-                    'Assignment removed from %s',
+                    __('asset_history_unassigned_from'),
                     $oldUserName ?? ('user #' . $oldUserId)
                 )
             );
@@ -566,10 +728,10 @@ class AssetController
                 $request,
                 $assetId,
                 'assigned',
-                null,
+                $actorUserId,
                 $newUserId,
                 sprintf(
-                    'Assigned to %s',
+                    __('asset_history_assigned_to'),
                     $newUserName ?? ('user #' . $newUserId)
                 )
             );
@@ -583,10 +745,10 @@ class AssetController
             $request,
             $assetId,
             'assigned',
-            null,
+            $actorUserId,
             $newUserId,
             sprintf(
-                'Reassigned from %s to %s',
+                __('asset_history_reassigned'),
                 $oldUserName ?? ('user #' . $oldUserId),
                 $newUserName ?? ('user #' . $newUserId)
             )
@@ -995,6 +1157,11 @@ class AssetController
             $targetPersonnelId,
             $this->appendClientIpToNotes($notes, $request)
         );
+    }
+
+    private function actorUserId(): ?int
+    {
+        return $this->sessionAuthService->userId();
     }
 
     private function appendClientIpToNotes(?string $notes, ServerRequestInterface $request): ?string

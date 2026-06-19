@@ -167,6 +167,11 @@ $i18nScript = json_encode([
     'transfer_error' => __('transfer_error'),
     'transfer_network_error' => __('transfer_network_error'),
     'transfer_select_user' => __('transfer_select_user'),
+    'assign_select_user' => __('assign_select_user'),
+    'assign_success' => __('assign_success'),
+    'assign_error' => __('assign_error'),
+    'assign_network_error' => __('assign_network_error'),
+    'assign_print_tutanak_prompt' => __('assign_print_tutanak_prompt'),
     'history_action_returned' => __('history_action_returned'),
     'history_action_transferred' => __('history_action_transferred'),
     'categories_fetch_error' => __('categories_fetch_error'),
@@ -577,6 +582,23 @@ $i18nScript = json_encode([
                                                     <?= htmlspecialchars(__('action_view_history'), ENT_QUOTES, 'UTF-8') ?>
                                                 </button>
                                                 <?php if ($canManageAssets): ?>
+                                                <?php if (empty($asset['user_id'])): ?>
+                                                <button
+                                                    type="button"
+                                                    @click='openAssignModal(<?= json_encode([
+                                                        'id' => (int) $asset['id'],
+                                                        'asset_tag' => (string) $asset['asset_tag'],
+                                                        'name' => (string) $asset['name'],
+                                                        'serial_number' => (string) ($asset['serial_number'] ?? ''),
+                                                        'category_name' => (string) ($asset['category_name'] ?? __('unknown_category')),
+                                                        'location_id' => $asset['location_id'] ?? null,
+                                                        'location_name' => $asset['location_name'] ?? null,
+                                                    ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>)'
+                                                    class="rounded-lg border border-emerald-200 px-3 py-1.5 text-xs font-medium text-emerald-800 transition hover:bg-emerald-50"
+                                                >
+                                                    <?= htmlspecialchars(__('action_assign'), ENT_QUOTES, 'UTF-8') ?>
+                                                </button>
+                                                <?php endif; ?>
                                                 <button
                                                     type="button"
                                                     @click='openEditModal(<?= json_encode([
@@ -592,7 +614,7 @@ $i18nScript = json_encode([
                                                     ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>)'
                                                     class="rounded-lg border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-700 transition hover:bg-zinc-50"
                                                 >
-                                                    <?= htmlspecialchars(__('action_assign'), ENT_QUOTES, 'UTF-8') ?>
+                                                    <?= htmlspecialchars(__('action_edit'), ENT_QUOTES, 'UTF-8') ?>
                                                 </button>
                                                 <?php endif; ?>
                                                 <?php if (!empty($asset['user_id'])): ?>
@@ -606,7 +628,13 @@ $i18nScript = json_encode([
                                                 <?php if ($canManageAssets): ?>
                                                 <button
                                                     type="button"
-                                                    @click="returnAssetToStorage(<?= (int) $asset['id'] ?>)"
+                                                    @click='openReturnModal(<?= json_encode([
+                                                        'id' => (int) $asset['id'],
+                                                        'asset_tag' => (string) $asset['asset_tag'],
+                                                        'name' => (string) $asset['name'],
+                                                        'user_id' => $asset['user_id'] ?? null,
+                                                        'user_name' => $asset['user_name'] ?? null,
+                                                    ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>)'
                                                     class="rounded-lg border border-amber-200 px-3 py-1.5 text-xs font-medium text-amber-800 transition hover:bg-amber-50"
                                                 >
                                                     <?= htmlspecialchars(__('action_return_to_storage'), ENT_QUOTES, 'UTF-8') ?>
@@ -954,10 +982,20 @@ $i18nScript = json_encode([
                 </div>
             </div>
 
+            <div x-show="canManageAssets && detailAsset && !detailAsset.user_id" x-cloak class="flex flex-wrap gap-2 border-t border-zinc-200 px-6 py-4">
+                <button
+                    type="button"
+                    @click="openAssignModal(detailAsset)"
+                    class="inline-flex items-center rounded-lg border border-emerald-200 px-3 py-2 text-xs font-medium text-emerald-800 transition hover:bg-emerald-50"
+                >
+                    <?= htmlspecialchars(__('action_assign'), ENT_QUOTES, 'UTF-8') ?>
+                </button>
+            </div>
+
             <div x-show="canManageAssets && detailAsset?.user_id" x-cloak class="flex flex-wrap gap-2 border-t border-zinc-200 px-6 py-4">
                 <button
                     type="button"
-                    @click="returnAssetToStorage(detailAsset.id)"
+                    @click="openReturnModal(detailAsset)"
                     class="inline-flex items-center rounded-lg border border-amber-200 px-3 py-2 text-xs font-medium text-amber-800 transition hover:bg-amber-50"
                 >
                     <?= htmlspecialchars(__('action_return_to_storage'), ENT_QUOTES, 'UTF-8') ?>
@@ -968,6 +1006,168 @@ $i18nScript = json_encode([
                     class="inline-flex items-center rounded-lg border border-indigo-200 px-3 py-2 text-xs font-medium text-indigo-800 transition hover:bg-indigo-50"
                 >
                     <?= htmlspecialchars(__('action_transfer'), ENT_QUOTES, 'UTF-8') ?>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div
+        x-show="isAssignOpen"
+        x-cloak
+        class="fixed inset-0 z-[60] flex items-center justify-center px-4"
+        @keydown.escape.window="closeAssignModal()"
+    >
+        <div class="absolute inset-0 bg-zinc-900/40 backdrop-blur-sm" @click="closeAssignModal()"></div>
+
+        <div class="relative w-full max-w-lg rounded-2xl border border-zinc-200 bg-white shadow-soft">
+            <div class="flex items-center justify-between border-b border-zinc-200 px-6 py-4">
+                <div>
+                    <h3 class="text-lg font-semibold text-zinc-900"><?= htmlspecialchars(__('assign_modal_title'), ENT_QUOTES, 'UTF-8') ?></h3>
+                    <p class="mt-1 text-sm text-zinc-500"><?= htmlspecialchars(__('assign_modal_subtitle'), ENT_QUOTES, 'UTF-8') ?></p>
+                </div>
+                <button type="button" @click="closeAssignModal()" class="rounded-lg p-2 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600">&times;</button>
+            </div>
+
+            <div class="px-6 py-5">
+                <div class="rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3">
+                    <p class="text-xs font-medium uppercase tracking-wide text-zinc-500"><?= htmlspecialchars(__('col_asset_tag'), ENT_QUOTES, 'UTF-8') ?></p>
+                    <p class="mt-1 text-sm font-semibold text-zinc-900" x-text="assignAsset?.asset_tag"></p>
+                    <p class="mt-2 text-sm text-zinc-600" x-text="assignAsset?.name"></p>
+                </div>
+
+                <p class="mt-4 text-sm text-zinc-600"><?= htmlspecialchars(__('assign_select_user_hint'), ENT_QUOTES, 'UTF-8') ?></p>
+
+                <div class="relative mt-3">
+                    <div x-show="assignSelectedUser" x-cloak class="mb-3 flex items-center justify-between rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3">
+                        <div>
+                            <p class="text-sm font-medium text-emerald-900" x-text="assignSelectedUser?.name"></p>
+                            <p class="text-xs text-emerald-700" x-text="assignSelectedUser?.email"></p>
+                        </div>
+                        <button type="button" @click="clearAssignUser()" class="text-xs font-medium text-emerald-800 hover:underline">
+                            <?= htmlspecialchars(__('unassign_user'), ENT_QUOTES, 'UTF-8') ?>
+                        </button>
+                    </div>
+
+                    <input
+                        type="text"
+                        x-model="assignUserSearchQuery"
+                        @input.debounce.300ms="searchAssignUsers()"
+                        @focus="showAssignUserResults = true"
+                        :placeholder="window.__i18n.search_users_placeholder"
+                        class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4"
+                    >
+
+                    <div
+                        x-show="showAssignUserResults && (assignUserSearchResults.length > 0 || (assignUserSearchQuery !== '' && !assignUserSearchLoading))"
+                        x-cloak
+                        @click.outside="showAssignUserResults = false"
+                        class="absolute z-10 mt-2 max-h-56 w-full overflow-y-auto rounded-xl border border-zinc-200 bg-white shadow-soft"
+                    >
+                        <template x-for="user in assignUserSearchResults" :key="user.id">
+                            <button
+                                type="button"
+                                @click="selectAssignUser(user)"
+                                class="flex w-full flex-col items-start px-4 py-3 text-left hover:bg-zinc-50"
+                            >
+                                <span class="text-sm font-medium text-zinc-900" x-text="user.name"></span>
+                                <span class="text-xs text-zinc-500" x-text="user.email"></span>
+                            </button>
+                        </template>
+                        <p
+                            x-show="assignUserSearchResults.length === 0 && assignUserSearchQuery !== '' && !assignUserSearchLoading"
+                            class="px-4 py-3 text-sm text-zinc-500"
+                            x-text="window.__i18n.no_users_found"
+                        ></p>
+                    </div>
+                </div>
+
+                <label class="mt-4 block">
+                    <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('label_select_location'), ENT_QUOTES, 'UTF-8') ?></span>
+                    <select x-model="assignLocationId" class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4">
+                        <option value=""><?= htmlspecialchars(__('select_location'), ENT_QUOTES, 'UTF-8') ?></option>
+                        <template x-for="location in locations" :key="location.id">
+                            <option :value="String(location.id)" x-text="formatLocationLabel(location)"></option>
+                        </template>
+                    </select>
+                </label>
+
+                <p x-show="assignErrorMessage" x-cloak class="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700" x-text="assignErrorMessage"></p>
+            </div>
+
+            <div class="flex items-center justify-end gap-3 border-t border-zinc-200 px-6 py-4">
+                <button
+                    type="button"
+                    @click="closeAssignModal()"
+                    :disabled="isAssignSubmitting"
+                    class="rounded-xl border border-zinc-200 px-4 py-2.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                    <?= htmlspecialchars(__('cancel'), ENT_QUOTES, 'UTF-8') ?>
+                </button>
+                <button
+                    type="button"
+                    @click="submitAssign()"
+                    :disabled="isAssignSubmitting"
+                    class="inline-flex items-center gap-2 rounded-xl bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                    <span x-show="isAssignSubmitting"><?= htmlspecialchars(__('saving'), ENT_QUOTES, 'UTF-8') ?></span>
+                    <span x-show="!isAssignSubmitting"><?= htmlspecialchars(__('assign_submit'), ENT_QUOTES, 'UTF-8') ?></span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div
+        x-show="isReturnOpen"
+        x-cloak
+        class="fixed inset-0 z-[60] flex items-center justify-center px-4"
+        @keydown.escape.window="closeReturnModal()"
+    >
+        <div class="absolute inset-0 bg-zinc-900/40 backdrop-blur-sm" @click="closeReturnModal()"></div>
+
+        <div class="relative w-full max-w-lg rounded-2xl border border-zinc-200 bg-white shadow-soft">
+            <div class="flex items-center justify-between border-b border-zinc-200 px-6 py-4">
+                <div>
+                    <h3 class="text-lg font-semibold text-zinc-900"><?= htmlspecialchars(__('return_modal_title'), ENT_QUOTES, 'UTF-8') ?></h3>
+                    <p class="mt-1 text-sm text-zinc-500"><?= htmlspecialchars(__('return_modal_subtitle'), ENT_QUOTES, 'UTF-8') ?></p>
+                </div>
+                <button type="button" @click="closeReturnModal()" class="rounded-lg p-2 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600">&times;</button>
+            </div>
+
+            <div class="px-6 py-5">
+                <div class="rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3">
+                    <p class="text-xs font-medium uppercase tracking-wide text-zinc-500"><?= htmlspecialchars(__('col_asset_tag'), ENT_QUOTES, 'UTF-8') ?></p>
+                    <p class="mt-1 text-sm font-semibold text-zinc-900" x-text="returnAsset?.asset_tag"></p>
+                    <p class="mt-2 text-sm text-zinc-600" x-text="returnAsset?.name"></p>
+                    <p class="mt-3 text-sm text-zinc-700">
+                        <span class="font-medium"><?= htmlspecialchars(__('col_assigned_user'), ENT_QUOTES, 'UTF-8') ?>:</span>
+                        <span x-text="returnAsset?.user_name"></span>
+                    </p>
+                </div>
+
+                <p class="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                    <?= htmlspecialchars(__('return_confirm'), ENT_QUOTES, 'UTF-8') ?>
+                </p>
+
+                <p x-show="returnErrorMessage" x-cloak class="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700" x-text="returnErrorMessage"></p>
+            </div>
+
+            <div class="flex items-center justify-end gap-3 border-t border-zinc-200 px-6 py-4">
+                <button
+                    type="button"
+                    @click="closeReturnModal()"
+                    :disabled="isReturnSubmitting"
+                    class="rounded-xl border border-zinc-200 px-4 py-2.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                    <?= htmlspecialchars(__('cancel'), ENT_QUOTES, 'UTF-8') ?>
+                </button>
+                <button
+                    type="button"
+                    @click="submitReturn()"
+                    :disabled="isReturnSubmitting"
+                    class="inline-flex items-center gap-2 rounded-xl bg-amber-700 px-4 py-2.5 text-sm font-medium text-white hover:bg-amber-800 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                    <span x-show="isReturnSubmitting"><?= htmlspecialchars(__('saving'), ENT_QUOTES, 'UTF-8') ?></span>
+                    <span x-show="!isReturnSubmitting"><?= htmlspecialchars(__('return_submit'), ENT_QUOTES, 'UTF-8') ?></span>
                 </button>
             </div>
         </div>
@@ -1559,6 +1759,20 @@ $i18nScript = json_encode([
             isDetailOpen: false,
             isTransferOpen: false,
             isTransferSubmitting: false,
+            isAssignOpen: false,
+            isAssignSubmitting: false,
+            assignAsset: null,
+            assignSelectedUser: null,
+            assignUserSearchQuery: '',
+            assignUserSearchResults: [],
+            assignUserSearchLoading: false,
+            showAssignUserResults: false,
+            assignLocationId: '',
+            assignErrorMessage: '',
+            isReturnOpen: false,
+            isReturnSubmitting: false,
+            returnAsset: null,
+            returnErrorMessage: '',
             transferAsset: null,
             transferSelectedUser: null,
             transferUserSearchQuery: '',
@@ -2143,6 +2357,171 @@ $i18nScript = json_encode([
             printTutanak(assetId) {
                 window.open(`/api/assets/${assetId}/tutanak`, '_blank', 'noopener,noreferrer');
             },
+            openAssignModal(asset) {
+                if (asset?.user_id) {
+                    return;
+                }
+
+                this.assignAsset = asset;
+                this.assignErrorMessage = '';
+                this.assignLocationId = asset?.location_id ? String(asset.location_id) : '';
+                this.resetAssignUserSearch();
+                this.isAssignOpen = true;
+
+                if (this.locations.length === 0 && this.canManageAssets) {
+                    this.fetchLocations();
+                }
+            },
+            closeAssignModal() {
+                if (this.isAssignSubmitting) {
+                    return;
+                }
+
+                this.isAssignOpen = false;
+                this.assignAsset = null;
+                this.resetAssignUserSearch();
+                this.assignLocationId = '';
+                this.assignErrorMessage = '';
+            },
+            resetAssignUserSearch() {
+                this.assignUserSearchQuery = '';
+                this.assignUserSearchResults = [];
+                this.assignUserSearchLoading = false;
+                this.showAssignUserResults = false;
+                this.assignSelectedUser = null;
+            },
+            async searchAssignUsers() {
+                this.assignUserSearchLoading = true;
+
+                try {
+                    const query = encodeURIComponent(this.assignUserSearchQuery.trim());
+                    const response = await fetch(`/api/personnel/search?q=${query}`, {
+                        headers: { 'Accept': 'application/json' },
+                    });
+                    const result = await response.json();
+
+                    if (!response.ok) {
+                        this.assignUserSearchResults = [];
+                        return;
+                    }
+
+                    this.assignUserSearchResults = Array.isArray(result.data) ? result.data : [];
+                    this.showAssignUserResults = true;
+                } catch (error) {
+                    this.assignUserSearchResults = [];
+                } finally {
+                    this.assignUserSearchLoading = false;
+                }
+            },
+            selectAssignUser(user) {
+                this.assignSelectedUser = user;
+                this.assignUserSearchQuery = '';
+                this.assignUserSearchResults = [];
+                this.showAssignUserResults = false;
+                this.assignErrorMessage = '';
+            },
+            clearAssignUser() {
+                this.assignSelectedUser = null;
+            },
+            async submitAssign() {
+                if (!this.assignAsset?.id) {
+                    this.assignErrorMessage = window.__i18n.assign_error;
+                    return;
+                }
+
+                if (!this.assignSelectedUser?.id) {
+                    this.assignErrorMessage = window.__i18n.assign_select_user;
+                    return;
+                }
+
+                this.isAssignSubmitting = true;
+                this.assignErrorMessage = '';
+
+                const payload = {
+                    personnel_id: Number(this.assignSelectedUser.id),
+                };
+
+                if (this.assignLocationId) {
+                    payload.location_id = Number(this.assignLocationId);
+                }
+
+                try {
+                    const response = await fetch(`/api/assets/${this.assignAsset.id}/assign`, {
+                        method: 'POST',
+                        headers: {
+                            'Accept': 'application/json',
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify(payload),
+                    });
+                    const result = await response.json().catch(() => ({}));
+
+                    if (!response.ok) {
+                        this.assignErrorMessage = this.apiErrorMessage(result, window.__i18n.assign_error);
+                        return;
+                    }
+
+                    const assetId = this.assignAsset.id;
+                    this.closeAssignModal();
+
+                    if (window.confirm(window.__i18n.assign_print_tutanak_prompt)) {
+                        this.printTutanak(assetId);
+                    }
+
+                    window.location.reload();
+                } catch (error) {
+                    this.assignErrorMessage = window.__i18n.assign_network_error;
+                } finally {
+                    this.isAssignSubmitting = false;
+                }
+            },
+            openReturnModal(asset) {
+                if (!asset?.user_id) {
+                    return;
+                }
+
+                this.returnAsset = asset;
+                this.returnErrorMessage = '';
+                this.isReturnOpen = true;
+            },
+            closeReturnModal() {
+                if (this.isReturnSubmitting) {
+                    return;
+                }
+
+                this.isReturnOpen = false;
+                this.returnAsset = null;
+                this.returnErrorMessage = '';
+            },
+            async submitReturn() {
+                if (!this.returnAsset?.id) {
+                    this.returnErrorMessage = window.__i18n.return_error;
+                    return;
+                }
+
+                this.isReturnSubmitting = true;
+                this.returnErrorMessage = '';
+
+                try {
+                    const response = await fetch(`/api/assets/${this.returnAsset.id}/return`, {
+                        method: 'POST',
+                        headers: { 'Accept': 'application/json' },
+                    });
+                    const result = await response.json().catch(() => ({}));
+
+                    if (!response.ok) {
+                        this.returnErrorMessage = this.apiErrorMessage(result, window.__i18n.return_error);
+                        return;
+                    }
+
+                    this.closeReturnModal();
+                    window.location.reload();
+                } catch (error) {
+                    this.returnErrorMessage = window.__i18n.return_network_error;
+                } finally {
+                    this.isReturnSubmitting = false;
+                }
+            },
             async deleteAsset(assetId) {
                 if (!assetId || !window.confirm(window.__i18n.delete_confirm)) {
                     return;
@@ -2168,32 +2547,11 @@ $i18nScript = json_encode([
                     window.alert(window.__i18n.delete_network_error);
                 }
             },
-            async returnAssetToStorage(assetId) {
-                if (!assetId || !window.confirm(window.__i18n.return_confirm)) {
+            openTransferModal(asset) {
+                if (!asset?.user_id) {
                     return;
                 }
 
-                try {
-                    const response = await fetch(`/api/assets/${assetId}/return`, {
-                        method: 'POST',
-                        headers: {
-                            'Accept': 'application/json',
-                        },
-                    });
-                    const result = await response.json();
-
-                    if (!response.ok) {
-                        window.alert(result.message || window.__i18n.return_error);
-                        return;
-                    }
-
-                    window.alert(result.message || window.__i18n.return_success);
-                    window.location.reload();
-                } catch (error) {
-                    window.alert(window.__i18n.return_network_error);
-                }
-            },
-            openTransferModal(asset) {
                 this.transferAsset = asset;
                 this.transferErrorMessage = '';
                 this.resetTransferUserSearch();
@@ -2276,14 +2634,14 @@ $i18nScript = json_encode([
                             personnel_id: Number(this.transferSelectedUser.id),
                         }),
                     });
-                    const result = await response.json();
+                    const result = await response.json().catch(() => ({}));
 
                     if (!response.ok) {
-                        this.transferErrorMessage = result.message || window.__i18n.transfer_error;
+                        this.transferErrorMessage = this.apiErrorMessage(result, window.__i18n.transfer_error);
                         return;
                     }
 
-                    window.alert(result.message || window.__i18n.transfer_success);
+                    this.closeTransferModal();
                     window.location.reload();
                 } catch (error) {
                     this.transferErrorMessage = window.__i18n.transfer_network_error;

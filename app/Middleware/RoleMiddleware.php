@@ -203,6 +203,11 @@ class RoleMiddleware implements MiddlewareInterface
             ],
             [
                 'methods' => ['POST'],
+                'pattern' => '/api/assets/{id}/assign',
+                'roles' => $operational,
+            ],
+            [
+                'methods' => ['POST'],
                 'pattern' => '/api/assets/{id}/return',
                 'roles' => $operational,
             ],
