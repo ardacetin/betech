@@ -106,6 +106,10 @@ class DatabaseInitializer
                 foreach ($this->patchPersonnelTableColumns($connection) as $warning) {
                     $warnings[] = $warning;
                 }
+
+                foreach ($this->patchPersonnelAccessRoles($connection) as $warning) {
+                    $warnings[] = $warning;
+                }
             }
 
             if (is_readable($this->seedsPath)) {
@@ -115,14 +119,8 @@ class DatabaseInitializer
             }
 
             if ($this->usersTableExists($connection)) {
-                foreach ($this->ensureDefaultAdminExists($connection) as $warning) {
+                foreach ($this->patchRemoveUsersPasswordHash($connection) as $warning) {
                     $warnings[] = $warning;
-                }
-
-                if ($this->columnExists($connection, 'users', 'password_hash')) {
-                    foreach ($this->patchDefaultAdminPassword($connection) as $warning) {
-                        $warnings[] = $warning;
-                    }
                 }
             }
 
@@ -272,15 +270,8 @@ class DatabaseInitializer
     {
         $warnings = [];
 
-        if (!$this->columnExists($connection, 'users', 'password_hash')) {
-            $connection->query(
-                'ALTER TABLE users ADD COLUMN password_hash VARCHAR(255) NULL AFTER email'
-            );
-            $warnings[] = 'Self-healed users table: added password_hash column.';
-        }
-
         if (!$this->columnExists($connection, 'users', 'role')) {
-            $afterColumn = $this->resolveUsersAlterAfterColumn($connection, 'password_hash', 'email');
+            $afterColumn = $this->resolveUsersAlterAfterColumn($connection, 'email');
             $defaultRole = $this->usersTableHasLegacyPersonnelColumns($connection) ? 'end_user' : 'super_admin';
             $connection->query(
                 sprintf(
@@ -324,6 +315,7 @@ class DatabaseInitializer
             'external_id' => 'VARCHAR(128) DEFAULT NULL',
             'provider' => "VARCHAR(32) NOT NULL DEFAULT 'local'",
             'status' => "VARCHAR(32) NOT NULL DEFAULT 'active'",
+            'role' => "VARCHAR(32) NOT NULL DEFAULT 'user'",
             'created_at' => 'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP',
         ];
 
@@ -349,6 +341,7 @@ class DatabaseInitializer
             'idx_personnel_external_id' => 'external_id',
             'idx_personnel_provider' => 'provider',
             'idx_personnel_status' => 'status',
+            'idx_personnel_role' => 'role',
         ];
 
         foreach ($indexes as $indexName => $column) {
@@ -597,6 +590,48 @@ class DatabaseInitializer
     }
 
     /**
+     * @param object $connection Medoo instance
+     *
+     * @return list<string>
+     */
+    private function patchRemoveUsersPasswordHash(object $connection): array
+    {
+        if (!$this->columnExists($connection, 'users', 'password_hash')) {
+            return [];
+        }
+
+        $this->safeQuery($connection, 'ALTER TABLE users DROP COLUMN password_hash');
+
+        return ['Self-healed users table: dropped password_hash column.'];
+    }
+
+    /**
+     * Promote legacy operator accounts into personnel admin roles when possible.
+     *
+     * @param object $connection Medoo instance
+     *
+     * @return list<string>
+     */
+    private function patchPersonnelAccessRoles(object $connection): array
+    {
+        if (!$this->columnExists($connection, 'personnel', 'role')
+            || !$this->usersTableExists($connection)
+            || !$this->columnExists($connection, 'users', 'role')) {
+            return [];
+        }
+
+        $connection->query(
+            "UPDATE personnel p
+            INNER JOIN users u ON LOWER(p.email) = LOWER(u.email)
+            SET p.role = 'admin'
+            WHERE u.role IN ('super_admin', 'technician')
+              AND p.role <> 'admin'"
+        );
+
+        return ['Self-healed personnel table: migrated operator roles from users table.'];
+    }
+
+    /**
      * Ensure the default local super-admin exists after migrations or table splits.
      *
      * @param object $connection Medoo instance
@@ -614,13 +649,8 @@ class DatabaseInitializer
         $insertPayload = [
             'name' => 'Sistem Yöneticisi',
             'email' => $defaultAdminEmail,
-            'password_hash' => password_hash('Betech2026!', PASSWORD_DEFAULT),
             'role' => 'super_admin',
         ];
-
-        if (!$this->columnExists($connection, 'users', 'password_hash')) {
-            unset($insertPayload['password_hash']);
-        }
 
         if (!$this->columnExists($connection, 'users', 'role')) {
             unset($insertPayload['role']);
@@ -1007,7 +1037,8 @@ class DatabaseInitializer
             'external_id' => ['title', 'department', 'email', 'name'],
             'provider' => ['external_id', 'title', 'department', 'email', 'name'],
             'status' => ['provider', 'external_id', 'title', 'department', 'email', 'name'],
-            'created_at' => ['status', 'provider', 'external_id', 'title', 'department', 'email', 'name'],
+            'role' => ['status', 'provider', 'external_id', 'title', 'department', 'email', 'name'],
+            'created_at' => ['role', 'status', 'provider', 'external_id', 'title', 'department', 'email', 'name'],
         ];
 
         foreach ($chain[$targetColumn] ?? ['email'] as $column) {

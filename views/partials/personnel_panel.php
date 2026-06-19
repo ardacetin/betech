@@ -64,6 +64,7 @@ declare(strict_types=1);
                         <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500"><?= htmlspecialchars(__('personnel_col_department'), ENT_QUOTES, 'UTF-8') ?></th>
                         <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500"><?= htmlspecialchars(__('personnel_col_assets'), ENT_QUOTES, 'UTF-8') ?></th>
                         <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500"><?= htmlspecialchars(__('personnel_col_status'), ENT_QUOTES, 'UTF-8') ?></th>
+                        <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500"><?= htmlspecialchars(__('personnel_col_role'), ENT_QUOTES, 'UTF-8') ?></th>
                         <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500"><?= htmlspecialchars(__('col_actions'), ENT_QUOTES, 'UTF-8') ?></th>
                     </tr>
                 </thead>
@@ -79,6 +80,24 @@ declare(strict_types=1);
                                     class="inline-flex rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-inset"
                                     :class="person.status === 'offboarded' ? 'bg-zinc-100 text-zinc-600 ring-zinc-500/20' : 'bg-emerald-50 text-emerald-700 ring-emerald-600/20'"
                                     x-text="resolvePersonnelStatus(person.status)"
+                                ></span>
+                            </td>
+                            <td class="px-6 py-4">
+                                <select
+                                    x-show="isSuperAdmin && person.status !== 'offboarded'"
+                                    x-cloak
+                                    class="rounded-lg border border-zinc-200 bg-white px-2.5 py-1.5 text-xs font-medium text-zinc-700 focus:border-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-200 disabled:cursor-not-allowed disabled:opacity-60"
+                                    :value="person.role || 'user'"
+                                    :disabled="personnelRoleUpdating === person.id"
+                                    @change="updatePersonnelRole(person, $event.target.value)"
+                                >
+                                    <option value="user"><?= htmlspecialchars(__('personnel_role_user'), ENT_QUOTES, 'UTF-8') ?></option>
+                                    <option value="admin"><?= htmlspecialchars(__('personnel_role_admin'), ENT_QUOTES, 'UTF-8') ?></option>
+                                </select>
+                                <span
+                                    x-show="!isSuperAdmin || person.status === 'offboarded'"
+                                    class="text-xs text-zinc-600"
+                                    x-text="resolvePersonnelRoleLabel(person.role)"
                                 ></span>
                             </td>
                             <td class="px-6 py-4">

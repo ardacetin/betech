@@ -68,24 +68,24 @@ class RoleMiddleware implements MiddlewareInterface
      */
     public static function defaultRules(): array
     {
-        $operational = [User::ROLE_SUPER_ADMIN, User::ROLE_TECHNICIAN];
-        $withEndUser = [User::ROLE_SUPER_ADMIN, User::ROLE_TECHNICIAN, User::ROLE_END_USER];
+        $operational = [User::ROLE_ADMIN];
+        $withEndUser = [User::ROLE_ADMIN, User::ROLE_USER];
 
         return [
             [
                 'methods' => ['GET', 'PUT'],
                 'pattern' => '/api/settings',
-                'roles' => [User::ROLE_SUPER_ADMIN],
+                'roles' => [User::ROLE_ADMIN],
             ],
             [
                 'methods' => ['POST'],
                 'pattern' => '/api/settings/smtp/test',
-                'roles' => [User::ROLE_SUPER_ADMIN],
+                'roles' => [User::ROLE_ADMIN],
             ],
             [
                 'methods' => ['GET'],
                 'pattern' => '/api/audit-logs',
-                'roles' => [User::ROLE_SUPER_ADMIN],
+                'roles' => [User::ROLE_ADMIN],
             ],
             [
                 'methods' => ['GET'],
@@ -95,17 +95,17 @@ class RoleMiddleware implements MiddlewareInterface
             [
                 'methods' => ['POST'],
                 'pattern' => '/api/categories',
-                'roles' => [User::ROLE_SUPER_ADMIN],
+                'roles' => [User::ROLE_ADMIN],
             ],
             [
                 'methods' => ['PUT'],
                 'pattern' => '/api/categories/{id}',
-                'roles' => [User::ROLE_SUPER_ADMIN],
+                'roles' => [User::ROLE_ADMIN],
             ],
             [
                 'methods' => ['DELETE'],
                 'pattern' => '/api/categories/{id}',
-                'roles' => [User::ROLE_SUPER_ADMIN],
+                'roles' => [User::ROLE_ADMIN],
             ],
             [
                 'methods' => ['GET'],
@@ -115,17 +115,17 @@ class RoleMiddleware implements MiddlewareInterface
             [
                 'methods' => ['POST'],
                 'pattern' => '/api/locations',
-                'roles' => [User::ROLE_SUPER_ADMIN],
+                'roles' => [User::ROLE_ADMIN],
             ],
             [
                 'methods' => ['PUT'],
                 'pattern' => '/api/locations/{id}',
-                'roles' => [User::ROLE_SUPER_ADMIN],
+                'roles' => [User::ROLE_ADMIN],
             ],
             [
                 'methods' => ['DELETE'],
                 'pattern' => '/api/locations/{id}',
-                'roles' => [User::ROLE_SUPER_ADMIN],
+                'roles' => [User::ROLE_ADMIN],
             ],
             [
                 'methods' => ['GET'],
@@ -270,7 +270,7 @@ class RoleMiddleware implements MiddlewareInterface
             [
                 'methods' => ['GET'],
                 'pattern' => '/api/my/assets',
-                'roles' => [User::ROLE_END_USER],
+                'roles' => [User::ROLE_USER],
             ],
             [
                 'methods' => ['GET'],
@@ -328,6 +328,11 @@ class RoleMiddleware implements MiddlewareInterface
                 'roles' => $operational,
             ],
             [
+                'methods' => ['PUT'],
+                'pattern' => '/api/personnel/{id}/role',
+                'roles' => [User::ROLE_ADMIN],
+            ],
+            [
                 'methods' => ['POST'],
                 'pattern' => '/api/personnel/{id}/offboard',
                 'roles' => $operational,
@@ -335,22 +340,22 @@ class RoleMiddleware implements MiddlewareInterface
             [
                 'methods' => ['GET'],
                 'pattern' => '/api/users',
-                'roles' => [User::ROLE_SUPER_ADMIN],
+                'roles' => [User::ROLE_ADMIN],
             ],
             [
                 'methods' => ['POST'],
                 'pattern' => '/api/users',
-                'roles' => [User::ROLE_SUPER_ADMIN],
+                'roles' => [User::ROLE_ADMIN],
             ],
             [
                 'methods' => ['PUT'],
                 'pattern' => '/api/users/{id}',
-                'roles' => [User::ROLE_SUPER_ADMIN],
+                'roles' => [User::ROLE_ADMIN],
             ],
             [
                 'methods' => ['DELETE'],
                 'pattern' => '/api/users/{id}',
-                'roles' => [User::ROLE_SUPER_ADMIN],
+                'roles' => [User::ROLE_ADMIN],
             ],
             [
                 'methods' => ['POST'],
@@ -395,7 +400,7 @@ class RoleMiddleware implements MiddlewareInterface
             [
                 'methods' => ['DELETE'],
                 'pattern' => '/api/assets/{id}',
-                'roles' => [User::ROLE_SUPER_ADMIN],
+                'roles' => [User::ROLE_ADMIN],
             ],
             [
                 'methods' => ['GET'],
@@ -410,12 +415,12 @@ class RoleMiddleware implements MiddlewareInterface
             [
                 'methods' => ['GET'],
                 'pattern' => '/api/assets/{id}/tutanak',
-                'roles' => [User::ROLE_SUPER_ADMIN, User::ROLE_TECHNICIAN, User::ROLE_END_USER],
+                'roles' => [User::ROLE_ADMIN, User::ROLE_USER],
             ],
             [
                 'methods' => ['GET'],
                 'pattern' => '/api/assets/{id}/history',
-                'roles' => [User::ROLE_SUPER_ADMIN, User::ROLE_TECHNICIAN, User::ROLE_END_USER],
+                'roles' => [User::ROLE_ADMIN, User::ROLE_USER],
             ],
         ];
     }

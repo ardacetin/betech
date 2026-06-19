@@ -45,7 +45,6 @@ use App\Services\AssetCsvImportService;
 use App\Services\AuditChangeFormatter;
 use App\Services\AuditLogger;
 use App\Services\Auth\LdapAuthenticator;
-use App\Services\Auth\OAuthService;
 use App\Services\Auth\SessionAuthService;
 use App\Services\Auth\UserIntegrationFactory;
 use App\Services\ClientIpResolver;
@@ -94,12 +93,10 @@ $publicPaths = [
     '/login',
     '/api/login',
     '/logout',
-    '/auth/oauth/{provider}',
-    '/auth/callback/{provider}',
     '/assets/view/{id}',
 ];
 $app->add(new RoleMiddleware($sessionAuthService, $publicPaths, RoleMiddleware::defaultRules()));
-$app->add(new AuthMiddleware($sessionAuthService, $publicPaths, $userModel));
+$app->add(new AuthMiddleware($sessionAuthService, $publicPaths, $personnelModel));
 $app->add(new CsrfMiddleware($sessionAuthService, ['/login', '/api/login']));
 $app->add(new RateLimitMiddleware($loginAttemptService, $clientIpResolver));
 $app->add(new SecurityHeadersMiddleware($isHttps));
@@ -134,25 +131,21 @@ $analyticsService = new AnalyticsService($databaseService);
 $zimmetTutanakService = new ZimmetTutanakService();
 $assetCsvImportService = new AssetCsvImportService($assetModel, $categoryModel, $locationModel);
 $ldapAuthenticator = new LdapAuthenticator($settingModel);
-$oauthService = new OAuthService($settingModel, $appConfig['url']);
 $auditLogModel = new AuditLog($databaseService);
 $auditChangeFormatter = new AuditChangeFormatter();
 $auditLogger = new AuditLogger($auditLogModel, $auditChangeFormatter, $clientIpResolver);
     $authController = new AuthController(
         $appConfig,
-        $settingModel,
-        $userModel,
         $personnelModel,
         $sessionAuthService,
         $loginAttemptService,
         $clientIpResolver,
         $ldapAuthenticator,
-        $oauthService,
         $viewRenderer,
         $auditLogger,
         $appLogger
     );
-$healthController = new HealthController($appConfig, $assetModel, $categoryModel, $viewRenderer, $qrCodeService, $analyticsService, $settingModel, $userModel, $sessionAuthService, $endUserContextService);
+$healthController = new HealthController($appConfig, $assetModel, $categoryModel, $viewRenderer, $qrCodeService, $analyticsService, $settingModel, $userModel, $personnelModel, $sessionAuthService, $endUserContextService);
 $assetController = new AssetController($assetModel, $assetHistoryModel, $userIntegrationFactory, $personnelModel, $userModel, $locationModel, $categoryModel, $assetCsvImportService, $sessionAuthService, $clientIpResolver, $endUserContextService, $auditLogger);
 $assetViewController = new AssetViewController($appConfig, $assetModel, $categoryModel, $viewRenderer);
 $assetTutanakController = new AssetTutanakController($assetModel, $settingModel, $personnelModel, $userModel, $userIntegrationFactory, $zimmetTutanakService, $viewRenderer, $sessionAuthService, $endUserContextService);
@@ -201,8 +194,6 @@ $app->get('/login', [$authController, 'showLoginForm']);
 $app->post('/login', [$authController, 'login']);
 $app->post('/api/login', [$authController, 'apiLogin']);
 $app->get('/logout', [$authController, 'logout']);
-$app->get('/auth/oauth/{provider}', [$authController, 'startOAuth']);
-$app->get('/auth/callback/{provider}', [$authController, 'handleOAuthCallback']);
 $app->get('/', [$healthController, 'index']);
 $app->get('/api/my/assets', [$endUserController, 'assets']);
 $app->get('/assets/view/{id}', [$assetViewController, 'show']);
@@ -260,6 +251,7 @@ $app->post('/api/personnel/sync', [$userController, 'personnelSync']);
 $app->post('/api/personnel/sync-ldap', [$userController, 'personnelSyncLdap']);
 $app->get('/api/personnel/search', [$userController, 'searchPersonnel']);
 $app->post('/api/personnel/{id}/offboard', [$userController, 'offboard']);
+$app->put('/api/personnel/{id}/role', [$userController, 'updatePersonnelRole']);
 $app->get('/api/users', [$userController, 'index']);
 $app->post('/api/users', [$userController, 'store']);
 $app->put('/api/users/{id}', [$userController, 'update']);

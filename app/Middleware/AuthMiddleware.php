@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Middleware;
 
+use App\Models\Personnel;
 use App\Models\User;
 use App\Services\Auth\SessionAuthService;
 use Psr\Http\Message\ResponseInterface;
@@ -20,7 +21,7 @@ class AuthMiddleware implements MiddlewareInterface
     public function __construct(
         private readonly SessionAuthService $sessionAuthService,
         private readonly array $publicPaths = [],
-        private readonly ?User $userModel = null
+        private readonly ?Personnel $personnelModel = null
     ) {
     }
 
@@ -90,7 +91,7 @@ class AuthMiddleware implements MiddlewareInterface
 
     private function syncSessionRoleFromDatabase(): void
     {
-        if ($this->userModel === null) {
+        if ($this->personnelModel === null) {
             return;
         }
 
@@ -100,10 +101,10 @@ class AuthMiddleware implements MiddlewareInterface
             return;
         }
 
-        $user = $this->userModel->findById($userId);
+        $person = $this->personnelModel->findById($userId);
 
-        if ($user !== null) {
-            $this->sessionAuthService->setRole((string) $user['role']);
+        if ($person !== null) {
+            $this->sessionAuthService->setRole((string) ($person['role'] ?? User::ROLE_USER));
         }
     }
 }

@@ -9,18 +9,22 @@ use Medoo\Medoo;
 
 class User
 {
-    public const ROLE_SUPER_ADMIN = 'super_admin';
-    public const ROLE_TECHNICIAN = 'technician';
-    public const ROLE_END_USER = 'end_user';
+    public const ROLE_USER = 'user';
+    public const ROLE_ADMIN = 'admin';
+
+    /** @deprecated Use ROLE_USER */
+    public const ROLE_END_USER = 'user';
+    /** @deprecated Use ROLE_ADMIN */
+    public const ROLE_SUPER_ADMIN = 'admin';
+    /** @deprecated Use ROLE_ADMIN */
+    public const ROLE_TECHNICIAN = 'admin';
     /** @deprecated Personnel records live in the personnel table. */
-    public const ROLE_PERSONNEL = 'end_user';
+    public const ROLE_PERSONNEL = 'user';
 
     public const PROVIDER_LOCAL = 'local';
     public const PROVIDER_LDAP = 'ldap';
     public const PROVIDER_GOOGLE = 'google';
     public const PROVIDER_MICROSOFT = 'microsoft';
-
-    public const MIN_PASSWORD_LENGTH = 8;
 
     public function __construct(
         private readonly DatabaseService $databaseService
@@ -51,8 +55,10 @@ class User
     /**
      * @return array<string, mixed>
      */
-    public function create(string $name, string $email, string $role, string $password): array
+    public function create(string $name, string $email, string $role, string $password = ''): array
     {
+        unset($password);
+
         $trimmedName = trim($name);
         $normalizedEmail = strtolower(trim($email));
         $normalizedRole = $this->normalizeRole($role);
@@ -69,10 +75,6 @@ class User
             throw new \InvalidArgumentException(__('system_user_role_invalid'));
         }
 
-        if (strlen($password) < self::MIN_PASSWORD_LENGTH) {
-            throw new \InvalidArgumentException(__('system_user_password_required'));
-        }
-
         if ($this->findByEmail($normalizedEmail) !== null) {
             throw new \InvalidArgumentException(__('manual_user_email_taken'));
         }
@@ -81,7 +83,6 @@ class User
             'name' => $trimmedName,
             'email' => $normalizedEmail,
             'role' => $normalizedRole,
-            'password_hash' => password_hash($password, PASSWORD_DEFAULT),
         ]);
 
         $created = $this->findById((int) $this->db()->id());
@@ -103,6 +104,8 @@ class User
         ?string $role = null,
         ?string $password = null
     ): ?array {
+        unset($password);
+
         $existing = $this->findById($userId);
 
         if ($existing === null) {
@@ -144,25 +147,13 @@ class User
                 throw new \InvalidArgumentException(__('system_user_role_invalid'));
             }
 
-            if ((string) $existing['role'] === self::ROLE_SUPER_ADMIN
-                && $normalizedRole !== self::ROLE_SUPER_ADMIN
-                && $this->countUsersByRole(self::ROLE_SUPER_ADMIN) <= 1) {
+            if ((string) $existing['role'] === self::ROLE_ADMIN
+                && $normalizedRole !== self::ROLE_ADMIN
+                && $this->countUsersByRole(self::ROLE_ADMIN) <= 1) {
                 throw new \InvalidArgumentException(__('system_user_last_super_admin'));
             }
 
             $payload['role'] = $normalizedRole;
-        }
-
-        if ($password !== null) {
-            $trimmedPassword = trim($password);
-
-            if ($trimmedPassword !== '') {
-                if (strlen($trimmedPassword) < self::MIN_PASSWORD_LENGTH) {
-                    throw new \InvalidArgumentException(__('system_user_password_required'));
-                }
-
-                $payload['password_hash'] = password_hash($trimmedPassword, PASSWORD_DEFAULT);
-            }
         }
 
         if ($payload !== []) {
@@ -180,8 +171,8 @@ class User
             return false;
         }
 
-        if ((string) $existing['role'] === self::ROLE_SUPER_ADMIN
-            && $this->countUsersByRole(self::ROLE_SUPER_ADMIN) <= 1) {
+        if ((string) $existing['role'] === self::ROLE_ADMIN
+            && $this->countUsersByRole(self::ROLE_ADMIN) <= 1) {
             throw new \InvalidArgumentException(__('system_user_last_super_admin'));
         }
 
@@ -229,14 +220,13 @@ class User
             'id',
             'name',
             'email',
-            'password_hash',
             'role',
             'created_at',
         ], [
             'email' => $normalizedEmail,
         ]);
 
-        return $row === null ? null : $this->normalizeAuthRow($row);
+        return $row === null ? null : $this->normalizePublicRow($row);
     }
 
     /**
@@ -245,7 +235,7 @@ class User
     public function findOperationalEmails(): array
     {
         $rows = $this->db()->select('users', ['email'], [
-            'role' => [self::ROLE_SUPER_ADMIN, self::ROLE_TECHNICIAN],
+            'role' => [self::ROLE_ADMIN, 'super_admin', 'technician'],
         ]);
 
         $emails = [];
@@ -265,19 +255,6 @@ class User
         return array_keys($emails);
     }
 
-    public function updatePasswordHash(int $userId, string $plainPassword): void
-    {
-        if ($userId <= 0 || $plainPassword === '') {
-            return;
-        }
-
-        $this->db()->update('users', [
-            'password_hash' => password_hash($plainPassword, PASSWORD_DEFAULT),
-        ], [
-            'id' => $userId,
-        ]);
-    }
-
     public function findRoleById(int $userId): string
     {
         $role = $this->db()->get('users', 'role', ['id' => $userId]);
@@ -287,12 +264,17 @@ class User
 
     public function isOperationalRole(string $role): bool
     {
-        return in_array($role, [self::ROLE_SUPER_ADMIN, self::ROLE_TECHNICIAN], true);
+        return self::normalizeRoleStatic($role) === self::ROLE_ADMIN;
     }
 
     public function isSuperAdmin(string $role): bool
     {
-        return $role === self::ROLE_SUPER_ADMIN;
+        return $this->isOperationalRole($role);
+    }
+
+    public function isEndUserRole(string $role): bool
+    {
+        return self::normalizeRoleStatic($role) === self::ROLE_USER;
     }
 
     public function normalizeRole(?string $role): string
@@ -305,8 +287,8 @@ class User
         $normalized = strtolower(trim((string) $role));
 
         return match ($normalized) {
-            self::ROLE_SUPER_ADMIN, self::ROLE_TECHNICIAN => $normalized,
-            default => self::ROLE_END_USER,
+            'admin', 'super_admin', 'technician' => self::ROLE_ADMIN,
+            default => self::ROLE_USER,
         };
     }
 
@@ -321,22 +303,6 @@ class User
         $row['role'] = $this->normalizeRole(isset($row['role']) ? (string) $row['role'] : null);
 
         return $row;
-    }
-
-    /**
-     * @param array<string, mixed> $row
-     *
-     * @return array<string, mixed>
-     */
-    private function normalizeAuthRow(array $row): array
-    {
-        $normalized = $this->normalizePublicRow($row);
-
-        if (array_key_exists('password_hash', $row)) {
-            $normalized['password_hash'] = (string) $row['password_hash'];
-        }
-
-        return $normalized;
     }
 
     private function db(): Medoo

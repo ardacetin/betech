@@ -53,7 +53,7 @@ class SessionAuthService
         }
     }
 
-    public function login(int $userId, string $role = User::ROLE_END_USER): void
+    public function login(int $userId, string $role = User::ROLE_USER): void
     {
         $this->ensureSessionStarted();
         session_regenerate_id(true);
@@ -96,7 +96,7 @@ class SessionAuthService
             return User::normalizeRoleStatic((string) $_SESSION[self::SESSION_USER_ROLE]);
         }
 
-        return User::ROLE_END_USER;
+        return User::ROLE_USER;
     }
 
     public function setRole(string $role): void

@@ -19,7 +19,6 @@ CREATE TABLE IF NOT EXISTS users (
     id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
     name VARCHAR(255) NOT NULL,
     email VARCHAR(255) NOT NULL,
-    password_hash VARCHAR(255) NOT NULL,
     role VARCHAR(50) NOT NULL DEFAULT 'technician',
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
@@ -36,6 +35,7 @@ CREATE TABLE IF NOT EXISTS personnel (
     external_id VARCHAR(128) DEFAULT NULL,
     provider VARCHAR(32) NOT NULL DEFAULT 'local',
     status VARCHAR(32) NOT NULL DEFAULT 'active',
+    role VARCHAR(32) NOT NULL DEFAULT 'user',
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
     UNIQUE KEY uq_personnel_email (email),
@@ -43,7 +43,8 @@ CREATE TABLE IF NOT EXISTS personnel (
     KEY idx_personnel_department (department),
     KEY idx_personnel_external_id (external_id),
     KEY idx_personnel_provider (provider),
-    KEY idx_personnel_status (status)
+    KEY idx_personnel_status (status),
+    KEY idx_personnel_role (role)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS locations (

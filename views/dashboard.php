@@ -134,6 +134,10 @@ $i18nScript = json_encode([
     'personnel_pagination_info' => __('personnel_pagination_info'),
     'personnel_fetch_error' => __('personnel_fetch_error'),
     'personnel_network_error' => __('personnel_network_error'),
+    'personnel_role_user' => __('personnel_role_user'),
+    'personnel_role_admin' => __('personnel_role_admin'),
+    'personnel_role_update_success' => __('personnel_role_update_success'),
+    'personnel_role_update_error' => __('personnel_role_update_error'),
     'delete_confirm' => __('delete_confirm'),
     'delete_success' => __('delete_success'),
     'delete_error' => __('delete_error'),
@@ -2530,6 +2534,7 @@ $i18nScript = json_encode([
                 total_pages: 1,
             },
             personnelSyncing: false,
+            personnelRoleUpdating: null,
             personnelSyncMessage: '',
             personnelSyncError: '',
             isOffboarding: false,
@@ -2889,6 +2894,43 @@ $i18nScript = json_encode([
                 return status === 'offboarded'
                     ? window.__i18n.personnel_status_offboarded
                     : window.__i18n.personnel_status_active;
+            },
+            resolvePersonnelRoleLabel(role) {
+                return role === 'admin'
+                    ? window.__i18n.personnel_role_admin
+                    : window.__i18n.personnel_role_user;
+            },
+            async updatePersonnelRole(person, role) {
+                if (!this.isSuperAdmin || !person?.id || person.role === role) {
+                    return;
+                }
+
+                this.personnelRoleUpdating = person.id;
+                this.personnelError = '';
+
+                try {
+                    const response = await fetch(`/api/personnel/${person.id}/role`, {
+                        method: 'PUT',
+                        headers: {
+                            'Accept': 'application/json',
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ role }),
+                    });
+                    const result = await response.json();
+
+                    if (!response.ok) {
+                        this.personnelError = result.message || window.__i18n.personnel_role_update_error;
+                        return;
+                    }
+
+                    person.role = role;
+                    this.personnelSyncMessage = result.message || window.__i18n.personnel_role_update_success;
+                } catch (error) {
+                    this.personnelError = window.__i18n.personnel_network_error;
+                } finally {
+                    this.personnelRoleUpdating = null;
+                }
             },
             resolvePersonnelPaginationLabel() {
                 return window.__i18n.personnel_pagination_info

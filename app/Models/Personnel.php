@@ -12,6 +12,9 @@ class Personnel
     public const STATUS_ACTIVE = 'active';
     public const STATUS_OFFBOARDED = 'offboarded';
 
+    public const ROLE_USER = 'user';
+    public const ROLE_ADMIN = 'admin';
+
     public const PROVIDER_LOCAL = 'local';
     public const PROVIDER_LDAP = 'ldap';
     public const PROVIDER_GOOGLE = 'google';
@@ -51,6 +54,7 @@ class Personnel
             'external_id',
             'provider',
             'status',
+            'role',
             'created_at',
         ], [
             ...$conditions,
@@ -217,6 +221,7 @@ class Personnel
     ): string {
         $insertPayload = [
             'status' => self::STATUS_ACTIVE,
+            'role' => self::ROLE_USER,
             ...$payload,
         ];
 
@@ -484,6 +489,7 @@ class Personnel
 
         $this->db()->insert('personnel', [
             'status' => self::STATUS_ACTIVE,
+            'role' => self::ROLE_USER,
             ...$payload,
         ]);
 
@@ -520,6 +526,7 @@ class Personnel
             'title' => null,
             'provider' => self::PROVIDER_LOCAL,
             'status' => self::STATUS_ACTIVE,
+            'role' => self::ROLE_USER,
         ]);
 
         $localId = (int) $this->db()->id();
@@ -629,6 +636,146 @@ class Personnel
         return $person;
     }
 
+    public function findByExternalId(string $externalId): ?array
+    {
+        $normalizedExternalId = strtolower(trim($externalId));
+
+        if ($normalizedExternalId === '') {
+            return null;
+        }
+
+        $row = $this->db()->get('personnel', [
+            'id',
+            'name',
+            'email',
+            'department',
+            'title',
+            'external_id',
+            'provider',
+            'status',
+            'role',
+            'created_at',
+        ], [
+            'external_id' => $normalizedExternalId,
+        ]);
+
+        if ($row === null) {
+            $row = $this->db()->get('personnel', [
+                'id',
+                'name',
+                'email',
+                'department',
+                'title',
+                'external_id',
+                'provider',
+                'status',
+                'role',
+                'created_at',
+            ], [
+                'external_id' => trim($externalId),
+            ]);
+        }
+
+        return $row === null ? null : $this->normalizeRow($row);
+    }
+
+    /**
+     * @param array{
+     *     name?: string,
+     *     email?: string,
+     *     external_id?: string,
+     *     department?: string|null,
+     *     title?: string|null,
+     *     auth_provider?: string,
+     *     provider?: string
+     * } $profile
+     */
+    public function refreshProfileFromAuth(int $personnelId, array $profile): ?array
+    {
+        $existing = $this->findById($personnelId);
+
+        if ($existing === null) {
+            return null;
+        }
+
+        $payload = [
+            'name' => trim((string) ($profile['name'] ?? $existing['name'] ?? '')),
+            'email' => strtolower(trim((string) ($profile['email'] ?? $existing['email'] ?? ''))),
+            'department' => isset($profile['department']) && $profile['department'] !== null
+                ? trim((string) $profile['department'])
+                : ($existing['department'] ?? null),
+            'title' => isset($profile['title']) && $profile['title'] !== null
+                ? trim((string) $profile['title'])
+                : ($existing['title'] ?? null),
+            'external_id' => trim((string) ($profile['external_id'] ?? $existing['external_id'] ?? '')),
+            'provider' => $this->normalizeProvider((string) ($profile['provider'] ?? $profile['auth_provider'] ?? Personnel::PROVIDER_LDAP)),
+            'status' => self::STATUS_ACTIVE,
+        ];
+
+        if ($payload['name'] === '') {
+            $payload['name'] = (string) ($existing['name'] ?? $payload['email']);
+        }
+
+        if ($payload['email'] === '') {
+            return $existing;
+        }
+
+        if ($payload['external_id'] === '') {
+            unset($payload['external_id']);
+        }
+
+        $this->db()->update('personnel', $payload, ['id' => $personnelId]);
+
+        return $this->findById($personnelId);
+    }
+
+    public function updateAccessRole(int $personnelId, string $role): ?array
+    {
+        $normalizedRole = User::normalizeRoleStatic($role);
+
+        if (!in_array($normalizedRole, [self::ROLE_USER, self::ROLE_ADMIN], true)) {
+            throw new \InvalidArgumentException(__('personnel_role_invalid'));
+        }
+
+        $existing = $this->findById($personnelId);
+
+        if ($existing === null) {
+            return null;
+        }
+
+        if ((string) ($existing['role'] ?? self::ROLE_USER) === self::ROLE_ADMIN
+            && $normalizedRole === self::ROLE_USER
+            && $this->countByRole(self::ROLE_ADMIN) <= 1) {
+            throw new \InvalidArgumentException(__('personnel_last_admin'));
+        }
+
+        $this->db()->update('personnel', [
+            'role' => $normalizedRole,
+        ], [
+            'id' => $personnelId,
+        ]);
+
+        return $this->findById($personnelId);
+    }
+
+    public function countByRole(string $role): int
+    {
+        return $this->db()->count('personnel', [
+            'role' => User::normalizeRoleStatic($role),
+        ]);
+    }
+
+    public function promoteToAdminByUsername(string $username): ?array
+    {
+        $person = $this->findByExternalId($username);
+
+        if ($person === null) {
+            return null;
+        }
+
+        return $this->updateAccessRole((int) $person['id'], self::ROLE_ADMIN);
+    }
+
     /**
      * @return list<array{id: string, external_id: string, name: string, email: string, department: string|null}>
      */
@@ -719,6 +866,7 @@ class Personnel
             'external_id',
             'provider',
             'status',
+            'role',
             'created_at',
         ], [
             'id' => $personnelId,
@@ -744,6 +892,7 @@ class Personnel
             'external_id',
             'provider',
             'status',
+            'role',
             'created_at',
         ], [
             'email' => $normalizedEmail,
@@ -893,6 +1042,7 @@ class Personnel
     {
         $row['id'] = (int) $row['id'];
         $row['status'] = (string) ($row['status'] ?? self::STATUS_ACTIVE);
+        $row['role'] = User::normalizeRoleStatic(isset($row['role']) ? (string) $row['role'] : self::ROLE_USER);
 
         if (array_key_exists('department', $row) && $row['department'] !== null) {
             $row['department'] = (string) $row['department'];

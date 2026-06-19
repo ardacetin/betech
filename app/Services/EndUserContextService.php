@@ -19,7 +19,7 @@ class EndUserContextService
 
     public function isEndUser(): bool
     {
-        return $this->sessionAuthService->role() === User::ROLE_END_USER;
+        return $this->userModel->isEndUserRole($this->sessionAuthService->role());
     }
 
     public function resolvePersonnelId(): ?int

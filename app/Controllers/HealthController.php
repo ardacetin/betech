@@ -7,6 +7,7 @@ namespace App\Controllers;
 use App\Models\Asset;
 use App\Models\Category;
 use App\Models\Setting;
+use App\Models\Personnel;
 use App\Models\User;
 use App\Services\AnalyticsService;
 use App\Services\Auth\SessionAuthService;
@@ -31,6 +32,7 @@ class HealthController
         private readonly AnalyticsService $analyticsService,
         private readonly Setting $settingModel,
         private readonly User $userModel,
+        private readonly Personnel $personnelModel,
         private readonly SessionAuthService $sessionAuthService,
         private readonly EndUserContextService $endUserContextService
     ) {
@@ -40,7 +42,7 @@ class HealthController
     {
         $userId = $this->sessionAuthService->userId() ?? 0;
         $role = $this->sessionAuthService->role();
-        $isEndUser = $role === User::ROLE_END_USER;
+        $isEndUser = $this->userModel->isEndUserRole($role);
         $canManageAssets = $this->userModel->isOperationalRole($role);
 
         if ($isEndUser) {
@@ -70,7 +72,7 @@ class HealthController
         $analytics = $this->analyticsService->getDashboardStats();
         $settings = $this->settingModel->getAdminBundle();
         $personnelRows = [];
-        $currentUser = $userId > 0 ? $this->userModel->findById($userId) : null;
+        $currentUser = $userId > 0 ? $this->personnelModel->findById($userId) : null;
         $currentUserEmail = trim((string) ($currentUser['email'] ?? ''));
 
         $assetQrCodes = [];

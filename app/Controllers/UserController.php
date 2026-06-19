@@ -434,6 +434,49 @@ class UserController
         ]);
     }
 
+    public function updatePersonnelRole(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
+    {
+        $personnelId = (int) ($args['id'] ?? 0);
+        $payload = $this->resolvePayload($request) ?? [];
+        $role = trim((string) ($payload['role'] ?? ''));
+
+        if ($personnelId <= 0) {
+            return $this->jsonResponse($response, 400, [
+                'status' => 'error',
+                'message' => __('personnel_invalid_id'),
+            ]);
+        }
+
+        if ($role === '') {
+            return $this->jsonResponse($response, 422, [
+                'status' => 'error',
+                'message' => __('personnel_role_invalid'),
+            ]);
+        }
+
+        try {
+            $person = $this->personnelModel->updateAccessRole($personnelId, $role);
+        } catch (\InvalidArgumentException $exception) {
+            return $this->jsonResponse($response, 422, [
+                'status' => 'error',
+                'message' => $exception->getMessage(),
+            ]);
+        }
+
+        if ($person === null) {
+            return $this->jsonResponse($response, 404, [
+                'status' => 'error',
+                'message' => __('offboard_user_not_found'),
+            ]);
+        }
+
+        return $this->jsonResponse($response, 200, [
+            'status' => 'success',
+            'message' => __('personnel_role_update_success'),
+            'data' => $person,
+        ]);
+    }
+
     /**
      * @return array<string, mixed>|null
      */
