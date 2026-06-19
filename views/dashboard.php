@@ -739,11 +739,13 @@ $i18nScript = json_encode([
                                                         'asset_tag' => (string) $asset['asset_tag'],
                                                         'name' => (string) $asset['name'],
                                                         'status' => $status,
+                                                        'category_id' => $asset['category_id'] ?? null,
                                                         'user_id' => $asset['user_id'] ?? null,
                                                         'user_name' => $asset['user_name'] ?? null,
                                                         'location_id' => $asset['location_id'] ?? null,
                                                         'location_name' => $asset['location_name'] ?? null,
                                                         'location_building' => $asset['location_building'] ?? null,
+                                                        'properties' => is_array($asset['properties'] ?? null) ? $asset['properties'] : [],
                                                     ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>)'
                                                     class="rounded-lg border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-700 transition hover:bg-zinc-50"
                                                 >
@@ -921,11 +923,21 @@ $i18nScript = json_encode([
                             <label class="block" :class="field.type === 'textarea' ? 'sm:col-span-2' : ''">
                                 <span class="mb-1.5 block text-sm font-medium text-zinc-700" x-text="resolveFieldLabel(field)"></span>
                                 <input
-                                    x-show="field.type !== 'textarea'"
+                                    x-show="field.type !== 'textarea' && field.type !== 'dropdown'"
                                     :type="field.type === 'number' ? 'number' : 'text'"
                                     x-model="dynamicValues[field.name]"
                                     class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4"
                                 >
+                                <select
+                                    x-show="field.type === 'dropdown'"
+                                    x-model="dynamicValues[field.name]"
+                                    class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4"
+                                >
+                                    <option value=""><?= htmlspecialchars(__('field_select_option'), ENT_QUOTES, 'UTF-8') ?></option>
+                                    <template x-for="option in (field.options || [])" :key="option">
+                                        <option :value="option" x-text="option"></option>
+                                    </template>
+                                </select>
                                 <textarea
                                     x-show="field.type === 'textarea'"
                                     x-model="dynamicValues[field.name]"
@@ -1009,6 +1021,41 @@ $i18nScript = json_encode([
                             </template>
                         </select>
                     </label>
+                </div>
+
+                <div x-show="dynamicFields.length > 0" class="mt-6 border-t border-zinc-200 pt-5">
+                    <h4 class="text-sm font-semibold text-zinc-900"><?= htmlspecialchars(__('technical_specifications'), ENT_QUOTES, 'UTF-8') ?></h4>
+                    <p class="mt-1 text-xs text-zinc-500"><?= htmlspecialchars(__('technical_specifications_hint'), ENT_QUOTES, 'UTF-8') ?></p>
+
+                    <div class="mt-4 grid gap-4 sm:grid-cols-2">
+                        <template x-for="field in dynamicFields" :key="field.name">
+                            <label class="block" :class="field.type === 'textarea' ? 'sm:col-span-2' : ''">
+                                <span class="mb-1.5 block text-sm font-medium text-zinc-700" x-text="resolveFieldLabel(field)"></span>
+                                <input
+                                    x-show="field.type !== 'textarea' && field.type !== 'dropdown'"
+                                    :type="field.type === 'number' ? 'number' : 'text'"
+                                    x-model="dynamicValues[field.name]"
+                                    class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4"
+                                >
+                                <select
+                                    x-show="field.type === 'dropdown'"
+                                    x-model="dynamicValues[field.name]"
+                                    class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4"
+                                >
+                                    <option value=""><?= htmlspecialchars(__('field_select_option'), ENT_QUOTES, 'UTF-8') ?></option>
+                                    <template x-for="option in (field.options || [])" :key="option">
+                                        <option :value="option" x-text="option"></option>
+                                    </template>
+                                </select>
+                                <textarea
+                                    x-show="field.type === 'textarea'"
+                                    x-model="dynamicValues[field.name]"
+                                    rows="3"
+                                    class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4"
+                                ></textarea>
+                            </label>
+                        </template>
+                    </div>
                 </div>
 
                 <div x-show="editErrorMessage" x-cloak class="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700" x-text="editErrorMessage"></div>
@@ -1551,36 +1598,49 @@ $i18nScript = json_encode([
 
                     <div x-show="categoryForm.fields.length > 0" x-cloak class="mt-4 space-y-3">
                         <template x-for="(field, index) in categoryForm.fields" :key="index">
-                            <div class="grid gap-3 rounded-xl border border-zinc-200 bg-zinc-50 p-4 sm:grid-cols-12">
-                                <label class="block sm:col-span-7">
-                                    <span class="mb-1 block text-xs font-medium text-zinc-600"><?= htmlspecialchars(__('category_field_label'), ENT_QUOTES, 'UTF-8') ?></span>
+                            <div class="rounded-xl border border-zinc-200 bg-zinc-50 p-4">
+                                <div class="grid gap-3 sm:grid-cols-12">
+                                    <label class="block sm:col-span-7">
+                                        <span class="mb-1 block text-xs font-medium text-zinc-600"><?= htmlspecialchars(__('category_field_label'), ENT_QUOTES, 'UTF-8') ?></span>
+                                        <input
+                                            type="text"
+                                            x-model="field.label"
+                                            class="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-400"
+                                            placeholder="<?= htmlspecialchars(__('category_field_label_placeholder'), ENT_QUOTES, 'UTF-8') ?>"
+                                        >
+                                    </label>
+                                    <label class="block sm:col-span-3">
+                                        <span class="mb-1 block text-xs font-medium text-zinc-600"><?= htmlspecialchars(__('settings_field_type'), ENT_QUOTES, 'UTF-8') ?></span>
+                                        <select
+                                            x-model="field.type"
+                                            class="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-400"
+                                        >
+                                            <option value="text"><?= htmlspecialchars(__('settings_field_type_text'), ENT_QUOTES, 'UTF-8') ?></option>
+                                            <option value="number"><?= htmlspecialchars(__('settings_field_type_number'), ENT_QUOTES, 'UTF-8') ?></option>
+                                            <option value="textarea"><?= htmlspecialchars(__('settings_field_type_textarea'), ENT_QUOTES, 'UTF-8') ?></option>
+                                            <option value="dropdown"><?= htmlspecialchars(__('settings_field_type_dropdown'), ENT_QUOTES, 'UTF-8') ?></option>
+                                        </select>
+                                    </label>
+                                    <div class="flex items-end justify-end sm:col-span-2">
+                                        <button
+                                            type="button"
+                                            @click="removeCategoryField(index)"
+                                            class="rounded-lg px-3 py-2 text-xs font-medium text-rose-600 transition hover:bg-rose-50"
+                                        >
+                                            <?= htmlspecialchars(__('category_remove_field'), ENT_QUOTES, 'UTF-8') ?>
+                                        </button>
+                                    </div>
+                                </div>
+                                <label x-show="field.type === 'dropdown'" x-cloak class="mt-3 block">
+                                    <span class="mb-1 block text-xs font-medium text-zinc-600"><?= htmlspecialchars(__('category_field_options'), ENT_QUOTES, 'UTF-8') ?></span>
                                     <input
                                         type="text"
-                                        x-model="field.label"
+                                        x-model="field.optionsText"
                                         class="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-400"
-                                        placeholder="<?= htmlspecialchars(__('category_field_label_placeholder'), ENT_QUOTES, 'UTF-8') ?>"
+                                        placeholder="<?= htmlspecialchars(__('category_field_options_hint'), ENT_QUOTES, 'UTF-8') ?>"
                                     >
+                                    <p class="mt-1 text-xs text-zinc-500"><?= htmlspecialchars(__('category_field_options_hint'), ENT_QUOTES, 'UTF-8') ?></p>
                                 </label>
-                                <label class="block sm:col-span-3">
-                                    <span class="mb-1 block text-xs font-medium text-zinc-600"><?= htmlspecialchars(__('settings_field_type'), ENT_QUOTES, 'UTF-8') ?></span>
-                                    <select
-                                        x-model="field.type"
-                                        class="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-400"
-                                    >
-                                        <option value="text"><?= htmlspecialchars(__('settings_field_type_text'), ENT_QUOTES, 'UTF-8') ?></option>
-                                        <option value="number"><?= htmlspecialchars(__('settings_field_type_number'), ENT_QUOTES, 'UTF-8') ?></option>
-                                        <option value="textarea"><?= htmlspecialchars(__('settings_field_type_textarea'), ENT_QUOTES, 'UTF-8') ?></option>
-                                    </select>
-                                </label>
-                                <div class="flex items-end justify-end sm:col-span-2">
-                                    <button
-                                        type="button"
-                                        @click="removeCategoryField(index)"
-                                        class="rounded-lg px-3 py-2 text-xs font-medium text-rose-600 transition hover:bg-rose-50"
-                                    >
-                                        <?= htmlspecialchars(__('category_remove_field'), ENT_QUOTES, 'UTF-8') ?>
-                                    </button>
-                                </div>
                             </div>
                         </template>
                     </div>
@@ -3796,6 +3856,7 @@ $i18nScript = json_encode([
                 this.editForm.status = asset.status || 'ready';
                 this.editForm.location_id = asset.location_id ? String(asset.location_id) : '';
                 this.resetUserSearch();
+                this.loadCategoryFields(asset.category_id || '', asset.properties || {});
 
                 if (asset.user_id) {
                     this.selectedUser = {
@@ -3817,6 +3878,7 @@ $i18nScript = json_encode([
 
                 this.isEditOpen = false;
                 this.editAsset = null;
+                this.resetDynamicFields();
             },
             async openDetailModal(asset) {
                 this.detailAsset = asset;
@@ -4058,7 +4120,7 @@ $i18nScript = json_encode([
             clearSelectedUser() {
                 this.selectedUser = null;
             },
-            loadCategoryFields(categoryId) {
+            loadCategoryFields(categoryId, existingProperties = null) {
                 const normalizedId = String(categoryId || '');
                 this.resetDynamicFields();
 
@@ -4088,7 +4150,13 @@ $i18nScript = json_encode([
                 });
 
                 this.dynamicFields.forEach((field) => {
-                    this.dynamicValues[field.name] = '';
+                    const existingValue = existingProperties && Object.prototype.hasOwnProperty.call(existingProperties, field.name)
+                        ? existingProperties[field.name]
+                        : null;
+
+                    this.dynamicValues[field.name] = existingValue === null || existingValue === undefined
+                        ? ''
+                        : String(existingValue);
                 });
             },
             resolveFieldLabel(field) {
@@ -4154,11 +4222,29 @@ $i18nScript = json_encode([
                 return payload;
             },
             buildEditPayload() {
-                return {
+                const payload = {
                     status: this.editForm.status,
                     personnel_id: this.selectedUser?.id ? Number(this.selectedUser.id) : null,
                     location_id: this.editForm.location_id ? Number(this.editForm.location_id) : null,
                 };
+
+                this.dynamicFields.forEach((field) => {
+                    if (!field || !field.name) {
+                        return;
+                    }
+
+                    const rawValue = this.dynamicValues[field.name];
+
+                    if (rawValue === undefined || rawValue === null || String(rawValue).trim() === '') {
+                        return;
+                    }
+
+                    payload[field.name] = field.type === 'number'
+                        ? Number(rawValue)
+                        : String(rawValue).trim();
+                });
+
+                return payload;
             },
             async submitAddForm() {
                 this.isSubmitting = true;
@@ -4364,7 +4450,14 @@ $i18nScript = json_encode([
                     this.categoryForm.id = this.editingCategoryId;
                     this.categoryForm.name = category?.name || '';
                     this.categoryForm.fields = Array.isArray(category?.fields)
-                        ? JSON.parse(JSON.stringify(category.fields))
+                        ? JSON.parse(JSON.stringify(category.fields)).map((field) => ({
+                            label: field?.label || '',
+                            type: field?.type || 'text',
+                            label_en: field?.label_en || '',
+                            optionsText: Array.isArray(field?.options)
+                                ? field.options.join(', ')
+                                : (typeof field?.options === 'string' ? field.options : ''),
+                        }))
                         : [];
                 } else {
                     this.categoryForm.id = null;
@@ -4388,6 +4481,7 @@ $i18nScript = json_encode([
                 this.categoryForm.fields.push({
                     label: '',
                     type: 'text',
+                    optionsText: '',
                 });
             },
             removeCategoryField(index) {
@@ -4398,10 +4492,22 @@ $i18nScript = json_encode([
                     name: this.categoryForm.name.trim(),
                     fields: this.categoryForm.fields
                         .filter((field) => field && field.label?.trim())
-                        .map((field) => ({
-                            label: String(field.label || '').trim(),
-                            type: field.type || 'text',
-                        })),
+                        .map((field) => {
+                            const entry = {
+                                label: String(field.label || '').trim(),
+                                type: field.type || 'text',
+                            };
+
+                            if (field.type === 'dropdown') {
+                                const optionsText = String(field.optionsText || '').trim();
+
+                                if (optionsText !== '') {
+                                    entry.options = optionsText;
+                                }
+                            }
+
+                            return entry;
+                        }),
                 };
 
                 const categoryId = this.editingCategoryId != null

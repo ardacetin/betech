@@ -13,7 +13,7 @@ use Psr\Http\Message\ServerRequestInterface;
 
 class CategoryController
 {
-    private const ALLOWED_FIELD_TYPES = ['text', 'number', 'textarea'];
+    private const ALLOWED_FIELD_TYPES = ['text', 'number', 'textarea', 'dropdown'];
 
     public function __construct(
         private readonly Category $categoryModel,
@@ -331,6 +331,15 @@ class CategoryController
 
                 if (!in_array($type, self::ALLOWED_FIELD_TYPES, true)) {
                     $errors['fields'][] = sprintf(__('category_field_type_invalid'), $index);
+                    continue;
+                }
+
+                if ($type === 'dropdown') {
+                    $options = $this->normalizeFieldOptions($field['options'] ?? $field['optionsText'] ?? '');
+
+                    if ($options === []) {
+                        $errors['fields'][] = sprintf(__('category_field_options_required'), $index);
+                    }
                 }
             }
         }
@@ -341,7 +350,7 @@ class CategoryController
     /**
      * @param mixed $fields
      *
-     * @return list<array<string, string>>
+     * @return list<array<string, mixed>>
      */
     private function normalizeFields(mixed $fields): array
     {
@@ -384,7 +393,41 @@ class CategoryController
                 $entry['label_en'] = $labelEn;
             }
 
+            if ($type === 'dropdown') {
+                $options = $this->normalizeFieldOptions($field['options'] ?? $field['optionsText'] ?? '');
+
+                if ($options !== []) {
+                    $entry['options'] = $options;
+                }
+            }
+
             $normalized[] = $entry;
+        }
+
+        return $normalized;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function normalizeFieldOptions(mixed $options): array
+    {
+        if (is_string($options)) {
+            $parts = preg_split('/\s*,\s*/', $options) ?: [];
+        } elseif (is_array($options)) {
+            $parts = $options;
+        } else {
+            return [];
+        }
+
+        $normalized = [];
+
+        foreach ($parts as $part) {
+            $value = trim((string) $part);
+
+            if ($value !== '') {
+                $normalized[] = $value;
+            }
         }
 
         return $normalized;
