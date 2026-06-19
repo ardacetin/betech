@@ -127,6 +127,41 @@ class AuditLog
     }
 
     /**
+     * Latest audit entries for the live dashboard feed.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function findRecent(int $limit = 5): array
+    {
+        $limit = max(1, min(50, $limit));
+
+        $rows = $this->db()->select('audit_logs', [
+            '[>]users' => ['user_id' => 'id'],
+        ], [
+            'audit_logs.id',
+            'audit_logs.user_id',
+            'audit_logs.action_type',
+            'audit_logs.entity_type',
+            'audit_logs.entity_id',
+            'audit_logs.old_values',
+            'audit_logs.new_values',
+            'audit_logs.ip_address',
+            'audit_logs.created_at',
+            'users.name(user_name)',
+            'users.email(user_email)',
+        ], [
+            'ORDER' => ['audit_logs.created_at' => 'DESC', 'audit_logs.id' => 'DESC'],
+            'LIMIT' => $limit,
+        ]);
+
+        if (!is_array($rows)) {
+            return [];
+        }
+
+        return array_map(fn (array $row): array => $this->normalizeRow($row), $rows);
+    }
+
+    /**
      * @return list<array{id: int, name: string, email: string}>
      */
     public function findDistinctUsers(): array

@@ -252,6 +252,22 @@ $i18nScript = json_encode([
     'dashboard_activity_unassigned' => __('dashboard_activity_unassigned'),
     'dashboard_activity_status_change' => __('dashboard_activity_status_change'),
     'dashboard_activity_location_moved' => __('dashboard_activity_location_moved'),
+    'dashboard_log_template' => __('dashboard_log_template'),
+    'dashboard_log_template_simple' => __('dashboard_log_template_simple'),
+    'dashboard_log_unknown_user' => __('dashboard_log_unknown_user'),
+    'dashboard_log_verb_created' => __('dashboard_log_verb_created'),
+    'dashboard_log_verb_updated' => __('dashboard_log_verb_updated'),
+    'dashboard_log_verb_deleted' => __('dashboard_log_verb_deleted'),
+    'dashboard_log_verb_login' => __('dashboard_log_verb_login'),
+    'dashboard_log_verb_assigned' => __('dashboard_log_verb_assigned'),
+    'dashboard_log_verb_returned' => __('dashboard_log_verb_returned'),
+    'dashboard_log_verb_transferred' => __('dashboard_log_verb_transferred'),
+    'dashboard_log_entity_asset' => __('dashboard_log_entity_asset'),
+    'dashboard_log_entity_ticket' => __('dashboard_log_entity_ticket'),
+    'dashboard_log_entity_category' => __('dashboard_log_entity_category'),
+    'dashboard_log_entity_setting' => __('dashboard_log_entity_setting'),
+    'dashboard_log_entity_user' => __('dashboard_log_entity_user'),
+    'dashboard_log_entity_network' => __('dashboard_log_entity_network'),
     'mail_ticket_reply_label' => __('mail_ticket_reply_label'),
     'yes' => __('yes'),
     'no' => __('no'),
@@ -3143,6 +3159,69 @@ $i18nScript = json_encode([
                     dateStyle: 'medium',
                     timeStyle: 'short',
                 }).format(date);
+            },
+            escapeHtml(value) {
+                return String(value ?? '').replace(/[&<>"']/g, (char) => ({
+                    '&': '&amp;',
+                    '<': '&lt;',
+                    '>': '&gt;',
+                    '"': '&quot;',
+                    "'": '&#39;',
+                }[char]));
+            },
+            formatAuditFeed(log) {
+                const rawName = String(log?.user_name || '').trim()
+                    || window.__i18n.dashboard_log_unknown_user
+                    || 'System';
+                const action = String(log?.action_type || '');
+                const entity = String(log?.entity_type || '');
+                const verb = window.__i18n['dashboard_log_verb_' + action] || action.replace(/_/g, ' ');
+                const entityPhrase = window.__i18n['dashboard_log_entity_' + entity] || entity;
+                const userHtml = '<span class="font-semibold text-gray-900">' + this.escapeHtml(rawName) + '</span>';
+
+                if (action === 'login' || entity === '') {
+                    return (window.__i18n.dashboard_log_template_simple || ':user :verb')
+                        .replace(':user', userHtml)
+                        .replace(':verb', this.escapeHtml(verb));
+                }
+
+                return (window.__i18n.dashboard_log_template || ':user :verb :entity')
+                    .replace(':user', userHtml)
+                    .replace(':verb', this.escapeHtml(verb))
+                    .replace(':entity', this.escapeHtml(entityPhrase));
+            },
+            formatAuditFeedTime(value) {
+                if (!value) {
+                    return '';
+                }
+
+                const date = new Date(String(value).replace(' ', 'T'));
+
+                if (Number.isNaN(date.getTime())) {
+                    return String(value);
+                }
+
+                const locale = window.__i18n.locale === 'en' ? 'en-GB' : 'tr-TR';
+
+                return new Intl.DateTimeFormat(locale, {
+                    day: '2-digit',
+                    month: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                }).format(date);
+            },
+            auditFeedDotClass(action) {
+                const classes = {
+                    created: 'bg-green-500',
+                    updated: 'bg-gray-900',
+                    deleted: 'bg-red-500',
+                    login: 'bg-violet-500',
+                    assigned: 'bg-amber-500',
+                    returned: 'bg-gray-400',
+                    transferred: 'bg-indigo-500',
+                };
+
+                return classes[action] || 'bg-gray-400';
             },
             resolvePersonnelStatus(status) {
                 return status === 'offboarded'
