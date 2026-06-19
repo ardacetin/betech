@@ -88,6 +88,10 @@ class DatabaseInitializer
                 foreach ($this->patchTickets($connection) as $warning) {
                     $warnings[] = $warning;
                 }
+
+                foreach ($this->patchAuditLogs($connection) as $warning) {
+                    $warnings[] = $warning;
+                }
             }
 
             foreach ($this->patchPersonnelSeparation($connection) as $warning) {
@@ -796,6 +800,28 @@ class DatabaseInitializer
         }
 
         return $warnings;
+    }
+
+    /**
+     * @param object $connection Medoo instance
+     *
+     * @return list<string>
+     */
+    private function patchAuditLogs(object $connection): array
+    {
+        $warnings = [];
+
+        if (!$this->tableExists($connection, 'audit_logs')) {
+            $this->applySqlFile($connection, $this->getAuditLogsTableMigrationPath());
+            $warnings[] = 'Self-healed database: created audit_logs table.';
+        }
+
+        return $warnings;
+    }
+
+    private function getAuditLogsTableMigrationPath(): string
+    {
+        return dirname($this->schemaPath) . '/migrations/015_create_audit_logs_table.sql';
     }
 
     private function getTicketsTableMigrationPath(): string

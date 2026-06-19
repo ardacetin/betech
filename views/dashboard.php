@@ -257,7 +257,47 @@ $i18nScript = json_encode([
     'dashboard_activity_unassigned' => __('dashboard_activity_unassigned'),
     'dashboard_activity_status_change' => __('dashboard_activity_status_change'),
     'dashboard_activity_location_moved' => __('dashboard_activity_location_moved'),
-    'dashboard_activity_generic' => __('dashboard_activity_generic'),
+    'mail_ticket_reply_label' => __('mail_ticket_reply_label'),
+    'yes' => __('yes'),
+    'no' => __('no'),
+    'nav_audit_logs' => __('nav_audit_logs'),
+    'audit_logs_page_title' => __('audit_logs_page_title'),
+    'audit_logs_page_subtitle' => __('audit_logs_page_subtitle'),
+    'audit_logs_loading' => __('audit_logs_loading'),
+    'audit_logs_empty' => __('audit_logs_empty'),
+    'audit_logs_fetch_error' => __('audit_logs_fetch_error'),
+    'audit_logs_network_error' => __('audit_logs_network_error'),
+    'audit_filter_user' => __('audit_filter_user'),
+    'audit_filter_action' => __('audit_filter_action'),
+    'audit_filter_entity' => __('audit_filter_entity'),
+    'audit_filter_date_from' => __('audit_filter_date_from'),
+    'audit_filter_date_to' => __('audit_filter_date_to'),
+    'audit_filter_all_users' => __('audit_filter_all_users'),
+    'audit_filter_all_actions' => __('audit_filter_all_actions'),
+    'audit_filter_all_entities' => __('audit_filter_all_entities'),
+    'audit_filter_reset' => __('audit_filter_reset'),
+    'audit_refresh' => __('audit_refresh'),
+    'audit_col_timestamp' => __('audit_col_timestamp'),
+    'audit_col_user' => __('audit_col_user'),
+    'audit_col_action' => __('audit_col_action'),
+    'audit_col_entity' => __('audit_col_entity'),
+    'audit_col_summary' => __('audit_col_summary'),
+    'audit_col_ip' => __('audit_col_ip'),
+    'audit_pagination_prev' => __('audit_pagination_prev'),
+    'audit_pagination_next' => __('audit_pagination_next'),
+    'audit_pagination_info' => __('audit_pagination_info'),
+    'audit_action_created' => __('audit_action_created'),
+    'audit_action_updated' => __('audit_action_updated'),
+    'audit_action_deleted' => __('audit_action_deleted'),
+    'audit_action_login' => __('audit_action_login'),
+    'audit_action_assigned' => __('audit_action_assigned'),
+    'audit_action_returned' => __('audit_action_returned'),
+    'audit_action_transferred' => __('audit_action_transferred'),
+    'audit_entity_asset' => __('audit_entity_asset'),
+    'audit_entity_ticket' => __('audit_entity_ticket'),
+    'audit_entity_category' => __('audit_entity_category'),
+    'audit_entity_setting' => __('audit_entity_setting'),
+    'audit_entity_user' => __('audit_entity_user'),
 ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
 ?>
 <div class="min-h-full" x-data="assetDashboard()" x-init="restoreDashboardView(); if (canManageAssets) { fetchCategories(); fetchLocations(); fetchLicenses(); fetchConsumables(); fetchTickets(); if (activeView === 'dashboard') { fetchDashboardStats(); } } this.isAssignLicenseModalOpen = false;">
@@ -333,6 +373,15 @@ $i18nScript = json_encode([
                 </button>
                 <?php endif; ?>
                 <?php if ($canAccessSettings): ?>
+                <button
+                    type="button"
+                    @click="activeView = 'audit_logs'; fetchAuditLogs()"
+                    class="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm font-medium transition"
+                    :class="activeView === 'audit_logs' ? 'bg-zinc-100 text-zinc-900' : 'text-zinc-600 hover:bg-zinc-50'"
+                >
+                    <span class="h-2 w-2 rounded-full" :class="activeView === 'audit_logs' ? 'bg-zinc-900' : 'bg-zinc-300'"></span>
+                    <?= htmlspecialchars(__('nav_audit_logs'), ENT_QUOTES, 'UTF-8') ?>
+                </button>
                 <button
                     type="button"
                     @click="activeView = 'settings'; settingsTab = 'general'; $nextTick(() => initQuillEditor())"
@@ -702,6 +751,7 @@ $i18nScript = json_encode([
                 <?php require __DIR__ . '/partials/helpdesk_panel.php'; ?>
                 <?php endif; ?>
                 <?php if ($canAccessSettings): ?>
+                <?php require __DIR__ . '/partials/audit_logs_panel.php'; ?>
                 <?php require __DIR__ . '/partials/settings_panel.php'; ?>
                 <?php require __DIR__ . '/partials/categories_panel.php'; ?>
                 <?php require __DIR__ . '/partials/locations_panel.php'; ?>
@@ -2103,6 +2153,7 @@ $i18nScript = json_encode([
                 personnel: <?= json_encode(__('personnel_page_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 system_users: <?= json_encode(__('system_users_page_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 smtp: <?= json_encode(__('settings_tab_smtp'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
+                audit_logs: <?= json_encode(__('audit_logs_page_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
             },
             pageSubtitles: {
                 dashboard: <?= json_encode(__('dashboard_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
@@ -2116,6 +2167,7 @@ $i18nScript = json_encode([
                 personnel: <?= json_encode(__('personnel_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 system_users: <?= json_encode(__('system_users_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 smtp: <?= json_encode(__('settings_smtp_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
+                audit_logs: <?= json_encode(__('audit_logs_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
             },
             isAddOpen: false,
             isImportOpen: false,
@@ -2431,6 +2483,26 @@ $i18nScript = json_encode([
             isOffboarding: false,
             offboardSuccessMessage: '',
             offboardErrorMessage: '',
+            auditLogs: [],
+            auditLogsLoading: false,
+            auditLogsError: '',
+            auditLogFilters: {
+                user_id: '',
+                action_type: '',
+                entity_type: '',
+                date_from: '',
+                date_to: '',
+            },
+            auditLogFilterUsers: [],
+            auditLogFilterActions: [],
+            auditLogFilterEntities: [],
+            auditLogPage: 1,
+            auditLogPagination: {
+                page: 1,
+                per_page: 50,
+                total: 0,
+                total_pages: 1,
+            },
             resolvePageTitle() {
                 if (this.activeView === 'settings') {
                     const tabTitles = {
@@ -2516,6 +2588,10 @@ $i18nScript = json_encode([
 
                     if (this.activeView === 'helpdesk') {
                         this.fetchTickets();
+                    }
+
+                    if (this.activeView === 'audit_logs' && this.canAccessSettings) {
+                        this.fetchAuditLogs();
                     }
                 } catch (error) {
                     // Ignore invalid persisted view state.
@@ -4582,6 +4658,139 @@ $i18nScript = json_encode([
                 } finally {
                     this.ticketsLoading = false;
                 }
+            },
+            async fetchAuditLogs() {
+                if (!this.canAccessSettings) {
+                    return;
+                }
+
+                this.auditLogsLoading = true;
+                this.auditLogsError = '';
+
+                try {
+                    const params = new URLSearchParams({
+                        page: String(this.auditLogPage),
+                        per_page: '50',
+                    });
+
+                    if (this.auditLogFilters.user_id) {
+                        params.set('user_id', this.auditLogFilters.user_id);
+                    }
+
+                    if (this.auditLogFilters.action_type) {
+                        params.set('action_type', this.auditLogFilters.action_type);
+                    }
+
+                    if (this.auditLogFilters.entity_type) {
+                        params.set('entity_type', this.auditLogFilters.entity_type);
+                    }
+
+                    if (this.auditLogFilters.date_from) {
+                        params.set('date_from', this.auditLogFilters.date_from);
+                    }
+
+                    if (this.auditLogFilters.date_to) {
+                        params.set('date_to', this.auditLogFilters.date_to);
+                    }
+
+                    const response = await fetch('/api/audit-logs?' + params.toString(), {
+                        headers: { Accept: 'application/json' },
+                    });
+                    const result = await response.json();
+
+                    if (!response.ok) {
+                        this.auditLogsError = result.message || window.__i18n.audit_logs_fetch_error;
+                        this.auditLogs = [];
+                        return;
+                    }
+
+                    this.auditLogs = Array.isArray(result.data) ? result.data : [];
+                    this.auditLogPagination = result.pagination || this.auditLogPagination;
+
+                    if (result.filters) {
+                        this.auditLogFilterUsers = Array.isArray(result.filters.users) ? result.filters.users : [];
+                        this.auditLogFilterActions = Array.isArray(result.filters.action_types) ? result.filters.action_types : [];
+                        this.auditLogFilterEntities = Array.isArray(result.filters.entity_types) ? result.filters.entity_types : [];
+                    }
+                } catch (error) {
+                    this.auditLogsError = window.__i18n.audit_logs_network_error;
+                    this.auditLogs = [];
+                } finally {
+                    this.auditLogsLoading = false;
+                }
+            },
+            resetAuditLogFilters() {
+                this.auditLogFilters = {
+                    user_id: '',
+                    action_type: '',
+                    entity_type: '',
+                    date_from: '',
+                    date_to: '',
+                };
+                this.auditLogPage = 1;
+                this.fetchAuditLogs();
+            },
+            changeAuditLogPage(page) {
+                if (page < 1 || page > this.auditLogPagination.total_pages) {
+                    return;
+                }
+
+                this.auditLogPage = page;
+                this.fetchAuditLogs();
+            },
+            auditActionLabel(action) {
+                const key = 'audit_action_' + action;
+                return window.__i18n[key] || action;
+            },
+            auditEntityLabel(entity) {
+                const key = 'audit_entity_' + entity;
+                return window.__i18n[key] || entity;
+            },
+            auditActionBadgeClass(action) {
+                const classes = {
+                    created: 'bg-emerald-50 text-emerald-700 ring-emerald-600/20',
+                    updated: 'bg-sky-50 text-sky-700 ring-sky-600/20',
+                    deleted: 'bg-rose-50 text-rose-700 ring-rose-600/20',
+                    login: 'bg-violet-50 text-violet-700 ring-violet-600/20',
+                    assigned: 'bg-amber-50 text-amber-700 ring-amber-600/20',
+                    returned: 'bg-zinc-100 text-zinc-700 ring-zinc-300',
+                    transferred: 'bg-indigo-50 text-indigo-700 ring-indigo-600/20',
+                };
+
+                return classes[action] || 'bg-zinc-100 text-zinc-700 ring-zinc-300';
+            },
+            formatAuditTimestamp(value) {
+                if (!value) {
+                    return '—';
+                }
+
+                const date = new Date(String(value).replace(' ', 'T'));
+
+                if (Number.isNaN(date.getTime())) {
+                    return value;
+                }
+
+                return date.toLocaleString(window.__i18n.locale === 'en' ? 'en-GB' : 'tr-TR', {
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit',
+                });
+            },
+            auditLogPaginationLabel() {
+                const template = window.__i18n.audit_pagination_info || ':from–:to / :total';
+                const page = this.auditLogPagination.page || 1;
+                const perPage = this.auditLogPagination.per_page || 50;
+                const total = this.auditLogPagination.total || 0;
+                const from = total === 0 ? 0 : ((page - 1) * perPage) + 1;
+                const to = Math.min(page * perPage, total);
+
+                return template
+                    .replace(':from', String(from))
+                    .replace(':to', String(to))
+                    .replace(':total', String(total));
             },
             maybeOpenTicketFromUrl() {
                 const params = new URLSearchParams(window.location.search);

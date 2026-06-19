@@ -6,11 +6,13 @@ namespace App\Controllers;
 
 use App\Models\Asset;
 use App\Models\AssetHistory;
+use App\Models\AuditLog;
 use App\Models\Category;
 use App\Models\Location;
 use App\Models\Personnel;
 use App\Models\User;
 use App\Services\AssetCsvImportService;
+use App\Services\AuditLogger;
 use App\Services\Auth\SessionAuthService;
 use App\Services\Auth\UserIntegrationFactory;
 use App\Services\ClientIpResolver;
@@ -41,7 +43,8 @@ class AssetController
         private readonly AssetCsvImportService $assetCsvImportService,
         private readonly SessionAuthService $sessionAuthService,
         private readonly ClientIpResolver $clientIpResolver,
-        private readonly EndUserContextService $endUserContextService
+        private readonly EndUserContextService $endUserContextService,
+        private readonly AuditLogger $auditLogger
     ) {
     }
 
@@ -74,6 +77,19 @@ class AssetController
         try {
             $asset = $this->assetModel->create($coreFields, $properties);
             $this->logAssetCreation($request, $asset, $coreFields);
+            $this->auditLogger->logFromRequest(
+                $request,
+                $this->actorUserId(),
+                AuditLog::ACTION_CREATED,
+                AuditLog::ENTITY_ASSET,
+                (int) ($asset['id'] ?? 0),
+                null,
+                [
+                    'asset_tag' => (string) ($asset['asset_tag'] ?? ''),
+                    'name' => (string) ($asset['name'] ?? ''),
+                    'status' => (string) ($asset['status'] ?? ''),
+                ]
+            );
         } catch (\RuntimeException $exception) {
             return $this->jsonResponse($response, 422, [
                 'status' => 'error',
@@ -149,6 +165,15 @@ class AssetController
                 array_key_exists('properties', $payload) ? $properties : null
             );
             $this->logAssetUpdates($request, $assetId, $existingAsset, $coreFields);
+            $this->auditLogger->logFromRequest(
+                $request,
+                $this->actorUserId(),
+                AuditLog::ACTION_UPDATED,
+                AuditLog::ENTITY_ASSET,
+                $assetId,
+                $this->snapshotAssetAudit($existingAsset, $coreFields),
+                $this->snapshotAssetAudit($asset ?? [], $coreFields)
+            );
         } catch (\RuntimeException $exception) {
             return $this->jsonResponse($response, 422, [
                 'status' => 'error',
@@ -214,12 +239,34 @@ class AssetController
             ]);
         }
 
+        $existingAsset = $this->assetModel->findById($assetId);
+
+        if ($existingAsset === null) {
+            return $this->jsonResponse($response, 404, [
+                'status' => 'error',
+                'message' => 'Asset not found.',
+            ]);
+        }
+
         if (!$this->assetModel->deletePermanently($assetId)) {
             return $this->jsonResponse($response, 404, [
                 'status' => 'error',
                 'message' => 'Asset not found.',
             ]);
         }
+
+        $this->auditLogger->logFromRequest(
+            $request,
+            $this->actorUserId(),
+            AuditLog::ACTION_DELETED,
+            AuditLog::ENTITY_ASSET,
+            $assetId,
+            [
+                'asset_tag' => (string) ($existingAsset['asset_tag'] ?? ''),
+                'name' => (string) ($existingAsset['name'] ?? ''),
+            ],
+            null
+        );
 
         return $this->jsonResponse($response, 200, [
             'status' => 'success',
@@ -354,6 +401,25 @@ class AssetController
             );
         }
 
+        $this->auditLogger->logFromRequest(
+            $request,
+            $this->actorUserId(),
+            AuditLog::ACTION_ASSIGNED,
+            AuditLog::ENTITY_ASSET,
+            $assetId,
+            [
+                'asset_tag' => (string) ($existingAsset['asset_tag'] ?? ''),
+                'personnel_id' => $existingAsset['personnel_id'] ?? null,
+                'status' => $previousStatus,
+            ],
+            [
+                'asset_tag' => (string) ($asset['asset_tag'] ?? ''),
+                'personnel_id' => $personnelId,
+                'personnel_name' => $personnelName,
+                'status' => 'deployed',
+            ]
+        );
+
         return $this->jsonResponse($response, 200, [
             'status' => 'success',
             'message' => __('assign_success'),
@@ -433,6 +499,23 @@ class AssetController
                 )
             );
         }
+
+        $this->auditLogger->logFromRequest(
+            $request,
+            $this->actorUserId(),
+            AuditLog::ACTION_RETURNED,
+            AuditLog::ENTITY_ASSET,
+            $assetId,
+            [
+                'asset_tag' => (string) ($existingAsset['asset_tag'] ?? ''),
+                'personnel_id' => $previousUserId,
+                'status' => $previousStatus,
+            ],
+            [
+                'asset_tag' => (string) ($asset['asset_tag'] ?? ''),
+                'status' => 'ready',
+            ]
+        );
 
         return $this->jsonResponse($response, 200, [
             'status' => 'success',
@@ -557,6 +640,24 @@ class AssetController
                 sprintf(__('asset_history_status_changed'), $previousStatus, 'deployed')
             );
         }
+
+        $this->auditLogger->logFromRequest(
+            $request,
+            $this->actorUserId(),
+            AuditLog::ACTION_TRANSFERRED,
+            AuditLog::ENTITY_ASSET,
+            $assetId,
+            [
+                'asset_tag' => (string) ($existingAsset['asset_tag'] ?? ''),
+                'personnel_id' => $previousUserId,
+                'personnel_name' => $oldUserName,
+            ],
+            [
+                'asset_tag' => (string) ($asset['asset_tag'] ?? ''),
+                'personnel_id' => $newUserId,
+                'personnel_name' => $newUserName,
+            ]
+        );
 
         return $this->jsonResponse($response, 200, [
             'status' => 'success',
@@ -1253,6 +1354,28 @@ class AssetController
             $targetPersonnelId,
             $this->appendClientIpToNotes($notes, $request)
         );
+    }
+
+    /**
+     * @param array<string, mixed> $asset
+     * @param array<string, mixed> $changedFields
+     *
+     * @return array<string, mixed>
+     */
+    private function snapshotAssetAudit(array $asset, array $changedFields = []): array
+    {
+        $snapshot = [
+            'asset_tag' => (string) ($asset['asset_tag'] ?? ''),
+            'name' => (string) ($asset['name'] ?? ''),
+        ];
+
+        foreach ($changedFields as $field => $value) {
+            if (in_array($field, self::CORE_FIELDS, true)) {
+                $snapshot[$field] = $asset[$field] ?? $value;
+            }
+        }
+
+        return $snapshot;
     }
 
     private function actorUserId(): ?int

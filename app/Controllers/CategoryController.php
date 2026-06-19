@@ -4,7 +4,10 @@ declare(strict_types=1);
 
 namespace App\Controllers;
 
+use App\Models\AuditLog;
 use App\Models\Category;
+use App\Services\AuditLogger;
+use App\Services\Auth\SessionAuthService;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 
@@ -13,7 +16,9 @@ class CategoryController
     private const ALLOWED_FIELD_TYPES = ['text', 'number', 'textarea'];
 
     public function __construct(
-        private readonly Category $categoryModel
+        private readonly Category $categoryModel,
+        private readonly SessionAuthService $sessionAuthService,
+        private readonly AuditLogger $auditLogger
     ) {
     }
 
@@ -79,6 +84,16 @@ class CategoryController
         }
 
         $category['asset_count'] = 0;
+
+        $this->auditLogger->logFromRequest(
+            $request,
+            $this->sessionAuthService->userId(),
+            AuditLog::ACTION_CREATED,
+            AuditLog::ENTITY_CATEGORY,
+            (int) ($category['id'] ?? 0),
+            null,
+            ['name' => (string) ($category['name'] ?? '')]
+        );
 
         return $this->jsonResponse($response, 201, [
             'status' => 'success',
@@ -157,6 +172,16 @@ class CategoryController
 
         $category['asset_count'] = $this->categoryModel->countAssets($categoryId);
 
+        $this->auditLogger->logFromRequest(
+            $request,
+            $this->sessionAuthService->userId(),
+            AuditLog::ACTION_UPDATED,
+            AuditLog::ENTITY_CATEGORY,
+            $categoryId,
+            ['name' => (string) ($existing['name'] ?? '')],
+            ['name' => (string) ($category['name'] ?? '')]
+        );
+
         return $this->jsonResponse($response, 200, [
             'status' => 'success',
             'message' => __('category_update_success'),
@@ -223,6 +248,16 @@ class CategoryController
                 'message' => __('category_not_found'),
             ]);
         }
+
+        $this->auditLogger->logFromRequest(
+            $request,
+            $this->sessionAuthService->userId(),
+            AuditLog::ACTION_DELETED,
+            AuditLog::ENTITY_CATEGORY,
+            $categoryId,
+            ['name' => (string) ($existing['name'] ?? '')],
+            null
+        );
 
         return $this->jsonResponse($response, 200, [
             'status' => 'success',

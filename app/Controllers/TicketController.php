@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace App\Controllers;
 
 use App\Models\Asset;
+use App\Models\AuditLog;
 use App\Models\Ticket;
 use App\Models\User;
+use App\Services\AuditLogger;
 use App\Services\Auth\SessionAuthService;
 use App\Services\EndUserContextService;
 use App\Services\Mail\TicketNotificationService;
@@ -21,7 +23,8 @@ class TicketController
         private readonly Asset $assetModel,
         private readonly SessionAuthService $sessionAuthService,
         private readonly EndUserContextService $endUserContextService,
-        private readonly TicketNotificationService $ticketNotificationService
+        private readonly TicketNotificationService $ticketNotificationService,
+        private readonly AuditLogger $auditLogger
     ) {
     }
 
@@ -169,6 +172,16 @@ class TicketController
 
         $this->ticketNotificationService->deferNewTicketAlert($ticket);
 
+        $this->auditLogger->logFromRequest(
+            $request,
+            $this->sessionAuthService->userId(),
+            AuditLog::ACTION_CREATED,
+            AuditLog::ENTITY_TICKET,
+            (int) ($ticket['id'] ?? 0),
+            null,
+            $this->snapshotTicket($ticket)
+        );
+
         return $this->jsonResponse($response, 201, [
             'status' => 'success',
             'message' => __('ticket_create_success'),
@@ -242,6 +255,20 @@ class TicketController
             }
         }
 
+        $changes = $this->snapshotTicketChanges($existing, $ticket, $payload);
+
+        if ($changes['new'] !== []) {
+            $this->auditLogger->logFromRequest(
+                $request,
+                $this->sessionAuthService->userId(),
+                AuditLog::ACTION_UPDATED,
+                AuditLog::ENTITY_TICKET,
+                $ticketId,
+                $changes['old'],
+                $changes['new']
+            );
+        }
+
         return $this->jsonResponse($response, 200, [
             'status' => 'success',
             'message' => __('ticket_update_success'),
@@ -267,12 +294,31 @@ class TicketController
             ]);
         }
 
+        $existing = $this->ticketModel->findById($ticketId);
+
+        if ($existing === null) {
+            return $this->jsonResponse($response, 404, [
+                'status' => 'error',
+                'message' => __('ticket_not_found'),
+            ]);
+        }
+
         if (!$this->ticketModel->delete($ticketId)) {
             return $this->jsonResponse($response, 404, [
                 'status' => 'error',
                 'message' => __('ticket_not_found'),
             ]);
         }
+
+        $this->auditLogger->logFromRequest(
+            $request,
+            $this->sessionAuthService->userId(),
+            AuditLog::ACTION_DELETED,
+            AuditLog::ENTITY_TICKET,
+            $ticketId,
+            $this->snapshotTicket($existing),
+            null
+        );
 
         return $this->jsonResponse($response, 200, [
             'status' => 'success',
@@ -444,6 +490,53 @@ class TicketController
         $id = (int) $value;
 
         return $id > 0 ? $id : null;
+    }
+
+    /**
+     * @param array<string, mixed> $ticket
+     *
+     * @return array<string, mixed>
+     */
+    private function snapshotTicket(array $ticket): array
+    {
+        return [
+            'ticket_number' => (string) ($ticket['ticket_number'] ?? ''),
+            'subject' => (string) ($ticket['subject'] ?? ''),
+            'status' => (string) ($ticket['status'] ?? ''),
+            'priority' => (string) ($ticket['priority'] ?? ''),
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $before
+     * @param array<string, mixed> $after
+     * @param array<string, mixed> $payload
+     *
+     * @return array{old: array<string, mixed>, new: array<string, mixed>}
+     */
+    private function snapshotTicketChanges(array $before, array $after, array $payload): array
+    {
+        $fields = ['subject', 'description', 'status', 'priority', 'assigned_user_id', 'personnel_id', 'asset_id'];
+        $old = ['ticket_number' => (string) ($before['ticket_number'] ?? '')];
+        $new = ['ticket_number' => (string) ($after['ticket_number'] ?? '')];
+
+        foreach ($fields as $field) {
+            if (!array_key_exists($field, $payload)) {
+                continue;
+            }
+
+            $oldValue = $before[$field] ?? null;
+            $newValue = $after[$field] ?? null;
+
+            if ((string) $oldValue === (string) $newValue) {
+                continue;
+            }
+
+            $old[$field] = $oldValue;
+            $new[$field] = $newValue;
+        }
+
+        return ['old' => $old, 'new' => $new];
     }
 
     /**

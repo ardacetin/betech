@@ -84,6 +84,11 @@ class RoleMiddleware implements MiddlewareInterface
             ],
             [
                 'methods' => ['GET'],
+                'pattern' => '/api/audit-logs',
+                'roles' => [User::ROLE_SUPER_ADMIN],
+            ],
+            [
+                'methods' => ['GET'],
                 'pattern' => '/api/categories',
                 'roles' => $operational,
             ],

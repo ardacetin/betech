@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace App\Controllers;
 
+use App\Models\AuditLog;
 use App\Models\Setting;
 use App\Models\User;
+use App\Services\AuditLogger;
 use App\Services\Auth\SessionAuthService;
 use App\Services\Mail\MailConfigResolver;
 use App\Services\Mail\MailService;
@@ -28,7 +30,8 @@ class SettingsController
         private readonly ViewRenderer $viewRenderer,
         private readonly SessionAuthService $sessionAuthService,
         private readonly User $userModel,
-        private readonly string $appUrl
+        private readonly string $appUrl,
+        private readonly AuditLogger $auditLogger
     ) {
     }
 
@@ -61,6 +64,37 @@ class SettingsController
             ]);
         }
 
+        $beforeSettings = $this->settingModel->getAdminBundle();
+        $changedSections = [];
+
+        if (array_key_exists('active_auth_driver', $payload)) {
+            $changedSections[] = 'active_auth_driver';
+        }
+
+        if (array_key_exists('zimmet_template', $payload)) {
+            $changedSections[] = 'zimmet_template';
+        }
+
+        if (array_key_exists('custom_fields', $payload)) {
+            $changedSections[] = 'custom_fields';
+        }
+
+        if (array_key_exists('ldap_config', $payload)) {
+            $changedSections[] = 'ldap_config';
+        }
+
+        if (array_key_exists('google_config', $payload)) {
+            $changedSections[] = 'google_config';
+        }
+
+        if (array_key_exists('login_config', $payload)) {
+            $changedSections[] = 'login_config';
+        }
+
+        if (array_key_exists('smtp_config', $payload)) {
+            $changedSections[] = 'smtp_config';
+        }
+
         if (array_key_exists('active_auth_driver', $payload)) {
             $this->settingModel->set(
                 'active_auth_driver',
@@ -90,6 +124,20 @@ class SettingsController
 
         if (array_key_exists('smtp_config', $payload) && is_array($payload['smtp_config'])) {
             $this->settingModel->saveSmtpConfig($payload['smtp_config']);
+        }
+
+        if ($changedSections !== []) {
+            $afterSettings = $this->settingModel->getAdminBundle();
+            $diff = $this->auditLogger->buildSettingsDiff($beforeSettings, $afterSettings, $changedSections);
+            $this->auditLogger->logFromRequest(
+                $request,
+                $this->sessionAuthService->userId(),
+                AuditLog::ACTION_UPDATED,
+                AuditLog::ENTITY_SETTING,
+                null,
+                $diff['old'],
+                $diff['new']
+            );
         }
 
         return $this->jsonResponse($response, 200, [

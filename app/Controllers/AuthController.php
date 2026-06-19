@@ -4,12 +4,14 @@ declare(strict_types=1);
 
 namespace App\Controllers;
 
+use App\Models\AuditLog;
 use App\Models\Personnel;
 use App\Models\Setting;
 use App\Models\User;
 use App\Services\Auth\LdapAuthenticator;
 use App\Services\Auth\OAuthService;
 use App\Services\Auth\SessionAuthService;
+use App\Services\AuditLogger;
 use App\Services\ClientIpResolver;
 use App\Services\LoginAttemptService;
 use App\Services\Translator;
@@ -32,7 +34,8 @@ class AuthController
         private readonly ClientIpResolver $clientIpResolver,
         private readonly LdapAuthenticator $ldapAuthenticator,
         private readonly OAuthService $oauthService,
-        private readonly ViewRenderer $viewRenderer
+        private readonly ViewRenderer $viewRenderer,
+        private readonly AuditLogger $auditLogger
     ) {
     }
 
@@ -157,6 +160,7 @@ class AuthController
 
             $this->loginAttemptService->clearFailures($clientIp);
             $this->sessionLoginFromUser($user);
+            $this->auditLogin($clientIp, $user, 'local');
 
             return $this->jsonAuthSuccess($response, $user);
         }
@@ -183,6 +187,7 @@ class AuthController
             if ($systemUser !== null) {
                 $this->loginAttemptService->clearFailures($clientIp);
                 $this->sessionLoginFromUser($systemUser);
+                $this->auditLogin($clientIp, $systemUser, 'ldap');
 
                 return $this->jsonAuthSuccess($response, $systemUser);
             }
@@ -195,6 +200,10 @@ class AuthController
 
             $this->loginAttemptService->clearFailures($clientIp);
             $this->sessionLoginFromPersonnel($person);
+            $this->auditLogin($clientIp, [
+                'id' => $person['id'],
+                'email' => $person['email'] ?? '',
+            ], 'ldap');
 
             return $this->jsonAuthSuccess($response, [
                 'id' => $person['id'],
@@ -240,6 +249,7 @@ class AuthController
 
         $normalizedProvider = $provider === 'azure' ? 'microsoft' : $provider;
         $profile = $this->oauthService->handleCallback($normalizedProvider, $code, $state);
+        $clientIp = $this->clientIpResolver->resolveFromRequest($request);
 
         if ($profile === null) {
             return $this->redirectWithError($response, 'login_corporate_account_not_found');
@@ -249,6 +259,7 @@ class AuthController
 
         if ($systemUser !== null) {
             $this->sessionLoginFromUser($systemUser);
+            $this->auditLogin($clientIp, $systemUser, 'oauth_' . $normalizedProvider);
 
             return $response
                 ->withHeader('Location', '/')
@@ -257,6 +268,10 @@ class AuthController
 
         $person = $this->personnelModel->provisionFromAuth($profile);
         $this->sessionLoginFromPersonnel($person);
+        $this->auditLogin($clientIp, [
+            'id' => $person['id'],
+            'email' => $person['email'] ?? '',
+        ], 'oauth_' . $normalizedProvider);
 
         return $response
             ->withHeader('Location', '/')
@@ -312,6 +327,7 @@ class AuthController
 
         $this->loginAttemptService->clearFailures($clientIp);
         $this->sessionLoginFromUser($user);
+        $this->auditLogin($clientIp, $user, 'local');
 
         return $response->withHeader('Location', $redirectTarget)->withStatus(302);
     }
@@ -360,8 +376,30 @@ class AuthController
 
         $this->loginAttemptService->clearFailures($clientIp);
         $this->sessionLoginFromUser($user);
+        $this->auditLogin($clientIp, $user, 'ldap');
 
         return $response->withHeader('Location', $redirectTarget)->withStatus(302);
+    }
+
+    /**
+     * @param array<string, mixed> $user
+     */
+    private function auditLogin(string $clientIp, array $user, string $method): void
+    {
+        $userId = (int) ($user['id'] ?? 0);
+
+        $this->auditLogger->log(
+            $userId > 0 ? $userId : null,
+            AuditLog::ACTION_LOGIN,
+            AuditLog::ENTITY_USER,
+            $userId > 0 ? $userId : null,
+            null,
+            [
+                'email' => (string) ($user['email'] ?? ''),
+                'method' => $method,
+            ],
+            $clientIp
+        );
     }
 
     /**

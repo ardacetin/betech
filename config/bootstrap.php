@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Controllers\AnalyticsController;
 use App\Controllers\AssetController;
+use App\Controllers\AuditLogController;
 use App\Controllers\CategoryController;
 use App\Controllers\LicenseController;
 use App\Controllers\LocationController;
@@ -26,6 +27,7 @@ use App\Middleware\RoleMiddleware;
 use App\Middleware\SecurityHeadersMiddleware;
 use App\Models\Asset;
 use App\Models\AssetHistory;
+use App\Models\AuditLog;
 use App\Models\Category;
 use App\Models\Consumable;
 use App\Models\License;
@@ -37,6 +39,8 @@ use App\Models\User;
 use App\Services\AnalyticsService;
 use App\Services\AppLogger;
 use App\Services\AssetCsvImportService;
+use App\Services\AuditChangeFormatter;
+use App\Services\AuditLogger;
 use App\Services\Auth\LdapAuthenticator;
 use App\Services\Auth\OAuthService;
 use App\Services\Auth\SessionAuthService;
@@ -121,6 +125,9 @@ $zimmetTutanakService = new ZimmetTutanakService();
 $assetCsvImportService = new AssetCsvImportService($assetModel, $categoryModel, $locationModel);
 $ldapAuthenticator = new LdapAuthenticator($settingModel);
 $oauthService = new OAuthService($settingModel, $appConfig['url']);
+$auditLogModel = new AuditLog($databaseService);
+$auditChangeFormatter = new AuditChangeFormatter();
+$auditLogger = new AuditLogger($auditLogModel, $auditChangeFormatter, $clientIpResolver);
 $authController = new AuthController(
     $appConfig,
     $settingModel,
@@ -131,10 +138,11 @@ $authController = new AuthController(
     $clientIpResolver,
     $ldapAuthenticator,
     $oauthService,
-    $viewRenderer
+    $viewRenderer,
+    $auditLogger
 );
 $healthController = new HealthController($appConfig, $assetModel, $categoryModel, $viewRenderer, $qrCodeService, $analyticsService, $settingModel, $userModel, $sessionAuthService, $endUserContextService);
-$assetController = new AssetController($assetModel, $assetHistoryModel, $userIntegrationFactory, $personnelModel, $userModel, $locationModel, $categoryModel, $assetCsvImportService, $sessionAuthService, $clientIpResolver, $endUserContextService);
+$assetController = new AssetController($assetModel, $assetHistoryModel, $userIntegrationFactory, $personnelModel, $userModel, $locationModel, $categoryModel, $assetCsvImportService, $sessionAuthService, $clientIpResolver, $endUserContextService, $auditLogger);
 $assetViewController = new AssetViewController($appConfig, $assetModel, $categoryModel, $viewRenderer);
 $assetTutanakController = new AssetTutanakController($assetModel, $settingModel, $personnelModel, $userModel, $userIntegrationFactory, $zimmetTutanakService, $viewRenderer, $sessionAuthService, $endUserContextService);
 $userController = new UserController($userIntegrationFactory, $userModel, $personnelModel, $assetModel, $assetHistoryModel, $settingModel, $sessionAuthService, $clientIpResolver);
@@ -149,9 +157,10 @@ $settingsController = new SettingsController(
     $viewRenderer,
     $sessionAuthService,
     $userModel,
-    $appConfig['url']
+    $appConfig['url'],
+    $auditLogger
 );
-$categoryController = new CategoryController($categoryModel);
+$categoryController = new CategoryController($categoryModel, $sessionAuthService, $auditLogger);
 $locationController = new LocationController($locationModel);
 $licenseController = new LicenseController($licenseModel);
 $consumableController = new ConsumableController($consumableModel);
@@ -170,9 +179,11 @@ $ticketController = new TicketController(
     $assetModel,
     $sessionAuthService,
     $endUserContextService,
-    $ticketNotificationService
+    $ticketNotificationService,
+    $auditLogger
 );
 $endUserController = new EndUserController($assetModel, $endUserContextService);
+$auditLogController = new AuditLogController($auditLogModel, $auditChangeFormatter);
 
 $app->get('/login', [$authController, 'showLoginForm']);
 $app->post('/login', [$authController, 'login']);
@@ -188,6 +199,7 @@ $app->get('/api/dashboard/stats', [$dashboardController, 'stats']);
 $app->get('/api/settings', [$settingsController, 'show']);
 $app->put('/api/settings', [$settingsController, 'update']);
 $app->post('/api/settings/smtp/test', [$settingsController, 'sendTestSmtp']);
+$app->get('/api/audit-logs', [$auditLogController, 'index']);
 $app->get('/api/categories', [$categoryController, 'index']);
 $app->post('/api/categories', [$categoryController, 'store']);
 $app->put('/api/categories/{id}', [$categoryController, 'update']);
