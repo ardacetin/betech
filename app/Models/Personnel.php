@@ -111,59 +111,170 @@ class Personnel
 
         $normalizedProvider = $this->normalizeProvider($provider);
         $existingIndex = $this->loadDirectorySyncIndex($db);
-        $insertRows = [];
-        $updateRows = [];
+        $knownEmails = $existingIndex['by_email'];
 
         foreach ($directoryUsers as $directoryUser) {
-            $payload = $this->normalizeDirectoryPayload($directoryUser, $normalizedProvider);
+            try {
+                $result = $this->syncDirectoryUser($db, $directoryUser, $normalizedProvider, $knownEmails);
 
-            if ($payload === null) {
-                $stats['skipped']++;
-                continue;
-            }
-
-            $existing = $this->findExistingInDirectoryIndex(
-                $existingIndex,
-                $payload['external_id'],
-                $payload['email']
-            );
-
-            if ($existing !== null) {
-                $updatePayload = $payload;
-
-                if (($existing['status'] ?? self::STATUS_ACTIVE) === self::STATUS_OFFBOARDED) {
-                    unset($updatePayload['provider']);
-                }
-
-                if (!$this->directoryRecordChanged($existing, $updatePayload)) {
+                if ($result === 'created') {
+                    $stats['created']++;
+                } elseif ($result === 'updated') {
+                    $stats['updated']++;
+                } else {
                     $stats['skipped']++;
-                    continue;
                 }
-
-                $updateRows[] = [
-                    'id' => (int) $existing['id'],
-                    'data' => $updatePayload,
-                ];
-                $stats['updated']++;
-                continue;
+            } catch (\Throwable) {
+                $stats['skipped']++;
             }
-
-            $insertRows[] = [
-                'status' => self::STATUS_ACTIVE,
-                ...$payload,
-            ];
-            $stats['created']++;
         }
 
-        unset($directoryUsers, $existingIndex);
-
-        $this->bulkInsertPersonnel($db, $insertRows);
-        unset($insertRows);
-
-        $this->bulkUpdatePersonnel($db, $updateRows);
-        unset($updateRows);
-
         return $stats;
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $knownEmails
+     *
+     * @return 'created'|'updated'|'skipped'
+     */
+    private function syncDirectoryUser(
+        Medoo $db,
+        array $directoryUser,
+        string $normalizedProvider,
+        array &$knownEmails
+    ): string {
+        $payload = $this->normalizeDirectoryPayload($directoryUser, $normalizedProvider);
+
+        if ($payload === null) {
+            return 'skipped';
+        }
+
+        $emailKey = strtolower(trim($payload['email']));
+        $existing = $knownEmails[$emailKey] ?? null;
+
+        if ($existing !== null) {
+            return $this->updateDirectoryUserByEmail($db, $existing, $payload, $knownEmails, $emailKey);
+        }
+
+        return $this->insertDirectoryUser($db, $payload, $knownEmails, $emailKey);
+    }
+
+    /**
+     * @param array<string, mixed> $existing
+     * @param array{name: string, email: string, department: string|null, title: string|null, provider: string, external_id: string} $payload
+     * @param array<string, array<string, mixed>> $knownEmails
+     *
+     * @return 'updated'|'skipped'
+     */
+    private function updateDirectoryUserByEmail(
+        Medoo $db,
+        array $existing,
+        array $payload,
+        array &$knownEmails,
+        string $emailKey
+    ): string {
+        $personnelId = (int) ($existing['id'] ?? 0);
+
+        if ($personnelId <= 0) {
+            return 'skipped';
+        }
+
+        $updatePayload = [
+            'name' => $payload['name'],
+            'department' => $payload['department'],
+            'title' => $payload['title'],
+            'external_id' => $payload['external_id'],
+        ];
+
+        if (($existing['status'] ?? self::STATUS_ACTIVE) !== self::STATUS_OFFBOARDED) {
+            $updatePayload['provider'] = $payload['provider'];
+        }
+
+        if (!$this->directoryRecordChanged($existing, $updatePayload)) {
+            return 'skipped';
+        }
+
+        $db->update('personnel', $updatePayload, ['id' => $personnelId]);
+
+        $knownEmails[$emailKey] = array_merge($existing, $updatePayload, [
+            'email' => $payload['email'],
+        ]);
+
+        return 'updated';
+    }
+
+    /**
+     * @param array{name: string, email: string, department: string|null, title: string|null, provider: string, external_id: string} $payload
+     * @param array<string, array<string, mixed>> $knownEmails
+     *
+     * @return 'created'|'updated'|'skipped'
+     */
+    private function insertDirectoryUser(
+        Medoo $db,
+        array $payload,
+        array &$knownEmails,
+        string $emailKey
+    ): string {
+        $insertPayload = [
+            'status' => self::STATUS_ACTIVE,
+            ...$payload,
+        ];
+
+        try {
+            $db->insert('personnel', $insertPayload);
+        } catch (\Throwable $exception) {
+            if (!$this->isDuplicateEmailException($exception)) {
+                throw $exception;
+            }
+
+            $existing = $db->get('personnel', [
+                'id',
+                'status',
+                'external_id',
+                'name',
+                'email',
+                'department',
+                'title',
+                'provider',
+            ], [
+                'email' => $emailKey,
+            ]);
+
+            if (!is_array($existing) || $existing === []) {
+                return 'skipped';
+            }
+
+            $knownEmails[$emailKey] = $existing;
+
+            return $this->updateDirectoryUserByEmail($db, $existing, $payload, $knownEmails, $emailKey) === 'updated'
+                ? 'updated'
+                : 'skipped';
+        }
+
+        $knownEmails[$emailKey] = [
+            'id' => (int) $db->id(),
+            'status' => self::STATUS_ACTIVE,
+            'external_id' => $payload['external_id'],
+            'name' => $payload['name'],
+            'email' => $payload['email'],
+            'department' => $payload['department'],
+            'title' => $payload['title'],
+            'provider' => $payload['provider'],
+        ];
+
+        return 'created';
+    }
+
+    private function isDuplicateEmailException(\Throwable $exception): bool
+    {
+        if ($exception instanceof \PDOException && (string) $exception->getCode() === '23000') {
+            return true;
+        }
+
+        $message = strtolower($exception->getMessage());
+
+        return str_contains($message, 'duplicate entry')
+            && str_contains($message, 'uq_personnel_email');
     }
 
     /**
@@ -205,28 +316,6 @@ class Personnel
             'by_external_id' => $byExternalId,
             'by_email' => $byEmail,
         ];
-    }
-
-    /**
-     * @param array{by_external_id: array<string, array<string, mixed>>, by_email: array<string, array<string, mixed>>} $index
-     *
-     * @return array<string, mixed>|null
-     */
-    private function findExistingInDirectoryIndex(array $index, string $externalId, string $email): ?array
-    {
-        $externalKey = strtolower(trim($externalId));
-
-        if ($externalKey !== '' && isset($index['by_external_id'][$externalKey])) {
-            return $index['by_external_id'][$externalKey];
-        }
-
-        $emailKey = strtolower(trim($email));
-
-        if ($emailKey !== '' && isset($index['by_email'][$emailKey])) {
-            return $index['by_email'][$emailKey];
-        }
-
-        return null;
     }
 
     /**
