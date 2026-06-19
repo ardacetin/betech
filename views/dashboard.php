@@ -1250,7 +1250,7 @@ $i18nScript = json_encode([
                     type="button"
                     @click="submitReturn()"
                     :disabled="isReturnSubmitting"
-                    class="inline-flex items-center gap-2 rounded-xl bg-amber-700 px-4 py-2.5 text-sm font-medium text-white hover:bg-amber-800 disabled:cursor-not-allowed disabled:opacity-60"
+                    class="inline-flex min-w-[9rem] items-center justify-center gap-2 rounded-xl bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                     <span x-show="isReturnSubmitting"><?= htmlspecialchars(__('saving'), ENT_QUOTES, 'UTF-8') ?></span>
                     <span x-show="!isReturnSubmitting"><?= htmlspecialchars(__('return_submit'), ENT_QUOTES, 'UTF-8') ?></span>
