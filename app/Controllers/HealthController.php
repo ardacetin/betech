@@ -44,36 +44,30 @@ class HealthController
         $role = $this->sessionAuthService->role();
         $isEndUser = $this->userModel->isEndUserRole($role);
         $canManageAssets = $this->userModel->isOperationalRole($role);
-
-        if ($isEndUser) {
-            $personnel = $this->endUserContextService->resolvePersonnel();
-
-            $html = $this->viewRenderer->render('end_user_portal', [
-                'appName' => __('app_name'),
-                'pageTitle' => __('portal_page_title'),
-                'locale' => Translator::instance()->getLocale(),
-                'csrfToken' => $this->sessionAuthService->getOrCreateCsrfToken(),
-                'userName' => trim((string) ($personnel['name'] ?? '')),
-                'userEmail' => trim((string) ($personnel['email'] ?? '')),
-                'hasPersonnelProfile' => $personnel !== null,
-            ]);
-
-            $response->getBody()->write($html);
-
-            return $response->withHeader('Content-Type', 'text/html; charset=utf-8');
-        }
-
         $canAccessSettings = $this->userModel->isSuperAdmin($role);
         $canAccessPersonnel = $canManageAssets;
 
-        $categories = $this->categoryModel->findAll();
-        $assets = $this->assetModel->findAllForDashboard();
-        $analytics = $this->analyticsService->getDashboardStats();
-        $settings = $this->settingModel->getAdminBundle();
-        $personnelRows = [];
         $currentUser = $userId > 0 ? $this->personnelModel->findById($userId) : null;
         $currentUserEmail = trim((string) ($currentUser['email'] ?? ''));
 
+        $personnelProfile = $isEndUser ? $this->endUserContextService->resolvePersonnel() : null;
+        $hasPersonnelProfile = $personnelProfile !== null;
+        $userName = trim((string) ($personnelProfile['name'] ?? $currentUser['name'] ?? ''));
+        $userEmail = trim((string) ($personnelProfile['email'] ?? $currentUserEmail));
+
+        if ($canManageAssets) {
+            $categories = $this->categoryModel->findAll();
+            $assets = $this->assetModel->findAllForDashboard();
+            $analytics = $this->analyticsService->getDashboardStats();
+            $settings = $this->settingModel->getAdminBundle();
+        } else {
+            $categories = [];
+            $assets = [];
+            $analytics = $this->emptyAnalytics();
+            $settings = [];
+        }
+
+        $personnelRows = [];
         $assetQrCodes = [];
 
         foreach ($assets as $asset) {
@@ -86,7 +80,7 @@ class HealthController
 
         $html = $this->viewRenderer->render('dashboard', [
             'appName' => __('app_name'),
-            'pageTitle' => __('page_title'),
+            'pageTitle' => $isEndUser ? __('portal_page_title') : __('page_title'),
             'environment' => $this->appConfig['env'],
             'locale' => Translator::instance()->getLocale(),
             'csrfToken' => $this->sessionAuthService->getOrCreateCsrfToken(),
@@ -96,15 +90,18 @@ class HealthController
             'canAccessPersonnel' => $canAccessPersonnel,
             'currentUserId' => $userId,
             'currentUserEmail' => $currentUserEmail,
-            'isEndUser' => false,
+            'isEndUser' => $isEndUser,
             'isSuperAdmin' => $canAccessSettings,
+            'hasPersonnelProfile' => $hasPersonnelProfile,
+            'userName' => $userName,
+            'userEmail' => $userEmail,
             'assets' => $assets,
             'assetQrCodesJson' => json_encode($assetQrCodes, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE),
             'analytics' => $analytics,
             'analyticsJson' => json_encode($analytics, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE),
             'categories' => $categories,
             'categoryFieldsJson' => json_encode(
-                $this->categoryModel->fieldMapByCategoryId(),
+                $canManageAssets ? $this->categoryModel->fieldMapByCategoryId() : [],
                 JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE
             ),
             'settings' => $settings,
@@ -120,5 +117,44 @@ class HealthController
         $response->getBody()->write($html);
 
         return $response->withHeader('Content-Type', 'text/html; charset=utf-8');
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function emptyAnalytics(): array
+    {
+        return [
+            'total' => 0,
+            'summary_cards' => [
+                'total' => 0,
+                'deployed' => 0,
+                'in_storage' => 0,
+                'broken' => 0,
+            ],
+            'by_status' => [],
+            'by_category' => [],
+            'assignment' => [
+                'assigned' => 0,
+                'unassigned' => 0,
+                'assigned_percentage' => 0.0,
+                'unassigned_percentage' => 0.0,
+            ],
+            'help_desk' => [
+                'open' => 0,
+                'in_progress' => 0,
+                'critical' => 0,
+            ],
+            'licenses' => [
+                'total' => 0,
+                'expiring_soon' => 0,
+                'seat_usage' => [],
+            ],
+            'consumables' => [
+                'total' => 0,
+                'low_stock' => 0,
+                'low_stock_items' => [],
+            ],
+        ];
     }
 }

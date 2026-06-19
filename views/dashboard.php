@@ -24,12 +24,16 @@ $canAccessSettings = $canAccessSettings ?? false;
 $canAccessPersonnel = $canAccessPersonnel ?? false;
 $isEndUser = $isEndUser ?? false;
 $isSuperAdmin = $isSuperAdmin ?? false;
+$hasPersonnelProfile = $hasPersonnelProfile ?? true;
+$userName = $userName ?? '';
+$userEmail = $userEmail ?? '';
 
 $statusStyles = [
     'ready' => 'bg-sky-50 text-sky-700 ring-sky-600/20',
     'deployed' => 'bg-emerald-50 text-emerald-700 ring-emerald-600/20',
     'storage' => 'bg-amber-50 text-amber-700 ring-amber-600/20',
     'broken' => 'bg-rose-50 text-rose-700 ring-rose-600/20',
+    'under_repair' => 'bg-indigo-50 text-indigo-700 ring-indigo-600/20',
 ];
 
 $translateStatus = static function (string $status): string {
@@ -303,9 +307,25 @@ $i18nScript = json_encode([
     'ipam_filter_all' => __('ipam_filter_all'),
     'ipam_import_success' => __('ipam_import_success'),
     'ipam_import_partial_success' => __('ipam_import_partial_success'),
+    'portal_assets_loading' => __('portal_assets_loading'),
+    'portal_assets_empty' => __('portal_assets_empty'),
+    'portal_assets_empty_hint' => __('portal_assets_empty_hint'),
+    'portal_create_ticket' => __('portal_create_ticket'),
+    'portal_assets_error' => __('portal_assets_error'),
+    'portal_tickets_loading' => __('portal_tickets_loading'),
+    'portal_tickets_empty' => __('portal_tickets_empty'),
+    'portal_tickets_error' => __('portal_tickets_error'),
+    'portal_report_issue' => __('portal_report_issue'),
+    'portal_ticket_for_asset' => __('portal_ticket_for_asset'),
+    'ticket_not_found' => __('ticket_not_found'),
+    'status_ready' => __('status_ready'),
+    'status_deployed' => __('status_deployed'),
+    'status_storage' => __('status_storage'),
+    'status_broken' => __('status_broken'),
+    'status_under_repair' => __('status_under_repair'),
 ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
 ?>
-<div class="min-h-full" x-data="assetDashboard()" x-init="restoreDashboardView(); if (canManageAssets) { fetchCategories(); fetchLocations(); fetchLicenses(); fetchConsumables(); fetchTickets(); if (activeView === 'dashboard') { fetchDashboardStats(); } } this.isAssignLicenseModalOpen = false;">
+<div class="min-h-full" x-data="assetDashboard()" x-init="restoreDashboardView(); if (isEndUser) { initEndUserPortal(); } else if (canManageAssets) { fetchCategories(); fetchLocations(); fetchLicenses(); fetchConsumables(); fetchTickets(); if (activeView === 'dashboard') { fetchDashboardStats(); } } this.isAssignLicenseModalOpen = false;">
     <div class="flex min-h-screen">
         <aside class="hidden w-64 shrink-0 border-r border-zinc-200 bg-white lg:flex lg:flex-col">
             <div class="flex h-16 items-center gap-3 border-b border-zinc-200 px-6">
@@ -317,6 +337,26 @@ $i18nScript = json_encode([
             </div>
 
             <nav class="flex-1 space-y-1 p-4">
+                <?php if ($isEndUser): ?>
+                <button
+                    type="button"
+                    @click="activeView = 'my_assets'; fetchPortalAssets()"
+                    class="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm font-medium transition"
+                    :class="activeView === 'my_assets' ? 'bg-zinc-100 text-zinc-900' : 'text-zinc-600 hover:bg-zinc-50'"
+                >
+                    <span class="h-2 w-2 rounded-full" :class="activeView === 'my_assets' ? 'bg-zinc-900' : 'bg-zinc-300'"></span>
+                    <?= htmlspecialchars(__('portal_tab_assets'), ENT_QUOTES, 'UTF-8') ?>
+                </button>
+                <button
+                    type="button"
+                    @click="activeView = 'my_tickets'; fetchPortalTickets()"
+                    class="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm font-medium transition"
+                    :class="activeView === 'my_tickets' ? 'bg-zinc-100 text-zinc-900' : 'text-zinc-600 hover:bg-zinc-50'"
+                >
+                    <span class="h-2 w-2 rounded-full" :class="activeView === 'my_tickets' ? 'bg-zinc-900' : 'bg-zinc-300'"></span>
+                    <?= htmlspecialchars(__('portal_tab_tickets'), ENT_QUOTES, 'UTF-8') ?>
+                </button>
+                <?php else: ?>
                 <?php if ($canManageAssets): ?>
                 <button
                     type="button"
@@ -335,7 +375,7 @@ $i18nScript = json_encode([
                     :class="activeView === 'assets' ? 'bg-zinc-100 text-zinc-900' : 'text-zinc-600 hover:bg-zinc-50'"
                 >
                     <span class="h-2 w-2 rounded-full" :class="activeView === 'assets' ? 'bg-zinc-900' : 'bg-zinc-300'"></span>
-                    <?= htmlspecialchars($isEndUser ? __('page_title_end_user') : __('nav_assets'), ENT_QUOTES, 'UTF-8') ?>
+                    <?= htmlspecialchars(__('nav_assets'), ENT_QUOTES, 'UTF-8') ?>
                 </button>
                 <?php if ($canManageAssets): ?>
                 <button
@@ -406,11 +446,19 @@ $i18nScript = json_encode([
                     <?= htmlspecialchars(__('nav_settings'), ENT_QUOTES, 'UTF-8') ?>
                 </button>
                 <?php endif; ?>
+                <?php endif; ?>
             </nav>
 
             <div class="border-t border-zinc-200 p-4 space-y-3">
+                <?php if (!$isEndUser): ?>
                 <p class="text-xs uppercase tracking-wide text-zinc-400"><?= htmlspecialchars(__('environment'), ENT_QUOTES, 'UTF-8') ?></p>
                 <p class="text-sm font-medium text-zinc-700"><?= htmlspecialchars($environment, ENT_QUOTES, 'UTF-8') ?></p>
+                <?php elseif ($userName !== '' || $userEmail !== ''): ?>
+                <p class="truncate text-sm font-medium text-zinc-700"><?= htmlspecialchars($userName !== '' ? $userName : $userEmail, ENT_QUOTES, 'UTF-8') ?></p>
+                <?php if ($userName !== '' && $userEmail !== ''): ?>
+                <p class="truncate text-xs text-zinc-500"><?= htmlspecialchars($userEmail, ENT_QUOTES, 'UTF-8') ?></p>
+                <?php endif; ?>
+                <?php endif; ?>
                 <a href="/logout" class="inline-flex items-center text-sm font-medium text-zinc-600 transition hover:text-zinc-900">
                     <?= htmlspecialchars(__('nav_logout'), ENT_QUOTES, 'UTF-8') ?>
                 </a>
@@ -518,6 +566,15 @@ $i18nScript = json_encode([
                         </button>
                         <button
                             type="button"
+                            x-show="activeView === 'my_tickets' && isEndUser"
+                            @click="openPortalTicketModal()"
+                            class="inline-flex items-center gap-2 rounded-xl bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white shadow-soft transition hover:bg-zinc-800"
+                        >
+                            <span class="text-lg leading-none">+</span>
+                            <?= htmlspecialchars(__('portal_open_new_ticket'), ENT_QUOTES, 'UTF-8') ?>
+                        </button>
+                        <button
+                            type="button"
                             x-show="activeView === 'helpdesk' && canManageAssets"
                             @click="openTicketModal()"
                             class="inline-flex items-center gap-2 rounded-xl bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white shadow-soft transition hover:bg-zinc-800"
@@ -534,11 +591,12 @@ $i18nScript = json_encode([
                     <?php require __DIR__ . '/partials/dashboard_home_panel.php'; ?>
                 <?php endif; ?>
 
+                <?php if (!$isEndUser): ?>
                 <div x-show="activeView === 'assets'" x-cloak class="space-y-8">
                 <section class="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-soft">
                     <div class="border-b border-zinc-200 px-6 py-4">
-                        <h2 class="text-lg font-semibold text-zinc-900"><?= htmlspecialchars($isEndUser ? __('inventory_title_end_user') : __('inventory_title'), ENT_QUOTES, 'UTF-8') ?></h2>
-                        <p class="mt-1 text-sm text-zinc-500"><?= htmlspecialchars($isEndUser ? __('inventory_subtitle_end_user') : __('inventory_subtitle'), ENT_QUOTES, 'UTF-8') ?></p>
+                        <h2 class="text-lg font-semibold text-zinc-900"><?= htmlspecialchars(__('inventory_title'), ENT_QUOTES, 'UTF-8') ?></h2>
+                        <p class="mt-1 text-sm text-zinc-500"><?= htmlspecialchars(__('inventory_subtitle'), ENT_QUOTES, 'UTF-8') ?></p>
                     </div>
 
                     <div x-show="importSummaryMessage" x-cloak class="border-b border-zinc-200 px-6 py-4">
@@ -572,13 +630,9 @@ $i18nScript = json_encode([
                                 <?php if ($assets === []): ?>
                                 <tr>
                                     <td colspan="8" class="px-6 py-12 text-center text-sm text-zinc-500">
-                                        <?php if ($isEndUser): ?>
-                                            <?= htmlspecialchars(__('empty_assets_end_user'), ENT_QUOTES, 'UTF-8') ?>
-                                        <?php else: ?>
                                         <?= htmlspecialchars(__('empty_assets_prefix'), ENT_QUOTES, 'UTF-8') ?>
                                         <span class="font-medium text-zinc-700"><?= htmlspecialchars(__('add_asset'), ENT_QUOTES, 'UTF-8') ?></span>
                                         <?= htmlspecialchars(__('empty_assets_suffix'), ENT_QUOTES, 'UTF-8') ?>
-                                        <?php endif; ?>
                                     </td>
                                 </tr>
                                 <?php else: ?>
@@ -749,6 +803,13 @@ $i18nScript = json_encode([
                     </div>
                 </section>
                 </div>
+                <?php endif; ?>
+
+                <?php if ($isEndUser): ?>
+                <?php require __DIR__ . '/partials/end_user_assets_panel.php'; ?>
+                <?php require __DIR__ . '/partials/end_user_tickets_panel.php'; ?>
+                <?php require __DIR__ . '/partials/end_user_ticket_modals.php'; ?>
+                <?php endif; ?>
 
                 <?php if ($canManageAssets): ?>
                 <?php require __DIR__ . '/partials/licenses_panel.php'; ?>
@@ -2086,15 +2147,17 @@ $i18nScript = json_encode([
     window.__globalCustomFields = <?= $globalCustomFieldsJson ?>;
     window.__personnel = <?= $personnelJson ?? '[]' ?>;
     window.__assetOptions = <?= $assetOptionsJson ?? '[]' ?>;
+    window.__portalStatusStyles = <?= json_encode($statusStyles, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>;
 
     function assetDashboard() {
         return {
-            activeView: <?= $canManageAssets ? "'dashboard'" : "'assets'" ?>,
+            activeView: <?= $isEndUser ? "'my_assets'" : ($canManageAssets ? "'dashboard'" : "'assets'") ?>,
             dashboardStats: null,
             dashboardLoading: false,
             dashboardError: '',
             categoryChart: null,
             userRole: <?= json_encode($userRole, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
+            isEndUser: <?= $isEndUser ? 'true' : 'false' ?>,
             canManageAssets: <?= $canManageAssets ? 'true' : 'false' ?>,
             canAccessSettings: <?= $canAccessSettings ? 'true' : 'false' ?>,
             canAccessPersonnel: <?= $canAccessPersonnel ? 'true' : 'false' ?>,
@@ -2104,7 +2167,9 @@ $i18nScript = json_encode([
             settingsTab: 'general',
             pageTitles: {
                 dashboard: <?= json_encode(__('dashboard_page_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
-                assets: <?= json_encode($isEndUser ? __('page_title_end_user') : __('nav_assets'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
+                assets: <?= json_encode(__('nav_assets'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
+                my_assets: <?= json_encode(__('portal_my_assets_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
+                my_tickets: <?= json_encode(__('portal_my_tickets_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 licenses: <?= json_encode(__('licenses_page_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 consumables: <?= json_encode(__('consumables_page_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 helpdesk: <?= json_encode(__('helpdesk_page_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
@@ -2118,7 +2183,9 @@ $i18nScript = json_encode([
             },
             pageSubtitles: {
                 dashboard: <?= json_encode(__('dashboard_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
-                assets: <?= json_encode($isEndUser ? __('page_subtitle_end_user') : __('page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
+                assets: <?= json_encode(__('page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
+                my_assets: <?= json_encode(__('portal_my_assets_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
+                my_tickets: <?= json_encode(__('portal_my_tickets_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 licenses: <?= json_encode(__('licenses_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 consumables: <?= json_encode(__('consumables_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 helpdesk: <?= json_encode(__('helpdesk_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
@@ -2506,6 +2573,27 @@ $i18nScript = json_encode([
                 total: 0,
                 total_pages: 1,
             },
+            portalAssets: [],
+            portalAssetsLoading: false,
+            portalAssetsError: '',
+            portalTickets: [],
+            portalTicketsLoading: false,
+            portalTicketsError: '',
+            portalToastMessage: '',
+            portalToastVisible: false,
+            portalToastTimer: null,
+            isPortalTicketModalOpen: false,
+            isPortalTicketSubmitting: false,
+            portalTicketLinkedAsset: null,
+            portalTicketForm: { subject: '', description: '', priority: 'medium' },
+            portalTicketFormError: '',
+            isPortalTicketDetailOpen: false,
+            portalTicketDetailLoading: false,
+            portalTicketDetail: null,
+            portalTicketComments: [],
+            portalTicketCommentBody: '',
+            portalTicketCommentError: '',
+            isPortalTicketCommentSubmitting: false,
             resolvePageTitle() {
                 if (this.activeView === 'settings') {
                     const tabTitles = {
@@ -2518,7 +2606,7 @@ $i18nScript = json_encode([
                     return tabTitles[this.settingsTab] || this.pageTitles.settings;
                 }
 
-                return this.pageTitles[this.activeView] || this.pageTitles.assets;
+                return this.pageTitles[this.activeView] || (this.isEndUser ? this.pageTitles.my_assets : this.pageTitles.assets);
             },
             resolvePageSubtitle() {
                 if (this.activeView === 'settings') {
@@ -2532,7 +2620,7 @@ $i18nScript = json_encode([
                     return tabSubtitles[this.settingsTab] || this.pageSubtitles.settings;
                 }
 
-                return this.pageSubtitles[this.activeView] || this.pageSubtitles.assets;
+                return this.pageSubtitles[this.activeView] || (this.isEndUser ? this.pageSubtitles.my_assets : this.pageSubtitles.assets);
             },
             persistDashboardView() {
                 sessionStorage.setItem('betechDashboardView', JSON.stringify({
@@ -2553,11 +2641,23 @@ $i18nScript = json_encode([
                     const saved = JSON.parse(raw);
 
                     if (saved.activeView) {
-                        this.activeView = saved.activeView;
+                        this.activeView = this.normalizeEndUserView(saved.activeView);
                     }
 
                     if (saved.settingsTab) {
                         this.settingsTab = saved.settingsTab;
+                    }
+
+                    if (this.isEndUser) {
+                        if (this.activeView === 'my_assets') {
+                            this.fetchPortalAssets();
+                        }
+
+                        if (this.activeView === 'my_tickets') {
+                            this.fetchPortalTickets();
+                        }
+
+                        return;
                     }
 
                     if (this.activeView === 'settings' && this.settingsTab === 'general') {
@@ -2594,6 +2694,308 @@ $i18nScript = json_encode([
                     }
                 } catch (error) {
                     // Ignore invalid persisted view state.
+                }
+            },
+            normalizeEndUserView(view) {
+                if (!this.isEndUser) {
+                    return view;
+                }
+
+                if (view === 'assets') {
+                    return 'my_assets';
+                }
+
+                if (view === 'helpdesk' || view === 'tickets') {
+                    return 'my_tickets';
+                }
+
+                if (view === 'my_assets' || view === 'my_tickets') {
+                    return view;
+                }
+
+                return 'my_assets';
+            },
+            initEndUserPortal() {
+                this.activeView = this.normalizeEndUserView(this.activeView);
+                this.fetchPortalAssets();
+
+                const params = new URLSearchParams(window.location.search);
+                const ticketId = params.get('ticket');
+
+                if (ticketId) {
+                    this.activeView = 'my_tickets';
+                    this.fetchPortalTickets().then(() => this.maybeOpenPortalTicketFromUrl(ticketId));
+                } else if (this.activeView === 'my_tickets') {
+                    this.fetchPortalTickets();
+                }
+            },
+            async fetchPortalAssets() {
+                if (!this.isEndUser) {
+                    return;
+                }
+
+                this.portalAssetsLoading = true;
+                this.portalAssetsError = '';
+
+                try {
+                    const response = await fetch('/api/my/assets', { headers: { Accept: 'application/json' } });
+                    const result = await response.json();
+
+                    if (!response.ok) {
+                        this.portalAssetsError = result.message || window.__i18n.portal_assets_error;
+                        this.portalAssets = [];
+                        return;
+                    }
+
+                    this.portalAssets = Array.isArray(result.data) ? result.data : [];
+                } catch (error) {
+                    this.portalAssetsError = window.__i18n.portal_assets_error;
+                    this.portalAssets = [];
+                } finally {
+                    this.portalAssetsLoading = false;
+                }
+            },
+            async fetchPortalTickets() {
+                if (!this.isEndUser) {
+                    return;
+                }
+
+                this.portalTicketsLoading = true;
+                this.portalTicketsError = '';
+
+                try {
+                    const response = await fetch('/api/tickets', { headers: { Accept: 'application/json' } });
+                    const result = await response.json();
+
+                    if (!response.ok) {
+                        this.portalTicketsError = result.message || window.__i18n.portal_tickets_error;
+                        this.portalTickets = [];
+                        return;
+                    }
+
+                    this.portalTickets = Array.isArray(result.data) ? result.data : [];
+                } catch (error) {
+                    this.portalTicketsError = window.__i18n.portal_tickets_error;
+                    this.portalTickets = [];
+                } finally {
+                    this.portalTicketsLoading = false;
+                }
+            },
+            maybeOpenPortalTicketFromUrl(ticketId) {
+                if (!ticketId) {
+                    return;
+                }
+
+                const ticket = this.portalTickets.find((item) => String(item.id) === String(ticketId));
+
+                if (ticket) {
+                    this.openPortalTicketDetail(ticket);
+                    return;
+                }
+
+                this.openPortalTicketDetail({ id: Number(ticketId) });
+            },
+            portalAssetStatusClass(status) {
+                return window.__portalStatusStyles[status] || 'bg-zinc-100 text-zinc-700 ring-zinc-500/20';
+            },
+            portalAssetStatusLabel(status) {
+                const map = {
+                    ready: window.__i18n.status_ready,
+                    deployed: window.__i18n.status_deployed,
+                    storage: window.__i18n.status_storage,
+                    broken: window.__i18n.status_broken,
+                    under_repair: window.__i18n.status_under_repair,
+                };
+
+                return map[status] || status || '—';
+            },
+            portalTicketStatusClass(status) {
+                const classes = {
+                    open: 'bg-sky-50 text-sky-700 ring-sky-600/20',
+                    in_progress: 'bg-indigo-50 text-indigo-700 ring-indigo-600/20',
+                    resolved: 'bg-emerald-50 text-emerald-700 ring-emerald-600/20',
+                    closed: 'bg-zinc-100 text-zinc-700 ring-zinc-500/20',
+                };
+
+                return classes[status] || 'bg-zinc-100 text-zinc-700 ring-zinc-500/20';
+            },
+            portalTicketStatusLabel(status) {
+                const map = {
+                    open: window.__i18n.ticket_status_open,
+                    in_progress: window.__i18n.ticket_status_in_progress,
+                    resolved: window.__i18n.ticket_status_resolved,
+                    closed: window.__i18n.ticket_status_closed,
+                };
+
+                return map[status] || status;
+            },
+            formatPortalDate(value) {
+                if (!value) {
+                    return '—';
+                }
+
+                const date = new Date(String(value).replace(' ', 'T'));
+
+                return Number.isNaN(date.getTime()) ? value : date.toLocaleString(window.__i18n.locale || 'tr');
+            },
+            openPortalTicketModal() {
+                this.portalTicketLinkedAsset = null;
+                this.portalTicketForm = { subject: '', description: '', priority: 'medium' };
+                this.portalTicketFormError = '';
+                this.isPortalTicketModalOpen = true;
+            },
+            openPortalTicketModalForAsset(asset) {
+                this.portalTicketLinkedAsset = {
+                    id: asset.id,
+                    name: asset.name || '',
+                    asset_tag: asset.asset_tag || '',
+                };
+                this.portalTicketForm = { subject: '', description: '', priority: 'medium' };
+                this.portalTicketFormError = '';
+                this.isPortalTicketModalOpen = true;
+            },
+            portalTicketLinkedAssetMessage() {
+                if (!this.portalTicketLinkedAsset) {
+                    return '';
+                }
+
+                return window.__i18n.portal_ticket_for_asset
+                    .replace(':name', this.portalTicketLinkedAsset.name || '—')
+                    .replace(':tag', this.portalTicketLinkedAsset.asset_tag || '—');
+            },
+            closePortalTicketModal() {
+                if (this.isPortalTicketSubmitting) {
+                    return;
+                }
+
+                this.isPortalTicketModalOpen = false;
+                this.portalTicketLinkedAsset = null;
+            },
+            showPortalToast(message) {
+                this.portalToastMessage = message;
+                this.portalToastVisible = true;
+
+                if (this.portalToastTimer) {
+                    clearTimeout(this.portalToastTimer);
+                }
+
+                this.portalToastTimer = setTimeout(() => {
+                    this.portalToastVisible = false;
+                    this.portalToastMessage = '';
+                    this.portalToastTimer = null;
+                }, 4000);
+            },
+            async submitPortalTicket() {
+                this.isPortalTicketSubmitting = true;
+                this.portalTicketFormError = '';
+
+                const payload = {
+                    subject: this.portalTicketForm.subject.trim(),
+                    description: this.portalTicketForm.description.trim(),
+                    priority: this.portalTicketForm.priority,
+                };
+
+                if (this.portalTicketLinkedAsset?.id) {
+                    payload.asset_id = Number(this.portalTicketLinkedAsset.id);
+                }
+
+                try {
+                    const response = await fetch('/api/tickets', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+                        body: JSON.stringify(payload),
+                    });
+                    const result = await response.json();
+
+                    if (!response.ok) {
+                        this.portalTicketFormError = result.message || window.__i18n.ticket_create_error;
+                        return;
+                    }
+
+                    this.isPortalTicketModalOpen = false;
+                    this.portalTicketLinkedAsset = null;
+                    this.portalTicketForm = { subject: '', description: '', priority: 'medium' };
+                    this.activeView = 'my_tickets';
+
+                    if (result.data) {
+                        this.portalTickets = [result.data, ...this.portalTickets.filter((ticket) => ticket.id !== result.data.id)];
+                    }
+
+                    this.showPortalToast(result.message || window.__i18n.ticket_create_success);
+                    await this.fetchPortalTickets();
+                } catch (error) {
+                    this.portalTicketFormError = window.__i18n.ticket_create_error;
+                } finally {
+                    this.isPortalTicketSubmitting = false;
+                }
+            },
+            async openPortalTicketDetail(ticket) {
+                this.isPortalTicketDetailOpen = true;
+                this.portalTicketDetailLoading = true;
+                this.portalTicketDetail = ticket;
+                this.portalTicketComments = [];
+                this.portalTicketCommentBody = '';
+                this.portalTicketCommentError = '';
+
+                try {
+                    const response = await fetch(`/api/tickets/${ticket.id}`, { headers: { Accept: 'application/json' } });
+                    const result = await response.json();
+
+                    if (!response.ok) {
+                        this.portalTicketsError = result.message || window.__i18n.ticket_not_found;
+                        return;
+                    }
+
+                    this.portalTicketDetail = result.data;
+                    this.portalTicketComments = Array.isArray(result.data.comments) ? result.data.comments : [];
+                } catch (error) {
+                    this.portalTicketsError = window.__i18n.portal_tickets_error;
+                } finally {
+                    this.portalTicketDetailLoading = false;
+                }
+            },
+            closePortalTicketDetail() {
+                if (this.isPortalTicketCommentSubmitting) {
+                    return;
+                }
+
+                this.isPortalTicketDetailOpen = false;
+                this.portalTicketDetail = null;
+            },
+            async submitPortalTicketComment() {
+                if (!this.portalTicketDetail?.id) {
+                    return;
+                }
+
+                const body = this.portalTicketCommentBody.trim();
+
+                if (body === '') {
+                    this.portalTicketCommentError = window.__i18n.ticket_comment_create_error;
+                    return;
+                }
+
+                this.isPortalTicketCommentSubmitting = true;
+                this.portalTicketCommentError = '';
+
+                try {
+                    const response = await fetch(`/api/tickets/${this.portalTicketDetail.id}/comments`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+                        body: JSON.stringify({ body }),
+                    });
+                    const result = await response.json();
+
+                    if (!response.ok) {
+                        this.portalTicketCommentError = result.message || window.__i18n.ticket_comment_create_error;
+                        return;
+                    }
+
+                    this.portalTicketCommentBody = '';
+                    this.portalTicketComments.push(result.data);
+                } catch (error) {
+                    this.portalTicketCommentError = window.__i18n.ticket_comment_create_error;
+                } finally {
+                    this.isPortalTicketCommentSubmitting = false;
                 }
             },
             apiErrorMessage(result, fallback) {
