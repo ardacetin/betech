@@ -549,68 +549,50 @@ class Personnel
         $trimmedQuery = trim($query);
 
         try {
-            return $this->querySearchActive($trimmedQuery, $limit, true);
+            return $this->selectSearchActive($trimmedQuery, $limit, true);
         } catch (\Throwable) {
-            return $this->querySearchActive($trimmedQuery, $limit, false);
+            return $this->selectSearchActive($trimmedQuery, $limit, false);
         }
     }
 
     /**
      * @return list<array{id: string, external_id: string, name: string, email: string, department: string|null}>
      */
-    private function querySearchActive(string $trimmedQuery, int $limit, bool $extendedSchema): array
+    private function selectSearchActive(string $trimmedQuery, int $limit, bool $extendedSchema): array
     {
-        $params = [];
-        $whereParts = [];
-
-        if ($extendedSchema) {
-            $whereParts[] = "(status IS NULL OR TRIM(status) = '' OR LOWER(status) NOT IN ('offboarded', 'inactive', 'disabled'))";
-        }
+        $and = [
+            'status[!]' => self::STATUS_OFFBOARDED,
+        ];
 
         if ($trimmedQuery !== '') {
-            $like = '%' . $this->escapeLike($trimmedQuery) . '%';
-            $searchParts = [
-                'name LIKE ?',
-                'email LIKE ?',
+            $or = [
+                'name[~]' => $trimmedQuery,
+                'email[~]' => $trimmedQuery,
             ];
-            $params[] = $like;
-            $params[] = $like;
 
             if ($extendedSchema) {
-                $searchParts[] = "COALESCE(department, '') LIKE ?";
-                $searchParts[] = "COALESCE(external_id, '') LIKE ?";
-                $searchParts[] = "COALESCE(title, '') LIKE ?";
-                $params[] = $like;
-                $params[] = $like;
-                $params[] = $like;
+                $or['department[~]'] = $trimmedQuery;
+                $or['external_id[~]'] = $trimmedQuery;
+                $or['title[~]'] = $trimmedQuery;
             }
 
-            $whereParts[] = '(' . implode(' OR ', $searchParts) . ')';
+            $and['OR'] = $or;
         }
 
-        $selectColumns = $extendedSchema
-            ? 'id, name, email, department, external_id'
-            : 'id, name, email';
-
-        $whereClause = $whereParts !== [] ? 'WHERE ' . implode(' AND ', $whereParts) : '';
-
-        $sql = sprintf(
-            'SELECT %s FROM personnel %s ORDER BY name ASC LIMIT %d',
-            $selectColumns,
-            $whereClause,
-            $limit
-        );
-
-        $statement = $this->db()->query($sql, $params);
-
-        if ($statement === false) {
-            throw new \RuntimeException('Personnel search query failed.');
-        }
-
-        $rows = $statement->fetchAll();
+        $rows = $this->db()->select('personnel', [
+            'id',
+            'external_id',
+            'name',
+            'email',
+            'department',
+        ], [
+            'AND' => $and,
+            'ORDER' => ['name' => 'ASC'],
+            'LIMIT' => $limit,
+        ]);
 
         if (!is_array($rows)) {
-            return [];
+            throw new \RuntimeException('Personnel search query failed.');
         }
 
         return array_map(
@@ -635,11 +617,6 @@ class Personnel
                 ? (string) $row['department']
                 : null,
         ];
-    }
-
-    private function escapeLike(string $value): string
-    {
-        return str_replace(['\\', '%', '_'], ['\\\\', '\%', '\_'], $value);
     }
 
     public function findById(int $personnelId): ?array
