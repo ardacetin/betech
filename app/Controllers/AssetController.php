@@ -574,6 +574,19 @@ class AssetController
             ->withHeader('Content-Disposition', 'attachment; filename="asset_import_template.csv"');
     }
 
+    public function exportCsv(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
+    {
+        $assets = $this->assetModel->findAllForDashboard();
+        $csv = $this->assetCsvImportService->exportToCsv($assets);
+        $filename = 'assets_export_' . date('Y-m-d') . '.csv';
+
+        $response->getBody()->write($csv);
+
+        return $response
+            ->withHeader('Content-Type', 'text/csv; charset=utf-8')
+            ->withHeader('Content-Disposition', 'attachment; filename="' . $filename . '"');
+    }
+
     public function importCsv(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
     {
         $uploadedFiles = $request->getUploadedFiles();

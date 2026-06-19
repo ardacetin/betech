@@ -169,6 +169,7 @@ $app->delete('/api/users/{id}', [$userController, 'destroy']);
 $app->get('/api/assets/{id}/tutanak', [$assetTutanakController, 'show']);
 $app->post('/api/assets', [$assetController, 'store']);
 $app->get('/api/assets/import/template', [$assetController, 'importTemplate']);
+$app->get('/api/assets/export', [$assetController, 'exportCsv']);
 $app->post('/api/assets/import', [$assetController, 'importCsv']);
 $app->put('/api/assets/{id}', [$assetController, 'update']);
 $app->post('/api/assets/{id}/assign', [$assetController, 'assign']);

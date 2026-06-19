@@ -159,6 +159,7 @@ return [
     'page_subtitle' => 'Envanteri, durumu ve hibrit teknik özelliklerini izleyin.',
     'add_asset' => 'Yeni Envanter Ekle',
     'import_assets' => 'İçe Aktar',
+    'export_assets' => 'Dışa Aktar',
     'import_modal_title' => 'CSV ile Toplu İçe Aktar',
     'import_modal_subtitle' => 'Envanter kayıtlarını CSV dosyasından yükleyin. Şablonu indirerek sütun başlıklarını kontrol edin.',
     'import_download_template' => 'Şablon İndir',

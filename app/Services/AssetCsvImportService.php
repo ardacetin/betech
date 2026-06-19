@@ -61,9 +61,14 @@ class AssetCsvImportService
     ) {
     }
 
+    public static function exportHeaders(): array
+    {
+        return ['name', 'serial_number', 'category', 'status', 'location', 'building', 'asset_tag'];
+    }
+
     public static function templateCsvContent(): string
     {
-        $headers = ['name', 'serial_number', 'category', 'status', 'location', 'building', 'asset_tag'];
+        $headers = self::exportHeaders();
         $example = [
             'Dell Latitude 5540',
             'SN-ABC-12345',
@@ -75,6 +80,28 @@ class AssetCsvImportService
         ];
 
         return self::buildCsvLine($headers) . self::buildCsvLine($example);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $assets
+     */
+    public function exportToCsv(array $assets): string
+    {
+        $lines = [self::buildCsvLine(self::exportHeaders())];
+
+        foreach ($assets as $asset) {
+            $lines[] = self::buildCsvLine([
+                (string) ($asset['name'] ?? ''),
+                (string) ($asset['serial_number'] ?? ''),
+                (string) ($asset['category_name'] ?? ''),
+                (string) ($asset['status'] ?? ''),
+                (string) ($asset['location_name'] ?? ''),
+                (string) ($asset['location_building'] ?? ''),
+                (string) ($asset['asset_tag'] ?? ''),
+            ]);
+        }
+
+        return "\xEF\xBB\xBF" . implode('', $lines);
     }
 
     /**

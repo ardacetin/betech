@@ -331,6 +331,14 @@ $i18nScript = json_encode([
                         <button
                             type="button"
                             x-show="activeView === 'assets' && canManageAssets"
+                            @click="exportAssets()"
+                            class="inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-4 py-2.5 text-sm font-medium text-zinc-700 shadow-soft transition hover:bg-zinc-50"
+                        >
+                            <?= htmlspecialchars(__('export_assets'), ENT_QUOTES, 'UTF-8') ?>
+                        </button>
+                        <button
+                            type="button"
+                            x-show="activeView === 'assets' && canManageAssets"
                             @click="openImportModal()"
                             class="inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-4 py-2.5 text-sm font-medium text-zinc-700 shadow-soft transition hover:bg-zinc-50"
                         >
@@ -2463,6 +2471,9 @@ $i18nScript = json_encode([
             },
             printTutanak(assetId) {
                 window.open(`/api/assets/${assetId}/tutanak`, '_blank', 'noopener,noreferrer');
+            },
+            exportAssets() {
+                window.location.href = '/api/assets/export';
             },
             openAssignModal(asset) {
                 if (asset?.user_id) {

@@ -159,6 +159,7 @@ return [
     'page_subtitle' => 'Monitor inventory, status, and hybrid asset properties.',
     'add_asset' => 'Add Asset',
     'import_assets' => 'Import',
+    'export_assets' => 'Export',
     'import_modal_title' => 'Bulk Import via CSV',
     'import_modal_subtitle' => 'Upload asset records from a CSV file. Download the template to see required column headers.',
     'import_download_template' => 'Download Template',
