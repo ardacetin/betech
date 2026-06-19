@@ -105,7 +105,8 @@ $app->add(new RateLimitMiddleware($loginAttemptService, $clientIpResolver));
 $app->add(new SecurityHeadersMiddleware($isHttps));
 
 $displayErrorDetails = $appConfig['display_error_details'] && !$appConfig['is_production'];
-$appLogger = new AppLogger($rootPath . '/logs/app.log', $clientIpResolver);
+$appLogger = new AppLogger($rootPath . '/logs', 'app.log', $clientIpResolver);
+$appLogger->registerGlobalHandlers();
 $errorMiddleware = $app->addErrorMiddleware($displayErrorDetails, true, true);
 $errorHandler = new HttpErrorHandler(
     $app->getCallableResolver(),
@@ -137,19 +138,20 @@ $oauthService = new OAuthService($settingModel, $appConfig['url']);
 $auditLogModel = new AuditLog($databaseService);
 $auditChangeFormatter = new AuditChangeFormatter();
 $auditLogger = new AuditLogger($auditLogModel, $auditChangeFormatter, $clientIpResolver);
-$authController = new AuthController(
-    $appConfig,
-    $settingModel,
-    $userModel,
-    $personnelModel,
-    $sessionAuthService,
-    $loginAttemptService,
-    $clientIpResolver,
-    $ldapAuthenticator,
-    $oauthService,
-    $viewRenderer,
-    $auditLogger
-);
+    $authController = new AuthController(
+        $appConfig,
+        $settingModel,
+        $userModel,
+        $personnelModel,
+        $sessionAuthService,
+        $loginAttemptService,
+        $clientIpResolver,
+        $ldapAuthenticator,
+        $oauthService,
+        $viewRenderer,
+        $auditLogger,
+        $appLogger
+    );
 $healthController = new HealthController($appConfig, $assetModel, $categoryModel, $viewRenderer, $qrCodeService, $analyticsService, $settingModel, $userModel, $sessionAuthService, $endUserContextService);
 $assetController = new AssetController($assetModel, $assetHistoryModel, $userIntegrationFactory, $personnelModel, $userModel, $locationModel, $categoryModel, $assetCsvImportService, $sessionAuthService, $clientIpResolver, $endUserContextService, $auditLogger);
 $assetViewController = new AssetViewController($appConfig, $assetModel, $categoryModel, $viewRenderer);

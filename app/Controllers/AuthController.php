@@ -11,6 +11,7 @@ use App\Models\User;
 use App\Services\Auth\LdapAuthenticator;
 use App\Services\Auth\OAuthService;
 use App\Services\Auth\SessionAuthService;
+use App\Services\AppLogger;
 use App\Services\AuditLogger;
 use App\Services\ClientIpResolver;
 use App\Services\LoginAttemptService;
@@ -35,7 +36,8 @@ class AuthController
         private readonly LdapAuthenticator $ldapAuthenticator,
         private readonly OAuthService $oauthService,
         private readonly ViewRenderer $viewRenderer,
-        private readonly AuditLogger $auditLogger
+        private readonly AuditLogger $auditLogger,
+        private readonly AppLogger $appLogger
     ) {
     }
 
@@ -80,13 +82,15 @@ class AuthController
         $redirectTarget = $this->sanitizeRedirect((string) ($payload['redirect'] ?? ''));
 
         if ($identifier === '' || $password === '') {
+            $this->logFailedLogin($clientIp, $identifier, 'missing_credentials', false, 'form');
+
             return $this->redirectWithError($response, 'login_missing_credentials', $redirectTarget);
         }
 
         $userRecord = $this->userModel->findByEmail($identifier);
 
         if ($userRecord === null) {
-            $this->loginAttemptService->recordFailure($clientIp);
+            $this->logFailedLogin($clientIp, $identifier, 'invalid_credentials', true, 'form');
 
             return $this->redirectWithError($response, 'login_invalid_password', $redirectTarget);
         }
@@ -95,14 +99,14 @@ class AuthController
         $provider = $this->resolveUserAuthProvider($userRecord);
 
         if ($role === User::ROLE_SUPER_ADMIN || $provider === User::PROVIDER_LOCAL) {
-            return $this->completeLocalDatabaseLogin($response, $clientIp, $userRecord, $password, $redirectTarget);
+            return $this->completeLocalDatabaseLogin($response, $clientIp, $userRecord, $password, $redirectTarget, $identifier, 'form');
         }
 
         if ($provider === User::PROVIDER_LDAP) {
-            return $this->completeLdapUserLogin($response, $clientIp, $userRecord, $identifier, $password, $redirectTarget);
+            return $this->completeLdapUserLogin($response, $clientIp, $userRecord, $identifier, $password, $redirectTarget, 'form');
         }
 
-        $this->loginAttemptService->recordFailure($clientIp);
+        $this->logFailedLogin($clientIp, $identifier, 'provider_disabled', true, 'form');
 
         return $this->redirectWithError($response, 'login_provider_disabled', $redirectTarget);
     }
@@ -121,17 +125,21 @@ class AuthController
 
         if ($mode === 'local') {
             if (!$providers['local']) {
+                $this->logFailedLogin($clientIp, $identifier, 'provider_disabled', false, 'api_local');
+
                 return $this->jsonAuthError($response, 'login_provider_disabled', 403);
             }
 
             if ($identifier === '' || $password === '') {
+                $this->logFailedLogin($clientIp, $identifier, 'missing_credentials', false, 'api_local');
+
                 return $this->jsonAuthError($response, 'login_missing_credentials', 422);
             }
 
             $userRecord = $this->userModel->findByEmail($identifier);
 
             if ($userRecord === null) {
-                $this->loginAttemptService->recordFailure($clientIp);
+                $this->logFailedLogin($clientIp, $identifier, 'invalid_credentials', true, 'api_local');
 
                 return $this->jsonAuthError($response, 'login_invalid_password', 401);
             }
@@ -139,7 +147,7 @@ class AuthController
             $passwordHash = (string) ($userRecord['password_hash'] ?? '');
 
             if ($passwordHash === '' || !password_verify($password, $passwordHash)) {
-                $this->loginAttemptService->recordFailure($clientIp);
+                $this->logFailedLogin($clientIp, $identifier, 'invalid_credentials', true, 'api_local');
 
                 return $this->jsonAuthError($response, 'login_invalid_password', 401);
             }
@@ -153,31 +161,35 @@ class AuthController
             $user = $this->userModel->findById($userId);
 
             if ($user === null) {
-                $this->loginAttemptService->recordFailure($clientIp);
+                $this->logFailedLogin($clientIp, $identifier, 'invalid_credentials', true, 'api_local');
 
                 return $this->jsonAuthError($response, 'login_invalid_password', 401);
             }
 
             $this->loginAttemptService->clearFailures($clientIp);
             $this->sessionLoginFromUser($user);
-            $this->auditLogin($clientIp, $user, 'local');
+            $this->auditLogin($clientIp, $user, 'local', $identifier);
 
             return $this->jsonAuthSuccess($response, $user);
         }
 
         if ($mode === 'ldap') {
             if (!$providers['ldap']) {
+                $this->logFailedLogin($clientIp, $identifier, 'provider_disabled', false, 'api_ldap');
+
                 return $this->jsonAuthError($response, 'login_provider_disabled', 403);
             }
 
             if ($identifier === '' || $password === '') {
+                $this->logFailedLogin($clientIp, $identifier, 'missing_credentials', false, 'api_ldap');
+
                 return $this->jsonAuthError($response, 'login_missing_credentials', 422);
             }
 
             $ldapProfile = $this->ldapAuthenticator->authenticate($identifier, $password);
 
             if ($ldapProfile === null) {
-                $this->loginAttemptService->recordFailure($clientIp);
+                $this->logFailedLogin($clientIp, $identifier, 'ldap_failed', true, 'api_ldap');
 
                 return $this->jsonAuthError($response, 'login_ldap_failed', 401);
             }
@@ -187,7 +199,7 @@ class AuthController
             if ($systemUser !== null) {
                 $this->loginAttemptService->clearFailures($clientIp);
                 $this->sessionLoginFromUser($systemUser);
-                $this->auditLogin($clientIp, $systemUser, 'ldap');
+                $this->auditLogin($clientIp, $systemUser, 'ldap', $identifier);
 
                 return $this->jsonAuthSuccess($response, $systemUser);
             }
@@ -203,7 +215,7 @@ class AuthController
             $this->auditLogin($clientIp, [
                 'id' => $person['id'],
                 'email' => $person['email'] ?? '',
-            ], 'ldap');
+            ], 'ldap', $identifier);
 
             return $this->jsonAuthSuccess($response, [
                 'id' => $person['id'],
@@ -212,6 +224,8 @@ class AuthController
                 'role' => User::ROLE_END_USER,
             ]);
         }
+
+        $this->logFailedLogin($clientIp, $identifier, 'provider_disabled', false, 'api_' . $mode);
 
         return $this->jsonAuthError($response, 'login_provider_disabled', 403);
     }
@@ -234,24 +248,32 @@ class AuthController
         $code = trim((string) ($queryParams['code'] ?? ''));
         $state = trim((string) ($queryParams['state'] ?? ''));
         $providers = $this->settingModel->getLoginProviders();
+        $clientIp = $this->clientIpResolver->resolveFromRequest($request);
+        $normalizedProvider = $provider === 'azure' ? 'microsoft' : $provider;
 
         if ($provider === 'google' && !$providers['google']) {
+            $this->logFailedLogin($clientIp, '', 'provider_disabled', false, 'oauth_google');
+
             return $this->redirectWithError($response, 'login_provider_disabled');
         }
 
         if (in_array($provider, ['microsoft', 'azure'], true) && !$providers['microsoft']) {
+            $this->logFailedLogin($clientIp, '', 'provider_disabled', false, 'oauth_' . $normalizedProvider);
+
             return $this->redirectWithError($response, 'login_provider_disabled');
         }
 
         if ($code === '') {
+            $this->logFailedLogin($clientIp, '', 'oauth_denied', false, 'oauth_' . $normalizedProvider);
+
             return $this->redirectWithError($response, 'login_oauth_denied');
         }
 
-        $normalizedProvider = $provider === 'azure' ? 'microsoft' : $provider;
         $profile = $this->oauthService->handleCallback($normalizedProvider, $code, $state);
-        $clientIp = $this->clientIpResolver->resolveFromRequest($request);
 
         if ($profile === null) {
+            $this->logFailedLogin($clientIp, '', 'corporate_account_not_found', false, 'oauth_' . $normalizedProvider);
+
             return $this->redirectWithError($response, 'login_corporate_account_not_found');
         }
 
@@ -259,7 +281,12 @@ class AuthController
 
         if ($systemUser !== null) {
             $this->sessionLoginFromUser($systemUser);
-            $this->auditLogin($clientIp, $systemUser, 'oauth_' . $normalizedProvider);
+            $this->auditLogin(
+                $clientIp,
+                $systemUser,
+                'oauth_' . $normalizedProvider,
+                (string) ($profile['email'] ?? '')
+            );
 
             return $response
                 ->withHeader('Location', '/')
@@ -271,7 +298,7 @@ class AuthController
         $this->auditLogin($clientIp, [
             'id' => $person['id'],
             'email' => $person['email'] ?? '',
-        ], 'oauth_' . $normalizedProvider);
+        ], 'oauth_' . $normalizedProvider, (string) ($profile['email'] ?? ''));
 
         return $response
             ->withHeader('Location', '/')
@@ -300,13 +327,15 @@ class AuthController
         string $clientIp,
         array $userRecord,
         string $password,
-        string $redirectTarget
+        string $redirectTarget,
+        string $identifier,
+        string $method
     ): ResponseInterface {
 
         $passwordHash = (string) ($userRecord['password_hash'] ?? '');
 
         if ($passwordHash === '' || !password_verify($password, $passwordHash)) {
-            $this->loginAttemptService->recordFailure($clientIp);
+            $this->logFailedLogin($clientIp, $identifier, 'invalid_credentials', true, $method);
 
             return $this->redirectWithError($response, 'login_invalid_password', $redirectTarget);
         }
@@ -320,14 +349,14 @@ class AuthController
         $user = $this->userModel->findById($userId);
 
         if ($user === null) {
-            $this->loginAttemptService->recordFailure($clientIp);
+            $this->logFailedLogin($clientIp, $identifier, 'invalid_credentials', true, $method);
 
             return $this->redirectWithError($response, 'login_invalid_password', $redirectTarget);
         }
 
         $this->loginAttemptService->clearFailures($clientIp);
         $this->sessionLoginFromUser($user);
-        $this->auditLogin($clientIp, $user, 'local');
+        $this->auditLogin($clientIp, $user, 'local', $identifier);
 
         return $response->withHeader('Location', $redirectTarget)->withStatus(302);
     }
@@ -341,18 +370,21 @@ class AuthController
         array $userRecord,
         string $identifier,
         string $password,
-        string $redirectTarget
+        string $redirectTarget,
+        string $method
     ): ResponseInterface {
         $providers = $this->settingModel->getLoginProviders();
 
         if (!$providers['ldap']) {
+            $this->logFailedLogin($clientIp, $identifier, 'provider_disabled', false, $method);
+
             return $this->redirectWithError($response, 'login_provider_disabled', $redirectTarget);
         }
 
         $ldapProfile = $this->ldapAuthenticator->authenticate($identifier, $password);
 
         if ($ldapProfile === null) {
-            $this->loginAttemptService->recordFailure($clientIp);
+            $this->logFailedLogin($clientIp, $identifier, 'ldap_failed', true, $method);
 
             return $this->redirectWithError($response, 'login_ldap_failed', $redirectTarget);
         }
@@ -361,7 +393,7 @@ class AuthController
         $userEmail = strtolower(trim((string) ($userRecord['email'] ?? '')));
 
         if ($profileEmail !== '' && $userEmail !== '' && $profileEmail !== $userEmail) {
-            $this->loginAttemptService->recordFailure($clientIp);
+            $this->logFailedLogin($clientIp, $identifier, 'ldap_failed', true, $method);
 
             return $this->redirectWithError($response, 'login_ldap_failed', $redirectTarget);
         }
@@ -369,14 +401,14 @@ class AuthController
         $user = $this->userModel->findById((int) $userRecord['id']);
 
         if ($user === null) {
-            $this->loginAttemptService->recordFailure($clientIp);
+            $this->logFailedLogin($clientIp, $identifier, 'ldap_failed', true, $method);
 
             return $this->redirectWithError($response, 'login_ldap_failed', $redirectTarget);
         }
 
         $this->loginAttemptService->clearFailures($clientIp);
         $this->sessionLoginFromUser($user);
-        $this->auditLogin($clientIp, $user, 'ldap');
+        $this->auditLogin($clientIp, $user, 'ldap', $identifier);
 
         return $response->withHeader('Location', $redirectTarget)->withStatus(302);
     }
@@ -384,9 +416,10 @@ class AuthController
     /**
      * @param array<string, mixed> $user
      */
-    private function auditLogin(string $clientIp, array $user, string $method): void
+    private function auditLogin(string $clientIp, array $user, string $method, string $identifier = ''): void
     {
         $userId = (int) ($user['id'] ?? 0);
+        $email = (string) ($user['email'] ?? '');
 
         $this->auditLogger->log(
             $userId > 0 ? $userId : null,
@@ -395,11 +428,33 @@ class AuthController
             $userId > 0 ? $userId : null,
             null,
             [
-                'email' => (string) ($user['email'] ?? ''),
+                'email' => $email,
                 'method' => $method,
             ],
             $clientIp
         );
+
+        $this->appLogger->logAuthSuccess(
+            $identifier !== '' ? $identifier : $email,
+            $clientIp,
+            $method,
+            $userId > 0 ? $userId : null,
+            $email
+        );
+    }
+
+    private function logFailedLogin(
+        string $clientIp,
+        string $identifier,
+        string $reason,
+        bool $trackRateLimit,
+        string $method = ''
+    ): void {
+        if ($trackRateLimit) {
+            $this->loginAttemptService->recordFailure($clientIp);
+        }
+
+        $this->appLogger->logAuthFailure($identifier, $clientIp, $reason, $method);
     }
 
     /**
