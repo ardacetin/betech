@@ -347,14 +347,14 @@ $i18nScript = json_encode([
     'status_under_repair' => __('status_under_repair'),
 ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
 ?>
-<div class="min-h-full" x-data="assetDashboard()" x-init="restoreDashboardView(); if (isEndUser) { initEndUserPortal(); } else if (canManageAssets) { fetchCategories(); fetchLocations(); fetchLicenses(); fetchConsumables(); fetchTickets(); if (activeView === 'dashboard') { fetchDashboardStats(); } } this.isAssignLicenseModalOpen = false;">
-    <div class="flex min-h-screen">
-        <aside class="sticky top-0 hidden h-screen w-64 shrink-0 flex-col border-r border-gray-200 bg-white lg:flex">
-            <div class="flex h-16 shrink-0 items-center gap-2.5 border-b border-gray-200 px-5">
-                <div class="flex h-9 w-9 items-center justify-center rounded-xl bg-gray-900 text-sm font-semibold text-white">B</div>
-                <div class="flex items-center">
+<div class="min-h-screen bg-gray-50" x-data="assetDashboard()" x-init="restoreDashboardView(); if (isEndUser) { initEndUserPortal(); } else if (canManageAssets) { fetchCategories(); fetchLocations(); fetchLicenses(); fetchConsumables(); fetchTickets(); if (activeView === 'dashboard') { fetchDashboardStats(); } } this.isAssignLicenseModalOpen = false;">
+    <div class="app-shell">
+        <aside class="app-sidebar hidden lg:flex">
+            <div class="flex h-16 shrink-0 items-center gap-3 border-b border-gray-200 px-5">
+                <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gray-900 text-sm font-semibold text-white">B</div>
+                <div class="flex min-w-0 items-center">
                     <span class="text-xl font-bold tracking-tight text-gray-900">ITMS</span>
-                    <span class="ml-2 rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-500">Pro</span>
+                    <span class="ml-2 rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500">Pro</span>
                 </div>
             </div>
 
@@ -376,7 +376,7 @@ $i18nScript = json_encode([
                         aria-label="<?= htmlspecialchars(__('nav_logout'), ENT_QUOTES, 'UTF-8') ?>"
                         class="shrink-0 rounded-lg p-2 text-gray-400 transition-colors hover:bg-white hover:text-red-600"
                     >
-                        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
+                        <svg class="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75" />
                         </svg>
                     </a>
@@ -384,7 +384,8 @@ $i18nScript = json_encode([
             </div>
         </aside>
 
-        <main class="flex-1">
+        <div class="app-main">
+        <main class="min-w-0 flex-1 overflow-y-auto bg-gray-50">
             <header class="sticky top-0 z-10 border-b border-zinc-200 bg-white/90 backdrop-blur">
                 <div class="mx-auto flex max-w-7xl items-center justify-between gap-4 px-6 py-4">
                     <div>
@@ -749,6 +750,7 @@ $i18nScript = json_encode([
                 <?php endif; ?>
             </div>
         </main>
+        </div>
     </div>
 
     <div
@@ -2089,29 +2091,6 @@ $i18nScript = json_encode([
 </div>
 
 <style>
-    [x-cloak] { display: none !important; }
-
-    .sidebar-scroll {
-        scrollbar-width: thin;
-        scrollbar-color: transparent transparent;
-    }
-    .sidebar-scroll:hover {
-        scrollbar-color: #d4d4d8 transparent;
-    }
-    .sidebar-scroll::-webkit-scrollbar {
-        width: 6px;
-    }
-    .sidebar-scroll::-webkit-scrollbar-track {
-        background: transparent;
-    }
-    .sidebar-scroll::-webkit-scrollbar-thumb {
-        background-color: transparent;
-        border-radius: 9999px;
-    }
-    .sidebar-scroll:hover::-webkit-scrollbar-thumb {
-        background-color: #d4d4d8;
-    }
-
     #zimmet-quill-wrapper .ql-toolbar.ql-snow {
         border: 0;
         border-bottom: 1px solid #e4e4e7;
@@ -3171,9 +3150,9 @@ $i18nScript = json_encode([
                     .replace(':person', person)
                     .replace(':action', action.replace(/_/g, ' '));
             },
-            formatDashboardActivityTime(value) {
+            formatActivityTimestamp(value, options = {}) {
                 if (!value) {
-                    return '';
+                    return options.fallback ?? '';
                 }
 
                 const date = new Date(String(value).replace(' ', 'T'));
@@ -3183,11 +3162,24 @@ $i18nScript = json_encode([
                 }
 
                 const locale = window.__i18n.locale === 'en' ? 'en-US' : 'tr-TR';
+                const format = {
+                    month: 'short',
+                    day: 'numeric',
+                };
 
-                return new Intl.DateTimeFormat(locale, {
-                    dateStyle: 'medium',
-                    timeStyle: 'short',
-                }).format(date);
+                if (options.includeTime) {
+                    format.hour = 'numeric';
+                    format.minute = '2-digit';
+                }
+
+                if (options.includeYear) {
+                    format.year = 'numeric';
+                }
+
+                return new Intl.DateTimeFormat(locale, format).format(date);
+            },
+            formatDashboardActivityTime(value) {
+                return this.formatActivityTimestamp(value, { includeTime: true });
             },
             escapeHtml(value) {
                 return String(value ?? '').replace(/[&<>"']/g, (char) => ({
@@ -3220,24 +3212,7 @@ $i18nScript = json_encode([
                     .replace(':entity', this.escapeHtml(entityPhrase));
             },
             formatAuditFeedTime(value) {
-                if (!value) {
-                    return '';
-                }
-
-                const date = new Date(String(value).replace(' ', 'T'));
-
-                if (Number.isNaN(date.getTime())) {
-                    return String(value);
-                }
-
-                const locale = window.__i18n.locale === 'en' ? 'en-GB' : 'tr-TR';
-
-                return new Intl.DateTimeFormat(locale, {
-                    day: '2-digit',
-                    month: '2-digit',
-                    hour: '2-digit',
-                    minute: '2-digit',
-                }).format(date);
+                return this.formatActivityTimestamp(value, { includeTime: true });
             },
             auditFeedDotClass(action) {
                 const classes = {
@@ -5509,23 +5484,10 @@ $i18nScript = json_encode([
                 return classes[action] || 'bg-zinc-100 text-zinc-700 ring-zinc-300';
             },
             formatAuditTimestamp(value) {
-                if (!value) {
-                    return '—';
-                }
-
-                const date = new Date(String(value).replace(' ', 'T'));
-
-                if (Number.isNaN(date.getTime())) {
-                    return value;
-                }
-
-                return date.toLocaleString(window.__i18n.locale === 'en' ? 'en-GB' : 'tr-TR', {
-                    year: 'numeric',
-                    month: '2-digit',
-                    day: '2-digit',
-                    hour: '2-digit',
-                    minute: '2-digit',
-                    second: '2-digit',
+                return this.formatActivityTimestamp(value, {
+                    includeTime: true,
+                    includeYear: true,
+                    fallback: '—',
                 });
             },
             auditLogPaginationLabel() {

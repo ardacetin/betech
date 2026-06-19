@@ -3,9 +3,9 @@
 declare(strict_types=1);
 ?>
 <section x-show="activeView === 'dashboard'" x-cloak>
-    <div class="mx-auto min-h-screen max-w-7xl bg-gray-50/50 px-4 py-8 sm:px-6 lg:px-8">
+    <div class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
 
-        <div x-show="dashboardLoading && !dashboardStats" class="flex min-h-[320px] items-center justify-center rounded-2xl border border-gray-200/60 bg-white">
+        <div x-show="dashboardLoading && !dashboardStats" class="flex min-h-[320px] items-center justify-center rounded-2xl border border-gray-200 bg-white">
             <div class="flex items-center gap-3 text-sm text-gray-500">
                 <svg class="h-5 w-5 animate-spin text-gray-400" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                     <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -39,7 +39,7 @@ declare(strict_types=1);
 
                 <!-- Top row: 3 unified stat cards -->
                 <div class="grid grid-cols-1 gap-5 sm:grid-cols-3">
-                    <article class="rounded-2xl border border-gray-200/60 bg-white p-6">
+                    <article class="rounded-2xl border border-gray-200 bg-white p-6">
                         <div class="flex items-start justify-between gap-4">
                             <div class="min-w-0">
                                 <p class="text-sm font-medium text-gray-500"><?= htmlspecialchars(__('dashboard_ticket_open'), ENT_QUOTES, 'UTF-8') ?></p>
@@ -52,7 +52,7 @@ declare(strict_types=1);
                             </span>
                         </div>
                     </article>
-                    <article class="rounded-2xl border border-gray-200/60 bg-white p-6">
+                    <article class="rounded-2xl border border-gray-200 bg-white p-6">
                         <div class="flex items-start justify-between gap-4">
                             <div class="min-w-0">
                                 <p class="text-sm font-medium text-gray-500"><?= htmlspecialchars(__('dashboard_ticket_in_progress'), ENT_QUOTES, 'UTF-8') ?></p>
@@ -65,7 +65,7 @@ declare(strict_types=1);
                             </span>
                         </div>
                     </article>
-                    <article class="rounded-2xl border border-gray-200/60 bg-white p-6">
+                    <article class="rounded-2xl border border-gray-200 bg-white p-6">
                         <div class="flex items-start justify-between gap-4">
                             <div class="min-w-0">
                                 <p class="text-sm font-medium text-gray-500"><?= htmlspecialchars(__('dashboard_ticket_critical'), ENT_QUOTES, 'UTF-8') ?></p>
@@ -81,7 +81,7 @@ declare(strict_types=1);
                 </div>
 
                 <!-- Bottom row: Asset & infrastructure health -->
-                <article class="rounded-2xl border border-gray-200/60 bg-white p-6 sm:p-8">
+                <article class="rounded-2xl border border-gray-200 bg-white p-6 sm:p-8">
                     <div class="mb-6">
                         <h3 class="text-base font-semibold tracking-tight text-gray-900"><?= htmlspecialchars(__('dashboard_distribution_title'), ENT_QUOTES, 'UTF-8') ?></h3>
                         <p class="mt-1 text-sm text-gray-500"><?= htmlspecialchars(__('dashboard_distribution_subtitle'), ENT_QUOTES, 'UTF-8') ?></p>
@@ -183,7 +183,7 @@ declare(strict_types=1);
             <div class="space-y-8">
 
                 <!-- Quick Actions -->
-                <article class="rounded-2xl border border-gray-200/60 bg-white p-6">
+                <article class="rounded-2xl border border-gray-200 bg-white p-6">
                     <h3 class="text-base font-semibold tracking-tight text-gray-900"><?= htmlspecialchars(__('dashboard_quick_actions'), ENT_QUOTES, 'UTF-8') ?></h3>
                     <div class="mt-4 space-y-2.5">
                         <button
@@ -226,7 +226,7 @@ declare(strict_types=1);
                 </article>
 
                 <!-- Live Activity Feed -->
-                <article class="rounded-2xl border border-gray-200/60 bg-white p-6">
+                <article class="rounded-2xl border border-gray-200 bg-white p-6">
                     <div class="flex items-center justify-between gap-3">
                         <h3 class="text-base font-semibold tracking-tight text-gray-900"><?= htmlspecialchars(__('dashboard_live_logs'), ENT_QUOTES, 'UTF-8') ?></h3>
                         <span class="relative flex h-2 w-2" aria-hidden="true">

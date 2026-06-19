@@ -24,11 +24,11 @@ $renderNavItem = static function (string $condition, string $click, string $labe
     <button
         type="button"
         @click="<?= $click ?>"
-        class="group flex w-full items-center rounded-lg px-3 py-2 text-left text-sm transition-all duration-200"
+        class="group flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm transition-all duration-200"
         :class="<?= $condition ?> ? 'bg-gray-900 text-white shadow-sm font-semibold' : 'text-gray-500 font-medium hover:bg-gray-50 hover:text-gray-900'"
     >
         <svg
-            class="mr-3 h-5 w-5 shrink-0 transition-colors"
+            class="h-5 w-5 shrink-0 transition-colors"
             :class="<?= $condition ?> ? 'text-white' : 'text-gray-400 group-hover:text-gray-500'"
             fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true"
         >
@@ -52,7 +52,7 @@ $icons = [
 ];
 
 ?>
-<nav class="sidebar-scroll flex-1 overflow-y-auto p-4">
+<nav class="sidebar-scroll min-h-0 flex-1 overflow-y-auto p-4">
     <?php if ($isEndUser): ?>
     <div class="space-y-1">
         <?php
