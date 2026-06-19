@@ -149,6 +149,10 @@ $i18nScript = json_encode([
     'personnel_sync_unsupported' => __('personnel_sync_unsupported'),
     'personnel_sync_empty' => __('personnel_sync_empty'),
     'personnel_sync_failed' => __('personnel_sync_failed'),
+    'personnel_ldap_sync_button' => __('personnel_ldap_sync_button'),
+    'personnel_ldap_syncing' => __('personnel_ldap_syncing'),
+    'personnel_ldap_sync_success' => __('personnel_ldap_sync_success'),
+    'personnel_ldap_sync_error' => __('personnel_ldap_sync_error'),
     'personnel_search_placeholder' => __('personnel_search_placeholder'),
     'personnel_pagination_prev' => __('personnel_pagination_prev'),
     'personnel_pagination_next' => __('personnel_pagination_next'),
@@ -2288,18 +2292,24 @@ $i18nScript = json_encode([
                 this.personnelSyncError = '';
 
                 try {
-                    const response = await fetch('/api/personnel/sync', {
+                    const response = await fetch('/api/personnel/sync-ldap', {
                         method: 'POST',
                         headers: { 'Accept': 'application/json' },
                     });
                     const result = await response.json();
 
                     if (!response.ok) {
-                        this.personnelSyncError = result.message || window.__i18n.personnel_sync_error;
+                        this.personnelSyncError = result.message || window.__i18n.personnel_ldap_sync_error;
                         return;
                     }
 
-                    this.personnelSyncMessage = result.message || window.__i18n.personnel_sync_success;
+                    const stats = result.data || {};
+                    const created = Number(stats.created || 0);
+                    const updated = Number(stats.updated || 0);
+
+                    this.personnelSyncMessage = result.message || window.__i18n.personnel_ldap_sync_success
+                        .replace(':created', String(created))
+                        .replace(':updated', String(updated));
                     this.personnelPage = 1;
                     await this.fetchPersonnel();
                 } catch (error) {

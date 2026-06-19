@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\Auth\Drivers;
 
+use App\Exceptions\LdapSyncException;
 use App\Models\Setting;
 use App\Services\Auth\UserIntegrationInterface;
 
@@ -11,6 +12,21 @@ class LdapDriver implements UserIntegrationInterface
 {
     private const SEARCH_LIMIT = 20;
     private const SYNC_PAGE_SIZE = 500;
+
+    /** Active directory users only (excludes disabled accounts and computer objects). */
+    private const ACTIVE_PERSONNEL_FILTER = '(&(objectClass=user)(objectCategory=person)(!(userAccountControl:1.2.840.113556.1.4.803:=2)))';
+
+    /** @var list<string> */
+    private const PERSONNEL_ATTRIBUTES = [
+        'cn',
+        'mail',
+        'department',
+        'title',
+        'jobTitle',
+        'uid',
+        'displayName',
+        'sAMAccountName',
+    ];
 
     public function __construct(
         private readonly Setting $settingModel
@@ -41,12 +57,11 @@ class LdapDriver implements UserIntegrationInterface
             }
 
             $filter = $this->buildSearchFilter($query);
-            $attributes = ['cn', 'mail', 'department', 'uid', 'displayName', 'sAMAccountName'];
             $search = @ldap_search(
                 $connection,
                 $config['base_dn'],
                 $filter,
-                $attributes,
+                self::PERSONNEL_ATTRIBUTES,
                 0,
                 self::SEARCH_LIMIT
             );
@@ -100,19 +115,59 @@ class LdapDriver implements UserIntegrationInterface
                 return [];
             }
 
-            return $this->fetchAllEntries($connection, (string) $config['base_dn']);
+            return $this->fetchAllEntries(
+                $connection,
+                (string) $config['base_dn'],
+                '(&(objectClass=person)(!(objectClass=computer)))',
+                false
+            );
         } finally {
             @ldap_unbind($connection);
         }
     }
 
     /**
-     * @return list<array{id: string, external_id: string, name: string, email: string, department: string|null}>
+     * Pull active personnel from LDAP for synchronization. Throws on connection, bind, or query failures.
+     *
+     * @return list<array{id: string, external_id: string, name: string, email: string, department: string|null, title: string|null}>
      */
-    private function fetchAllEntries(\LDAP\Connection $connection, string $baseDn): array
+    public function listActivePersonnel(): array
     {
-        $filter = '(&(objectClass=person)(!(objectClass=computer)))';
-        $attributes = ['cn', 'mail', 'department', 'uid', 'displayName', 'sAMAccountName'];
+        if (!extension_loaded('ldap')) {
+            throw new LdapSyncException(__('personnel_ldap_sync_extension_missing'));
+        }
+
+        $config = $this->settingModel->getLdapConfig();
+
+        if ($config['host'] === '' || $config['base_dn'] === '') {
+            throw new LdapSyncException(__('personnel_ldap_sync_not_configured'));
+        }
+
+        $connection = $this->connectStrict($config);
+
+        try {
+            $this->bindStrict($connection, $config);
+
+            return $this->fetchAllEntries(
+                $connection,
+                (string) $config['base_dn'],
+                self::ACTIVE_PERSONNEL_FILTER,
+                true
+            );
+        } finally {
+            @ldap_unbind($connection);
+        }
+    }
+
+    /**
+     * @return list<array{id: string, external_id: string, name: string, email: string, department: string|null, title?: string|null}>
+     */
+    private function fetchAllEntries(
+        \LDAP\Connection $connection,
+        string $baseDn,
+        string $filter,
+        bool $strict
+    ): array {
         $users = [];
         $cookie = '';
         $supportsPagedResults = defined('LDAP_CONTROL_PAGEDRESULTS');
@@ -135,7 +190,7 @@ class LdapDriver implements UserIntegrationInterface
                 $connection,
                 $baseDn,
                 $filter,
-                $attributes,
+                self::PERSONNEL_ATTRIBUTES,
                 0,
                 $supportsPagedResults ? 0 : self::SYNC_PAGE_SIZE,
                 0,
@@ -144,6 +199,12 @@ class LdapDriver implements UserIntegrationInterface
             );
 
             if ($search === false) {
+                if ($strict) {
+                    throw new LdapSyncException(
+                        __('personnel_ldap_sync_query_failed') . $this->ldapErrorMessage($connection)
+                    );
+                }
+
                 break;
             }
 
@@ -213,12 +274,11 @@ class LdapDriver implements UserIntegrationInterface
             }
 
             $filter = $this->buildIdentityFilter($id);
-            $attributes = ['cn', 'mail', 'department', 'uid', 'displayName', 'sAMAccountName'];
             $search = @ldap_search(
                 $connection,
                 $config['base_dn'],
                 $filter,
-                $attributes,
+                self::PERSONNEL_ATTRIBUTES,
                 0,
                 1
             );
@@ -264,6 +324,39 @@ class LdapDriver implements UserIntegrationInterface
         }
 
         return $connection;
+    }
+
+    /**
+     * @param array<string, mixed> $config
+     */
+    private function connectStrict(array $config): \LDAP\Connection
+    {
+        $connection = $this->connect($config);
+
+        if ($connection === null || $connection === false) {
+            throw new LdapSyncException(__('personnel_ldap_sync_connection_failed'));
+        }
+
+        return $connection;
+    }
+
+    /**
+     * @param array<string, mixed> $config
+     */
+    private function bindStrict(\LDAP\Connection $connection, array $config): void
+    {
+        if (!$this->bind($connection, $config)) {
+            throw new LdapSyncException(
+                __('personnel_ldap_sync_bind_failed') . $this->ldapErrorMessage($connection)
+            );
+        }
+    }
+
+    private function ldapErrorMessage(\LDAP\Connection $connection): string
+    {
+        $error = @ldap_error($connection);
+
+        return is_string($error) && $error !== '' ? ' ' . $error : '';
     }
 
     /**
@@ -322,14 +415,14 @@ class LdapDriver implements UserIntegrationInterface
     /**
      * @param array<string, mixed> $entry
      *
-     * @return array{id: string, external_id: string, name: string, email: string, department: string|null}|null
+     * @return array{id: string, external_id: string, name: string, email: string, department: string|null, title: string|null}|null
      */
     private function mapEntry(array $entry): ?array
     {
         $email = $this->firstAttribute($entry, 'mail');
-        $uid = $this->firstAttribute($entry, 'uid')
-            ?: $this->firstAttribute($entry, 'sAMAccountName')
-            ?: $email;
+        $uid = $this->firstAttribute($entry, 'sAMAccountName')
+            ?: $this->firstAttribute($entry, 'uid')
+            ?: ($email !== null && $email !== '' ? strtolower($email) : null);
 
         if ($uid === null || $uid === '') {
             return null;
@@ -340,6 +433,8 @@ class LdapDriver implements UserIntegrationInterface
             ?: $uid;
 
         $department = $this->firstAttribute($entry, 'department');
+        $title = $this->firstAttribute($entry, 'title')
+            ?: $this->firstAttribute($entry, 'jobTitle');
 
         return [
             'id' => $uid,
@@ -347,6 +442,7 @@ class LdapDriver implements UserIntegrationInterface
             'name' => $name,
             'email' => $email ?? '',
             'department' => $department,
+            'title' => $title,
         ];
     }
 

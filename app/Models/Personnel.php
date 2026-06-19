@@ -127,6 +127,11 @@ class Personnel
             'id',
             'status',
             'external_id',
+            'name',
+            'email',
+            'department',
+            'title',
+            'provider',
         ], [
             'OR' => [
                 'external_id' => $externalId,
@@ -146,6 +151,10 @@ class Personnel
         if ($existing !== null) {
             if (($existing['status'] ?? self::STATUS_ACTIVE) === self::STATUS_OFFBOARDED) {
                 unset($payload['provider']);
+            }
+
+            if (!$this->directoryRecordChanged($existing, $payload)) {
+                return 'skipped';
             }
 
             $this->db()->update('personnel', $payload, ['id' => (int) $existing['id']]);
@@ -433,6 +442,47 @@ class Personnel
             self::PROVIDER_MICROSOFT => self::PROVIDER_MICROSOFT,
             default => self::PROVIDER_LOCAL,
         };
+    }
+
+    /**
+     * @param array<string, mixed> $existing
+     * @param array<string, mixed> $payload
+     */
+    private function directoryRecordChanged(array $existing, array $payload): bool
+    {
+        $fields = ['name', 'email', 'department', 'title', 'external_id'];
+
+        foreach ($fields as $field) {
+            $existingValue = $existing[$field] ?? null;
+            $incomingValue = $payload[$field] ?? null;
+
+            if ($existingValue === null || $existingValue === '') {
+                $existingValue = null;
+            } else {
+                $existingValue = (string) $existingValue;
+            }
+
+            if ($incomingValue === null || $incomingValue === '') {
+                $incomingValue = null;
+            } else {
+                $incomingValue = (string) $incomingValue;
+            }
+
+            if ($existingValue !== $incomingValue) {
+                return true;
+            }
+        }
+
+        if (array_key_exists('provider', $payload)) {
+            $existingProvider = $this->normalizeProvider((string) ($existing['provider'] ?? self::PROVIDER_LOCAL));
+            $incomingProvider = $this->normalizeProvider((string) $payload['provider']);
+
+            if ($existingProvider !== $incomingProvider) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

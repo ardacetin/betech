@@ -160,6 +160,7 @@ $app->get('/api/assets/{id}/licenses', [$licenseController, 'forAsset']);
 $app->get('/api/personnel', [$userController, 'personnelIndex']);
 $app->post('/api/personnel', [$userController, 'storePersonnel']);
 $app->post('/api/personnel/sync', [$userController, 'personnelSync']);
+$app->post('/api/personnel/sync-ldap', [$userController, 'personnelSyncLdap']);
 $app->get('/api/personnel/search', [$userController, 'searchPersonnel']);
 $app->post('/api/personnel/{id}/offboard', [$userController, 'offboard']);
 $app->get('/api/users', [$userController, 'index']);

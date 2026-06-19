@@ -158,6 +158,11 @@ class RoleMiddleware implements MiddlewareInterface
             ],
             [
                 'methods' => ['POST'],
+                'pattern' => '/api/personnel/sync-ldap',
+                'roles' => $operational,
+            ],
+            [
+                'methods' => ['POST'],
                 'pattern' => '/api/personnel',
                 'roles' => $operational,
             ],
