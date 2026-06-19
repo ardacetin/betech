@@ -42,6 +42,14 @@ declare(strict_types=1);
         >
             <?= htmlspecialchars(__('settings_tab_smtp'), ENT_QUOTES, 'UTF-8') ?>
         </button>
+        <button
+            type="button"
+            @click="settingsTab = 'backup'; fetchBackups()"
+            class="rounded-lg px-3 py-2 text-sm font-medium transition"
+            :class="settingsTab === 'backup' ? 'bg-zinc-900 text-white' : 'text-zinc-600 hover:bg-zinc-100'"
+        >
+            <?= htmlspecialchars(__('settings_tab_backup'), ENT_QUOTES, 'UTF-8') ?>
+        </button>
         <?php endif; ?>
     </nav>
 
@@ -369,4 +377,69 @@ declare(strict_types=1);
             </button>
         </div>
     </form>
+
+    <section x-show="settingsTab === 'backup'" x-cloak class="space-y-6">
+        <article class="rounded-2xl border border-zinc-200 bg-white p-6 shadow-soft">
+            <div class="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                    <h3 class="text-sm font-semibold text-zinc-900"><?= htmlspecialchars(__('settings_backup_title'), ENT_QUOTES, 'UTF-8') ?></h3>
+                    <p class="mt-1 text-xs text-zinc-500"><?= htmlspecialchars(__('settings_backup_hint'), ENT_QUOTES, 'UTF-8') ?></p>
+                    <p class="mt-1 text-xs text-zinc-400" x-text="window.__i18n.settings_backup_retention.replace(':days', backupRetentionDays)"></p>
+                </div>
+                <button
+                    type="button"
+                    @click="createBackup()"
+                    :disabled="isCreatingBackup || isLoadingBackups"
+                    class="inline-flex items-center gap-2 rounded-xl bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                    <span x-show="isCreatingBackup"><?= htmlspecialchars(__('settings_backup_creating'), ENT_QUOTES, 'UTF-8') ?></span>
+                    <span x-show="!isCreatingBackup"><?= htmlspecialchars(__('settings_backup_create'), ENT_QUOTES, 'UTF-8') ?></span>
+                </button>
+            </div>
+
+            <p x-show="isLoadingBackups" x-cloak class="mt-5 text-sm text-zinc-500"><?= htmlspecialchars(__('settings_backup_loading'), ENT_QUOTES, 'UTF-8') ?></p>
+
+            <p
+                x-show="!isLoadingBackups && backups.length === 0"
+                x-cloak
+                class="mt-5 rounded-xl border border-dashed border-zinc-200 bg-zinc-50 px-4 py-6 text-sm text-zinc-500"
+            >
+                <?= htmlspecialchars(__('settings_backup_empty'), ENT_QUOTES, 'UTF-8') ?>
+            </p>
+
+            <div x-show="!isLoadingBackups && backups.length > 0" x-cloak class="mt-5 overflow-x-auto rounded-xl border border-zinc-200">
+                <table class="min-w-full divide-y divide-zinc-200 text-sm">
+                    <thead class="bg-zinc-50">
+                        <tr>
+                            <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500"><?= htmlspecialchars(__('settings_backup_col_filename'), ENT_QUOTES, 'UTF-8') ?></th>
+                            <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500"><?= htmlspecialchars(__('settings_backup_col_size'), ENT_QUOTES, 'UTF-8') ?></th>
+                            <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500"><?= htmlspecialchars(__('settings_backup_col_created'), ENT_QUOTES, 'UTF-8') ?></th>
+                            <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-zinc-500"><?= htmlspecialchars(__('settings_backup_col_actions'), ENT_QUOTES, 'UTF-8') ?></th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-zinc-100 bg-white">
+                        <template x-for="backup in backups" :key="backup.filename">
+                            <tr>
+                                <td class="px-4 py-3 font-mono text-xs text-zinc-800" x-text="backup.filename"></td>
+                                <td class="px-4 py-3 text-zinc-600" x-text="backup.size_label"></td>
+                                <td class="px-4 py-3 text-zinc-600" x-text="backup.created_at"></td>
+                                <td class="px-4 py-3 text-right">
+                                    <button
+                                        type="button"
+                                        @click="downloadBackup(backup.filename)"
+                                        class="inline-flex items-center rounded-lg border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-700 transition hover:bg-zinc-50"
+                                    >
+                                        <?= htmlspecialchars(__('settings_backup_download'), ENT_QUOTES, 'UTF-8') ?>
+                                    </button>
+                                </td>
+                            </tr>
+                        </template>
+                    </tbody>
+                </table>
+            </div>
+        </article>
+
+        <div x-show="backupErrorMessage" x-cloak class="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700" x-text="backupErrorMessage"></div>
+        <div x-show="backupSuccessMessage" x-cloak class="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700" x-text="backupSuccessMessage"></div>
+    </section>
 </section>

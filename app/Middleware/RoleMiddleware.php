@@ -83,6 +83,16 @@ class RoleMiddleware implements MiddlewareInterface
                 'roles' => [User::ROLE_ADMIN],
             ],
             [
+                'methods' => ['GET', 'POST'],
+                'pattern' => '/api/backups',
+                'roles' => [User::ROLE_ADMIN],
+            ],
+            [
+                'methods' => ['GET'],
+                'pattern' => '/api/backups/{filename}/download',
+                'roles' => [User::ROLE_ADMIN],
+            ],
+            [
                 'methods' => ['GET'],
                 'pattern' => '/api/audit-logs',
                 'roles' => [User::ROLE_ADMIN],

@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Controllers\AnalyticsController;
 use App\Controllers\AssetController;
 use App\Controllers\AuditLogController;
+use App\Controllers\BackupController;
 use App\Controllers\CategoryController;
 use App\Controllers\IpNetworkController;
 use App\Controllers\LicenseController;
@@ -48,6 +49,7 @@ use App\Services\Auth\LdapAuthenticator;
 use App\Services\Auth\SessionAuthService;
 use App\Services\Auth\UserIntegrationFactory;
 use App\Services\ClientIpResolver;
+use App\Services\DatabaseBackupService;
 use App\Services\DatabaseService;
 use App\Services\EndUserContextService;
 use App\Services\IpAddressGenerator;
@@ -189,6 +191,12 @@ $ticketController = new TicketController(
 );
 $endUserController = new EndUserController($assetModel, $endUserContextService);
 $auditLogController = new AuditLogController($auditLogModel, $auditChangeFormatter);
+$databaseBackupService = new DatabaseBackupService(
+    $rootPath . '/backups',
+    $databaseConfig,
+    $appLogger
+);
+$backupController = new BackupController($databaseBackupService, $sessionAuthService, $auditLogger);
 
 $app->get('/login', [$authController, 'showLoginForm']);
 $app->post('/login', [$authController, 'login']);
@@ -202,6 +210,9 @@ $app->get('/api/dashboard/stats', [$dashboardController, 'stats']);
 $app->get('/api/settings', [$settingsController, 'show']);
 $app->put('/api/settings', [$settingsController, 'update']);
 $app->post('/api/settings/smtp/test', [$settingsController, 'sendTestSmtp']);
+$app->get('/api/backups', [$backupController, 'index']);
+$app->post('/api/backups', [$backupController, 'store']);
+$app->get('/api/backups/{filename}/download', [$backupController, 'download']);
 $app->get('/api/audit-logs', [$auditLogController, 'index']);
 $app->get('/api/categories', [$categoryController, 'index']);
 $app->post('/api/categories', [$categoryController, 'store']);

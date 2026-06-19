@@ -105,6 +105,11 @@ $i18nScript = json_encode([
     'settings_smtp_test_failed' => __('settings_smtp_test_failed'),
     'settings_smtp_test_recipient_invalid' => __('settings_smtp_test_recipient_invalid'),
     'settings_smtp_test_validation_failed' => __('settings_smtp_test_validation_failed'),
+    'settings_backup_retention' => __('settings_backup_retention'),
+    'backup_create_success' => __('backup_create_success'),
+    'backup_create_error' => __('backup_create_error'),
+    'backup_fetch_error' => __('backup_fetch_error'),
+    'backup_network_error' => __('backup_network_error'),
     'settings_auth_local' => __('settings_auth_local'),
     'settings_auth_local_hint' => __('settings_auth_local_hint'),
     'settings_auth_ldap' => __('settings_auth_ldap'),
@@ -2179,6 +2184,7 @@ $i18nScript = json_encode([
                 locations: <?= json_encode(__('locations_page_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 personnel: <?= json_encode(__('personnel_page_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 smtp: <?= json_encode(__('settings_tab_smtp'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
+                backup: <?= json_encode(__('settings_tab_backup'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 audit_logs: <?= json_encode(__('audit_logs_page_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
             },
             pageSubtitles: {
@@ -2195,6 +2201,7 @@ $i18nScript = json_encode([
                 locations: <?= json_encode(__('locations_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 personnel: <?= json_encode(__('personnel_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 smtp: <?= json_encode(__('settings_smtp_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
+                backup: <?= json_encode(__('settings_backup_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 audit_logs: <?= json_encode(__('audit_logs_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
             },
             isAddOpen: false,
@@ -2458,6 +2465,12 @@ $i18nScript = json_encode([
             },
             smtpTestRecipient: <?= json_encode($currentUserEmail ?? '', JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
             isSendingSmtpTest: false,
+            backups: [],
+            isLoadingBackups: false,
+            isCreatingBackup: false,
+            backupRetentionDays: 7,
+            backupErrorMessage: '',
+            backupSuccessMessage: '',
             authDrivers: [
                 {
                     id: 'local',
@@ -2601,6 +2614,7 @@ $i18nScript = json_encode([
                         categories: this.pageTitles.categories,
                         locations: this.pageTitles.locations,
                         smtp: this.pageTitles.smtp,
+                        backup: this.pageTitles.backup,
                     };
 
                     return tabTitles[this.settingsTab] || this.pageTitles.settings;
@@ -2615,6 +2629,7 @@ $i18nScript = json_encode([
                         categories: this.pageSubtitles.categories,
                         locations: this.pageSubtitles.locations,
                         smtp: this.pageSubtitles.smtp,
+                        backup: this.pageSubtitles.backup,
                     };
 
                     return tabSubtitles[this.settingsTab] || this.pageSubtitles.settings;
@@ -2670,6 +2685,10 @@ $i18nScript = json_encode([
 
                     if (this.activeView === 'settings' && this.settingsTab === 'locations') {
                         this.fetchLocations();
+                    }
+
+                    if (this.activeView === 'settings' && this.settingsTab === 'backup') {
+                        this.fetchBackups();
                     }
 
                     if (this.activeView === 'dashboard') {
@@ -6215,6 +6234,79 @@ $i18nScript = json_encode([
                 } finally {
                     this.isSendingSmtpTest = false;
                 }
+            },
+            async fetchBackups() {
+                if (!this.canAccessSettings) {
+                    return;
+                }
+
+                this.isLoadingBackups = true;
+                this.backupErrorMessage = '';
+                this.backupSuccessMessage = '';
+
+                try {
+                    const response = await fetch('/api/backups', {
+                        headers: {
+                            Accept: 'application/json',
+                        },
+                    });
+
+                    const result = await response.json();
+
+                    if (!response.ok) {
+                        this.backupErrorMessage = result.message || window.__i18n.backup_fetch_error;
+                        this.backups = [];
+                        return;
+                    }
+
+                    this.backups = Array.isArray(result.data?.backups) ? result.data.backups : [];
+                    this.backupRetentionDays = Number(result.data?.retention_days || 7);
+                } catch (error) {
+                    this.backupErrorMessage = window.__i18n.backup_network_error;
+                    this.backups = [];
+                } finally {
+                    this.isLoadingBackups = false;
+                }
+            },
+            async createBackup() {
+                if (!this.canAccessSettings) {
+                    return;
+                }
+
+                this.isCreatingBackup = true;
+                this.backupErrorMessage = '';
+                this.backupSuccessMessage = '';
+
+                try {
+                    const response = await fetch('/api/backups', {
+                        method: 'POST',
+                        headers: {
+                            Accept: 'application/json',
+                        },
+                    });
+
+                    const result = await response.json();
+
+                    if (!response.ok) {
+                        this.backupErrorMessage = result.message || window.__i18n.backup_create_error;
+                        return;
+                    }
+
+                    this.backupSuccessMessage = result.message || window.__i18n.backup_create_success;
+                    this.backups = Array.isArray(result.data?.backups) ? result.data.backups : [];
+                    this.backupRetentionDays = Number(result.data?.retention_days || this.backupRetentionDays);
+                } catch (error) {
+                    this.backupErrorMessage = window.__i18n.backup_network_error;
+                } finally {
+                    this.isCreatingBackup = false;
+                }
+            },
+            downloadBackup(filename) {
+                if (!filename) {
+                    return;
+                }
+
+                window.location.href = '/api/backups/' + encodeURIComponent(filename) + '/download';
             },
         };
     }

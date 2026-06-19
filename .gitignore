@@ -3,6 +3,8 @@
 /.env
 composer.phar
 /logs/*.log
+/backups/*
+!/backups/.htaccess
 /storage/backups/*
 !/storage/backups/.htaccess
 

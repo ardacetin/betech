@@ -17,6 +17,7 @@ use App\Models\Setting;
 use App\Models\Ticket;
 use App\Services\AppLogger;
 use App\Services\ClientIpResolver;
+use App\Services\DatabaseBackupService;
 use App\Services\DatabaseService;
 use App\Services\Mail\DailySummaryNotificationService;
 use App\Services\Mail\MailConfigResolver;
@@ -103,7 +104,26 @@ if ($command === 'notify:daily_summary') {
     exit(1);
 }
 
+if ($command === 'backup:database') {
+    $backupService = new DatabaseBackupService(
+        $rootPath . '/backups',
+        $databaseConfig,
+        $appLogger
+    );
+
+    $result = $backupService->run();
+
+    if ($result['success']) {
+        echo $result['message'] . "\n";
+        exit(0);
+    }
+
+    fwrite(STDERR, 'Error: ' . $result['message'] . "\n");
+    exit(1);
+}
+
 fwrite(STDERR, "Usage:\n");
 fwrite(STDERR, "  php cli.php make:admin <username>\n");
 fwrite(STDERR, "  php cli.php notify:daily_summary\n");
+fwrite(STDERR, "  php cli.php backup:database\n");
 exit(1);
