@@ -77,9 +77,14 @@ class AuthController
         $clientIp = $this->clientIpResolver->resolveFromRequest($request);
         $parsedBody = $request->getParsedBody();
         $payload = is_array($parsedBody) ? $parsedBody : [];
+        $mode = strtolower(trim((string) ($payload['mode'] ?? 'local')));
         $identifier = trim((string) ($payload['identifier'] ?? $payload['email'] ?? $payload['username'] ?? ''));
         $password = trim((string) ($payload['password'] ?? $_POST['password'] ?? ''));
         $redirectTarget = $this->sanitizeRedirect((string) ($payload['redirect'] ?? ''));
+
+        if ($mode === 'ldap') {
+            return $this->completeDirectLdapLogin($response, $clientIp, $identifier, $password, $redirectTarget, 'form');
+        }
 
         if ($identifier === '' || $password === '') {
             $this->logFailedLogin($clientIp, $identifier, 'missing_credentials', false, 'form');
@@ -186,43 +191,7 @@ class AuthController
                 return $this->jsonAuthError($response, 'login_missing_credentials', 422);
             }
 
-            $ldapProfile = $this->ldapAuthenticator->authenticate($identifier, $password);
-
-            if ($ldapProfile === null) {
-                $this->logFailedLogin($clientIp, $identifier, 'ldap_failed', true, 'api_ldap');
-
-                return $this->jsonAuthError($response, 'login_ldap_failed', 401);
-            }
-
-            $systemUser = $this->userModel->findByEmail($ldapProfile['email']);
-
-            if ($systemUser !== null) {
-                $this->loginAttemptService->clearFailures($clientIp);
-                $this->sessionLoginFromUser($systemUser);
-                $this->auditLogin($clientIp, $systemUser, 'ldap', $identifier);
-
-                return $this->jsonAuthSuccess($response, $systemUser);
-            }
-
-            $person = $this->personnelModel->provisionFromAuth([
-                ...$ldapProfile,
-                'auth_provider' => Personnel::PROVIDER_LDAP,
-                'provider_subject' => $ldapProfile['external_id'],
-            ]);
-
-            $this->loginAttemptService->clearFailures($clientIp);
-            $this->sessionLoginFromPersonnel($person);
-            $this->auditLogin($clientIp, [
-                'id' => $person['id'],
-                'email' => $person['email'] ?? '',
-            ], 'ldap', $identifier);
-
-            return $this->jsonAuthSuccess($response, [
-                'id' => $person['id'],
-                'name' => $person['name'],
-                'email' => $person['email'],
-                'role' => User::ROLE_END_USER,
-            ]);
+            return $this->jsonDirectLdapLogin($response, $clientIp, $identifier, $password);
         }
 
         $this->logFailedLogin($clientIp, $identifier, 'provider_disabled', false, 'api_' . $mode);
@@ -359,6 +328,115 @@ class AuthController
         $this->auditLogin($clientIp, $user, 'local', $identifier);
 
         return $response->withHeader('Location', $redirectTarget)->withStatus(302);
+    }
+
+    private function completeDirectLdapLogin(
+        ResponseInterface $response,
+        string $clientIp,
+        string $identifier,
+        string $password,
+        string $redirectTarget,
+        string $method
+    ): ResponseInterface {
+        $providers = $this->settingModel->getLoginProviders();
+
+        if (!$providers['ldap']) {
+            $this->logFailedLogin($clientIp, $identifier, 'provider_disabled', false, $method);
+
+            return $this->redirectWithError($response, 'login_provider_disabled', $redirectTarget);
+        }
+
+        if ($identifier === '' || $password === '') {
+            $this->logFailedLogin($clientIp, $identifier, 'missing_credentials', false, $method);
+
+            return $this->redirectWithError($response, 'login_missing_credentials', $redirectTarget);
+        }
+
+        $ldapProfile = $this->ldapAuthenticator->authenticate($identifier, $password);
+
+        if ($ldapProfile === null) {
+            $this->logFailedLogin($clientIp, $identifier, 'ldap_failed', true, $method);
+
+            return $this->redirectWithError($response, 'login_ldap_failed', $redirectTarget);
+        }
+
+        $systemUser = $this->userModel->findByEmail($ldapProfile['email']);
+
+        if ($systemUser !== null) {
+            $user = $this->userModel->findById((int) $systemUser['id']);
+
+            if ($user === null) {
+                $this->logFailedLogin($clientIp, $identifier, 'ldap_failed', true, $method);
+
+                return $this->redirectWithError($response, 'login_ldap_failed', $redirectTarget);
+            }
+
+            $this->loginAttemptService->clearFailures($clientIp);
+            $this->sessionLoginFromUser($user);
+            $this->auditLogin($clientIp, $user, 'ldap', $identifier);
+
+            return $response->withHeader('Location', $redirectTarget)->withStatus(302);
+        }
+
+        $person = $this->personnelModel->provisionFromAuth([
+            ...$ldapProfile,
+            'auth_provider' => Personnel::PROVIDER_LDAP,
+            'provider_subject' => $ldapProfile['external_id'],
+        ]);
+
+        $this->loginAttemptService->clearFailures($clientIp);
+        $this->sessionLoginFromPersonnel($person);
+        $this->auditLogin($clientIp, [
+            'id' => $person['id'],
+            'email' => $person['email'] ?? '',
+        ], 'ldap', $identifier);
+
+        return $response->withHeader('Location', $redirectTarget)->withStatus(302);
+    }
+
+    private function jsonDirectLdapLogin(
+        ResponseInterface $response,
+        string $clientIp,
+        string $identifier,
+        string $password
+    ): ResponseInterface {
+        $ldapProfile = $this->ldapAuthenticator->authenticate($identifier, $password);
+
+        if ($ldapProfile === null) {
+            $this->logFailedLogin($clientIp, $identifier, 'ldap_failed', true, 'api_ldap');
+
+            return $this->jsonAuthError($response, 'login_ldap_failed', 401);
+        }
+
+        $systemUser = $this->userModel->findByEmail($ldapProfile['email']);
+
+        if ($systemUser !== null) {
+            $this->loginAttemptService->clearFailures($clientIp);
+            $this->sessionLoginFromUser($systemUser);
+            $this->auditLogin($clientIp, $systemUser, 'ldap', $identifier);
+
+            return $this->jsonAuthSuccess($response, $systemUser);
+        }
+
+        $person = $this->personnelModel->provisionFromAuth([
+            ...$ldapProfile,
+            'auth_provider' => Personnel::PROVIDER_LDAP,
+            'provider_subject' => $ldapProfile['external_id'],
+        ]);
+
+        $this->loginAttemptService->clearFailures($clientIp);
+        $this->sessionLoginFromPersonnel($person);
+        $this->auditLogin($clientIp, [
+            'id' => $person['id'],
+            'email' => $person['email'] ?? '',
+        ], 'ldap', $identifier);
+
+        return $this->jsonAuthSuccess($response, [
+            'id' => $person['id'],
+            'name' => $person['name'],
+            'email' => $person['email'],
+            'role' => User::ROLE_END_USER,
+        ]);
     }
 
     /**

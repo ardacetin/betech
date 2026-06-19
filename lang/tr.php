@@ -498,6 +498,7 @@ return [
     'settings_ldap_host' => 'LDAP Sunucu Adresi',
     'settings_ldap_port' => 'Port',
     'settings_ldap_base_dn' => 'Base DN',
+    'settings_ldap_account_suffix' => 'Hesap Eki (UPN)',
     'settings_ldap_bind_dn' => 'Bind DN',
     'settings_ldap_bind_password' => 'Bind Parolası',
     'settings_ldap_use_tls' => 'STARTTLS kullan',

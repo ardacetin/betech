@@ -499,6 +499,7 @@ return [
     'settings_ldap_host' => 'LDAP Server Host',
     'settings_ldap_port' => 'Port',
     'settings_ldap_base_dn' => 'Base DN',
+    'settings_ldap_account_suffix' => 'Account Suffix (UPN)',
     'settings_ldap_bind_dn' => 'Bind DN',
     'settings_ldap_bind_password' => 'Bind Password',
     'settings_ldap_use_tls' => 'Use STARTTLS',

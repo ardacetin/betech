@@ -109,7 +109,8 @@ class Setting
      *     base_dn: string,
      *     bind_dn: string,
      *     bind_password: string,
-     *     use_tls: bool
+     *     use_tls: bool,
+     *     account_suffix: string
      * }
      */
     public function getLdapConfig(): array
@@ -121,6 +122,7 @@ class Setting
             'bind_dn' => trim($this->get('ldap_bind_dn', '') ?? ''),
             'bind_password' => $this->get('ldap_bind_password', '') ?? '',
             'use_tls' => $this->toBool($this->get('ldap_use_tls', '0')),
+            'account_suffix' => $this->resolveLdapAccountSuffix(),
         ];
     }
 
@@ -139,6 +141,7 @@ class Setting
             'bind_password' => '',
             'bind_password_configured' => $this->hasSecret('ldap_bind_password'),
             'use_tls' => $config['use_tls'],
+            'account_suffix' => $config['account_suffix'],
         ];
     }
 
@@ -198,6 +201,7 @@ class Setting
         $this->set('ldap_base_dn', trim((string) ($config['base_dn'] ?? '')));
         $this->set('ldap_bind_dn', trim((string) ($config['bind_dn'] ?? '')));
         $this->set('ldap_use_tls', $this->toBool($config['use_tls'] ?? false) ? '1' : '0');
+        $this->set('ldap_account_suffix', $this->normalizeLdapAccountSuffix((string) ($config['account_suffix'] ?? '')));
 
         $password = trim((string) ($config['bind_password'] ?? ''));
 
@@ -431,6 +435,32 @@ class Setting
         if ($password !== '') {
             $this->set('smtp_pass', $password);
         }
+    }
+
+    private function resolveLdapAccountSuffix(): string
+    {
+        $fromSetting = trim($this->get('ldap_account_suffix', '') ?? '');
+
+        if ($fromSetting !== '') {
+            return $this->normalizeLdapAccountSuffix($fromSetting);
+        }
+
+        return $this->normalizeLdapAccountSuffix((string) ($_ENV['LDAP_ACCOUNT_SUFFIX'] ?? ''));
+    }
+
+    private function normalizeLdapAccountSuffix(string $suffix): string
+    {
+        $suffix = trim($suffix);
+
+        if ($suffix === '' || str_contains($suffix, '\\')) {
+            return $suffix;
+        }
+
+        if (!str_starts_with($suffix, '@')) {
+            $suffix = '@' . ltrim($suffix, '@');
+        }
+
+        return $suffix;
     }
 
     private function hasSecret(string $key): bool

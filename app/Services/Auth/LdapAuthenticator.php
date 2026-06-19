@@ -28,6 +28,7 @@ class LdapAuthenticator
             return null;
         }
 
+        $formattedUsername = $this->formatBindUsername($username, $config);
         $connection = $this->connect($config);
 
         if ($connection === null) {
@@ -35,30 +36,70 @@ class LdapAuthenticator
         }
 
         try {
-            if (!$this->bindServiceAccount($connection, $config)) {
+            $hasServiceAccount = $config['bind_dn'] !== '' && $config['bind_password'] !== '';
+
+            if ($hasServiceAccount) {
+                if (!$this->bindServiceAccount($connection, $config)) {
+                    return null;
+                }
+
+                $entry = $this->findUserEntry($connection, $config['base_dn'], $username, $formattedUsername);
+
+                if ($entry === null) {
+                    return null;
+                }
+
+                $userDn = (string) ($entry['dn'] ?? '');
+
+                if ($userDn === '') {
+                    return null;
+                }
+
+                if (!$this->bindUserCredentials($connection, $userDn, $username, $formattedUsername, $password)) {
+                    return null;
+                }
+
+                return $this->mapEntry($entry, $username);
+            }
+
+            if (!$this->bindUserCredentials($connection, '', $username, $formattedUsername, $password)) {
                 return null;
             }
 
-            $entry = $this->findUserEntry($connection, $config['base_dn'], $username);
+            $entry = $this->findUserEntry($connection, $config['base_dn'], $username, $formattedUsername);
 
-            if ($entry === null) {
-                return null;
-            }
-
-            $userDn = (string) ($entry['dn'] ?? '');
-
-            if ($userDn === '') {
-                return null;
-            }
-
-            if (@ldap_bind($connection, $userDn, $password) !== true) {
-                return null;
-            }
-
-            return $this->mapEntry($entry, $username);
+            return $entry === null ? null : $this->mapEntry($entry, $username);
         } finally {
             @ldap_unbind($connection);
         }
+    }
+
+    /**
+     * @param array<string, mixed> $config
+     */
+    public function formatBindUsername(string $username, array $config): string
+    {
+        $trimmed = trim($username);
+
+        if ($trimmed === '') {
+            return $trimmed;
+        }
+
+        if (str_contains($trimmed, '@') || str_contains($trimmed, '\\')) {
+            return $trimmed;
+        }
+
+        $suffix = trim((string) ($config['account_suffix'] ?? ''));
+
+        if ($suffix === '') {
+            return $trimmed;
+        }
+
+        if (!str_starts_with($suffix, '@')) {
+            $suffix = '@' . ltrim($suffix, '@');
+        }
+
+        return $trimmed . $suffix;
     }
 
     /**
@@ -96,13 +137,47 @@ class LdapAuthenticator
         return @ldap_bind($connection) === true;
     }
 
+    private function bindUserCredentials(
+        \LDAP\Connection $connection,
+        string $userDn,
+        string $username,
+        string $formattedUsername,
+        string $password
+    ): bool {
+        $candidates = [];
+
+        if ($userDn !== '') {
+            $candidates[] = $userDn;
+        }
+
+        if ($formattedUsername !== '') {
+            $candidates[] = $formattedUsername;
+        }
+
+        if ($username !== '' && $username !== $formattedUsername) {
+            $candidates[] = $username;
+        }
+
+        foreach (array_values(array_unique($candidates)) as $bindIdentity) {
+            if (@ldap_bind($connection, $bindIdentity, $password) === true) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     /**
      * @return array<string, mixed>|null
      */
-    private function findUserEntry(\LDAP\Connection $connection, string $baseDn, string $username): ?array
-    {
-        $filter = $this->buildIdentityFilter($username);
-        $attributes = ['cn', 'mail', 'department', 'uid', 'displayName', 'sAMAccountName'];
+    private function findUserEntry(
+        \LDAP\Connection $connection,
+        string $baseDn,
+        string $username,
+        string $formattedUsername
+    ): ?array {
+        $filter = $this->buildIdentityFilter($username, $formattedUsername);
+        $attributes = ['cn', 'mail', 'department', 'uid', 'displayName', 'sAMAccountName', 'userPrincipalName'];
         $search = @ldap_search($connection, $baseDn, $filter, $attributes, 0, 1);
 
         if ($search === false) {
@@ -118,19 +193,38 @@ class LdapAuthenticator
         return $entries[0];
     }
 
-    private function buildIdentityFilter(string $username): string
+    private function buildIdentityFilter(string $username, string $formattedUsername): string
     {
         $trimmed = trim($username);
         $escaped = $this->escapeFilterValue($trimmed);
 
         if (str_contains($trimmed, '@')) {
-            return sprintf('(&(objectClass=person)(mail=%s))', $escaped);
+            return sprintf(
+                '(&(objectClass=person)(|(mail=%1$s)(userPrincipalName=%1$s)))',
+                $escaped
+            );
         }
 
-        return sprintf(
-            '(&(objectClass=person)(|(uid=%1$s)(sAMAccountName=%1$s)(cn=%1$s)(mail=%1$s)))',
-            $escaped
-        );
+        if (str_contains($trimmed, '\\')) {
+            $parts = explode('\\', $trimmed, 2);
+            $samAccountName = $this->escapeFilterValue(trim($parts[1] ?? $trimmed));
+
+            return sprintf('(&(objectClass=person)(sAMAccountName=%s))', $samAccountName);
+        }
+
+        $clauses = [
+            sprintf('(uid=%s)', $escaped),
+            sprintf('(sAMAccountName=%s)', $escaped),
+            sprintf('(cn=%s)', $escaped),
+        ];
+
+        if ($formattedUsername !== $trimmed && str_contains($formattedUsername, '@')) {
+            $formattedEscaped = $this->escapeFilterValue($formattedUsername);
+            $clauses[] = sprintf('(userPrincipalName=%s)', $formattedEscaped);
+            $clauses[] = sprintf('(mail=%s)', $formattedEscaped);
+        }
+
+        return sprintf('(&(objectClass=person)(|%s))', implode('', $clauses));
     }
 
     private function escapeFilterValue(string $value): string
@@ -149,10 +243,12 @@ class LdapAuthenticator
      */
     private function mapEntry(array $entry, string $fallbackUsername): array
     {
-        $email = $this->firstAttribute($entry, 'mail') ?? '';
+        $email = $this->firstAttribute($entry, 'mail')
+            ?: $this->firstAttribute($entry, 'userPrincipalName')
+            ?: '';
         $uid = $this->firstAttribute($entry, 'uid')
             ?: $this->firstAttribute($entry, 'sAMAccountName')
-            ?: ($email !== '' ? $email : trim($fallbackUsername));
+            ?: ($email !== '' ? strtolower($email) : trim($fallbackUsername));
 
         $name = $this->firstAttribute($entry, 'displayName')
             ?: $this->firstAttribute($entry, 'cn')

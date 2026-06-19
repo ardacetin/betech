@@ -2441,6 +2441,7 @@ $i18nScript = json_encode([
                     host: window.__settings?.ldap_config?.host || '',
                     port: window.__settings?.ldap_config?.port || '389',
                     base_dn: window.__settings?.ldap_config?.base_dn || '',
+                    account_suffix: window.__settings?.ldap_config?.account_suffix || '',
                     bind_dn: window.__settings?.ldap_config?.bind_dn || '',
                     bind_password: '',
                     bind_password_configured: Boolean(window.__settings?.ldap_config?.bind_password_configured),
