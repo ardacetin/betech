@@ -324,6 +324,23 @@ class Asset
         return $this->db()->has('assets', $conditions);
     }
 
+    public function serialNumberExists(string $serialNumber, ?int $ignoreAssetId = null): bool
+    {
+        $trimmed = trim($serialNumber);
+
+        if ($trimmed === '') {
+            return false;
+        }
+
+        $conditions = ['serial_number' => $trimmed];
+
+        if ($ignoreAssetId !== null) {
+            $conditions['id[!]'] = $ignoreAssetId;
+        }
+
+        return $this->db()->has('assets', $conditions);
+    }
+
     public function generateNextAssetTag(): string
     {
         $rows = $this->db()->select('assets', ['asset_tag'], [

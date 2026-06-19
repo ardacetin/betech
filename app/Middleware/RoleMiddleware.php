@@ -197,6 +197,16 @@ class RoleMiddleware implements MiddlewareInterface
                 'roles' => $operational,
             ],
             [
+                'methods' => ['GET'],
+                'pattern' => '/api/assets/import/template',
+                'roles' => $operational,
+            ],
+            [
+                'methods' => ['POST'],
+                'pattern' => '/api/assets/import',
+                'roles' => $operational,
+            ],
+            [
                 'methods' => ['PUT'],
                 'pattern' => '/api/assets/{id}',
                 'roles' => $operational,

@@ -6,9 +6,11 @@ namespace App\Controllers;
 
 use App\Models\Asset;
 use App\Models\AssetHistory;
+use App\Models\Category;
 use App\Models\Location;
 use App\Models\Personnel;
 use App\Models\User;
+use App\Services\AssetCsvImportService;
 use App\Services\Auth\SessionAuthService;
 use App\Services\Auth\UserIntegrationFactory;
 use App\Services\ClientIpResolver;
@@ -34,6 +36,8 @@ class AssetController
         private readonly Personnel $personnelModel,
         private readonly User $userModel,
         private readonly Location $locationModel,
+        private readonly Category $categoryModel,
+        private readonly AssetCsvImportService $assetCsvImportService,
         private readonly SessionAuthService $sessionAuthService,
         private readonly ClientIpResolver $clientIpResolver
     ) {
@@ -556,6 +560,91 @@ class AssetController
             'status' => 'success',
             'message' => __('transfer_success'),
             'data' => $asset,
+        ]);
+    }
+
+    public function importTemplate(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
+    {
+        $csv = AssetCsvImportService::templateCsvContent();
+
+        $response->getBody()->write($csv);
+
+        return $response
+            ->withHeader('Content-Type', 'text/csv; charset=utf-8')
+            ->withHeader('Content-Disposition', 'attachment; filename="asset_import_template.csv"');
+    }
+
+    public function importCsv(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
+    {
+        $uploadedFiles = $request->getUploadedFiles();
+        $file = $uploadedFiles['file'] ?? $uploadedFiles['csv'] ?? null;
+
+        if ($file === null) {
+            return $this->jsonResponse($response, 400, [
+                'status' => 'error',
+                'message' => __('import_file_missing'),
+            ]);
+        }
+
+        if ($file->getError() !== UPLOAD_ERR_OK) {
+            return $this->jsonResponse($response, 400, [
+                'status' => 'error',
+                'message' => __('import_file_upload_error'),
+            ]);
+        }
+
+        $stream = $file->getStream();
+        $csvContent = (string) $stream->getContents();
+
+        if (trim($csvContent) === '') {
+            return $this->jsonResponse($response, 422, [
+                'status' => 'error',
+                'message' => __('import_csv_empty'),
+            ]);
+        }
+
+        $maxBytes = 5 * 1024 * 1024;
+
+        if (strlen($csvContent) > $maxBytes) {
+            return $this->jsonResponse($response, 422, [
+                'status' => 'error',
+                'message' => __('import_file_too_large'),
+            ]);
+        }
+
+        $result = $this->assetCsvImportService->importFromString($csvContent);
+        $actorUserId = $this->actorUserId();
+
+        foreach ($result['created_assets'] as $assetId) {
+            $this->logAssetHistory(
+                $request,
+                $assetId,
+                'created',
+                $actorUserId,
+                null,
+                __('asset_history_imported_csv')
+            );
+        }
+
+        $imported = (int) $result['imported'];
+        $failed = (int) $result['failed'];
+
+        if ($imported === 0 && $failed > 0) {
+            return $this->jsonResponse($response, 422, [
+                'status' => 'error',
+                'message' => __('import_all_failed'),
+                'data' => $result,
+            ]);
+        }
+
+        $message = $failed > 0
+            ? sprintf(__('import_partial_success'), $imported, $failed)
+            : sprintf(__('import_success'), $imported);
+
+        return $this->jsonResponse($response, 200, [
+            'status' => 'success',
+            'message' => $message,
+            'data' => $result,
         ]);
     }
 

@@ -59,6 +59,30 @@ class Category
         return $this->normalizeRow($row);
     }
 
+    public function findByName(string $name): ?array
+    {
+        $trimmed = trim($name);
+
+        if ($trimmed === '') {
+            return null;
+        }
+
+        $rows = $this->db()->select('categories', [
+            'id',
+            'name',
+            'slug',
+            'fields',
+        ]);
+
+        foreach ($rows as $row) {
+            if (mb_strtolower(trim((string) ($row['name'] ?? '')), 'UTF-8') === mb_strtolower($trimmed, 'UTF-8')) {
+                return $this->normalizeRow($row);
+            }
+        }
+
+        return null;
+    }
+
     /**
      * @param list<array<string, mixed>> $fields
      *

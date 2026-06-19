@@ -159,6 +159,12 @@ $i18nScript = json_encode([
     'delete_success' => __('delete_success'),
     'delete_error' => __('delete_error'),
     'delete_network_error' => __('delete_network_error'),
+    'import_success' => __('import_success'),
+    'import_partial_success' => __('import_partial_success'),
+    'import_all_failed' => __('import_all_failed'),
+    'import_network_error' => __('import_network_error'),
+    'import_file_missing' => __('import_file_missing'),
+    'import_row_error' => __('import_row_error'),
     'return_confirm' => __('return_confirm'),
     'return_success' => __('return_success'),
     'return_error' => __('return_error'),
@@ -325,6 +331,14 @@ $i18nScript = json_encode([
                         <button
                             type="button"
                             x-show="activeView === 'assets' && canManageAssets"
+                            @click="openImportModal()"
+                            class="inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-4 py-2.5 text-sm font-medium text-zinc-700 shadow-soft transition hover:bg-zinc-50"
+                        >
+                            <?= htmlspecialchars(__('import_assets'), ENT_QUOTES, 'UTF-8') ?>
+                        </button>
+                        <button
+                            type="button"
+                            x-show="activeView === 'assets' && canManageAssets"
                             @click="openAddModal()"
                             class="inline-flex items-center gap-2 rounded-xl bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white shadow-soft transition hover:bg-zinc-800"
                         >
@@ -479,6 +493,19 @@ $i18nScript = json_encode([
                     <div class="border-b border-zinc-200 px-6 py-4">
                         <h2 class="text-lg font-semibold text-zinc-900"><?= htmlspecialchars($isEndUser ? __('inventory_title_end_user') : __('inventory_title'), ENT_QUOTES, 'UTF-8') ?></h2>
                         <p class="mt-1 text-sm text-zinc-500"><?= htmlspecialchars($isEndUser ? __('inventory_subtitle_end_user') : __('inventory_subtitle'), ENT_QUOTES, 'UTF-8') ?></p>
+                    </div>
+
+                    <div x-show="importSummaryMessage" x-cloak class="border-b border-zinc-200 px-6 py-4">
+                        <p
+                            class="rounded-xl px-4 py-3 text-sm"
+                            :class="importSummaryIsError ? 'border border-rose-200 bg-rose-50 text-rose-700' : 'border border-emerald-200 bg-emerald-50 text-emerald-700'"
+                            x-text="importSummaryMessage"
+                        ></p>
+                        <ul x-show="importSummaryErrors.length > 0" x-cloak class="mt-3 max-h-40 space-y-1 overflow-y-auto rounded-xl border border-rose-100 bg-rose-50/50 px-4 py-3 text-xs text-rose-700">
+                            <template x-for="(item, index) in importSummaryErrors" :key="index">
+                                <li x-text="formatImportError(item)"></li>
+                            </template>
+                        </ul>
                     </div>
 
                     <div class="overflow-x-auto">
@@ -882,6 +909,76 @@ $i18nScript = json_encode([
                     </button>
                 </div>
             </form>
+        </div>
+    </div>
+
+    <div
+        x-show="isImportOpen"
+        x-cloak
+        class="fixed inset-0 z-50 flex items-center justify-center px-4"
+        @keydown.escape.window="closeImportModal()"
+    >
+        <div class="absolute inset-0 bg-zinc-900/40 backdrop-blur-sm" @click="closeImportModal()"></div>
+
+        <div class="relative w-full max-w-lg rounded-2xl border border-zinc-200 bg-white shadow-soft">
+            <div class="flex items-center justify-between border-b border-zinc-200 px-6 py-4">
+                <div>
+                    <h3 class="text-lg font-semibold text-zinc-900"><?= htmlspecialchars(__('import_modal_title'), ENT_QUOTES, 'UTF-8') ?></h3>
+                    <p class="mt-1 text-sm text-zinc-500"><?= htmlspecialchars(__('import_modal_subtitle'), ENT_QUOTES, 'UTF-8') ?></p>
+                </div>
+                <button type="button" @click="closeImportModal()" class="rounded-lg p-2 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600">&times;</button>
+            </div>
+
+            <div class="px-6 py-5">
+                <a
+                    href="/api/assets/import/template"
+                    class="inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-2.5 text-sm font-medium text-zinc-700 transition hover:bg-zinc-100"
+                    download="asset_import_template.csv"
+                >
+                    <?= htmlspecialchars(__('import_download_template'), ENT_QUOTES, 'UTF-8') ?>
+                </a>
+
+                <label class="mt-5 block">
+                    <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('import_select_file'), ENT_QUOTES, 'UTF-8') ?></span>
+                    <input
+                        type="file"
+                        accept=".csv,text/csv"
+                        @change="onImportFileSelected($event)"
+                        class="block w-full text-sm text-zinc-600 file:mr-4 file:rounded-lg file:border-0 file:bg-zinc-900 file:px-4 file:py-2 file:text-sm file:font-medium file:text-white hover:file:bg-zinc-800"
+                    >
+                </label>
+
+                <p x-show="importFileName" x-cloak class="mt-2 text-xs text-zinc-500" x-text="importFileName"></p>
+
+                <p x-show="importErrorMessage" x-cloak class="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700" x-text="importErrorMessage"></p>
+                <p x-show="importSuccessMessage" x-cloak class="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700" x-text="importSuccessMessage"></p>
+
+                <ul x-show="importResultErrors.length > 0" x-cloak class="mt-3 max-h-36 space-y-1 overflow-y-auto rounded-xl border border-rose-100 bg-rose-50/50 px-4 py-3 text-xs text-rose-700">
+                    <template x-for="(item, index) in importResultErrors" :key="index">
+                        <li x-text="formatImportError(item)"></li>
+                    </template>
+                </ul>
+            </div>
+
+            <div class="flex items-center justify-end gap-3 border-t border-zinc-200 px-6 py-4">
+                <button
+                    type="button"
+                    @click="closeImportModal()"
+                    :disabled="isImportSubmitting"
+                    class="rounded-xl border border-zinc-200 px-4 py-2.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                    <?= htmlspecialchars(__('cancel'), ENT_QUOTES, 'UTF-8') ?>
+                </button>
+                <button
+                    type="button"
+                    @click="submitImport()"
+                    :disabled="isImportSubmitting || !importFile"
+                    class="inline-flex items-center gap-2 rounded-xl bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                    <span x-show="isImportSubmitting"><?= htmlspecialchars(__('saving'), ENT_QUOTES, 'UTF-8') ?></span>
+                    <span x-show="!isImportSubmitting"><?= htmlspecialchars(__('import_submit'), ENT_QUOTES, 'UTF-8') ?></span>
+                </button>
+            </div>
         </div>
     </div>
 
@@ -1755,6 +1852,16 @@ $i18nScript = json_encode([
                 system_users: <?= json_encode(__('system_users_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
             },
             isAddOpen: false,
+            isImportOpen: false,
+            isImportSubmitting: false,
+            importFile: null,
+            importFileName: '',
+            importErrorMessage: '',
+            importSuccessMessage: '',
+            importResultErrors: [],
+            importSummaryMessage: '',
+            importSummaryIsError: false,
+            importSummaryErrors: [],
             isEditOpen: false,
             isDetailOpen: false,
             isTransferOpen: false,
@@ -2696,6 +2803,94 @@ $i18nScript = json_encode([
                 }
 
                 this.isAddOpen = false;
+            },
+            openImportModal() {
+                this.importFile = null;
+                this.importFileName = '';
+                this.importErrorMessage = '';
+                this.importSuccessMessage = '';
+                this.importResultErrors = [];
+                this.isImportOpen = true;
+            },
+            closeImportModal() {
+                if (this.isImportSubmitting) {
+                    return;
+                }
+
+                this.isImportOpen = false;
+                this.importFile = null;
+                this.importFileName = '';
+            },
+            onImportFileSelected(event) {
+                const file = event.target.files?.[0] ?? null;
+                this.importFile = file;
+                this.importFileName = file ? file.name : '';
+                this.importErrorMessage = '';
+                this.importSuccessMessage = '';
+                this.importResultErrors = [];
+            },
+            formatImportError(item) {
+                const row = Number(item?.row ?? 0);
+                const message = String(item?.message ?? '');
+
+                return (window.__i18n.import_row_error || 'Row %d: %s')
+                    .replace('%d', String(row))
+                    .replace('%s', message);
+            },
+            setImportSummary(message, isError, errors = []) {
+                this.importSummaryMessage = message;
+                this.importSummaryIsError = isError;
+                this.importSummaryErrors = Array.isArray(errors) ? errors : [];
+            },
+            async submitImport() {
+                if (!this.importFile) {
+                    this.importErrorMessage = window.__i18n.import_file_missing || 'Please select a CSV file.';
+                    return;
+                }
+
+                this.isImportSubmitting = true;
+                this.importErrorMessage = '';
+                this.importSuccessMessage = '';
+                this.importResultErrors = [];
+
+                const formData = new FormData();
+                formData.append('file', this.importFile);
+
+                try {
+                    const response = await fetch('/api/assets/import', {
+                        method: 'POST',
+                        headers: {
+                            'Accept': 'application/json',
+                        },
+                        body: formData,
+                    });
+                    const result = await response.json().catch(() => ({}));
+                    const data = result?.data ?? {};
+                    const errors = Array.isArray(data.errors) ? data.errors : [];
+                    const imported = Number(data.imported ?? 0);
+                    const failed = Number(data.failed ?? 0);
+                    const message = this.apiErrorMessage(result, '');
+
+                    if (!response.ok) {
+                        this.importErrorMessage = message || window.__i18n.import_all_failed;
+                        this.importResultErrors = errors;
+                        this.setImportSummary(this.importErrorMessage, true, errors);
+                        return;
+                    }
+
+                    this.importSuccessMessage = message;
+                    this.importResultErrors = errors;
+                    this.setImportSummary(message, false, errors);
+
+                    if (imported > 0) {
+                        window.setTimeout(() => window.location.reload(), 1200);
+                    }
+                } catch (error) {
+                    this.importErrorMessage = window.__i18n.import_network_error;
+                    this.setImportSummary(this.importErrorMessage, true, []);
+                } finally {
+                    this.isImportSubmitting = false;
+                }
             },
             openEditModal(asset) {
                 this.editErrorMessage = '';

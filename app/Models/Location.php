@@ -63,6 +63,36 @@ class Location
         return $this->normalizeRow($row);
     }
 
+    public function findByName(string $name, ?string $building = null): ?array
+    {
+        $trimmedName = trim($name);
+
+        if ($trimmedName === '') {
+            return null;
+        }
+
+        $normalizedBuilding = $building !== null ? trim($building) : '';
+
+        foreach ($this->findAll() as $row) {
+            $rowName = trim((string) ($row['name'] ?? ''));
+            $rowBuilding = trim((string) ($row['building'] ?? ''));
+
+            if (mb_strtolower($rowName, 'UTF-8') !== mb_strtolower($trimmedName, 'UTF-8')) {
+                continue;
+            }
+
+            if ($normalizedBuilding === '') {
+                return $row;
+            }
+
+            if (mb_strtolower($rowBuilding, 'UTF-8') === mb_strtolower($normalizedBuilding, 'UTF-8')) {
+                return $row;
+            }
+        }
+
+        return null;
+    }
+
     /**
      * @return array<string, mixed>
      */

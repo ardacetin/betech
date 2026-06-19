@@ -30,6 +30,7 @@ use App\Models\Personnel;
 use App\Models\User;
 use App\Services\AnalyticsService;
 use App\Services\AppLogger;
+use App\Services\AssetCsvImportService;
 use App\Services\Auth\LdapAuthenticator;
 use App\Services\Auth\OAuthService;
 use App\Services\Auth\SessionAuthService;
@@ -105,6 +106,7 @@ $viewRenderer = new ViewRenderer($rootPath . '/views');
 $qrCodeService = new QrCodeService($appConfig['url']);
 $analyticsService = new AnalyticsService($databaseService);
 $zimmetTutanakService = new ZimmetTutanakService();
+$assetCsvImportService = new AssetCsvImportService($assetModel, $categoryModel, $locationModel);
 $ldapAuthenticator = new LdapAuthenticator($settingModel);
 $oauthService = new OAuthService($settingModel, $appConfig['url']);
 $authController = new AuthController(
@@ -120,7 +122,7 @@ $authController = new AuthController(
     $viewRenderer
 );
 $healthController = new HealthController($appConfig, $assetModel, $categoryModel, $viewRenderer, $qrCodeService, $analyticsService, $settingModel, $userModel, $sessionAuthService);
-$assetController = new AssetController($assetModel, $assetHistoryModel, $userIntegrationFactory, $personnelModel, $userModel, $locationModel, $sessionAuthService, $clientIpResolver);
+$assetController = new AssetController($assetModel, $assetHistoryModel, $userIntegrationFactory, $personnelModel, $userModel, $locationModel, $categoryModel, $assetCsvImportService, $sessionAuthService, $clientIpResolver);
 $assetViewController = new AssetViewController($appConfig, $assetModel, $categoryModel, $viewRenderer);
 $assetTutanakController = new AssetTutanakController($assetModel, $settingModel, $personnelModel, $userModel, $userIntegrationFactory, $zimmetTutanakService, $viewRenderer, $sessionAuthService);
 $userController = new UserController($userIntegrationFactory, $userModel, $personnelModel, $assetModel, $assetHistoryModel, $settingModel, $sessionAuthService, $clientIpResolver);
@@ -166,6 +168,8 @@ $app->put('/api/users/{id}', [$userController, 'update']);
 $app->delete('/api/users/{id}', [$userController, 'destroy']);
 $app->get('/api/assets/{id}/tutanak', [$assetTutanakController, 'show']);
 $app->post('/api/assets', [$assetController, 'store']);
+$app->get('/api/assets/import/template', [$assetController, 'importTemplate']);
+$app->post('/api/assets/import', [$assetController, 'importCsv']);
 $app->put('/api/assets/{id}', [$assetController, 'update']);
 $app->post('/api/assets/{id}/assign', [$assetController, 'assign']);
 $app->post('/api/assets/{id}/return', [$assetController, 'returnToStorage']);
