@@ -127,6 +127,21 @@ class RoleMiddleware implements MiddlewareInterface
                 'roles' => $operational,
             ],
             [
+                'methods' => ['GET'],
+                'pattern' => '/api/licenses/{id}',
+                'roles' => $operational,
+            ],
+            [
+                'methods' => ['PUT'],
+                'pattern' => '/api/licenses/{id}',
+                'roles' => $operational,
+            ],
+            [
+                'methods' => ['DELETE'],
+                'pattern' => '/api/licenses/{id}',
+                'roles' => $operational,
+            ],
+            [
                 'methods' => ['POST'],
                 'pattern' => '/api/licenses/{id}/assign',
                 'roles' => $operational,
@@ -139,6 +154,41 @@ class RoleMiddleware implements MiddlewareInterface
             [
                 'methods' => ['GET'],
                 'pattern' => '/api/licenses/{id}/assignments',
+                'roles' => $operational,
+            ],
+            [
+                'methods' => ['GET'],
+                'pattern' => '/api/consumables',
+                'roles' => $operational,
+            ],
+            [
+                'methods' => ['POST'],
+                'pattern' => '/api/consumables',
+                'roles' => $operational,
+            ],
+            [
+                'methods' => ['GET'],
+                'pattern' => '/api/consumables/{id}',
+                'roles' => $operational,
+            ],
+            [
+                'methods' => ['PUT'],
+                'pattern' => '/api/consumables/{id}',
+                'roles' => $operational,
+            ],
+            [
+                'methods' => ['DELETE'],
+                'pattern' => '/api/consumables/{id}',
+                'roles' => $operational,
+            ],
+            [
+                'methods' => ['POST'],
+                'pattern' => '/api/consumables/{id}/checkout',
+                'roles' => $operational,
+            ],
+            [
+                'methods' => ['POST'],
+                'pattern' => '/api/consumables/{id}/restock',
                 'roles' => $operational,
             ],
             [

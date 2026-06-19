@@ -207,6 +207,18 @@ $i18nScript = json_encode([
     'license_seats_in_use' => __('license_seats_in_use'),
     'license_no_expiration' => __('license_no_expiration'),
     'asset_licenses_error' => __('asset_licenses_error'),
+    'consumables_fetch_error' => __('consumables_fetch_error'),
+    'consumables_network_error' => __('consumables_network_error'),
+    'consumable_create_success' => __('consumable_create_success'),
+    'consumable_create_error' => __('consumable_create_error'),
+    'consumable_update_success' => __('consumable_update_success'),
+    'consumable_update_error' => __('consumable_update_error'),
+    'consumable_delete_success' => __('consumable_delete_success'),
+    'consumable_checkout_success' => __('consumable_checkout_success'),
+    'consumable_restock_success' => __('consumable_restock_success'),
+    'consumable_checkout_error' => __('consumable_checkout_error'),
+    'consumable_restock_error' => __('consumable_restock_error'),
+    'consumable_delete_confirm' => __('consumable_delete_confirm'),
     'add_manual_user' => __('add_manual_user'),
     'manual_user_create_button' => __('manual_user_create_button'),
     'manual_user_create_error' => __('manual_user_create_error'),
@@ -222,7 +234,7 @@ $i18nScript = json_encode([
     'dashboard_activity_generic' => __('dashboard_activity_generic'),
 ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
 ?>
-<div class="min-h-full" x-data="assetDashboard()" x-init="restoreDashboardView(); if (canManageAssets) { fetchCategories(); fetchLocations(); fetchLicenses(); if (activeView === 'dashboard') { fetchDashboardStats(); } } this.isAssignLicenseModalOpen = false;">
+<div class="min-h-full" x-data="assetDashboard()" x-init="restoreDashboardView(); if (canManageAssets) { fetchCategories(); fetchLocations(); fetchLicenses(); fetchConsumables(); if (activeView === 'dashboard') { fetchDashboardStats(); } } this.isAssignLicenseModalOpen = false;">
     <div class="flex min-h-screen">
         <aside class="hidden w-64 shrink-0 border-r border-zinc-200 bg-white lg:flex lg:flex-col">
             <div class="flex h-16 items-center gap-3 border-b border-zinc-200 px-6">
@@ -263,6 +275,15 @@ $i18nScript = json_encode([
                 >
                     <span class="h-2 w-2 rounded-full" :class="activeView === 'licenses' ? 'bg-zinc-900' : 'bg-zinc-300'"></span>
                     <?= htmlspecialchars(__('nav_licenses'), ENT_QUOTES, 'UTF-8') ?>
+                </button>
+                <button
+                    type="button"
+                    @click="activeView = 'consumables'; fetchConsumables()"
+                    class="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm font-medium transition"
+                    :class="activeView === 'consumables' ? 'bg-zinc-100 text-zinc-900' : 'text-zinc-600 hover:bg-zinc-50'"
+                >
+                    <span class="h-2 w-2 rounded-full" :class="activeView === 'consumables' ? 'bg-zinc-900' : 'bg-zinc-300'"></span>
+                    <?= htmlspecialchars(__('nav_consumables'), ENT_QUOTES, 'UTF-8') ?>
                 </button>
                 <?php endif; ?>
                 <?php if ($canAccessPersonnel): ?>
@@ -396,6 +417,15 @@ $i18nScript = json_encode([
                         >
                             <span class="text-lg leading-none">+</span>
                             <?= htmlspecialchars(__('add_license'), ENT_QUOTES, 'UTF-8') ?>
+                        </button>
+                        <button
+                            type="button"
+                            x-show="activeView === 'consumables' && canManageAssets"
+                            @click="openConsumableModal()"
+                            class="inline-flex items-center gap-2 rounded-xl bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white shadow-soft transition hover:bg-zinc-800"
+                        >
+                            <span class="text-lg leading-none">+</span>
+                            <?= htmlspecialchars(__('add_consumable'), ENT_QUOTES, 'UTF-8') ?>
                         </button>
                     </div>
                 </div>
@@ -624,6 +654,7 @@ $i18nScript = json_encode([
 
                 <?php if ($canManageAssets): ?>
                 <?php require __DIR__ . '/partials/licenses_panel.php'; ?>
+                <?php require __DIR__ . '/partials/consumables_panel.php'; ?>
                 <?php endif; ?>
                 <?php if ($canAccessSettings): ?>
                 <?php require __DIR__ . '/partials/settings_panel.php'; ?>
@@ -1705,6 +1736,76 @@ $i18nScript = json_encode([
             </div>
         </div>
     </div>
+
+    <div
+        x-show="isConsumableModalOpen"
+        x-cloak
+        class="fixed inset-0 z-50 flex items-center justify-center px-4"
+    >
+        <div class="absolute inset-0 bg-zinc-900/40 backdrop-blur-sm" @click="closeConsumableModal()"></div>
+        <div class="relative w-full max-w-lg rounded-2xl border border-zinc-200 bg-white p-6 shadow-soft">
+            <h3 class="text-lg font-semibold text-zinc-900" x-text="consumableForm.id ? '<?= htmlspecialchars(__('edit_consumable'), ENT_QUOTES, 'UTF-8') ?>' : '<?= htmlspecialchars(__('add_consumable'), ENT_QUOTES, 'UTF-8') ?>'"></h3>
+            <form class="mt-5 space-y-4" @submit.prevent="submitConsumableForm()">
+                <label class="block">
+                    <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('consumable_name_label'), ENT_QUOTES, 'UTF-8') ?></span>
+                    <input type="text" x-model="consumableForm.name" required class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4">
+                </label>
+                <div class="grid gap-4 sm:grid-cols-2">
+                    <label class="block">
+                        <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('consumable_quantity_label'), ENT_QUOTES, 'UTF-8') ?></span>
+                        <input type="number" min="0" x-model="consumableForm.quantity" required class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4">
+                    </label>
+                    <label class="block">
+                        <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('consumable_min_stock_label'), ENT_QUOTES, 'UTF-8') ?></span>
+                        <input type="number" min="0" x-model="consumableForm.min_stock_level" required class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4">
+                    </label>
+                </div>
+                <label class="block">
+                    <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('consumable_location_label'), ENT_QUOTES, 'UTF-8') ?></span>
+                    <select x-model="consumableForm.location_id" class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4">
+                        <option value=""><?= htmlspecialchars(__('consumable_location_none'), ENT_QUOTES, 'UTF-8') ?></option>
+                        <template x-for="location in locations" :key="location.id">
+                            <option :value="location.id" x-text="formatLocationLabel(location)"></option>
+                        </template>
+                    </select>
+                </label>
+                <p x-show="consumableFormError" x-cloak class="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700" x-text="consumableFormError"></p>
+                <div class="flex items-center justify-end gap-3 border-t border-zinc-200 pt-5">
+                    <button type="button" @click="closeConsumableModal()" :disabled="isConsumableSubmitting" class="rounded-xl border border-zinc-200 px-4 py-2.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60"><?= htmlspecialchars(__('cancel'), ENT_QUOTES, 'UTF-8') ?></button>
+                    <button type="submit" :disabled="isConsumableSubmitting" class="inline-flex items-center gap-2 rounded-xl bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60">
+                        <span x-show="isConsumableSubmitting"><?= htmlspecialchars(__('saving'), ENT_QUOTES, 'UTF-8') ?></span>
+                        <span x-show="!isConsumableSubmitting"><?= htmlspecialchars(__('save'), ENT_QUOTES, 'UTF-8') ?></span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div
+        x-show="isConsumableAdjustModalOpen"
+        x-cloak
+        class="fixed inset-0 z-50 flex items-center justify-center px-4"
+    >
+        <div class="absolute inset-0 bg-zinc-900/40 backdrop-blur-sm" @click="closeConsumableAdjustModal()"></div>
+        <div class="relative w-full max-w-md rounded-2xl border border-zinc-200 bg-white p-6 shadow-soft">
+            <h3 class="text-lg font-semibold text-zinc-900" x-text="consumableAdjustMode === 'checkout' ? '<?= htmlspecialchars(__('consumable_checkout_title'), ENT_QUOTES, 'UTF-8') ?>' : '<?= htmlspecialchars(__('consumable_restock_title'), ENT_QUOTES, 'UTF-8') ?>'"></h3>
+            <p class="mt-1 text-sm text-zinc-500" x-text="consumableAdjustTarget?.name || ''"></p>
+            <form class="mt-5 space-y-4" @submit.prevent="submitConsumableAdjustForm()">
+                <label class="block">
+                    <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('consumable_adjust_quantity_label'), ENT_QUOTES, 'UTF-8') ?></span>
+                    <input type="number" min="1" x-model="consumableAdjustQuantity" required class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4">
+                </label>
+                <p x-show="consumableAdjustError" x-cloak class="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700" x-text="consumableAdjustError"></p>
+                <div class="flex items-center justify-end gap-3 border-t border-zinc-200 pt-5">
+                    <button type="button" @click="closeConsumableAdjustModal()" :disabled="isConsumableAdjustSubmitting" class="rounded-xl border border-zinc-200 px-4 py-2.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60"><?= htmlspecialchars(__('cancel'), ENT_QUOTES, 'UTF-8') ?></button>
+                    <button type="submit" :disabled="isConsumableAdjustSubmitting" class="inline-flex items-center gap-2 rounded-xl bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60">
+                        <span x-show="isConsumableAdjustSubmitting"><?= htmlspecialchars(__('saving'), ENT_QUOTES, 'UTF-8') ?></span>
+                        <span x-show="!isConsumableAdjustSubmitting"><?= htmlspecialchars(__('save'), ENT_QUOTES, 'UTF-8') ?></span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
 </div>
 
 <style>
@@ -1760,6 +1861,7 @@ $i18nScript = json_encode([
                 dashboard: <?= json_encode(__('dashboard_page_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 assets: <?= json_encode($isEndUser ? __('page_title_end_user') : __('nav_assets'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 licenses: <?= json_encode(__('licenses_page_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
+                consumables: <?= json_encode(__('consumables_page_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 settings: <?= json_encode(__('settings_page_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 categories: <?= json_encode(__('categories_page_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 locations: <?= json_encode(__('locations_page_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
@@ -1770,6 +1872,7 @@ $i18nScript = json_encode([
                 dashboard: <?= json_encode(__('dashboard_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 assets: <?= json_encode($isEndUser ? __('page_subtitle_end_user') : __('page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 licenses: <?= json_encode(__('licenses_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
+                consumables: <?= json_encode(__('consumables_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 settings: <?= json_encode(__('settings_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 categories: <?= json_encode(__('categories_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 locations: <?= json_encode(__('locations_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
@@ -1883,6 +1986,26 @@ $i18nScript = json_encode([
             showAssignLicensePersonnelResults: false,
             assignLicenseAssignments: [],
             assignLicenseAssignmentsLoading: false,
+            consumables: [],
+            consumablesLoading: false,
+            consumablesError: '',
+            consumablesSuccessMessage: '',
+            isConsumableModalOpen: false,
+            isConsumableSubmitting: false,
+            consumableForm: {
+                id: null,
+                name: '',
+                quantity: 0,
+                min_stock_level: 0,
+                location_id: '',
+            },
+            consumableFormError: '',
+            isConsumableAdjustModalOpen: false,
+            isConsumableAdjustSubmitting: false,
+            consumableAdjustMode: 'checkout',
+            consumableAdjustTarget: null,
+            consumableAdjustQuantity: 1,
+            consumableAdjustError: '',
             assetOptions: Array.isArray(window.__assetOptions) ? window.__assetOptions : [],
             assetLicenses: [],
             assetLicensesLoading: false,
@@ -2086,6 +2209,10 @@ $i18nScript = json_encode([
 
                     if (this.activeView === 'dashboard') {
                         this.fetchDashboardStats();
+                    }
+
+                    if (this.activeView === 'consumables') {
+                        this.fetchConsumables();
                     }
                 } catch (error) {
                     // Ignore invalid persisted view state.
@@ -3803,6 +3930,190 @@ $i18nScript = json_encode([
                     alert(window.__i18n.licenses_network_error || 'Lisanslar yüklenemedi.');
                 } finally {
                     this.licensesLoading = false;
+                }
+            },
+            async fetchConsumables() {
+                if (!this.canManageAssets) {
+                    return;
+                }
+
+                this.consumablesLoading = true;
+                this.consumablesError = '';
+
+                try {
+                    const response = await fetch('/api/consumables', {
+                        headers: { Accept: 'application/json' },
+                    });
+                    const result = await response.json();
+
+                    if (!response.ok) {
+                        this.consumablesError = result.message || window.__i18n.consumables_fetch_error;
+                        this.consumables = [];
+                        return;
+                    }
+
+                    this.consumables = Array.isArray(result.data) ? result.data : [];
+                } catch (error) {
+                    this.consumablesError = window.__i18n.consumables_network_error;
+                    this.consumables = [];
+                } finally {
+                    this.consumablesLoading = false;
+                }
+            },
+            consumableIsLowStock(item) {
+                if (!item) {
+                    return false;
+                }
+
+                if (typeof item.is_low_stock === 'boolean') {
+                    return item.is_low_stock;
+                }
+
+                return Number(item.quantity || 0) <= Number(item.min_stock_level || 0);
+            },
+            openConsumableModal(item = null) {
+                this.consumableForm = {
+                    id: item?.id ? Number(item.id) : null,
+                    name: item?.name || '',
+                    quantity: item?.quantity ?? 0,
+                    min_stock_level: item?.min_stock_level ?? 0,
+                    location_id: item?.location_id ? String(item.location_id) : '',
+                };
+                this.consumableFormError = '';
+                this.consumablesSuccessMessage = '';
+                this.isConsumableModalOpen = true;
+            },
+            closeConsumableModal() {
+                if (this.isConsumableSubmitting) {
+                    return;
+                }
+
+                this.isConsumableModalOpen = false;
+            },
+            async submitConsumableForm() {
+                this.isConsumableSubmitting = true;
+                this.consumableFormError = '';
+                this.consumablesSuccessMessage = '';
+
+                const payload = {
+                    name: this.consumableForm.name,
+                    quantity: Number(this.consumableForm.quantity) || 0,
+                    min_stock_level: Number(this.consumableForm.min_stock_level) || 0,
+                    location_id: this.consumableForm.location_id ? Number(this.consumableForm.location_id) : null,
+                };
+
+                const isEdit = Number(this.consumableForm.id) > 0;
+                const url = isEdit ? `/api/consumables/${this.consumableForm.id}` : '/api/consumables';
+                const method = isEdit ? 'PUT' : 'POST';
+
+                try {
+                    const response = await fetch(url, {
+                        method,
+                        headers: {
+                            'Content-Type': 'application/json',
+                            Accept: 'application/json',
+                        },
+                        body: JSON.stringify(payload),
+                    });
+                    const result = await response.json();
+
+                    if (!response.ok) {
+                        this.consumableFormError = result.message || (isEdit
+                            ? window.__i18n.consumable_update_error
+                            : window.__i18n.consumable_create_error);
+                        return;
+                    }
+
+                    this.consumablesSuccessMessage = result.message || (isEdit
+                        ? window.__i18n.consumable_update_success
+                        : window.__i18n.consumable_create_success);
+                    this.isConsumableModalOpen = false;
+                    await this.fetchConsumables();
+                } catch (error) {
+                    this.consumableFormError = window.__i18n.consumables_network_error;
+                } finally {
+                    this.isConsumableSubmitting = false;
+                }
+            },
+            openConsumableAdjustModal(item, mode) {
+                this.consumableAdjustTarget = item;
+                this.consumableAdjustMode = mode === 'restock' ? 'restock' : 'checkout';
+                this.consumableAdjustQuantity = 1;
+                this.consumableAdjustError = '';
+                this.isConsumableAdjustModalOpen = true;
+            },
+            closeConsumableAdjustModal() {
+                if (this.isConsumableAdjustSubmitting) {
+                    return;
+                }
+
+                this.isConsumableAdjustModalOpen = false;
+                this.consumableAdjustTarget = null;
+            },
+            async submitConsumableAdjustForm() {
+                if (!this.consumableAdjustTarget?.id) {
+                    return;
+                }
+
+                this.isConsumableAdjustSubmitting = true;
+                this.consumableAdjustError = '';
+                this.consumablesSuccessMessage = '';
+
+                const endpoint = this.consumableAdjustMode === 'restock' ? 'restock' : 'checkout';
+
+                try {
+                    const response = await fetch(`/api/consumables/${this.consumableAdjustTarget.id}/${endpoint}`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            Accept: 'application/json',
+                        },
+                        body: JSON.stringify({
+                            quantity: Number(this.consumableAdjustQuantity) || 1,
+                        }),
+                    });
+                    const result = await response.json();
+
+                    if (!response.ok) {
+                        this.consumableAdjustError = result.message || (endpoint === 'restock'
+                            ? window.__i18n.consumable_restock_error
+                            : window.__i18n.consumable_checkout_error);
+                        return;
+                    }
+
+                    this.consumablesSuccessMessage = result.message || (endpoint === 'restock'
+                        ? window.__i18n.consumable_restock_success
+                        : window.__i18n.consumable_checkout_success);
+                    this.isConsumableAdjustModalOpen = false;
+                    this.consumableAdjustTarget = null;
+                    await this.fetchConsumables();
+                } catch (error) {
+                    this.consumableAdjustError = window.__i18n.consumables_network_error;
+                } finally {
+                    this.isConsumableAdjustSubmitting = false;
+                }
+            },
+            async deleteConsumable(item) {
+                if (!item?.id || !window.confirm(window.__i18n.consumable_delete_confirm)) {
+                    return;
+                }
+
+                try {
+                    const response = await fetch(`/api/consumables/${item.id}`, {
+                        method: 'DELETE',
+                        headers: { Accept: 'application/json' },
+                    });
+                    const result = await response.json();
+
+                    if (!response.ok) {
+                        this.consumablesError = result.message || window.__i18n.consumable_update_error;
+                        return;
+                    }
+
+                    this.consumablesSuccessMessage = result.message || window.__i18n.consumable_delete_success;
+                    await this.fetchConsumables();
+                } catch (error) {
+                    this.consumablesError = window.__i18n.consumables_network_error;
                 }
             },
             openLicenseModal() {

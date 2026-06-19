@@ -80,6 +80,10 @@ class DatabaseInitializer
                 foreach ($this->patchSoftwareLicenseManagement($connection) as $warning) {
                     $warnings[] = $warning;
                 }
+
+                foreach ($this->patchConsumables($connection) as $warning) {
+                    $warnings[] = $warning;
+                }
             }
 
             foreach ($this->patchPersonnelSeparation($connection) as $warning) {
@@ -737,6 +741,34 @@ class DatabaseInitializer
     private function getLicensesTableMigrationPath(): string
     {
         return dirname($this->schemaPath) . '/migrations/008_create_licenses_tables.sql';
+    }
+
+    /**
+     * Self-heal consumables inventory table.
+     *
+     * @param object $connection Medoo instance
+     *
+     * @return list<string>
+     */
+    private function patchConsumables(object $connection): array
+    {
+        $warnings = [];
+
+        if (!$this->tableExists($connection, 'locations')) {
+            return $warnings;
+        }
+
+        if (!$this->tableExists($connection, 'consumables')) {
+            $this->applySqlFile($connection, $this->getConsumablesTableMigrationPath());
+            $warnings[] = 'Self-healed database: created consumables table.';
+        }
+
+        return $warnings;
+    }
+
+    private function getConsumablesTableMigrationPath(): string
+    {
+        return dirname($this->schemaPath) . '/migrations/012_create_consumables_table.sql';
     }
 
     /**

@@ -48,9 +48,9 @@ class LicenseController
 
         try {
             $license = $this->licenseModel->create(
-                (string) $payload['name'],
-                (string) $payload['vendor'],
-                (int) $payload['seats'],
+                (string) ($payload['name'] ?? $payload['software_name'] ?? ''),
+                (string) ($payload['vendor'] ?? '-'),
+                (int) ($payload['seats'] ?? $payload['total_seats'] ?? 1),
                 array_key_exists('license_key', $payload) ? (string) $payload['license_key'] : null,
                 array_key_exists('expiration_date', $payload) ? (string) $payload['expiration_date'] : null,
                 array_key_exists('notes', $payload) ? (string) $payload['notes'] : null
@@ -71,6 +71,122 @@ class LicenseController
             'status' => 'success',
             'message' => __('license_create_success'),
             'data' => $license,
+        ]);
+    }
+
+    public function show(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
+    {
+        $licenseId = (int) ($args['id'] ?? 0);
+
+        if ($licenseId <= 0) {
+            return $this->jsonResponse($response, 400, [
+                'status' => 'error',
+                'message' => __('license_invalid_id'),
+            ]);
+        }
+
+        $license = $this->licenseModel->findById($licenseId);
+
+        if ($license === null) {
+            return $this->jsonResponse($response, 404, [
+                'status' => 'error',
+                'message' => __('license_not_found'),
+            ]);
+        }
+
+        return $this->jsonResponse($response, 200, [
+            'status' => 'success',
+            'data' => $license,
+        ]);
+    }
+
+    public function update(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
+    {
+        $licenseId = (int) ($args['id'] ?? 0);
+
+        if ($licenseId <= 0) {
+            return $this->jsonResponse($response, 400, [
+                'status' => 'error',
+                'message' => __('license_invalid_id'),
+            ]);
+        }
+
+        $payload = $this->resolvePayload($request);
+
+        if ($payload === null) {
+            return $this->jsonResponse($response, 400, [
+                'status' => 'error',
+                'message' => __('license_invalid_payload'),
+            ]);
+        }
+
+        if (array_key_exists('software_name', $payload) && !array_key_exists('name', $payload)) {
+            $payload['name'] = $payload['software_name'];
+        }
+
+        if (array_key_exists('total_seats', $payload) && !array_key_exists('seats', $payload)) {
+            $payload['seats'] = $payload['total_seats'];
+        }
+
+        $errors = $this->validateUpdatePayload($payload);
+
+        if ($errors !== []) {
+            return $this->jsonResponse($response, 422, [
+                'status' => 'error',
+                'message' => __('license_validation_failed'),
+                'errors' => $errors,
+            ]);
+        }
+
+        try {
+            $license = $this->licenseModel->update($licenseId, $payload);
+        } catch (\InvalidArgumentException $exception) {
+            return $this->jsonResponse($response, 422, [
+                'status' => 'error',
+                'message' => $exception->getMessage(),
+            ]);
+        } catch (\Throwable) {
+            return $this->jsonResponse($response, 500, [
+                'status' => 'error',
+                'message' => __('license_update_error'),
+            ]);
+        }
+
+        if ($license === null) {
+            return $this->jsonResponse($response, 404, [
+                'status' => 'error',
+                'message' => __('license_not_found'),
+            ]);
+        }
+
+        return $this->jsonResponse($response, 200, [
+            'status' => 'success',
+            'message' => __('license_update_success'),
+            'data' => $license,
+        ]);
+    }
+
+    public function destroy(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
+    {
+        $licenseId = (int) ($args['id'] ?? 0);
+
+        if ($licenseId <= 0) {
+            return $this->jsonResponse($response, 400, [
+                'status' => 'error',
+                'message' => __('license_invalid_id'),
+            ]);
+        }
+
+        if (!$this->licenseModel->delete($licenseId)) {
+            return $this->jsonResponse($response, 404, [
+                'status' => 'error',
+                'message' => __('license_not_found'),
+            ]);
+        }
+
+        return $this->jsonResponse($response, 200, [
+            'status' => 'success',
+            'message' => __('license_delete_success'),
         ]);
     }
 
@@ -267,7 +383,33 @@ class LicenseController
             $errors['vendor'][] = __('license_vendor_required');
         }
 
-        if (!array_key_exists('seats', $payload) || (int) $payload['seats'] < 1) {
+        $seats = (int) ($payload['seats'] ?? $payload['total_seats'] ?? 0);
+
+        if ($seats < 1) {
+            $errors['seats'][] = __('license_seats_invalid');
+        }
+
+        return $errors;
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     *
+     * @return array<string, list<string>>
+     */
+    private function validateUpdatePayload(array $payload): array
+    {
+        $errors = [];
+
+        if (array_key_exists('name', $payload) && trim((string) $payload['name']) === '') {
+            $errors['name'][] = __('license_name_required');
+        }
+
+        if (array_key_exists('vendor', $payload) && trim((string) $payload['vendor']) === '') {
+            $errors['vendor'][] = __('license_vendor_required');
+        }
+
+        if (array_key_exists('seats', $payload) && (int) $payload['seats'] < 1) {
             $errors['seats'][] = __('license_seats_invalid');
         }
 

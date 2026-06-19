@@ -115,6 +115,98 @@ class License
         return $created;
     }
 
+    /**
+     * @param array{
+     *     name?: string,
+     *     vendor?: string,
+     *     seats?: int,
+     *     license_key?: string|null,
+     *     expiration_date?: string|null,
+     *     notes?: string|null
+     * } $payload
+     *
+     * @return array<string, mixed>|null
+     */
+    public function update(int $id, array $payload): ?array
+    {
+        if ($this->findById($id) === null) {
+            return null;
+        }
+
+        $update = [];
+
+        if (array_key_exists('name', $payload)) {
+            $trimmedName = trim((string) $payload['name']);
+
+            if ($trimmedName === '') {
+                throw new \InvalidArgumentException(__('license_name_required'));
+            }
+
+            $update['name'] = $trimmedName;
+        }
+
+        if (array_key_exists('vendor', $payload)) {
+            $trimmedVendor = trim((string) $payload['vendor']);
+
+            if ($trimmedVendor === '') {
+                throw new \InvalidArgumentException(__('license_vendor_required'));
+            }
+
+            $update['vendor'] = $trimmedVendor;
+        }
+
+        if (array_key_exists('seats', $payload)) {
+            $seats = (int) $payload['seats'];
+
+            if ($seats < 1) {
+                throw new \InvalidArgumentException(__('license_seats_invalid'));
+            }
+
+            $assignedSeats = $this->countAssignments($id);
+
+            if ($seats < $assignedSeats) {
+                throw new \InvalidArgumentException(__('license_allocated_exceeds_total'));
+            }
+
+            $update['seats'] = $seats;
+        }
+
+        if (array_key_exists('license_key', $payload)) {
+            $update['license_key'] = $this->normalizeOptionalText(
+                $payload['license_key'] !== null ? (string) $payload['license_key'] : null
+            );
+        }
+
+        if (array_key_exists('expiration_date', $payload)) {
+            $update['expiration_date'] = $this->normalizeOptionalDate(
+                $payload['expiration_date'] !== null ? (string) $payload['expiration_date'] : null
+            );
+        }
+
+        if (array_key_exists('notes', $payload)) {
+            $update['notes'] = $this->normalizeOptionalText(
+                $payload['notes'] !== null ? (string) $payload['notes'] : null
+            );
+        }
+
+        if ($update !== []) {
+            $this->db()->update('licenses', $update, ['id' => $id]);
+        }
+
+        return $this->findById($id);
+    }
+
+    public function delete(int $id): bool
+    {
+        if ($this->findById($id) === null) {
+            return false;
+        }
+
+        $this->db()->delete('licenses', ['id' => $id]);
+
+        return !$this->db()->has('licenses', ['id' => $id]);
+    }
+
     public function countAssignments(int $licenseId): int
     {
         return $this->db()->count('license_assignments', [
@@ -314,9 +406,31 @@ class License
         $assignedSeats = $this->countAssignments((int) $row['id']);
         $totalSeats = (int) $row['seats'];
         $row['assigned_seats'] = $assignedSeats;
+        $row['allocated_seats'] = $assignedSeats;
         $row['remaining_seats'] = max(0, $totalSeats - $assignedSeats);
+        $row['total_seats'] = $totalSeats;
+        $row['software_name'] = (string) ($row['name'] ?? '');
+        $row['is_expiring_soon'] = $this->isExpiringSoon(isset($row['expiration_date']) ? (string) $row['expiration_date'] : null);
 
         return $row;
+    }
+
+    private function isExpiringSoon(?string $expirationDate): bool
+    {
+        if ($expirationDate === null || trim($expirationDate) === '') {
+            return false;
+        }
+
+        $expiration = \DateTimeImmutable::createFromFormat('Y-m-d', $expirationDate);
+
+        if ($expiration === false) {
+            return false;
+        }
+
+        $today = new \DateTimeImmutable('today');
+        $threshold = $today->modify('+30 days');
+
+        return $expiration >= $today && $expiration <= $threshold;
     }
 
     /**

@@ -59,7 +59,16 @@ declare(strict_types=1);
                         <td class="px-6 py-4">
                             <p class="text-sm font-medium text-zinc-900" x-text="license.name"></p>
                         </td>
-                        <td class="px-6 py-4 text-sm text-zinc-600" x-text="formatLicenseExpiration(license.expiration_date)"></td>
+                        <td class="px-6 py-4">
+                            <div class="flex flex-wrap items-center gap-2">
+                                <span class="text-sm text-zinc-600" x-text="formatLicenseExpiration(license.expiration_date)"></span>
+                                <span
+                                    x-show="license.is_expiring_soon"
+                                    x-cloak
+                                    class="inline-flex rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-800 ring-1 ring-inset ring-amber-600/20"
+                                ><?= htmlspecialchars(__('license_expiring_soon'), ENT_QUOTES, 'UTF-8') ?></span>
+                            </div>
+                        </td>
                         <td class="px-6 py-4">
                             <div class="min-w-[180px] space-y-2">
                                 <div class="flex items-center justify-between gap-2">
