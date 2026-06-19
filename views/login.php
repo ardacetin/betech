@@ -17,8 +17,9 @@ $showLocal = (bool) ($providers['local'] ?? false);
 $showLdap = (bool) ($providers['ldap'] ?? false);
 $showGoogle = (bool) ($loginConfig['has_google_sso'] ?? false);
 $showMicrosoft = (bool) ($loginConfig['has_microsoft_sso'] ?? false);
-$defaultMode = $showLocal ? 'local' : ($showLdap ? 'ldap' : 'local');
 $showCredentialForm = $showLocal || $showLdap;
+$showAdminToggle = $showLocal && $showLdap;
+$initialView = $showLdap ? 'default' : 'admin';
 ?>
 <!DOCTYPE html>
 <html lang="tr" class="h-full">
@@ -40,9 +41,17 @@ $showCredentialForm = $showLocal || $showLdap;
 <div
     class="flex min-h-full flex-col items-center justify-center px-4 py-12"
     x-data="{
-        mode: '<?= htmlspecialchars($defaultMode, ENT_QUOTES, 'UTF-8') ?>',
+        view: '<?= htmlspecialchars($initialView, ENT_QUOTES, 'UTF-8') ?>',
+        showLdap: <?= $showLdap ? 'true' : 'false' ?>,
         showLocal: <?= $showLocal ? 'true' : 'false' ?>,
-        showLdap: <?= $showLdap ? 'true' : 'false' ?>
+        showAdminToggle: <?= $showAdminToggle ? 'true' : 'false' ?>,
+        loginMode() {
+            if (this.view === 'admin') {
+                return 'local';
+            }
+
+            return this.showLdap ? 'ldap' : 'local';
+        }
     }"
 >
     <div class="mb-8 text-center">
@@ -59,58 +68,37 @@ $showCredentialForm = $showLocal || $showLdap;
         <?php endif; ?>
 
         <?php if ($showCredentialForm): ?>
-            <?php if ($showLocal && $showLdap): ?>
-                <div class="mb-6 grid grid-cols-2 gap-2 rounded-xl bg-zinc-100 p-1">
-                    <button
-                        type="button"
-                        @click="mode = 'local'"
-                        class="rounded-lg px-3 py-2 text-sm font-medium transition"
-                        :class="mode === 'local' ? 'bg-white text-zinc-900 shadow-sm' : 'text-zinc-500 hover:text-zinc-700'"
-                    >
-                        <?= htmlspecialchars(__('login_mode_local'), ENT_QUOTES, 'UTF-8') ?>
-                    </button>
-                    <button
-                        type="button"
-                        @click="mode = 'ldap'"
-                        class="rounded-lg px-3 py-2 text-sm font-medium transition"
-                        :class="mode === 'ldap' ? 'bg-white text-zinc-900 shadow-sm' : 'text-zinc-500 hover:text-zinc-700'"
-                    >
-                        <?= htmlspecialchars(__('login_mode_ldap'), ENT_QUOTES, 'UTF-8') ?>
-                    </button>
-                </div>
-            <?php endif; ?>
-
             <form method="post" action="/login" class="space-y-4">
                 <input type="hidden" name="_csrf" value="<?= htmlspecialchars($csrfToken ?? '', ENT_QUOTES, 'UTF-8') ?>">
-                <input type="hidden" name="mode" :value="mode">
+                <input type="hidden" name="mode" :value="loginMode()">
                 <input type="hidden" name="redirect" value="<?= htmlspecialchars($redirectTarget, ENT_QUOTES, 'UTF-8') ?>">
 
-                <div x-show="mode === 'local'" x-cloak>
-                    <label class="block">
-                        <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('login_email_label'), ENT_QUOTES, 'UTF-8') ?></span>
-                        <input
-                            type="email"
-                            name="identifier"
-                            autocomplete="email"
-                            :disabled="mode !== 'local'"
-                            :required="mode === 'local'"
-                            class="w-full rounded-xl border border-zinc-300 bg-white px-4 py-3 text-sm outline-none transition focus:border-zinc-900 focus:ring-2 focus:ring-zinc-900/10 disabled:hidden"
-                            placeholder="ornek@sirket.com"
-                        >
-                    </label>
-                </div>
-
-                <div x-show="mode === 'ldap'" x-cloak>
+                <div x-show="view === 'default' && showLdap" x-cloak>
                     <label class="block">
                         <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('login_username_label'), ENT_QUOTES, 'UTF-8') ?></span>
                         <input
                             type="text"
                             name="identifier"
                             autocomplete="username"
-                            :disabled="mode !== 'ldap'"
-                            :required="mode === 'ldap'"
+                            :disabled="view !== 'default' || !showLdap"
+                            :required="view === 'default' && showLdap"
                             class="w-full rounded-xl border border-zinc-300 bg-white px-4 py-3 text-sm outline-none transition focus:border-zinc-900 focus:ring-2 focus:ring-zinc-900/10 disabled:hidden"
-                            placeholder="kullaniciadi veya e-posta"
+                            placeholder="<?= htmlspecialchars(__('login_username_placeholder'), ENT_QUOTES, 'UTF-8') ?>"
+                        >
+                    </label>
+                </div>
+
+                <div x-show="view === 'admin' && showLocal" x-cloak>
+                    <label class="block">
+                        <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('login_email_label'), ENT_QUOTES, 'UTF-8') ?></span>
+                        <input
+                            type="email"
+                            name="identifier"
+                            autocomplete="email"
+                            :disabled="view !== 'admin' || !showLocal"
+                            :required="view === 'admin' && showLocal"
+                            class="w-full rounded-xl border border-zinc-300 bg-white px-4 py-3 text-sm outline-none transition focus:border-zinc-900 focus:ring-2 focus:ring-zinc-900/10 disabled:hidden"
+                            placeholder="<?= htmlspecialchars(__('login_email_placeholder'), ENT_QUOTES, 'UTF-8') ?>"
                         >
                     </label>
                 </div>
@@ -133,6 +121,26 @@ $showCredentialForm = $showLocal || $showLdap;
                 >
                     <?= htmlspecialchars(__('login_submit'), ENT_QUOTES, 'UTF-8') ?>
                 </button>
+
+                <p x-show="view === 'default' && showAdminToggle" x-cloak class="pt-1 text-center">
+                    <button
+                        type="button"
+                        @click="view = 'admin'"
+                        class="text-xs font-medium text-zinc-500 transition hover:text-zinc-800"
+                    >
+                        <?= htmlspecialchars(__('login_admin_entry'), ENT_QUOTES, 'UTF-8') ?>
+                    </button>
+                </p>
+
+                <p x-show="view === 'admin' && showAdminToggle" x-cloak class="pt-1 text-center">
+                    <button
+                        type="button"
+                        @click="view = 'default'"
+                        class="text-xs font-medium text-zinc-500 transition hover:text-zinc-800"
+                    >
+                        <?= htmlspecialchars(__('login_back_to_user'), ENT_QUOTES, 'UTF-8') ?>
+                    </button>
+                </p>
             </form>
         <?php endif; ?>
 
