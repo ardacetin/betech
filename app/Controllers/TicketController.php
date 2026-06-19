@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace App\Controllers;
 
+use App\Models\Asset;
 use App\Models\Ticket;
 use App\Models\User;
 use App\Services\Auth\SessionAuthService;
+use App\Services\EndUserContextService;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 
@@ -15,7 +17,9 @@ class TicketController
     public function __construct(
         private readonly Ticket $ticketModel,
         private readonly User $userModel,
-        private readonly SessionAuthService $sessionAuthService
+        private readonly Asset $assetModel,
+        private readonly SessionAuthService $sessionAuthService,
+        private readonly EndUserContextService $endUserContextService
     ) {
     }
 
@@ -31,6 +35,22 @@ class TicketController
 
         if ($priority === 'all') {
             $priority = null;
+        }
+
+        if ($this->endUserContextService->isEndUser()) {
+            $personnelId = $this->endUserContextService->resolvePersonnelId();
+
+            if ($personnelId === null) {
+                return $this->jsonResponse($response, 200, [
+                    'status' => 'success',
+                    'data' => [],
+                ]);
+            }
+
+            return $this->jsonResponse($response, 200, [
+                'status' => 'success',
+                'data' => $this->ticketModel->findAllByPersonnelId($personnelId, $status, $priority),
+            ]);
         }
 
         return $this->jsonResponse($response, 200, [
@@ -50,7 +70,20 @@ class TicketController
             ]);
         }
 
-        $ticket = $this->ticketModel->findById($ticketId, true);
+        if ($this->endUserContextService->isEndUser()) {
+            $personnelId = $this->endUserContextService->resolvePersonnelId();
+
+            if ($personnelId === null) {
+                return $this->jsonResponse($response, 403, [
+                    'status' => 'error',
+                    'message' => __('portal_profile_not_linked'),
+                ]);
+            }
+
+            $ticket = $this->ticketModel->findByIdForPersonnel($ticketId, $personnelId, true);
+        } else {
+            $ticket = $this->ticketModel->findById($ticketId, true);
+        }
 
         if ($ticket === null) {
             return $this->jsonResponse($response, 404, [
@@ -76,7 +109,23 @@ class TicketController
             ]);
         }
 
-        $errors = $this->validatePayload($payload, true);
+        $isEndUser = $this->endUserContextService->isEndUser();
+        $personnelId = $isEndUser
+            ? $this->endUserContextService->resolvePersonnelId()
+            : (int) ($payload['personnel_id'] ?? 0);
+
+        if ($isEndUser) {
+            if ($personnelId === null) {
+                return $this->jsonResponse($response, 403, [
+                    'status' => 'error',
+                    'message' => __('portal_profile_not_linked'),
+                ]);
+            }
+
+            $payload['personnel_id'] = $personnelId;
+        }
+
+        $errors = $this->validatePayload($payload, true, $isEndUser);
 
         if ($errors !== []) {
             return $this->jsonResponse($response, 422, [
@@ -86,12 +135,21 @@ class TicketController
             ]);
         }
 
+        $assetId = $this->normalizeOptionalId($payload['asset_id'] ?? null);
+
+        if ($isEndUser && $assetId !== null && !$this->assetModel->isAssignedToPersonnel($assetId, $personnelId)) {
+            return $this->jsonResponse($response, 422, [
+                'status' => 'error',
+                'message' => __('portal_ticket_asset_not_owned'),
+            ]);
+        }
+
         try {
             $ticket = $this->ticketModel->create(
                 (string) $payload['subject'],
                 (string) $payload['description'],
                 (int) $payload['personnel_id'],
-                $this->normalizeOptionalId($payload['asset_id'] ?? null),
+                $assetId,
                 (string) ($payload['priority'] ?? Ticket::PRIORITY_MEDIUM),
                 $this->sessionAuthService->userId()
             );
@@ -116,6 +174,13 @@ class TicketController
 
     public function update(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
     {
+        if ($this->endUserContextService->isEndUser()) {
+            return $this->jsonResponse($response, 403, [
+                'status' => 'error',
+                'message' => __('portal_action_not_allowed'),
+            ]);
+        }
+
         $ticketId = (int) ($args['id'] ?? 0);
 
         if ($ticketId <= 0) {
@@ -164,6 +229,13 @@ class TicketController
 
     public function destroy(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
     {
+        if ($this->endUserContextService->isEndUser()) {
+            return $this->jsonResponse($response, 403, [
+                'status' => 'error',
+                'message' => __('portal_action_not_allowed'),
+            ]);
+        }
+
         $ticketId = (int) ($args['id'] ?? 0);
 
         if ($ticketId <= 0) {
@@ -195,6 +267,17 @@ class TicketController
                 'status' => 'error',
                 'message' => __('ticket_invalid_id'),
             ]);
+        }
+
+        if ($this->endUserContextService->isEndUser()) {
+            $personnelId = $this->endUserContextService->resolvePersonnelId();
+
+            if ($personnelId === null || !$this->ticketModel->belongsToPersonnel($ticketId, $personnelId)) {
+                return $this->jsonResponse($response, 404, [
+                    'status' => 'error',
+                    'message' => __('ticket_not_found'),
+                ]);
+            }
         }
 
         $payload = $this->resolvePayload($request);
@@ -245,6 +328,16 @@ class TicketController
             return __('ticket_comment_system_author');
         }
 
+        $person = $this->endUserContextService->resolvePersonnel();
+
+        if ($person !== null) {
+            $personName = trim((string) ($person['name'] ?? ''));
+
+            if ($personName !== '') {
+                return $personName;
+            }
+        }
+
         $user = $this->userModel->findById($userId);
 
         if ($user === null) {
@@ -283,7 +376,7 @@ class TicketController
      *
      * @return array<string, list<string>>
      */
-    private function validatePayload(array $payload, bool $isCreate): array
+    private function validatePayload(array $payload, bool $isCreate, bool $isEndUser = false): array
     {
         $errors = [];
 
@@ -295,7 +388,7 @@ class TicketController
             $errors['description'][] = __('ticket_description_required');
         }
 
-        if ($isCreate && (int) ($payload['personnel_id'] ?? 0) <= 0) {
+        if ($isCreate && !$isEndUser && (int) ($payload['personnel_id'] ?? 0) <= 0) {
             $errors['personnel_id'][] = __('ticket_personnel_required');
         }
 

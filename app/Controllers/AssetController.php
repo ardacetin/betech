@@ -14,6 +14,7 @@ use App\Services\AssetCsvImportService;
 use App\Services\Auth\SessionAuthService;
 use App\Services\Auth\UserIntegrationFactory;
 use App\Services\ClientIpResolver;
+use App\Services\EndUserContextService;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 
@@ -39,7 +40,8 @@ class AssetController
         private readonly Category $categoryModel,
         private readonly AssetCsvImportService $assetCsvImportService,
         private readonly SessionAuthService $sessionAuthService,
-        private readonly ClientIpResolver $clientIpResolver
+        private readonly ClientIpResolver $clientIpResolver,
+        private readonly EndUserContextService $endUserContextService
     ) {
     }
 
@@ -672,15 +674,7 @@ class AssetController
             return true;
         }
 
-        $sessionUserId = $this->sessionAuthService->userId();
-
-        if ($sessionUserId === null) {
-            return false;
-        }
-
-        $assignedUserId = $asset['personnel_id'] ?? null;
-
-        return $assignedUserId !== null && (int) $assignedUserId === $sessionUserId;
+        return $this->endUserContextService->ownsAsset($asset);
     }
 
     /**

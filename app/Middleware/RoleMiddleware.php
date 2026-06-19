@@ -69,6 +69,7 @@ class RoleMiddleware implements MiddlewareInterface
     public static function defaultRules(): array
     {
         $operational = [User::ROLE_SUPER_ADMIN, User::ROLE_TECHNICIAN];
+        $withEndUser = [User::ROLE_SUPER_ADMIN, User::ROLE_TECHNICIAN, User::ROLE_END_USER];
 
         return [
             [
@@ -198,18 +199,23 @@ class RoleMiddleware implements MiddlewareInterface
             ],
             [
                 'methods' => ['GET'],
+                'pattern' => '/api/my/assets',
+                'roles' => [User::ROLE_END_USER],
+            ],
+            [
+                'methods' => ['GET'],
                 'pattern' => '/api/tickets',
-                'roles' => $operational,
+                'roles' => $withEndUser,
             ],
             [
                 'methods' => ['POST'],
                 'pattern' => '/api/tickets',
-                'roles' => $operational,
+                'roles' => $withEndUser,
             ],
             [
                 'methods' => ['GET'],
                 'pattern' => '/api/tickets/{id}',
-                'roles' => $operational,
+                'roles' => $withEndUser,
             ],
             [
                 'methods' => ['PUT'],
@@ -224,7 +230,7 @@ class RoleMiddleware implements MiddlewareInterface
             [
                 'methods' => ['POST'],
                 'pattern' => '/api/tickets/{id}/comments',
-                'roles' => $operational,
+                'roles' => $withEndUser,
             ],
             [
                 'methods' => ['GET'],

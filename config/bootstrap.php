@@ -12,6 +12,7 @@ use App\Controllers\AssetViewController;
 use App\Controllers\AuthController;
 use App\Controllers\ConsumableController;
 use App\Controllers\DashboardController;
+use App\Controllers\EndUserController;
 use App\Controllers\TicketController;
 use App\Controllers\HealthController;
 use App\Controllers\SettingsController;
@@ -42,6 +43,7 @@ use App\Services\Auth\SessionAuthService;
 use App\Services\Auth\UserIntegrationFactory;
 use App\Services\ClientIpResolver;
 use App\Services\DatabaseService;
+use App\Services\EndUserContextService;
 use App\Services\LoginAttemptService;
 use App\Services\QrCodeService;
 use App\Services\Translator;
@@ -75,6 +77,7 @@ $app->addBodyParsingMiddleware();
 $userModel = new User($databaseService);
 $personnelModel = new Personnel($databaseService);
 $sessionAuthService = new SessionAuthService();
+$endUserContextService = new EndUserContextService($sessionAuthService, $userModel, $personnelModel);
 $publicPaths = [
     '/login',
     '/api/login',
@@ -127,10 +130,10 @@ $authController = new AuthController(
     $oauthService,
     $viewRenderer
 );
-$healthController = new HealthController($appConfig, $assetModel, $categoryModel, $viewRenderer, $qrCodeService, $analyticsService, $settingModel, $userModel, $sessionAuthService);
-$assetController = new AssetController($assetModel, $assetHistoryModel, $userIntegrationFactory, $personnelModel, $userModel, $locationModel, $categoryModel, $assetCsvImportService, $sessionAuthService, $clientIpResolver);
+$healthController = new HealthController($appConfig, $assetModel, $categoryModel, $viewRenderer, $qrCodeService, $analyticsService, $settingModel, $userModel, $sessionAuthService, $endUserContextService);
+$assetController = new AssetController($assetModel, $assetHistoryModel, $userIntegrationFactory, $personnelModel, $userModel, $locationModel, $categoryModel, $assetCsvImportService, $sessionAuthService, $clientIpResolver, $endUserContextService);
 $assetViewController = new AssetViewController($appConfig, $assetModel, $categoryModel, $viewRenderer);
-$assetTutanakController = new AssetTutanakController($assetModel, $settingModel, $personnelModel, $userModel, $userIntegrationFactory, $zimmetTutanakService, $viewRenderer, $sessionAuthService);
+$assetTutanakController = new AssetTutanakController($assetModel, $settingModel, $personnelModel, $userModel, $userIntegrationFactory, $zimmetTutanakService, $viewRenderer, $sessionAuthService, $endUserContextService);
 $userController = new UserController($userIntegrationFactory, $userModel, $personnelModel, $assetModel, $assetHistoryModel, $settingModel, $sessionAuthService, $clientIpResolver);
 $analyticsController = new AnalyticsController($analyticsService);
 $dashboardController = new DashboardController($analyticsService, $assetHistoryModel);
@@ -140,7 +143,8 @@ $locationController = new LocationController($locationModel);
 $licenseController = new LicenseController($licenseModel);
 $consumableController = new ConsumableController($consumableModel);
 $ticketModel = new Ticket($databaseService);
-$ticketController = new TicketController($ticketModel, $userModel, $sessionAuthService);
+$ticketController = new TicketController($ticketModel, $userModel, $assetModel, $sessionAuthService, $endUserContextService);
+$endUserController = new EndUserController($assetModel, $endUserContextService);
 
 $app->get('/login', [$authController, 'showLoginForm']);
 $app->post('/login', [$authController, 'login']);
@@ -149,6 +153,7 @@ $app->get('/logout', [$authController, 'logout']);
 $app->get('/auth/oauth/{provider}', [$authController, 'startOAuth']);
 $app->get('/auth/callback/{provider}', [$authController, 'handleOAuthCallback']);
 $app->get('/', [$healthController, 'index']);
+$app->get('/api/my/assets', [$endUserController, 'assets']);
 $app->get('/assets/view/{id}', [$assetViewController, 'show']);
 $app->get('/api/analytics/summary', [$analyticsController, 'summary']);
 $app->get('/api/dashboard/stats', [$dashboardController, 'stats']);

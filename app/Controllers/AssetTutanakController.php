@@ -10,6 +10,7 @@ use App\Models\Setting;
 use App\Models\User;
 use App\Services\Auth\SessionAuthService;
 use App\Services\Auth\UserIntegrationFactory;
+use App\Services\EndUserContextService;
 use App\Services\Translator;
 use App\Services\ViewRenderer;
 use App\Services\ZimmetTutanakService;
@@ -26,7 +27,8 @@ class AssetTutanakController
         private readonly UserIntegrationFactory $userIntegrationFactory,
         private readonly ZimmetTutanakService $zimmetTutanakService,
         private readonly ViewRenderer $viewRenderer,
-        private readonly SessionAuthService $sessionAuthService
+        private readonly SessionAuthService $sessionAuthService,
+        private readonly EndUserContextService $endUserContextService
     ) {
     }
 
@@ -135,15 +137,7 @@ class AssetTutanakController
             return true;
         }
 
-        $sessionUserId = $this->sessionAuthService->userId();
-
-        if ($sessionUserId === null) {
-            return false;
-        }
-
-        $assignedPersonnelId = $asset['personnel_id'] ?? null;
-
-        return $assignedPersonnelId !== null && (int) $assignedPersonnelId === $sessionUserId;
+        return $this->endUserContextService->ownsAsset($asset);
     }
 
     private function resolveOperatorName(): string

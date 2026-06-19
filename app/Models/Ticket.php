@@ -247,6 +247,57 @@ class Ticket
         return $comment;
     }
 
+    /**
+     * @return list<array<string, mixed>>
+     */
+    public function findAllByPersonnelId(int $personnelId, ?string $status = null, ?string $priority = null): array
+    {
+        $conditions = [
+            'tickets.personnel_id' => $personnelId,
+        ];
+
+        if ($status !== null && $status !== '') {
+            $conditions['tickets.status'] = $this->normalizeStatus($status);
+        }
+
+        if ($priority !== null && $priority !== '') {
+            $conditions['tickets.priority'] = $this->normalizePriority($priority);
+        }
+
+        return $this->mapRows($this->selectRows($conditions));
+    }
+
+    public function belongsToPersonnel(int $ticketId, int $personnelId): bool
+    {
+        return $this->db()->has('tickets', [
+            'id' => $ticketId,
+            'personnel_id' => $personnelId,
+        ]);
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    public function findByIdForPersonnel(int $id, int $personnelId, bool $withComments = false): ?array
+    {
+        $rows = $this->selectRows([
+            'tickets.id' => $id,
+            'tickets.personnel_id' => $personnelId,
+        ], 1);
+
+        if ($rows === []) {
+            return null;
+        }
+
+        $ticket = $this->normalizeRow($rows[0]);
+
+        if ($withComments) {
+            $ticket['comments'] = $this->findCommentsByTicketId($id);
+        }
+
+        return $ticket;
+    }
+
     public function delete(int $id): bool
     {
         if ($this->findById($id) === null) {

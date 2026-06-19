@@ -10,6 +10,7 @@ use App\Models\Setting;
 use App\Models\User;
 use App\Services\AnalyticsService;
 use App\Services\Auth\SessionAuthService;
+use App\Services\EndUserContextService;
 use App\Services\QrCodeService;
 use App\Services\Translator;
 use App\Services\ViewRenderer;
@@ -30,7 +31,8 @@ class HealthController
         private readonly AnalyticsService $analyticsService,
         private readonly Setting $settingModel,
         private readonly User $userModel,
-        private readonly SessionAuthService $sessionAuthService
+        private readonly SessionAuthService $sessionAuthService,
+        private readonly EndUserContextService $endUserContextService
     ) {
     }
 
@@ -40,25 +42,34 @@ class HealthController
         $role = $this->sessionAuthService->role();
         $isEndUser = $role === User::ROLE_END_USER;
         $canManageAssets = $this->userModel->isOperationalRole($role);
+
+        if ($isEndUser) {
+            $personnel = $this->endUserContextService->resolvePersonnel();
+
+            $html = $this->viewRenderer->render('end_user_portal', [
+                'appName' => __('app_name'),
+                'pageTitle' => __('portal_page_title'),
+                'locale' => Translator::instance()->getLocale(),
+                'csrfToken' => $this->sessionAuthService->getOrCreateCsrfToken(),
+                'userName' => trim((string) ($personnel['name'] ?? '')),
+                'userEmail' => trim((string) ($personnel['email'] ?? '')),
+                'hasPersonnelProfile' => $personnel !== null,
+            ]);
+
+            $response->getBody()->write($html);
+
+            return $response->withHeader('Content-Type', 'text/html; charset=utf-8');
+        }
+
         $canAccessSettings = $this->userModel->isSuperAdmin($role);
         $canAccessSystemUsers = $canAccessSettings;
         $canAccessPersonnel = $canManageAssets;
 
         $categories = $this->categoryModel->findAll();
-
-        if ($isEndUser) {
-            $assets = $userId > 0
-                ? $this->assetModel->findForDashboardByPersonnelId($userId)
-                : [];
-            $analytics = $this->analyticsService->getEmptyDashboardStats();
-            $settings = [];
-            $personnelRows = [];
-        } else {
-            $assets = $this->assetModel->findAllForDashboard();
-            $analytics = $this->analyticsService->getDashboardStats();
-            $settings = $this->settingModel->getAdminBundle();
-            $personnelRows = [];
-        }
+        $assets = $this->assetModel->findAllForDashboard();
+        $analytics = $this->analyticsService->getDashboardStats();
+        $settings = $this->settingModel->getAdminBundle();
+        $personnelRows = [];
 
         $assetQrCodes = [];
 
@@ -72,7 +83,7 @@ class HealthController
 
         $html = $this->viewRenderer->render('dashboard', [
             'appName' => __('app_name'),
-            'pageTitle' => $isEndUser ? __('page_title_end_user') : __('page_title'),
+            'pageTitle' => __('page_title'),
             'environment' => $this->appConfig['env'],
             'locale' => Translator::instance()->getLocale(),
             'csrfToken' => $this->sessionAuthService->getOrCreateCsrfToken(),
@@ -82,7 +93,7 @@ class HealthController
             'canAccessPersonnel' => $canAccessPersonnel,
             'canAccessSystemUsers' => $canAccessSystemUsers,
             'currentUserId' => $userId,
-            'isEndUser' => $isEndUser,
+            'isEndUser' => false,
             'isSuperAdmin' => $canAccessSettings,
             'assets' => $assets,
             'assetQrCodesJson' => json_encode($assetQrCodes, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE),
