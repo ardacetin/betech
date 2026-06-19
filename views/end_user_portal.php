@@ -113,15 +113,14 @@ $i18n = [
                     <h1 class="text-xl font-semibold tracking-tight text-zinc-900"><?= htmlspecialchars(__('portal_my_tickets_title'), ENT_QUOTES, 'UTF-8') ?></h1>
                     <p class="mt-1 text-sm text-zinc-500"><?= htmlspecialchars(__('portal_my_tickets_subtitle'), ENT_QUOTES, 'UTF-8') ?></p>
                 </div>
-                <button type="button" @click="openTicketModal()" class="inline-flex items-center gap-2 rounded-xl bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white shadow-soft transition hover:bg-zinc-800">
+                <button type="button" @click="openTicketModal()" class="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-zinc-900 px-4 py-3 text-sm font-semibold text-white shadow-soft transition hover:bg-zinc-800 sm:w-auto sm:py-2.5">
                     <span class="text-lg leading-none">+</span>
-                    <?= htmlspecialchars(__('portal_new_ticket'), ENT_QUOTES, 'UTF-8') ?>
+                    <?= htmlspecialchars(__('portal_open_new_ticket'), ENT_QUOTES, 'UTF-8') ?>
                 </button>
             </div>
 
             <p x-show="ticketsLoading" class="rounded-xl border border-zinc-200 bg-white px-4 py-6 text-sm text-zinc-500"><?= htmlspecialchars(__('portal_tickets_loading'), ENT_QUOTES, 'UTF-8') ?></p>
             <p x-show="ticketsError" x-cloak class="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700" x-text="ticketsError"></p>
-            <p x-show="ticketsSuccessMessage" x-cloak class="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700" x-text="ticketsSuccessMessage"></p>
             <p x-show="!ticketsLoading && !ticketsError && tickets.length === 0" x-cloak class="rounded-xl border border-dashed border-zinc-200 bg-zinc-50 px-4 py-8 text-center text-sm text-zinc-500">
                 <?= htmlspecialchars(__('portal_tickets_empty'), ENT_QUOTES, 'UTF-8') ?>
             </p>
@@ -170,12 +169,11 @@ $i18n = [
                     <textarea x-model="ticketForm.description" rows="4" required class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4"></textarea>
                 </label>
                 <label class="block">
-                    <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('portal_ticket_asset_optional'), ENT_QUOTES, 'UTF-8') ?></span>
-                    <select x-model="ticketForm.asset_id" class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4">
-                        <option value="">—</option>
-                        <template x-for="asset in assets" :key="asset.id">
-                            <option :value="asset.id" x-text="`${asset.asset_tag} — ${asset.name}`"></option>
-                        </template>
+                    <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('ticket_priority_label'), ENT_QUOTES, 'UTF-8') ?></span>
+                    <select x-model="ticketForm.priority" required class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4">
+                        <option value="low"><?= htmlspecialchars(__('ticket_priority_low'), ENT_QUOTES, 'UTF-8') ?></option>
+                        <option value="medium"><?= htmlspecialchars(__('ticket_priority_medium'), ENT_QUOTES, 'UTF-8') ?></option>
+                        <option value="high"><?= htmlspecialchars(__('ticket_priority_high'), ENT_QUOTES, 'UTF-8') ?></option>
                     </select>
                 </label>
                 <p x-show="ticketFormError" x-cloak class="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700" x-text="ticketFormError"></p>
@@ -232,6 +230,20 @@ $i18n = [
             </div>
         </div>
     </div>
+
+    <div
+        x-show="toastVisible"
+        x-cloak
+        x-transition:enter="transition ease-out duration-200"
+        x-transition:enter-start="translate-y-2 opacity-0"
+        x-transition:enter-end="translate-y-0 opacity-100"
+        x-transition:leave="transition ease-in duration-150"
+        x-transition:leave-start="translate-y-0 opacity-100"
+        x-transition:leave-end="translate-y-2 opacity-0"
+        class="pointer-events-none fixed inset-x-0 top-4 z-[60] flex justify-center px-4"
+    >
+        <p class="pointer-events-auto max-w-md rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800 shadow-soft" x-text="toastMessage"></p>
+    </div>
 </div>
 
 <style>[x-cloak] { display: none !important; }</style>
@@ -249,10 +261,12 @@ $i18n = [
             tickets: [],
             ticketsLoading: false,
             ticketsError: '',
-            ticketsSuccessMessage: '',
+            toastMessage: '',
+            toastVisible: false,
+            toastTimer: null,
             isTicketModalOpen: false,
             isTicketSubmitting: false,
-            ticketForm: { subject: '', description: '', asset_id: '' },
+            ticketForm: { subject: '', description: '', priority: 'medium' },
             ticketFormError: '',
             isTicketDetailOpen: false,
             ticketDetailLoading: false,
@@ -346,25 +360,33 @@ $i18n = [
                 window.open(`/api/assets/${assetId}/tutanak`, '_blank', 'noopener,noreferrer');
             },
             openTicketModal() {
-                this.ticketForm = { subject: '', description: '', asset_id: '' };
+                this.ticketForm = { subject: '', description: '', priority: 'medium' };
                 this.ticketFormError = '';
                 this.isTicketModalOpen = true;
-                if (this.assets.length === 0) {
-                    this.fetchAssets();
-                }
             },
             closeTicketModal() {
                 if (this.isTicketSubmitting) return;
                 this.isTicketModalOpen = false;
             },
+            showToast(message) {
+                this.toastMessage = message;
+                this.toastVisible = true;
+                if (this.toastTimer) {
+                    clearTimeout(this.toastTimer);
+                }
+                this.toastTimer = setTimeout(() => {
+                    this.toastVisible = false;
+                    this.toastMessage = '';
+                    this.toastTimer = null;
+                }, 4000);
+            },
             async submitTicket() {
                 this.isTicketSubmitting = true;
                 this.ticketFormError = '';
                 const payload = {
-                    subject: this.ticketForm.subject,
-                    description: this.ticketForm.description,
-                    asset_id: this.ticketForm.asset_id ? Number(this.ticketForm.asset_id) : null,
-                    priority: 'medium',
+                    subject: this.ticketForm.subject.trim(),
+                    description: this.ticketForm.description.trim(),
+                    priority: this.ticketForm.priority,
                 };
                 try {
                     const response = await fetch('/api/tickets', {
@@ -377,9 +399,13 @@ $i18n = [
                         this.ticketFormError = result.message || window.__portalI18n.ticket_create_error;
                         return;
                     }
-                    this.ticketsSuccessMessage = result.message || window.__portalI18n.ticket_create_success;
                     this.isTicketModalOpen = false;
+                    this.ticketForm = { subject: '', description: '', priority: 'medium' };
                     this.activeTab = 'tickets';
+                    if (result.data) {
+                        this.tickets = [result.data, ...this.tickets.filter((ticket) => ticket.id !== result.data.id)];
+                    }
+                    this.showToast(result.message || window.__portalI18n.ticket_create_success);
                     await this.fetchTickets();
                 } catch (error) {
                     this.ticketFormError = window.__portalI18n.ticket_create_error;

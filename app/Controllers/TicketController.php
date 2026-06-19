@@ -388,6 +388,13 @@ class TicketController
             $errors['description'][] = __('ticket_description_required');
         }
 
+        if ($isCreate && $isEndUser) {
+            $priority = strtolower(trim((string) ($payload['priority'] ?? Ticket::PRIORITY_MEDIUM)));
+            if (!in_array($priority, [Ticket::PRIORITY_LOW, Ticket::PRIORITY_MEDIUM, Ticket::PRIORITY_HIGH], true)) {
+                $errors['priority'][] = __('ticket_priority_invalid');
+            }
+        }
+
         if ($isCreate && !$isEndUser && (int) ($payload['personnel_id'] ?? 0) <= 0) {
             $errors['personnel_id'][] = __('ticket_personnel_required');
         }
