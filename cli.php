@@ -19,6 +19,7 @@ use App\Services\AppLogger;
 use App\Services\ClientIpResolver;
 use App\Services\DatabaseBackupService;
 use App\Services\DatabaseService;
+use App\Services\R2BackupStorage;
 use App\Services\Mail\DailySummaryNotificationService;
 use App\Services\Mail\MailConfigResolver;
 use App\Services\Mail\MailService;
@@ -105,9 +106,11 @@ if ($command === 'notify:daily_summary') {
 }
 
 if ($command === 'backup:database') {
+    /** @var array<string, string> $r2Config */
+    $r2Config = require $rootPath . '/config/r2.php';
     $backupService = new DatabaseBackupService(
-        $rootPath . '/backups',
         $databaseConfig,
+        new R2BackupStorage($r2Config, $appLogger),
         $appLogger
     );
 

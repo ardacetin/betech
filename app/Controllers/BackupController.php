@@ -8,9 +8,10 @@ use App\Models\AuditLog;
 use App\Services\AuditLogger;
 use App\Services\Auth\SessionAuthService;
 use App\Services\DatabaseBackupService;
+use App\Services\R2BackupStorage;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
-use Slim\Psr7\Stream;
+use RuntimeException;
 
 class BackupController
 {
@@ -23,11 +24,21 @@ class BackupController
 
     public function index(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
     {
+        try {
+            $backups = $this->backupService->listBackups();
+        } catch (RuntimeException $exception) {
+            return $this->jsonResponse($response, 500, [
+                'status' => 'error',
+                'message' => $exception->getMessage(),
+            ]);
+        }
+
         return $this->jsonResponse($response, 200, [
             'status' => 'success',
             'data' => [
-                'backups' => $this->backupService->listBackups(),
+                'backups' => $backups,
                 'retention_days' => DatabaseBackupService::RETENTION_DAYS,
+                'presigned_url_ttl_minutes' => (int) (R2BackupStorage::PRESIGNED_URL_TTL_SECONDS / 60),
             ],
         ]);
     }
@@ -53,8 +64,25 @@ class BackupController
             [
                 'backup_filename' => $result['filename'] ?? null,
                 'backup_size_bytes' => $result['size_bytes'] ?? null,
+                'backup_storage' => 'r2',
             ]
         );
+
+        try {
+            $backups = $this->backupService->listBackups();
+        } catch (RuntimeException $exception) {
+            return $this->jsonResponse($response, 201, [
+                'status' => 'success',
+                'message' => $result['message'],
+                'data' => [
+                    'filename' => $result['filename'] ?? null,
+                    'size_bytes' => $result['size_bytes'] ?? null,
+                    'deleted_count' => $result['deleted_count'] ?? 0,
+                    'backups' => [],
+                    'list_error' => $exception->getMessage(),
+                ],
+            ]);
+        }
 
         return $this->jsonResponse($response, 201, [
             'status' => 'success',
@@ -63,7 +91,7 @@ class BackupController
                 'filename' => $result['filename'] ?? null,
                 'size_bytes' => $result['size_bytes'] ?? null,
                 'deleted_count' => $result['deleted_count'] ?? 0,
-                'backups' => $this->backupService->listBackups(),
+                'backups' => $backups,
             ],
         ]);
     }
@@ -71,22 +99,23 @@ class BackupController
     public function download(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
     {
         $filename = basename(trim((string) ($args['filename'] ?? '')));
-        $path = $this->backupService->resolveBackupPath($filename);
+        $downloadUrl = $this->backupService->createDownloadUrl($filename);
 
-        if ($path === null) {
+        if ($downloadUrl === null) {
             return $this->jsonResponse($response, 404, [
                 'status' => 'error',
                 'message' => __('backup_not_found'),
             ]);
         }
 
-        $stream = new Stream(fopen($path, 'rb'));
-
-        return $response
-            ->withBody($stream)
-            ->withHeader('Content-Type', 'application/gzip')
-            ->withHeader('Content-Disposition', 'attachment; filename="' . $filename . '"')
-            ->withHeader('Content-Length', (string) filesize($path));
+        return $this->jsonResponse($response, 200, [
+            'status' => 'success',
+            'data' => [
+                'filename' => $filename,
+                'download_url' => $downloadUrl,
+                'expires_in_seconds' => R2BackupStorage::PRESIGNED_URL_TTL_SECONDS,
+            ],
+        ]);
     }
 
     /**

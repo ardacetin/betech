@@ -110,6 +110,7 @@ $i18nScript = json_encode([
     'backup_create_error' => __('backup_create_error'),
     'backup_fetch_error' => __('backup_fetch_error'),
     'backup_network_error' => __('backup_network_error'),
+    'backup_download_error' => __('backup_download_error'),
     'settings_auth_local' => __('settings_auth_local'),
     'settings_auth_local_hint' => __('settings_auth_local_hint'),
     'settings_auth_ldap' => __('settings_auth_ldap'),
@@ -6306,7 +6307,27 @@ $i18nScript = json_encode([
                     return;
                 }
 
-                window.location.href = '/api/backups/' + encodeURIComponent(filename) + '/download';
+                this.backupErrorMessage = '';
+                this.backupSuccessMessage = '';
+
+                fetch('/api/backups/' + encodeURIComponent(filename) + '/download', {
+                    headers: {
+                        Accept: 'application/json',
+                    },
+                })
+                    .then(async (response) => {
+                        const result = await response.json();
+
+                        if (!response.ok || !result.data?.download_url) {
+                            this.backupErrorMessage = result.message || window.__i18n.backup_download_error;
+                            return;
+                        }
+
+                        window.open(result.data.download_url, '_blank', 'noopener,noreferrer');
+                    })
+                    .catch(() => {
+                        this.backupErrorMessage = window.__i18n.backup_network_error;
+                    });
             },
         };
     }

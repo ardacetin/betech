@@ -13,6 +13,7 @@ require __DIR__ . '/../vendor/autoload.php';
 use App\Services\AppLogger;
 use App\Services\ClientIpResolver;
 use App\Services\DatabaseBackupService;
+use App\Services\R2BackupStorage;
 use Dotenv\Dotenv;
 
 $rootPath = dirname(__DIR__);
@@ -23,13 +24,15 @@ Dotenv::createImmutable($rootPath)->safeLoad();
 $appConfig = require $rootPath . '/config/app.php';
 /** @var array<string, mixed> $databaseConfig */
 $databaseConfig = require $rootPath . '/config/database.php';
+/** @var array<string, string> $r2Config */
+$r2Config = require $rootPath . '/config/r2.php';
 
 $clientIpResolver = new ClientIpResolver($appConfig['trusted_proxies']);
 $appLogger = new AppLogger($rootPath . '/logs', 'app.log', $clientIpResolver);
 
 $service = new DatabaseBackupService(
-    $rootPath . '/backups',
     $databaseConfig,
+    new R2BackupStorage($r2Config, $appLogger),
     $appLogger
 );
 

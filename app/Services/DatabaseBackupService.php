@@ -16,8 +16,8 @@ class DatabaseBackupService
      * @param array<string, mixed> $databaseConfig
      */
     public function __construct(
-        private readonly string $backupDirectory,
         private readonly array $databaseConfig,
+        private readonly R2BackupStorage $r2Storage,
         private readonly ?AppLogger $appLogger = null
     ) {
     }
@@ -27,7 +27,11 @@ class DatabaseBackupService
      */
     public function run(): array
     {
-        $this->ensureBackupDirectory();
+        if (!$this->r2Storage->isConfigured()) {
+            return $this->failure(
+                'Cloudflare R2 is not configured. Set R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, and R2_BUCKET_NAME in .env.'
+            );
+        }
 
         $host = trim((string) ($this->databaseConfig['host'] ?? ''));
         $port = (int) ($this->databaseConfig['port'] ?? 3306);
@@ -52,7 +56,16 @@ class DatabaseBackupService
         }
 
         $timestamp = date('Y-m-d_H-i-s');
-        $sqlPath = $this->backupDirectory . '/backup_' . $timestamp . '.sql';
+        $filename = 'backup_' . $timestamp . '.sql.gz';
+        $tempBase = tempnam(sys_get_temp_dir(), 'betech_backup_');
+
+        if ($tempBase === false) {
+            return $this->failure('Unable to create temporary backup file.');
+        }
+
+        @unlink($tempBase);
+
+        $sqlPath = $tempBase . '.sql';
         $archivePath = $sqlPath . '.gz';
         $defaultsFile = $this->createMysqlDefaultsFile($host, $port, $username, $password);
 
@@ -94,39 +107,50 @@ class DatabaseBackupService
 
                 return $this->failure($message);
             }
+
+            $archiveSize = filesize($archivePath);
+
+            if ($archiveSize === false) {
+                @unlink($archivePath);
+
+                return $this->failure('Unable to read backup file size.');
+            }
+
+            try {
+                $this->r2Storage->upload($archivePath, $filename);
+            } catch (RuntimeException $exception) {
+                return $this->failure($exception->getMessage());
+            } finally {
+                @unlink($archivePath);
+            }
+
+            $deletedCount = $this->purgeExpiredBackups();
+
+            $this->log('backup.database.success', [
+                'filename' => $filename,
+                'size_bytes' => $archiveSize,
+                'deleted_count' => $deletedCount,
+                'storage' => 'r2',
+            ]);
+
+            return [
+                'success' => true,
+                'message' => sprintf(
+                    'Database backup uploaded to Cloudflare R2 as %s (%s). Retention cleanup removed %d object(s) older than %d days.',
+                    $filename,
+                    $this->formatBytes($archiveSize),
+                    $deletedCount,
+                    self::RETENTION_DAYS
+                ),
+                'filename' => $filename,
+                'size_bytes' => $archiveSize,
+                'deleted_count' => $deletedCount,
+            ];
         } finally {
             @unlink($defaultsFile);
             @unlink($sqlPath);
+            @unlink($archivePath);
         }
-
-        $deletedCount = $this->purgeExpiredBackups();
-        $archiveSize = filesize($archivePath);
-
-        if ($archiveSize === false) {
-            return $this->failure('Unable to read backup file size.');
-        }
-
-        $filename = basename($archivePath);
-
-        $this->log('backup.database.success', [
-            'filename' => $filename,
-            'size_bytes' => $archiveSize,
-            'deleted_count' => $deletedCount,
-        ]);
-
-        return [
-            'success' => true,
-            'message' => sprintf(
-                'Database backup created at %s (%s). Retention cleanup removed %d file(s) older than %d days.',
-                $filename,
-                $this->formatBytes($archiveSize),
-                $deletedCount,
-                self::RETENTION_DAYS
-            ),
-            'filename' => $filename,
-            'size_bytes' => $archiveSize,
-            'deleted_count' => $deletedCount,
-        ];
     }
 
     /**
@@ -134,122 +158,25 @@ class DatabaseBackupService
      */
     public function listBackups(): array
     {
-        $this->ensureBackupDirectory();
-
-        $files = glob($this->backupDirectory . '/backup_*.sql.gz');
-
-        if ($files === false) {
-            return [];
-        }
-
-        $backups = [];
-
-        foreach ($files as $file) {
-            if (!is_file($file)) {
-                continue;
-            }
-
-            $filename = basename($file);
-
-            if (!$this->isValidBackupFilename($filename)) {
-                continue;
-            }
-
-            $sizeBytes = filesize($file);
-            $modifiedAt = filemtime($file);
-
-            if ($sizeBytes === false || $modifiedAt === false) {
-                continue;
-            }
-
-            $backups[] = [
-                'filename' => $filename,
-                'size_bytes' => $sizeBytes,
-                'size_label' => $this->formatBytes($sizeBytes),
-                'created_at' => date('Y-m-d H:i:s', $modifiedAt),
-            ];
-        }
-
-        usort(
-            $backups,
-            static fn (array $left, array $right): int => strcmp($right['created_at'], $left['created_at'])
-        );
-
-        return $backups;
+        return $this->r2Storage->listBackups();
     }
 
-    public function resolveBackupPath(string $filename): ?string
+    public function createDownloadUrl(string $filename): ?string
     {
         if (!$this->isValidBackupFilename($filename)) {
             return null;
         }
 
-        $path = $this->backupDirectory . '/' . $filename;
-
-        if (!is_file($path) || !is_readable($path)) {
+        try {
+            return $this->r2Storage->createPresignedDownloadUrl($filename);
+        } catch (RuntimeException) {
             return null;
         }
-
-        $realBackupDir = realpath($this->backupDirectory);
-        $realFile = realpath($path);
-
-        if ($realBackupDir === false || $realFile === false) {
-            return null;
-        }
-
-        if (!str_starts_with($realFile, $realBackupDir . DIRECTORY_SEPARATOR)) {
-            return null;
-        }
-
-        return $realFile;
     }
 
     public function purgeExpiredBackups(): int
     {
-        $deletedCount = 0;
-        $cutoff = time() - (self::RETENTION_DAYS * 86400);
-        $files = glob($this->backupDirectory . '/backup_*.sql.gz');
-
-        if ($files === false) {
-            return 0;
-        }
-
-        foreach ($files as $file) {
-            if (!is_file($file)) {
-                continue;
-            }
-
-            $filename = basename($file);
-
-            if (!$this->isValidBackupFilename($filename)) {
-                continue;
-            }
-
-            $modifiedAt = filemtime($file);
-
-            if ($modifiedAt !== false && $modifiedAt < $cutoff && @unlink($file)) {
-                $deletedCount++;
-            }
-        }
-
-        return $deletedCount;
-    }
-
-    private function ensureBackupDirectory(): void
-    {
-        if (is_dir($this->backupDirectory)) {
-            return;
-        }
-
-        if (!mkdir($this->backupDirectory, 0750, true) && !is_dir($this->backupDirectory)) {
-            throw new RuntimeException('Unable to create backup directory: ' . $this->backupDirectory);
-        }
-
-        $htaccessPath = $this->backupDirectory . '/.htaccess';
-
-        if (!is_file($htaccessPath)) {
-            file_put_contents($htaccessPath, "Deny from all\n");
-        }
+        return $this->r2Storage->purgeExpired(self::RETENTION_DAYS);
     }
 
     private function isValidBackupFilename(string $filename): bool

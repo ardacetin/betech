@@ -51,6 +51,7 @@ use App\Services\Auth\UserIntegrationFactory;
 use App\Services\ClientIpResolver;
 use App\Services\DatabaseBackupService;
 use App\Services\DatabaseService;
+use App\Services\R2BackupStorage;
 use App\Services\EndUserContextService;
 use App\Services\IpAddressGenerator;
 use App\Services\IpamCsvImportService;
@@ -191,11 +192,10 @@ $ticketController = new TicketController(
 );
 $endUserController = new EndUserController($assetModel, $endUserContextService);
 $auditLogController = new AuditLogController($auditLogModel, $auditChangeFormatter);
-$databaseBackupService = new DatabaseBackupService(
-    $rootPath . '/backups',
-    $databaseConfig,
-    $appLogger
-);
+/** @var array<string, string> $r2Config */
+$r2Config = require $rootPath . '/config/r2.php';
+$r2BackupStorage = new R2BackupStorage($r2Config, $appLogger);
+$databaseBackupService = new DatabaseBackupService($databaseConfig, $r2BackupStorage, $appLogger);
 $backupController = new BackupController($databaseBackupService, $sessionAuthService, $auditLogger);
 
 $app->get('/login', [$authController, 'showLoginForm']);
