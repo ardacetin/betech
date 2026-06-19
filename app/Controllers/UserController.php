@@ -322,16 +322,16 @@ class UserController
 
     public function personnelSyncLdap(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
     {
-        $ldapConfig = $this->settingModel->getLdapConfig();
-
-        if ($ldapConfig['host'] === '' || $ldapConfig['base_dn'] === '') {
-            return $this->jsonResponse($response, 422, [
-                'status' => 'error',
-                'message' => __('personnel_ldap_sync_not_configured'),
-            ]);
-        }
-
         try {
+            $ldapConfig = $this->settingModel->getLdapConfig();
+
+            if ($ldapConfig['host'] === '' || $ldapConfig['base_dn'] === '') {
+                return $this->jsonResponse($response, 422, [
+                    'status' => 'error',
+                    'message' => __('personnel_ldap_sync_not_configured'),
+                ]);
+            }
+
             $driver = $this->userIntegrationFactory->make(Personnel::PROVIDER_LDAP);
 
             if (!$driver instanceof LdapDriver) {
@@ -339,42 +339,37 @@ class UserController
             }
 
             $directoryUsers = $driver->listActivePersonnel();
-        } catch (LdapSyncException $exception) {
-            return $this->jsonResponse($response, 503, [
-                'status' => 'error',
-                'message' => $exception->getMessage(),
+
+            if ($directoryUsers === []) {
+                return $this->jsonResponse($response, 422, [
+                    'status' => 'error',
+                    'message' => __('personnel_ldap_sync_empty'),
+                ]);
+            }
+
+            try {
+                $stats = $this->personnelModel->syncDirectory($directoryUsers, Personnel::PROVIDER_LDAP);
+            } finally {
+                unset($directoryUsers);
+            }
+
+            return $this->jsonResponse($response, 200, [
+                'status' => 'success',
+                'message' => __(
+                    'personnel_ldap_sync_success',
+                    [
+                        'created' => (string) $stats['created'],
+                        'updated' => (string) $stats['updated'],
+                    ]
+                ),
+                'data' => $stats,
             ]);
         } catch (\Throwable $exception) {
             return $this->jsonResponse($response, 500, [
                 'status' => 'error',
-                'message' => __('personnel_ldap_sync_error') . $exception->getMessage(),
+                'message' => $exception->getMessage(),
             ]);
         }
-
-        if ($directoryUsers === []) {
-            return $this->jsonResponse($response, 422, [
-                'status' => 'error',
-                'message' => __('personnel_ldap_sync_empty'),
-            ]);
-        }
-
-        try {
-            $stats = $this->personnelModel->syncDirectory($directoryUsers, Personnel::PROVIDER_LDAP);
-        } finally {
-            unset($directoryUsers);
-        }
-
-        return $this->jsonResponse($response, 200, [
-            'status' => 'success',
-            'message' => __(
-                'personnel_ldap_sync_success',
-                [
-                    'created' => (string) $stats['created'],
-                    'updated' => (string) $stats['updated'],
-                ]
-            ),
-            'data' => $stats,
-        ]);
     }
 
     public function offboard(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface

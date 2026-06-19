@@ -133,29 +133,35 @@ class LdapDriver implements UserIntegrationInterface
      */
     public function listActivePersonnel(): array
     {
-        if (!extension_loaded('ldap')) {
-            throw new LdapSyncException(__('personnel_ldap_sync_extension_missing'));
-        }
-
-        $config = $this->settingModel->getLdapConfig();
-
-        if ($config['host'] === '' || $config['base_dn'] === '') {
-            throw new LdapSyncException(__('personnel_ldap_sync_not_configured'));
-        }
-
-        $connection = $this->connectStrict($config);
-
         try {
-            $this->bindStrict($connection, $config);
+            if (!extension_loaded('ldap')) {
+                throw new LdapSyncException(__('personnel_ldap_sync_extension_missing'));
+            }
 
-            return $this->fetchAllEntries(
-                $connection,
-                (string) $config['base_dn'],
-                self::ACTIVE_PERSONNEL_FILTER,
-                true
-            );
-        } finally {
-            @ldap_unbind($connection);
+            $config = $this->settingModel->getLdapConfig();
+
+            if ($config['host'] === '' || $config['base_dn'] === '') {
+                throw new LdapSyncException(__('personnel_ldap_sync_not_configured'));
+            }
+
+            $connection = $this->connectStrict($config);
+
+            try {
+                $this->bindStrict($connection, $config);
+
+                return $this->fetchAllEntries(
+                    $connection,
+                    (string) $config['base_dn'],
+                    self::ACTIVE_PERSONNEL_FILTER,
+                    true
+                );
+            } finally {
+                @ldap_unbind($connection);
+            }
+        } catch (LdapSyncException $exception) {
+            throw $exception;
+        } catch (\Exception $exception) {
+            throw new LdapSyncException($exception->getMessage(), 0, $exception);
         }
     }
 
@@ -168,89 +174,95 @@ class LdapDriver implements UserIntegrationInterface
         string $filter,
         bool $strict
     ): array {
-        $users = [];
-        $cookie = '';
-        // RFC 2696 / LDAP_CONTROL_PAGEDRESULTS keeps each LDAP response bounded (SYNC_PAGE_SIZE).
-        $supportsPagedResults = defined('LDAP_CONTROL_PAGEDRESULTS');
+        try {
+            $users = [];
+            $cookie = '';
+            // RFC 2696 / LDAP_CONTROL_PAGEDRESULTS keeps each LDAP response bounded (SYNC_PAGE_SIZE).
+            $supportsPagedResults = defined('LDAP_CONTROL_PAGEDRESULTS');
 
-        do {
-            $controls = [];
+            do {
+                $controls = [];
 
-            if ($supportsPagedResults) {
-                $controls = [[
-                    'oid' => LDAP_CONTROL_PAGEDRESULTS,
-                    'iscritical' => true,
-                    'value' => [
-                        'size' => self::SYNC_PAGE_SIZE,
-                        'cookie' => $cookie,
-                    ],
-                ]];
-            }
-
-            $search = @ldap_search(
-                $connection,
-                $baseDn,
-                $filter,
-                self::PERSONNEL_ATTRIBUTES,
-                0,
-                $supportsPagedResults ? 0 : self::SYNC_PAGE_SIZE,
-                0,
-                LDAP_DEREF_NEVER,
-                $controls
-            );
-
-            if ($search === false) {
-                if ($strict) {
-                    throw new LdapSyncException(
-                        __('personnel_ldap_sync_query_failed') . $this->ldapErrorMessage($connection)
-                    );
+                if ($supportsPagedResults) {
+                    $controls = [[
+                        'oid' => LDAP_CONTROL_PAGEDRESULTS,
+                        'iscritical' => true,
+                        'value' => [
+                            'size' => self::SYNC_PAGE_SIZE,
+                            'cookie' => $cookie,
+                        ],
+                    ]];
                 }
 
-                break;
-            }
-
-            if ($supportsPagedResults) {
-                $errorCode = 0;
-                $errorMessage = '';
-                $matchedDn = '';
-                $referrals = [];
-                @ldap_parse_result(
+                $search = @ldap_search(
                     $connection,
-                    $search,
-                    $errorCode,
-                    $matchedDn,
-                    $errorMessage,
-                    $referrals,
+                    $baseDn,
+                    $filter,
+                    self::PERSONNEL_ATTRIBUTES,
+                    0,
+                    $supportsPagedResults ? 0 : self::SYNC_PAGE_SIZE,
+                    0,
+                    defined('LDAP_DEREF_NEVER') ? LDAP_DEREF_NEVER : 0,
                     $controls
                 );
 
-                $cookie = (string) ($controls[0]['value']['cookie'] ?? '');
-            } else {
-                $cookie = '';
-            }
+                if ($search === false) {
+                    if ($strict) {
+                        throw new LdapSyncException(
+                            __('personnel_ldap_sync_query_failed') . $this->ldapErrorMessage($connection)
+                        );
+                    }
 
-            $entries = ldap_get_entries($connection, $search);
-
-            if (!is_array($entries) || ($entries['count'] ?? 0) === 0) {
-                break;
-            }
-
-            for ($index = 0; $index < (int) $entries['count']; $index++) {
-                $mapped = $this->mapEntry($entries[$index]);
-
-                if ($mapped !== null) {
-                    $users[] = $mapped;
+                    break;
                 }
-            }
 
-            unset($entries, $search);
+                if ($supportsPagedResults) {
+                    $errorCode = 0;
+                    $errorMessage = '';
+                    $matchedDn = '';
+                    $referrals = [];
+                    @ldap_parse_result(
+                        $connection,
+                        $search,
+                        $errorCode,
+                        $matchedDn,
+                        $errorMessage,
+                        $referrals,
+                        $controls
+                    );
 
-            if (!$supportsPagedResults) {
-                break;
-            }
-        } while ($cookie !== '');
+                    $cookie = (string) ($controls[0]['value']['cookie'] ?? '');
+                } else {
+                    $cookie = '';
+                }
 
-        return $users;
+                $entries = ldap_get_entries($connection, $search);
+
+                if (!is_array($entries) || ($entries['count'] ?? 0) === 0) {
+                    break;
+                }
+
+                for ($index = 0; $index < (int) $entries['count']; $index++) {
+                    $mapped = $this->mapEntry($entries[$index]);
+
+                    if ($mapped !== null) {
+                        $users[] = $mapped;
+                    }
+                }
+
+                unset($entries, $search);
+
+                if (!$supportsPagedResults) {
+                    break;
+                }
+            } while ($cookie !== '');
+
+            return $users;
+        } catch (LdapSyncException $exception) {
+            throw $exception;
+        } catch (\Exception $exception) {
+            throw new LdapSyncException($exception->getMessage(), 0, $exception);
+        }
     }
 
     public function getUserById(string $id): ?array
@@ -307,26 +319,30 @@ class LdapDriver implements UserIntegrationInterface
      */
     private function connect(array $config): \LDAP\Connection|false|null
     {
-        $host = $config['host'];
-        $port = (int) $config['port'];
+        try {
+            $host = $config['host'];
+            $port = (int) $config['port'];
 
-        $connection = @ldap_connect($host, $port > 0 ? $port : 389);
+            $connection = @ldap_connect($host, $port > 0 ? $port : 389);
 
-        if ($connection === false) {
-            return null;
-        }
-
-        @ldap_set_option($connection, LDAP_OPT_PROTOCOL_VERSION, 3);
-        @ldap_set_option($connection, LDAP_OPT_REFERRALS, 0);
-        @ldap_set_option($connection, LDAP_OPT_NETWORK_TIMEOUT, 5);
-
-        if ($config['use_tls']) {
-            if (@ldap_start_tls($connection) !== true) {
+            if ($connection === false) {
                 return null;
             }
-        }
 
-        return $connection;
+            @ldap_set_option($connection, LDAP_OPT_PROTOCOL_VERSION, 3);
+            @ldap_set_option($connection, LDAP_OPT_REFERRALS, 0);
+            @ldap_set_option($connection, LDAP_OPT_NETWORK_TIMEOUT, 5);
+
+            if ($config['use_tls']) {
+                if (@ldap_start_tls($connection) !== true) {
+                    return null;
+                }
+            }
+
+            return $connection;
+        } catch (\Exception) {
+            return null;
+        }
     }
 
     /**
@@ -334,13 +350,21 @@ class LdapDriver implements UserIntegrationInterface
      */
     private function connectStrict(array $config): \LDAP\Connection
     {
-        $connection = $this->connect($config);
+        try {
+            $connection = $this->connect($config);
 
-        if ($connection === null || $connection === false) {
-            throw new LdapSyncException(__('personnel_ldap_sync_connection_failed'));
+            if ($connection === null || $connection === false) {
+                throw new LdapSyncException(
+                    __('personnel_ldap_sync_connection_failed') . $this->lastPhpErrorMessage()
+                );
+            }
+
+            return $connection;
+        } catch (LdapSyncException $exception) {
+            throw $exception;
+        } catch (\Exception $exception) {
+            throw new LdapSyncException($exception->getMessage(), 0, $exception);
         }
-
-        return $connection;
     }
 
     /**
@@ -348,10 +372,16 @@ class LdapDriver implements UserIntegrationInterface
      */
     private function bindStrict(\LDAP\Connection $connection, array $config): void
     {
-        if (!$this->bind($connection, $config)) {
-            throw new LdapSyncException(
-                __('personnel_ldap_sync_bind_failed') . $this->ldapErrorMessage($connection)
-            );
+        try {
+            if (!$this->bind($connection, $config)) {
+                throw new LdapSyncException(
+                    __('personnel_ldap_sync_bind_failed') . $this->ldapErrorMessage($connection)
+                );
+            }
+        } catch (LdapSyncException $exception) {
+            throw $exception;
+        } catch (\Exception $exception) {
+            throw new LdapSyncException($exception->getMessage(), 0, $exception);
         }
     }
 
@@ -359,7 +389,24 @@ class LdapDriver implements UserIntegrationInterface
     {
         $error = @ldap_error($connection);
 
-        return is_string($error) && $error !== '' ? ' ' . $error : '';
+        if (is_string($error) && $error !== '') {
+            return ' ' . $error;
+        }
+
+        return $this->lastPhpErrorMessage();
+    }
+
+    private function lastPhpErrorMessage(): string
+    {
+        $lastError = error_get_last();
+
+        if (!is_array($lastError)) {
+            return '';
+        }
+
+        $message = trim((string) ($lastError['message'] ?? ''));
+
+        return $message !== '' ? ' ' . $message : '';
     }
 
     /**
@@ -368,11 +415,15 @@ class LdapDriver implements UserIntegrationInterface
      */
     private function bind(\LDAP\Connection $connection, array $config): bool
     {
-        if ($config['bind_dn'] !== '' && $config['bind_password'] !== '') {
-            return @ldap_bind($connection, $config['bind_dn'], $config['bind_password']) === true;
-        }
+        try {
+            if ($config['bind_dn'] !== '' && $config['bind_password'] !== '') {
+                return @ldap_bind($connection, $config['bind_dn'], $config['bind_password']) === true;
+            }
 
-        return @ldap_bind($connection) === true;
+            return @ldap_bind($connection) === true;
+        } catch (\Exception) {
+            return false;
+        }
     }
 
     private function buildSearchFilter(string $query): string
