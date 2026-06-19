@@ -84,6 +84,10 @@ class DatabaseInitializer
                 foreach ($this->patchConsumables($connection) as $warning) {
                     $warnings[] = $warning;
                 }
+
+                foreach ($this->patchTickets($connection) as $warning) {
+                    $warnings[] = $warning;
+                }
             }
 
             foreach ($this->patchPersonnelSeparation($connection) as $warning) {
@@ -769,6 +773,34 @@ class DatabaseInitializer
     private function getConsumablesTableMigrationPath(): string
     {
         return dirname($this->schemaPath) . '/migrations/012_create_consumables_table.sql';
+    }
+
+    /**
+     * Self-heal help desk ticketing tables.
+     *
+     * @param object $connection Medoo instance
+     *
+     * @return list<string>
+     */
+    private function patchTickets(object $connection): array
+    {
+        $warnings = [];
+
+        if (!$this->tableExists($connection, 'personnel')) {
+            return $warnings;
+        }
+
+        if (!$this->tableExists($connection, 'tickets')) {
+            $this->applySqlFile($connection, $this->getTicketsTableMigrationPath());
+            $warnings[] = 'Self-healed database: created tickets and ticket_comments tables.';
+        }
+
+        return $warnings;
+    }
+
+    private function getTicketsTableMigrationPath(): string
+    {
+        return dirname($this->schemaPath) . '/migrations/014_create_tickets_tables.sql';
     }
 
     /**

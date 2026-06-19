@@ -219,6 +219,27 @@ $i18nScript = json_encode([
     'consumable_checkout_error' => __('consumable_checkout_error'),
     'consumable_restock_error' => __('consumable_restock_error'),
     'consumable_delete_confirm' => __('consumable_delete_confirm'),
+    'helpdesk_fetch_error' => __('helpdesk_fetch_error'),
+    'helpdesk_network_error' => __('helpdesk_network_error'),
+    'ticket_create_success' => __('ticket_create_success'),
+    'ticket_create_error' => __('ticket_create_error'),
+    'ticket_update_success' => __('ticket_update_success'),
+    'ticket_update_error' => __('ticket_update_error'),
+    'ticket_delete_success' => __('ticket_delete_success'),
+    'ticket_delete_error' => __('ticket_delete_error'),
+    'ticket_delete_confirm' => __('ticket_delete_confirm'),
+    'ticket_comment_create_success' => __('ticket_comment_create_success'),
+    'ticket_comment_create_error' => __('ticket_comment_create_error'),
+    'helpdesk_filter_all' => __('helpdesk_filter_all'),
+    'ticket_status_open' => __('ticket_status_open'),
+    'ticket_status_in_progress' => __('ticket_status_in_progress'),
+    'ticket_status_resolved' => __('ticket_status_resolved'),
+    'ticket_status_closed' => __('ticket_status_closed'),
+    'ticket_priority_low' => __('ticket_priority_low'),
+    'ticket_priority_medium' => __('ticket_priority_medium'),
+    'ticket_priority_high' => __('ticket_priority_high'),
+    'ticket_priority_critical' => __('ticket_priority_critical'),
+    'ticket_personnel_required' => __('ticket_personnel_required'),
     'add_manual_user' => __('add_manual_user'),
     'manual_user_create_button' => __('manual_user_create_button'),
     'manual_user_create_error' => __('manual_user_create_error'),
@@ -234,7 +255,7 @@ $i18nScript = json_encode([
     'dashboard_activity_generic' => __('dashboard_activity_generic'),
 ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
 ?>
-<div class="min-h-full" x-data="assetDashboard()" x-init="restoreDashboardView(); if (canManageAssets) { fetchCategories(); fetchLocations(); fetchLicenses(); fetchConsumables(); if (activeView === 'dashboard') { fetchDashboardStats(); } } this.isAssignLicenseModalOpen = false;">
+<div class="min-h-full" x-data="assetDashboard()" x-init="restoreDashboardView(); if (canManageAssets) { fetchCategories(); fetchLocations(); fetchLicenses(); fetchConsumables(); fetchTickets(); if (activeView === 'dashboard') { fetchDashboardStats(); } } this.isAssignLicenseModalOpen = false;">
     <div class="flex min-h-screen">
         <aside class="hidden w-64 shrink-0 border-r border-zinc-200 bg-white lg:flex lg:flex-col">
             <div class="flex h-16 items-center gap-3 border-b border-zinc-200 px-6">
@@ -284,6 +305,15 @@ $i18nScript = json_encode([
                 >
                     <span class="h-2 w-2 rounded-full" :class="activeView === 'consumables' ? 'bg-zinc-900' : 'bg-zinc-300'"></span>
                     <?= htmlspecialchars(__('nav_consumables'), ENT_QUOTES, 'UTF-8') ?>
+                </button>
+                <button
+                    type="button"
+                    @click="activeView = 'helpdesk'; fetchTickets()"
+                    class="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm font-medium transition"
+                    :class="activeView === 'helpdesk' ? 'bg-zinc-100 text-zinc-900' : 'text-zinc-600 hover:bg-zinc-50'"
+                >
+                    <span class="h-2 w-2 rounded-full" :class="activeView === 'helpdesk' ? 'bg-zinc-900' : 'bg-zinc-300'"></span>
+                    <?= htmlspecialchars(__('nav_helpdesk'), ENT_QUOTES, 'UTF-8') ?>
                 </button>
                 <?php endif; ?>
                 <?php if ($canAccessPersonnel): ?>
@@ -426,6 +456,15 @@ $i18nScript = json_encode([
                         >
                             <span class="text-lg leading-none">+</span>
                             <?= htmlspecialchars(__('add_consumable'), ENT_QUOTES, 'UTF-8') ?>
+                        </button>
+                        <button
+                            type="button"
+                            x-show="activeView === 'helpdesk' && canManageAssets"
+                            @click="openTicketModal()"
+                            class="inline-flex items-center gap-2 rounded-xl bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white shadow-soft transition hover:bg-zinc-800"
+                        >
+                            <span class="text-lg leading-none">+</span>
+                            <?= htmlspecialchars(__('add_ticket'), ENT_QUOTES, 'UTF-8') ?>
                         </button>
                     </div>
                 </div>
@@ -655,6 +694,7 @@ $i18nScript = json_encode([
                 <?php if ($canManageAssets): ?>
                 <?php require __DIR__ . '/partials/licenses_panel.php'; ?>
                 <?php require __DIR__ . '/partials/consumables_panel.php'; ?>
+                <?php require __DIR__ . '/partials/helpdesk_panel.php'; ?>
                 <?php endif; ?>
                 <?php if ($canAccessSettings): ?>
                 <?php require __DIR__ . '/partials/settings_panel.php'; ?>
@@ -1806,6 +1846,180 @@ $i18nScript = json_encode([
             </form>
         </div>
     </div>
+
+    <div
+        x-show="isTicketModalOpen"
+        x-cloak
+        class="fixed inset-0 z-[60] flex items-center justify-center px-4"
+        @keydown.escape.window="closeTicketModal()"
+    >
+        <div class="absolute inset-0 bg-zinc-900/40 backdrop-blur-sm" @click="closeTicketModal()"></div>
+        <div class="relative w-full max-w-2xl rounded-2xl border border-zinc-200 bg-white shadow-soft">
+            <div class="flex items-center justify-between border-b border-zinc-200 px-6 py-4">
+                <div>
+                    <h3 class="text-lg font-semibold text-zinc-900"><?= htmlspecialchars(__('add_ticket'), ENT_QUOTES, 'UTF-8') ?></h3>
+                    <p class="mt-1 text-sm text-zinc-500"><?= htmlspecialchars(__('modal_ticket_subtitle'), ENT_QUOTES, 'UTF-8') ?></p>
+                </div>
+                <button type="button" @click="closeTicketModal()" class="rounded-lg p-2 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600">&times;</button>
+            </div>
+            <form @submit.prevent="submitTicketForm()" class="px-6 py-5">
+                <div class="grid gap-4">
+                    <label class="block">
+                        <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('ticket_subject_label'), ENT_QUOTES, 'UTF-8') ?></span>
+                        <input type="text" x-model="ticketForm.subject" required class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4">
+                    </label>
+                    <label class="block">
+                        <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('ticket_description_label'), ENT_QUOTES, 'UTF-8') ?></span>
+                        <textarea x-model="ticketForm.description" rows="4" required class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4"></textarea>
+                    </label>
+                    <div>
+                        <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('ticket_requester_label'), ENT_QUOTES, 'UTF-8') ?></span>
+                        <div class="relative">
+                            <div x-show="ticketSelectedPersonnel" x-cloak class="mb-3 flex items-center justify-between rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3">
+                                <div>
+                                    <p class="text-sm font-medium text-emerald-900" x-text="ticketSelectedPersonnel?.name"></p>
+                                    <p class="text-xs text-emerald-700" x-text="ticketSelectedPersonnel?.email"></p>
+                                </div>
+                                <button type="button" @click="clearTicketSelectedPersonnel()" class="text-xs font-medium text-emerald-800 hover:underline"><?= htmlspecialchars(__('unassign_user'), ENT_QUOTES, 'UTF-8') ?></button>
+                            </div>
+                            <input
+                                type="text"
+                                x-model="ticketUserSearchQuery"
+                                @input.debounce.300ms="searchTicketPersonnel()"
+                                @focus="showTicketUserResults = true"
+                                :placeholder="window.__i18n.search_users_placeholder"
+                                class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4"
+                            >
+                            <div
+                                x-show="showTicketUserResults && (ticketUserSearchResults.length > 0 || (ticketUserSearchQuery !== '' && !ticketUserSearchLoading))"
+                                x-cloak
+                                @click.outside="showTicketUserResults = false"
+                                class="absolute z-10 mt-2 max-h-56 w-full overflow-y-auto rounded-xl border border-zinc-200 bg-white shadow-soft"
+                            >
+                                <template x-for="user in ticketUserSearchResults" :key="user.id">
+                                    <button type="button" @click="selectTicketPersonnel(user)" class="flex w-full flex-col items-start px-4 py-3 text-left hover:bg-zinc-50">
+                                        <span class="text-sm font-medium text-zinc-900" x-text="user.name"></span>
+                                        <span class="text-xs text-zinc-500" x-text="user.email"></span>
+                                    </button>
+                                </template>
+                                <p x-show="ticketUserSearchResults.length === 0 && ticketUserSearchQuery !== '' && !ticketUserSearchLoading" class="px-4 py-3 text-sm text-zinc-500" x-text="window.__i18n.no_users_found"></p>
+                            </div>
+                        </div>
+                    </div>
+                    <label class="block">
+                        <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('ticket_asset_label'), ENT_QUOTES, 'UTF-8') ?></span>
+                        <select x-model="ticketForm.asset_id" class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4">
+                            <option value="">—</option>
+                            <template x-for="asset in assetOptions" :key="asset.id">
+                                <option :value="asset.id" x-text="`${asset.asset_tag} — ${asset.name}`"></option>
+                            </template>
+                        </select>
+                    </label>
+                    <label class="block sm:max-w-xs">
+                        <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('ticket_priority_label'), ENT_QUOTES, 'UTF-8') ?></span>
+                        <select x-model="ticketForm.priority" class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4">
+                            <option value="low"><?= htmlspecialchars(__('ticket_priority_low'), ENT_QUOTES, 'UTF-8') ?></option>
+                            <option value="medium"><?= htmlspecialchars(__('ticket_priority_medium'), ENT_QUOTES, 'UTF-8') ?></option>
+                            <option value="high"><?= htmlspecialchars(__('ticket_priority_high'), ENT_QUOTES, 'UTF-8') ?></option>
+                            <option value="critical"><?= htmlspecialchars(__('ticket_priority_critical'), ENT_QUOTES, 'UTF-8') ?></option>
+                        </select>
+                    </label>
+                </div>
+                <p x-show="ticketFormError" x-cloak class="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700" x-text="ticketFormError"></p>
+                <div class="mt-6 flex items-center justify-end gap-3 border-t border-zinc-200 pt-5">
+                    <button type="button" @click="closeTicketModal()" :disabled="isTicketSubmitting" class="rounded-xl border border-zinc-200 px-4 py-2.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60"><?= htmlspecialchars(__('cancel'), ENT_QUOTES, 'UTF-8') ?></button>
+                    <button type="submit" :disabled="isTicketSubmitting" class="inline-flex items-center gap-2 rounded-xl bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60">
+                        <span x-show="isTicketSubmitting"><?= htmlspecialchars(__('saving'), ENT_QUOTES, 'UTF-8') ?></span>
+                        <span x-show="!isTicketSubmitting"><?= htmlspecialchars(__('add_ticket'), ENT_QUOTES, 'UTF-8') ?></span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div
+        x-show="isTicketDetailOpen"
+        x-cloak
+        class="fixed inset-0 z-[60] flex items-center justify-center px-4"
+        @keydown.escape.window="closeTicketDetail()"
+    >
+        <div class="absolute inset-0 bg-zinc-900/40 backdrop-blur-sm" @click="closeTicketDetail()"></div>
+        <div class="relative flex max-h-[90vh] w-full max-w-3xl flex-col rounded-2xl border border-zinc-200 bg-white shadow-soft">
+            <div class="flex items-center justify-between border-b border-zinc-200 px-6 py-4">
+                <div>
+                    <p class="text-xs font-medium uppercase tracking-wide text-zinc-400" x-text="ticketDetail?.ticket_number"></p>
+                    <h3 class="mt-1 text-lg font-semibold text-zinc-900" x-text="ticketDetail?.subject"></h3>
+                    <p class="mt-1 text-sm text-zinc-500"><?= htmlspecialchars(__('modal_ticket_detail_subtitle'), ENT_QUOTES, 'UTF-8') ?></p>
+                </div>
+                <button type="button" @click="closeTicketDetail()" class="rounded-lg p-2 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600">&times;</button>
+            </div>
+            <div class="overflow-y-auto px-6 py-5">
+                <div class="grid gap-4 sm:grid-cols-2">
+                    <div class="rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3">
+                        <p class="text-xs uppercase tracking-wide text-zinc-400"><?= htmlspecialchars(__('col_ticket_requester'), ENT_QUOTES, 'UTF-8') ?></p>
+                        <p class="mt-1 text-sm font-medium text-zinc-900" x-text="ticketDetail?.personnel_name"></p>
+                        <p class="text-xs text-zinc-500" x-text="ticketDetail?.personnel_email"></p>
+                    </div>
+                    <div class="rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3">
+                        <p class="text-xs uppercase tracking-wide text-zinc-400"><?= htmlspecialchars(__('col_ticket_asset'), ENT_QUOTES, 'UTF-8') ?></p>
+                        <p class="mt-1 text-sm text-zinc-700" x-text="ticketDetail?.asset_label || '—'"></p>
+                    </div>
+                </div>
+                <p class="mt-4 rounded-xl border border-zinc-200 bg-white px-4 py-3 text-sm text-zinc-700" x-text="ticketDetail?.description"></p>
+                <div class="mt-4 grid gap-4 sm:grid-cols-2">
+                    <label class="block">
+                        <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('ticket_status_label'), ENT_QUOTES, 'UTF-8') ?></span>
+                        <select x-model="ticketDetailForm.status" class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4">
+                            <option value="open"><?= htmlspecialchars(__('ticket_status_open'), ENT_QUOTES, 'UTF-8') ?></option>
+                            <option value="in_progress"><?= htmlspecialchars(__('ticket_status_in_progress'), ENT_QUOTES, 'UTF-8') ?></option>
+                            <option value="resolved"><?= htmlspecialchars(__('ticket_status_resolved'), ENT_QUOTES, 'UTF-8') ?></option>
+                            <option value="closed"><?= htmlspecialchars(__('ticket_status_closed'), ENT_QUOTES, 'UTF-8') ?></option>
+                        </select>
+                    </label>
+                    <label class="block">
+                        <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('ticket_priority_label'), ENT_QUOTES, 'UTF-8') ?></span>
+                        <select x-model="ticketDetailForm.priority" class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4">
+                            <option value="low"><?= htmlspecialchars(__('ticket_priority_low'), ENT_QUOTES, 'UTF-8') ?></option>
+                            <option value="medium"><?= htmlspecialchars(__('ticket_priority_medium'), ENT_QUOTES, 'UTF-8') ?></option>
+                            <option value="high"><?= htmlspecialchars(__('ticket_priority_high'), ENT_QUOTES, 'UTF-8') ?></option>
+                            <option value="critical"><?= htmlspecialchars(__('ticket_priority_critical'), ENT_QUOTES, 'UTF-8') ?></option>
+                        </select>
+                    </label>
+                </div>
+                <div class="mt-6">
+                    <h4 class="text-sm font-semibold text-zinc-900"><?= htmlspecialchars(__('ticket_comments_title'), ENT_QUOTES, 'UTF-8') ?></h4>
+                    <p x-show="ticketDetailLoading" x-cloak class="mt-4 text-sm text-zinc-500"><?= htmlspecialchars(__('helpdesk_loading'), ENT_QUOTES, 'UTF-8') ?></p>
+                    <p x-show="!ticketDetailLoading && ticketComments.length === 0" x-cloak class="mt-4 rounded-xl border border-dashed border-zinc-200 bg-zinc-50 px-4 py-3 text-sm text-zinc-500"><?= htmlspecialchars(__('ticket_no_comments'), ENT_QUOTES, 'UTF-8') ?></p>
+                    <div x-show="!ticketDetailLoading && ticketComments.length > 0" x-cloak class="mt-4 space-y-3">
+                        <template x-for="comment in ticketComments" :key="comment.id">
+                            <article class="rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3">
+                                <div class="flex flex-wrap items-center gap-2">
+                                    <span class="text-sm font-medium text-zinc-900" x-text="comment.author_name"></span>
+                                    <time class="text-xs text-zinc-400" x-text="formatTicketDate(comment.created_at)"></time>
+                                </div>
+                                <p class="mt-2 whitespace-pre-wrap text-sm text-zinc-700" x-text="comment.body"></p>
+                            </article>
+                        </template>
+                    </div>
+                    <form class="mt-4 space-y-3" @submit.prevent="submitTicketComment()">
+                        <label class="block">
+                            <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('ticket_comment_label'), ENT_QUOTES, 'UTF-8') ?></span>
+                            <textarea x-model="ticketCommentBody" rows="3" class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4"></textarea>
+                        </label>
+                        <p x-show="ticketCommentError" x-cloak class="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700" x-text="ticketCommentError"></p>
+                        <button type="submit" :disabled="isTicketCommentSubmitting" class="rounded-xl bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60"><?= htmlspecialchars(__('action_add_ticket_reply'), ENT_QUOTES, 'UTF-8') ?></button>
+                    </form>
+                </div>
+            </div>
+            <div class="flex items-center justify-between gap-3 border-t border-zinc-200 px-6 py-4">
+                <button type="button" @click="deleteTicket()" class="rounded-xl border border-rose-200 bg-rose-50 px-4 py-2.5 text-sm font-medium text-rose-700 hover:bg-rose-100"><?= htmlspecialchars(__('action_delete_ticket'), ENT_QUOTES, 'UTF-8') ?></button>
+                <div class="flex items-center gap-3">
+                    <button type="button" @click="closeTicketDetail()" class="rounded-xl border border-zinc-200 px-4 py-2.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50"><?= htmlspecialchars(__('cancel'), ENT_QUOTES, 'UTF-8') ?></button>
+                    <button type="button" @click="updateTicketDetail()" :disabled="isTicketDetailSubmitting" class="rounded-xl bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60"><?= htmlspecialchars(__('save_changes'), ENT_QUOTES, 'UTF-8') ?></button>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 
 <style>
@@ -1862,6 +2076,7 @@ $i18nScript = json_encode([
                 assets: <?= json_encode($isEndUser ? __('page_title_end_user') : __('nav_assets'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 licenses: <?= json_encode(__('licenses_page_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 consumables: <?= json_encode(__('consumables_page_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
+                helpdesk: <?= json_encode(__('helpdesk_page_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 settings: <?= json_encode(__('settings_page_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 categories: <?= json_encode(__('categories_page_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 locations: <?= json_encode(__('locations_page_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
@@ -1873,6 +2088,7 @@ $i18nScript = json_encode([
                 assets: <?= json_encode($isEndUser ? __('page_subtitle_end_user') : __('page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 licenses: <?= json_encode(__('licenses_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 consumables: <?= json_encode(__('consumables_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
+                helpdesk: <?= json_encode(__('helpdesk_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 settings: <?= json_encode(__('settings_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 categories: <?= json_encode(__('categories_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 locations: <?= json_encode(__('locations_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
@@ -2006,6 +2222,51 @@ $i18nScript = json_encode([
             consumableAdjustTarget: null,
             consumableAdjustQuantity: 1,
             consumableAdjustError: '',
+            tickets: [],
+            ticketsLoading: false,
+            ticketsError: '',
+            ticketsSuccessMessage: '',
+            ticketLayout: 'table',
+            ticketStatusFilter: 'all',
+            ticketStatusFilters: [
+                { value: 'all', label: window.__i18n.helpdesk_filter_all },
+                { value: 'open', label: window.__i18n.ticket_status_open },
+                { value: 'in_progress', label: window.__i18n.ticket_status_in_progress },
+                { value: 'resolved', label: window.__i18n.ticket_status_resolved },
+                { value: 'closed', label: window.__i18n.ticket_status_closed },
+            ],
+            ticketBoardColumns: [
+                { status: 'open', label: window.__i18n.ticket_status_open },
+                { status: 'in_progress', label: window.__i18n.ticket_status_in_progress },
+                { status: 'resolved', label: window.__i18n.ticket_status_resolved },
+                { status: 'closed', label: window.__i18n.ticket_status_closed },
+            ],
+            isTicketModalOpen: false,
+            isTicketSubmitting: false,
+            ticketForm: {
+                subject: '',
+                description: '',
+                asset_id: '',
+                priority: 'medium',
+            },
+            ticketFormError: '',
+            ticketSelectedPersonnel: null,
+            ticketUserSearchQuery: '',
+            ticketUserSearchResults: [],
+            ticketUserSearchLoading: false,
+            showTicketUserResults: false,
+            isTicketDetailOpen: false,
+            ticketDetailLoading: false,
+            ticketDetail: null,
+            ticketDetailForm: {
+                status: 'open',
+                priority: 'medium',
+            },
+            isTicketDetailSubmitting: false,
+            ticketComments: [],
+            ticketCommentBody: '',
+            ticketCommentError: '',
+            isTicketCommentSubmitting: false,
             assetOptions: Array.isArray(window.__assetOptions) ? window.__assetOptions : [],
             assetLicenses: [],
             assetLicensesLoading: false,
@@ -2213,6 +2474,10 @@ $i18nScript = json_encode([
 
                     if (this.activeView === 'consumables') {
                         this.fetchConsumables();
+                    }
+
+                    if (this.activeView === 'helpdesk') {
+                        this.fetchTickets();
                     }
                 } catch (error) {
                     // Ignore invalid persisted view state.
@@ -4114,6 +4379,342 @@ $i18nScript = json_encode([
                     await this.fetchConsumables();
                 } catch (error) {
                     this.consumablesError = window.__i18n.consumables_network_error;
+                }
+            },
+            get filteredTickets() {
+                if (this.ticketStatusFilter === 'all') {
+                    return this.tickets;
+                }
+
+                return this.tickets.filter((ticket) => ticket.status === this.ticketStatusFilter);
+            },
+            setTicketStatusFilter(value) {
+                this.ticketStatusFilter = value;
+            },
+            ticketsForStatus(status) {
+                return this.filteredTickets.filter((ticket) => ticket.status === status);
+            },
+            resolveTicketStatus(status) {
+                const map = {
+                    open: window.__i18n.ticket_status_open,
+                    in_progress: window.__i18n.ticket_status_in_progress,
+                    resolved: window.__i18n.ticket_status_resolved,
+                    closed: window.__i18n.ticket_status_closed,
+                };
+
+                return map[status] || status;
+            },
+            resolveTicketPriority(priority) {
+                const map = {
+                    low: window.__i18n.ticket_priority_low,
+                    medium: window.__i18n.ticket_priority_medium,
+                    high: window.__i18n.ticket_priority_high,
+                    critical: window.__i18n.ticket_priority_critical,
+                };
+
+                return map[priority] || priority;
+            },
+            ticketStatusClass(status) {
+                const classes = {
+                    open: 'bg-sky-50 text-sky-700 ring-sky-600/20',
+                    in_progress: 'bg-indigo-50 text-indigo-700 ring-indigo-600/20',
+                    resolved: 'bg-emerald-50 text-emerald-700 ring-emerald-600/20',
+                    closed: 'bg-zinc-100 text-zinc-700 ring-zinc-500/20',
+                };
+
+                return classes[status] || 'bg-zinc-100 text-zinc-700 ring-zinc-500/20';
+            },
+            ticketPriorityClass(priority) {
+                const classes = {
+                    low: 'bg-zinc-100 text-zinc-700 ring-zinc-500/20',
+                    medium: 'bg-sky-50 text-sky-700 ring-sky-600/20',
+                    high: 'bg-amber-50 text-amber-800 ring-amber-600/20',
+                    critical: 'bg-rose-50 text-rose-700 ring-rose-600/20',
+                };
+
+                return classes[priority] || 'bg-zinc-100 text-zinc-700 ring-zinc-500/20';
+            },
+            formatTicketDate(value) {
+                if (!value) {
+                    return '—';
+                }
+
+                const date = new Date(String(value).replace(' ', 'T'));
+
+                if (Number.isNaN(date.getTime())) {
+                    return value;
+                }
+
+                return date.toLocaleString(window.__i18n.locale || 'tr');
+            },
+            async fetchTickets() {
+                if (!this.canManageAssets) {
+                    return;
+                }
+
+                this.ticketsLoading = true;
+                this.ticketsError = '';
+
+                try {
+                    const response = await fetch('/api/tickets', {
+                        headers: { Accept: 'application/json' },
+                    });
+                    const result = await response.json();
+
+                    if (!response.ok) {
+                        this.ticketsError = result.message || window.__i18n.helpdesk_fetch_error;
+                        this.tickets = [];
+                        return;
+                    }
+
+                    this.tickets = Array.isArray(result.data) ? result.data : [];
+                } catch (error) {
+                    this.ticketsError = window.__i18n.helpdesk_network_error;
+                    this.tickets = [];
+                } finally {
+                    this.ticketsLoading = false;
+                }
+            },
+            openTicketModal() {
+                this.ticketForm = {
+                    subject: '',
+                    description: '',
+                    asset_id: '',
+                    priority: 'medium',
+                };
+                this.ticketFormError = '';
+                this.ticketsSuccessMessage = '';
+                this.ticketSelectedPersonnel = null;
+                this.ticketUserSearchQuery = '';
+                this.ticketUserSearchResults = [];
+                this.showTicketUserResults = false;
+                this.isTicketModalOpen = true;
+            },
+            closeTicketModal() {
+                if (this.isTicketSubmitting) {
+                    return;
+                }
+
+                this.isTicketModalOpen = false;
+            },
+            clearTicketSelectedPersonnel() {
+                this.ticketSelectedPersonnel = null;
+            },
+            selectTicketPersonnel(user) {
+                this.ticketSelectedPersonnel = user;
+                this.ticketUserSearchQuery = '';
+                this.ticketUserSearchResults = [];
+                this.showTicketUserResults = false;
+            },
+            async searchTicketPersonnel() {
+                const query = this.ticketUserSearchQuery.trim();
+
+                if (query === '') {
+                    this.ticketUserSearchResults = [];
+                    return;
+                }
+
+                this.ticketUserSearchLoading = true;
+
+                try {
+                    const response = await fetch(`/api/personnel/search?q=${encodeURIComponent(query)}`, {
+                        headers: { Accept: 'application/json' },
+                    });
+                    const result = await response.json();
+                    this.ticketUserSearchResults = Array.isArray(result.data) ? result.data : [];
+                } catch (error) {
+                    this.ticketUserSearchResults = [];
+                } finally {
+                    this.ticketUserSearchLoading = false;
+                }
+            },
+            async submitTicketForm() {
+                if (!this.ticketSelectedPersonnel?.id) {
+                    this.ticketFormError = window.__i18n.ticket_personnel_required;
+                    return;
+                }
+
+                this.isTicketSubmitting = true;
+                this.ticketFormError = '';
+                this.ticketsSuccessMessage = '';
+
+                const payload = {
+                    subject: this.ticketForm.subject,
+                    description: this.ticketForm.description,
+                    personnel_id: Number(this.ticketSelectedPersonnel.id),
+                    priority: this.ticketForm.priority,
+                    asset_id: this.ticketForm.asset_id ? Number(this.ticketForm.asset_id) : null,
+                };
+
+                try {
+                    const response = await fetch('/api/tickets', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            Accept: 'application/json',
+                        },
+                        body: JSON.stringify(payload),
+                    });
+                    const result = await response.json();
+
+                    if (!response.ok) {
+                        this.ticketFormError = this.apiErrorMessage(result, window.__i18n.ticket_create_error);
+                        return;
+                    }
+
+                    this.ticketsSuccessMessage = result.message || window.__i18n.ticket_create_success;
+                    this.isTicketModalOpen = false;
+                    await this.fetchTickets();
+                } catch (error) {
+                    this.ticketFormError = window.__i18n.helpdesk_network_error;
+                } finally {
+                    this.isTicketSubmitting = false;
+                }
+            },
+            async openTicketDetail(ticket) {
+                this.isTicketDetailOpen = true;
+                this.ticketDetailLoading = true;
+                this.ticketDetail = ticket;
+                this.ticketDetailForm = {
+                    status: ticket.status,
+                    priority: ticket.priority,
+                };
+                this.ticketComments = [];
+                this.ticketCommentBody = '';
+                this.ticketCommentError = '';
+
+                try {
+                    const response = await fetch(`/api/tickets/${ticket.id}`, {
+                        headers: { Accept: 'application/json' },
+                    });
+                    const result = await response.json();
+
+                    if (!response.ok) {
+                        this.ticketsError = result.message || window.__i18n.helpdesk_fetch_error;
+                        return;
+                    }
+
+                    this.ticketDetail = result.data;
+                    this.ticketDetailForm = {
+                        status: result.data.status,
+                        priority: result.data.priority,
+                    };
+                    this.ticketComments = Array.isArray(result.data.comments) ? result.data.comments : [];
+                } catch (error) {
+                    this.ticketsError = window.__i18n.helpdesk_network_error;
+                } finally {
+                    this.ticketDetailLoading = false;
+                }
+            },
+            closeTicketDetail() {
+                if (this.isTicketDetailSubmitting || this.isTicketCommentSubmitting) {
+                    return;
+                }
+
+                this.isTicketDetailOpen = false;
+                this.ticketDetail = null;
+            },
+            async updateTicketDetail() {
+                if (!this.ticketDetail?.id) {
+                    return;
+                }
+
+                this.isTicketDetailSubmitting = true;
+
+                try {
+                    const response = await fetch(`/api/tickets/${this.ticketDetail.id}`, {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            Accept: 'application/json',
+                        },
+                        body: JSON.stringify({
+                            status: this.ticketDetailForm.status,
+                            priority: this.ticketDetailForm.priority,
+                        }),
+                    });
+                    const result = await response.json();
+
+                    if (!response.ok) {
+                        this.ticketsError = this.apiErrorMessage(result, window.__i18n.ticket_update_error);
+                        return;
+                    }
+
+                    this.ticketsSuccessMessage = result.message || window.__i18n.ticket_update_success;
+                    this.ticketDetail = result.data;
+                    await this.fetchTickets();
+                } catch (error) {
+                    this.ticketsError = window.__i18n.helpdesk_network_error;
+                } finally {
+                    this.isTicketDetailSubmitting = false;
+                }
+            },
+            async submitTicketComment() {
+                if (!this.ticketDetail?.id) {
+                    return;
+                }
+
+                const body = this.ticketCommentBody.trim();
+
+                if (body === '') {
+                    this.ticketCommentError = window.__i18n.ticket_comment_create_error;
+                    return;
+                }
+
+                this.isTicketCommentSubmitting = true;
+                this.ticketCommentError = '';
+
+                try {
+                    const response = await fetch(`/api/tickets/${this.ticketDetail.id}/comments`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            Accept: 'application/json',
+                        },
+                        body: JSON.stringify({ body }),
+                    });
+                    const result = await response.json();
+
+                    if (!response.ok) {
+                        this.ticketCommentError = this.apiErrorMessage(result, window.__i18n.ticket_comment_create_error);
+                        return;
+                    }
+
+                    this.ticketCommentBody = '';
+                    this.ticketComments.push(result.data);
+                } catch (error) {
+                    this.ticketCommentError = window.__i18n.helpdesk_network_error;
+                } finally {
+                    this.isTicketCommentSubmitting = false;
+                }
+            },
+            async deleteTicket() {
+                if (!this.ticketDetail?.id) {
+                    return;
+                }
+
+                if (!window.confirm(window.__i18n.ticket_delete_confirm)) {
+                    return;
+                }
+
+                try {
+                    const response = await fetch(`/api/tickets/${this.ticketDetail.id}`, {
+                        method: 'DELETE',
+                        headers: { Accept: 'application/json' },
+                    });
+                    const result = await response.json();
+
+                    if (!response.ok) {
+                        this.ticketsError = this.apiErrorMessage(result, window.__i18n.ticket_delete_error);
+                        return;
+                    }
+
+                    this.ticketsSuccessMessage = result.message || window.__i18n.ticket_delete_success;
+                    this.isTicketDetailOpen = false;
+                    this.ticketDetail = null;
+                    await this.fetchTickets();
+                } catch (error) {
+                    this.ticketsError = window.__i18n.helpdesk_network_error;
                 }
             },
             openLicenseModal() {

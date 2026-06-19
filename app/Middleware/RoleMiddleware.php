@@ -198,6 +198,36 @@ class RoleMiddleware implements MiddlewareInterface
             ],
             [
                 'methods' => ['GET'],
+                'pattern' => '/api/tickets',
+                'roles' => $operational,
+            ],
+            [
+                'methods' => ['POST'],
+                'pattern' => '/api/tickets',
+                'roles' => $operational,
+            ],
+            [
+                'methods' => ['GET'],
+                'pattern' => '/api/tickets/{id}',
+                'roles' => $operational,
+            ],
+            [
+                'methods' => ['PUT'],
+                'pattern' => '/api/tickets/{id}',
+                'roles' => $operational,
+            ],
+            [
+                'methods' => ['DELETE'],
+                'pattern' => '/api/tickets/{id}',
+                'roles' => $operational,
+            ],
+            [
+                'methods' => ['POST'],
+                'pattern' => '/api/tickets/{id}/comments',
+                'roles' => $operational,
+            ],
+            [
+                'methods' => ['GET'],
                 'pattern' => '/api/personnel',
                 'roles' => $operational,
             ],
