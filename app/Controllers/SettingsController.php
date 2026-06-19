@@ -5,6 +5,11 @@ declare(strict_types=1);
 namespace App\Controllers;
 
 use App\Models\Setting;
+use App\Models\User;
+use App\Services\Auth\SessionAuthService;
+use App\Services\Mail\MailConfigResolver;
+use App\Services\Mail\MailService;
+use App\Services\ViewRenderer;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 
@@ -14,8 +19,16 @@ class SettingsController
 
     private const ALLOWED_FIELD_TYPES = ['text', 'number', 'textarea'];
 
+    private const ALLOWED_SMTP_ENCRYPTION = ['tls', 'ssl', 'none'];
+
     public function __construct(
-        private readonly Setting $settingModel
+        private readonly Setting $settingModel,
+        private readonly MailService $mailService,
+        private readonly MailConfigResolver $mailConfigResolver,
+        private readonly ViewRenderer $viewRenderer,
+        private readonly SessionAuthService $sessionAuthService,
+        private readonly User $userModel,
+        private readonly string $appUrl
     ) {
     }
 
@@ -75,10 +88,76 @@ class SettingsController
             $this->settingModel->saveLoginConfig($payload['login_config']);
         }
 
+        if (array_key_exists('smtp_config', $payload) && is_array($payload['smtp_config'])) {
+            $this->settingModel->saveSmtpConfig($payload['smtp_config']);
+        }
+
         return $this->jsonResponse($response, 200, [
             'status' => 'success',
             'message' => 'Settings updated successfully.',
             'data' => $this->settingModel->getAdminBundle(),
+        ]);
+    }
+
+    public function sendTestSmtp(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
+    {
+        $payload = $this->resolvePayload($request) ?? [];
+        $recipient = strtolower(trim((string) ($payload['recipient'] ?? '')));
+
+        if ($recipient === '') {
+            $userId = $this->sessionAuthService->userId();
+
+            if ($userId !== null && $userId > 0) {
+                $user = $this->userModel->findById($userId);
+                $recipient = strtolower(trim((string) ($user['email'] ?? '')));
+            }
+        }
+
+        if ($recipient === '' || filter_var($recipient, FILTER_VALIDATE_EMAIL) === false) {
+            return $this->jsonResponse($response, 422, [
+                'status' => 'error',
+                'message' => __('settings_smtp_test_recipient_invalid'),
+            ]);
+        }
+
+        $smtpOverride = is_array($payload['smtp_config'] ?? null) ? $payload['smtp_config'] : null;
+        $validationConfig = $smtpOverride ?? $this->settingModel->getSmtpConfigForAdmin();
+        $errors = $this->validateSmtpConfig($validationConfig, true);
+
+        if ($errors !== []) {
+            return $this->jsonResponse($response, 422, [
+                'status' => 'error',
+                'message' => __('settings_smtp_test_validation_failed'),
+                'errors' => $errors,
+            ]);
+        }
+
+        $html = $this->viewRenderer->render('emails/smtp_test', [
+            'heading' => __('settings_smtp_test_email_heading'),
+            'intro' => __('settings_smtp_test_email_intro'),
+            'footer' => __('mail_ticket_footer'),
+            'appUrl' => rtrim($this->appUrl, '/'),
+        ], 'emails/layout');
+
+        $testConfigOverride = is_array($smtpOverride) ? array_merge($smtpOverride, ['enabled' => true]) : ['enabled' => true];
+
+        $sent = $this->mailService->sendHtml(
+            [$recipient],
+            __('settings_smtp_test_email_subject'),
+            $html,
+            $testConfigOverride
+        );
+
+        if (!$sent) {
+            return $this->jsonResponse($response, 500, [
+                'status' => 'error',
+                'message' => __('settings_smtp_test_failed'),
+            ]);
+        }
+
+        return $this->jsonResponse($response, 200, [
+            'status' => 'success',
+            'message' => __('settings_smtp_test_success', ['email' => $recipient]),
         ]);
     }
 
@@ -174,7 +253,67 @@ class SettingsController
             $errors['login_config'][] = 'Login configuration must be an object.';
         }
 
+        if (array_key_exists('smtp_config', $payload)) {
+            if (!is_array($payload['smtp_config'])) {
+                $errors['smtp_config'][] = __('settings_smtp_validation_object');
+            } else {
+                foreach ($this->validateSmtpConfig($payload['smtp_config']) as $field => $messages) {
+                    $errors[$field] = $messages;
+                }
+            }
+        }
+
         return $errors;
+    }
+
+    /**
+     * @param array<string, mixed> $config
+     *
+     * @return array<string, list<string>>
+     */
+    private function validateSmtpConfig(array $config, bool $forSend = false): array
+    {
+        $errors = [];
+
+        $host = trim((string) ($config['host'] ?? ''));
+        if ($host === '') {
+            $errors['smtp_config.host'][] = __('settings_smtp_host_required');
+        }
+
+        $port = (int) ($config['port'] ?? 587);
+        if ($port <= 0 || $port > 65535) {
+            $errors['smtp_config.port'][] = __('settings_smtp_port_invalid');
+        }
+
+        $senderEmail = strtolower(trim((string) ($config['sender_email'] ?? '')));
+        if ($senderEmail === '' || filter_var($senderEmail, FILTER_VALIDATE_EMAIL) === false) {
+            $errors['smtp_config.sender_email'][] = __('settings_smtp_sender_email_invalid');
+        }
+
+        $encryption = strtolower(trim((string) ($config['encryption'] ?? 'tls')));
+        if (!in_array($encryption, self::ALLOWED_SMTP_ENCRYPTION, true)) {
+            $errors['smtp_config.encryption'][] = __('settings_smtp_encryption_invalid');
+        }
+
+        $password = trim((string) ($config['pass'] ?? $config['password'] ?? ''));
+        $passwordConfigured = trim($password) !== ''
+            || $this->toBool($config['pass_configured'] ?? false)
+            || trim((string) ($this->settingModel->get('smtp_pass') ?? '')) !== '';
+
+        if ($forSend && $password === '' && !$passwordConfigured && trim((string) ($config['user'] ?? '')) !== '') {
+            $errors['smtp_config.pass'][] = __('settings_smtp_pass_required');
+        }
+
+        return $errors;
+    }
+
+    private function toBool(mixed $value): bool
+    {
+        if (is_bool($value)) {
+            return $value;
+        }
+
+        return in_array(strtolower(trim((string) $value)), ['1', 'true', 'yes', 'on'], true);
     }
 
     /**

@@ -11,26 +11,13 @@ use App\Services\ViewRenderer;
 
 class TicketNotificationService
 {
-    /**
-     * @param array{
-     *     enabled: bool,
-     *     host: string,
-     *     port: int,
-     *     username: string,
-     *     password: string,
-     *     encryption: string,
-     *     from_address: string,
-     *     from_name: string,
-     *     support_addresses: list<string>
-     * } $mailConfig
-     */
     public function __construct(
         private readonly MailService $mailService,
+        private readonly MailConfigResolver $mailConfigResolver,
         private readonly ViewRenderer $viewRenderer,
         private readonly User $userModel,
         private readonly AppLogger $appLogger,
-        private readonly string $appUrl,
-        private readonly array $mailConfig
+        private readonly string $appUrl
     ) {
     }
 
@@ -193,9 +180,10 @@ class TicketNotificationService
      */
     private function resolveSupportRecipients(): array
     {
+        $config = $this->mailConfigResolver->resolve();
         $recipients = [];
 
-        foreach ($this->mailConfig['support_addresses'] as $address) {
+        foreach ($config['support_addresses'] as $address) {
             $email = strtolower(trim($address));
 
             if ($email !== '' && filter_var($email, FILTER_VALIDATE_EMAIL) !== false) {

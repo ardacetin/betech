@@ -45,6 +45,7 @@ use App\Services\ClientIpResolver;
 use App\Services\DatabaseService;
 use App\Services\EndUserContextService;
 use App\Services\LoginAttemptService;
+use App\Services\Mail\MailConfigResolver;
 use App\Services\Mail\MailService;
 use App\Services\Mail\TicketNotificationService;
 use App\Services\QrCodeService;
@@ -61,7 +62,6 @@ $dotenv->safeLoad();
 
 $appConfig = require $rootPath . '/config/app.php';
 $databaseConfig = require $rootPath . '/config/database.php';
-$mailConfig = require $rootPath . '/config/mail.php';
 
 $isHttps = request_is_https();
 
@@ -140,20 +140,29 @@ $assetTutanakController = new AssetTutanakController($assetModel, $settingModel,
 $userController = new UserController($userIntegrationFactory, $userModel, $personnelModel, $assetModel, $assetHistoryModel, $settingModel, $sessionAuthService, $clientIpResolver);
 $analyticsController = new AnalyticsController($analyticsService);
 $dashboardController = new DashboardController($analyticsService, $assetHistoryModel);
-$settingsController = new SettingsController($settingModel);
+$mailConfigResolver = new MailConfigResolver($settingModel);
+$mailService = new MailService($mailConfigResolver, $appLogger);
+$settingsController = new SettingsController(
+    $settingModel,
+    $mailService,
+    $mailConfigResolver,
+    $viewRenderer,
+    $sessionAuthService,
+    $userModel,
+    $appConfig['url']
+);
 $categoryController = new CategoryController($categoryModel);
 $locationController = new LocationController($locationModel);
 $licenseController = new LicenseController($licenseModel);
 $consumableController = new ConsumableController($consumableModel);
 $ticketModel = new Ticket($databaseService);
-$mailService = new MailService($mailConfig, $appLogger);
 $ticketNotificationService = new TicketNotificationService(
     $mailService,
+    $mailConfigResolver,
     $viewRenderer,
     $userModel,
     $appLogger,
-    $appConfig['url'],
-    $mailConfig
+    $appConfig['url']
 );
 $ticketController = new TicketController(
     $ticketModel,
@@ -178,6 +187,7 @@ $app->get('/api/analytics/summary', [$analyticsController, 'summary']);
 $app->get('/api/dashboard/stats', [$dashboardController, 'stats']);
 $app->get('/api/settings', [$settingsController, 'show']);
 $app->put('/api/settings', [$settingsController, 'update']);
+$app->post('/api/settings/smtp/test', [$settingsController, 'sendTestSmtp']);
 $app->get('/api/categories', [$categoryController, 'index']);
 $app->post('/api/categories', [$categoryController, 'store']);
 $app->put('/api/categories/{id}', [$categoryController, 'update']);

@@ -97,6 +97,10 @@ $i18nScript = json_encode([
     'settings_save_success' => __('settings_save_success'),
     'settings_save_error' => __('settings_save_error'),
     'settings_network_error' => __('settings_network_error'),
+    'settings_smtp_test_success' => __('settings_smtp_test_success'),
+    'settings_smtp_test_failed' => __('settings_smtp_test_failed'),
+    'settings_smtp_test_recipient_invalid' => __('settings_smtp_test_recipient_invalid'),
+    'settings_smtp_test_validation_failed' => __('settings_smtp_test_validation_failed'),
     'settings_auth_local' => __('settings_auth_local'),
     'settings_auth_local_hint' => __('settings_auth_local_hint'),
     'settings_auth_ldap' => __('settings_auth_ldap'),
@@ -2084,6 +2088,7 @@ $i18nScript = json_encode([
             canAccessPersonnel: <?= $canAccessPersonnel ? 'true' : 'false' ?>,
             canAccessSystemUsers: <?= $canAccessSystemUsers ? 'true' : 'false' ?>,
             currentUserId: <?= (int) ($currentUserId ?? 0) ?>,
+            currentUserEmail: <?= json_encode($currentUserEmail ?? '', JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
             isSuperAdmin: <?= $isSuperAdmin ? 'true' : 'false' ?>,
             settingsTab: 'general',
             pageTitles: {
@@ -2097,6 +2102,7 @@ $i18nScript = json_encode([
                 locations: <?= json_encode(__('locations_page_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 personnel: <?= json_encode(__('personnel_page_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 system_users: <?= json_encode(__('system_users_page_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
+                smtp: <?= json_encode(__('settings_tab_smtp'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
             },
             pageSubtitles: {
                 dashboard: <?= json_encode(__('dashboard_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
@@ -2109,6 +2115,7 @@ $i18nScript = json_encode([
                 locations: <?= json_encode(__('locations_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 personnel: <?= json_encode(__('personnel_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 system_users: <?= json_encode(__('system_users_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
+                smtp: <?= json_encode(__('settings_smtp_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
             },
             isAddOpen: false,
             isImportOpen: false,
@@ -2364,7 +2371,21 @@ $i18nScript = json_encode([
                         client_secret_configured: Boolean(window.__settings?.login_config?.microsoft_sso?.client_secret_configured),
                     },
                 },
+                smtp_config: {
+                    enabled: Boolean(window.__settings?.smtp_config?.enabled),
+                    host: window.__settings?.smtp_config?.host || '',
+                    port: window.__settings?.smtp_config?.port || '587',
+                    user: window.__settings?.smtp_config?.user || '',
+                    pass: '',
+                    pass_configured: Boolean(window.__settings?.smtp_config?.pass_configured),
+                    sender_email: window.__settings?.smtp_config?.sender_email || '',
+                    sender_name: window.__settings?.smtp_config?.sender_name || 'Betech ITMS',
+                    encryption: window.__settings?.smtp_config?.encryption || 'tls',
+                    support_to: window.__settings?.smtp_config?.support_to || '',
+                },
             },
+            smtpTestRecipient: <?= json_encode($currentUserEmail ?? '', JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
+            isSendingSmtpTest: false,
             authDrivers: [
                 {
                     id: 'local',
@@ -2417,6 +2438,7 @@ $i18nScript = json_encode([
                         categories: this.pageTitles.categories,
                         locations: this.pageTitles.locations,
                         system_users: this.pageTitles.system_users,
+                        smtp: this.pageTitles.smtp,
                     };
 
                     return tabTitles[this.settingsTab] || this.pageTitles.settings;
@@ -2431,6 +2453,7 @@ $i18nScript = json_encode([
                         categories: this.pageSubtitles.categories,
                         locations: this.pageSubtitles.locations,
                         system_users: this.pageSubtitles.system_users,
+                        smtp: this.pageSubtitles.smtp,
                     };
 
                     return tabSubtitles[this.settingsTab] || this.pageSubtitles.settings;
@@ -5293,6 +5316,90 @@ $i18nScript = json_encode([
                     this.settingsErrorMessage = window.__i18n.settings_network_error;
                 } finally {
                     this.isSavingSettings = false;
+                }
+            },
+            async saveSmtpSettings() {
+                this.isSavingSettings = true;
+                this.settingsErrorMessage = '';
+                this.settingsSuccessMessage = '';
+
+                try {
+                    const response = await fetch('/api/settings', {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            Accept: 'application/json',
+                        },
+                        body: JSON.stringify({
+                            smtp_config: this.settingsForm.smtp_config,
+                        }),
+                    });
+
+                    const result = await response.json();
+
+                    if (!response.ok) {
+                        if (result.errors) {
+                            this.settingsErrorMessage = Object.values(result.errors)
+                                .flat()
+                                .join(' ');
+                        } else {
+                            this.settingsErrorMessage = result.message || window.__i18n.settings_save_error;
+                        }
+
+                        return;
+                    }
+
+                    this.settingsSuccessMessage = window.__i18n.settings_save_success;
+
+                    if (result.data?.smtp_config) {
+                        this.settingsForm.smtp_config = {
+                            ...result.data.smtp_config,
+                            pass: '',
+                        };
+                    }
+                } catch (error) {
+                    this.settingsErrorMessage = window.__i18n.settings_network_error;
+                } finally {
+                    this.isSavingSettings = false;
+                }
+            },
+            async sendSmtpTestEmail() {
+                this.isSendingSmtpTest = true;
+                this.settingsErrorMessage = '';
+                this.settingsSuccessMessage = '';
+
+                try {
+                    const response = await fetch('/api/settings/smtp/test', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            Accept: 'application/json',
+                        },
+                        body: JSON.stringify({
+                            recipient: this.smtpTestRecipient,
+                            smtp_config: this.settingsForm.smtp_config,
+                        }),
+                    });
+
+                    const result = await response.json();
+
+                    if (!response.ok) {
+                        if (result.errors) {
+                            this.settingsErrorMessage = Object.values(result.errors)
+                                .flat()
+                                .join(' ');
+                        } else {
+                            this.settingsErrorMessage = result.message || window.__i18n.settings_smtp_test_failed;
+                        }
+
+                        return;
+                    }
+
+                    this.settingsSuccessMessage = result.message || window.__i18n.settings_smtp_test_success;
+                } catch (error) {
+                    this.settingsErrorMessage = window.__i18n.settings_network_error;
+                } finally {
+                    this.isSendingSmtpTest = false;
                 }
             },
         };

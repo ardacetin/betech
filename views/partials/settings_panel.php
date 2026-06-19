@@ -43,6 +43,16 @@ declare(strict_types=1);
             <?= htmlspecialchars(__('settings_tab_system_users'), ENT_QUOTES, 'UTF-8') ?>
         </button>
         <?php endif; ?>
+        <?php if ($canAccessSettings): ?>
+        <button
+            type="button"
+            @click="settingsTab = 'smtp'"
+            class="rounded-lg px-3 py-2 text-sm font-medium transition"
+            :class="settingsTab === 'smtp' ? 'bg-zinc-900 text-white' : 'text-zinc-600 hover:bg-zinc-100'"
+        >
+            <?= htmlspecialchars(__('settings_tab_smtp'), ENT_QUOTES, 'UTF-8') ?>
+        </button>
+        <?php endif; ?>
     </nav>
 
     <form x-show="settingsTab === 'general'" @submit.prevent="saveSettings" class="space-y-6">
@@ -280,6 +290,84 @@ declare(strict_types=1);
             <button
                 type="submit"
                 :disabled="isSavingSettings"
+                class="inline-flex items-center gap-2 rounded-xl bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+                <span x-show="isSavingSettings"><?= htmlspecialchars(__('saving'), ENT_QUOTES, 'UTF-8') ?></span>
+                <span x-show="!isSavingSettings"><?= htmlspecialchars(__('settings_save'), ENT_QUOTES, 'UTF-8') ?></span>
+            </button>
+        </div>
+    </form>
+
+    <form x-show="settingsTab === 'smtp'" x-cloak @submit.prevent="saveSmtpSettings" class="space-y-6">
+        <article class="rounded-2xl border border-zinc-200 bg-white p-6 shadow-soft">
+            <h3 class="text-sm font-semibold text-zinc-900"><?= htmlspecialchars(__('settings_smtp_title'), ENT_QUOTES, 'UTF-8') ?></h3>
+            <p class="mt-1 text-xs text-zinc-500"><?= htmlspecialchars(__('settings_smtp_hint'), ENT_QUOTES, 'UTF-8') ?></p>
+
+            <div class="mt-5 grid gap-4 sm:grid-cols-2">
+                <label class="flex items-center gap-2 sm:col-span-2">
+                    <input type="checkbox" x-model="settingsForm.smtp_config.enabled" class="rounded border-zinc-300">
+                    <span class="text-sm text-zinc-700"><?= htmlspecialchars(__('settings_smtp_enabled'), ENT_QUOTES, 'UTF-8') ?></span>
+                </label>
+                <label class="block">
+                    <span class="mb-1 block text-xs font-medium text-zinc-600"><?= htmlspecialchars(__('settings_smtp_host'), ENT_QUOTES, 'UTF-8') ?></span>
+                    <input type="text" x-model="settingsForm.smtp_config.host" class="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-400" placeholder="smtp.sirket.com">
+                </label>
+                <label class="block">
+                    <span class="mb-1 block text-xs font-medium text-zinc-600"><?= htmlspecialchars(__('settings_smtp_port'), ENT_QUOTES, 'UTF-8') ?></span>
+                    <input type="number" min="1" max="65535" x-model="settingsForm.smtp_config.port" class="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-400" placeholder="587">
+                </label>
+                <label class="block">
+                    <span class="mb-1 block text-xs font-medium text-zinc-600"><?= htmlspecialchars(__('settings_smtp_user'), ENT_QUOTES, 'UTF-8') ?></span>
+                    <input type="text" x-model="settingsForm.smtp_config.user" class="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-400" placeholder="notifications@sirket.com">
+                </label>
+                <label class="block">
+                    <span class="mb-1 block text-xs font-medium text-zinc-600"><?= htmlspecialchars(__('settings_smtp_pass'), ENT_QUOTES, 'UTF-8') ?></span>
+                    <input type="password" x-model="settingsForm.smtp_config.pass" class="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-400" :placeholder="settingsForm.smtp_config.pass_configured ? '<?= htmlspecialchars(__('settings_secret_configured'), ENT_QUOTES, 'UTF-8') ?>' : ''">
+                </label>
+                <label class="block">
+                    <span class="mb-1 block text-xs font-medium text-zinc-600"><?= htmlspecialchars(__('settings_smtp_encryption'), ENT_QUOTES, 'UTF-8') ?></span>
+                    <select x-model="settingsForm.smtp_config.encryption" class="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-400">
+                        <option value="tls"><?= htmlspecialchars(__('settings_smtp_encryption_tls'), ENT_QUOTES, 'UTF-8') ?></option>
+                        <option value="ssl"><?= htmlspecialchars(__('settings_smtp_encryption_ssl'), ENT_QUOTES, 'UTF-8') ?></option>
+                        <option value="none"><?= htmlspecialchars(__('settings_smtp_encryption_none'), ENT_QUOTES, 'UTF-8') ?></option>
+                    </select>
+                </label>
+                <label class="block">
+                    <span class="mb-1 block text-xs font-medium text-zinc-600"><?= htmlspecialchars(__('settings_smtp_sender_email'), ENT_QUOTES, 'UTF-8') ?></span>
+                    <input type="email" x-model="settingsForm.smtp_config.sender_email" class="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-400" placeholder="itms@sirket.com">
+                </label>
+                <label class="block sm:col-span-2">
+                    <span class="mb-1 block text-xs font-medium text-zinc-600"><?= htmlspecialchars(__('settings_smtp_sender_name'), ENT_QUOTES, 'UTF-8') ?></span>
+                    <input type="text" x-model="settingsForm.smtp_config.sender_name" class="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-400" placeholder="Betech ITMS">
+                </label>
+                <label class="block sm:col-span-2">
+                    <span class="mb-1 block text-xs font-medium text-zinc-600"><?= htmlspecialchars(__('settings_smtp_support_to'), ENT_QUOTES, 'UTF-8') ?></span>
+                    <input type="text" x-model="settingsForm.smtp_config.support_to" class="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-400" placeholder="support@sirket.com, helpdesk@sirket.com">
+                    <span class="mt-1 block text-xs text-zinc-400"><?= htmlspecialchars(__('settings_smtp_support_to_hint'), ENT_QUOTES, 'UTF-8') ?></span>
+                </label>
+                <label class="block sm:col-span-2">
+                    <span class="mb-1 block text-xs font-medium text-zinc-600"><?= htmlspecialchars(__('settings_smtp_test_recipient'), ENT_QUOTES, 'UTF-8') ?></span>
+                    <input type="email" x-model="smtpTestRecipient" class="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-400" placeholder="admin@sirket.com">
+                </label>
+            </div>
+        </article>
+
+        <div x-show="settingsErrorMessage" x-cloak class="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700" x-text="settingsErrorMessage"></div>
+        <div x-show="settingsSuccessMessage" x-cloak class="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700" x-text="settingsSuccessMessage"></div>
+
+        <div class="flex flex-wrap items-center justify-end gap-3">
+            <button
+                type="button"
+                @click="sendSmtpTestEmail()"
+                :disabled="isSendingSmtpTest || isSavingSettings"
+                class="inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-4 py-2.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+                <span x-show="isSendingSmtpTest"><?= htmlspecialchars(__('settings_smtp_test_sending'), ENT_QUOTES, 'UTF-8') ?></span>
+                <span x-show="!isSendingSmtpTest"><?= htmlspecialchars(__('settings_smtp_test_send'), ENT_QUOTES, 'UTF-8') ?></span>
+            </button>
+            <button
+                type="submit"
+                :disabled="isSavingSettings || isSendingSmtpTest"
                 class="inline-flex items-center gap-2 rounded-xl bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60"
             >
                 <span x-show="isSavingSettings"><?= htmlspecialchars(__('saving'), ENT_QUOTES, 'UTF-8') ?></span>

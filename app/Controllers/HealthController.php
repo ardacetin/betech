@@ -70,6 +70,8 @@ class HealthController
         $analytics = $this->analyticsService->getDashboardStats();
         $settings = $this->settingModel->getAdminBundle();
         $personnelRows = [];
+        $currentUser = $userId > 0 ? $this->userModel->findById($userId) : null;
+        $currentUserEmail = trim((string) ($currentUser['email'] ?? ''));
 
         $assetQrCodes = [];
 
@@ -93,6 +95,7 @@ class HealthController
             'canAccessPersonnel' => $canAccessPersonnel,
             'canAccessSystemUsers' => $canAccessSystemUsers,
             'currentUserId' => $userId,
+            'currentUserEmail' => $currentUserEmail,
             'isEndUser' => false,
             'isSuperAdmin' => $canAccessSettings,
             'assets' => $assets,

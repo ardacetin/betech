@@ -78,6 +78,11 @@ class RoleMiddleware implements MiddlewareInterface
                 'roles' => [User::ROLE_SUPER_ADMIN],
             ],
             [
+                'methods' => ['POST'],
+                'pattern' => '/api/settings/smtp/test',
+                'roles' => [User::ROLE_SUPER_ADMIN],
+            ],
+            [
                 'methods' => ['GET'],
                 'pattern' => '/api/categories',
                 'roles' => $operational,

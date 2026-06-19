@@ -83,7 +83,8 @@ class Setting
      *     custom_fields: list<array<string, mixed>>,
      *     ldap_config: array<string, mixed>,
      *     google_config: array<string, mixed>,
-     *     login_config: array<string, mixed>
+     *     login_config: array<string, mixed>,
+     *     smtp_config: array<string, mixed>
      * }
      */
     public function getAdminBundle(): array
@@ -97,6 +98,7 @@ class Setting
             'ldap_config' => $this->getLdapConfigForAdmin(),
             'google_config' => $this->getGoogleConfigForAdmin(),
             'login_config' => $this->getLoginConfigForAdmin(),
+            'smtp_config' => $this->getSmtpConfigForAdmin(),
         ];
     }
 
@@ -361,6 +363,76 @@ class Setting
         }
     }
 
+    /**
+     * @return array{
+     *     enabled: bool,
+     *     host: string,
+     *     port: int,
+     *     username: string,
+     *     password: string,
+     *     encryption: string,
+     *     from_address: string,
+     *     from_name: string,
+     *     support_addresses: list<string>
+     * }
+     */
+    public function getSmtpConfig(): array
+    {
+        return [
+            'enabled' => $this->toBool($this->get('smtp_enabled', '0')),
+            'host' => trim($this->get('smtp_host', '') ?? ''),
+            'port' => max(1, (int) ($this->get('smtp_port', '587') ?? '587')),
+            'username' => trim($this->get('smtp_user', '') ?? ''),
+            'password' => $this->get('smtp_pass', '') ?? '',
+            'encryption' => $this->normalizeSmtpEncryption($this->get('smtp_encryption', 'tls') ?? 'tls'),
+            'from_address' => strtolower(trim($this->get('smtp_sender_email', '') ?? '')),
+            'from_name' => trim($this->get('smtp_sender_name', 'Betech ITMS') ?? 'Betech ITMS'),
+            'support_addresses' => $this->parseSmtpSupportAddresses($this->get('smtp_support_to', '') ?? ''),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function getSmtpConfigForAdmin(): array
+    {
+        $config = $this->getSmtpConfig();
+
+        return [
+            'enabled' => $config['enabled'],
+            'host' => $config['host'],
+            'port' => (string) $config['port'],
+            'user' => $config['username'],
+            'pass' => '',
+            'pass_configured' => $this->hasSecret('smtp_pass'),
+            'sender_email' => $config['from_address'],
+            'sender_name' => $config['from_name'],
+            'encryption' => $config['encryption'],
+            'support_to' => implode(', ', $config['support_addresses']),
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $config
+     */
+    public function saveSmtpConfig(array $config): void
+    {
+        $this->set('smtp_enabled', $this->toBool($config['enabled'] ?? false) ? '1' : '0');
+        $this->set('smtp_host', trim((string) ($config['host'] ?? '')));
+        $this->set('smtp_port', (string) max(1, (int) ($config['port'] ?? 587)));
+        $this->set('smtp_user', trim((string) ($config['user'] ?? '')));
+        $this->set('smtp_encryption', $this->normalizeSmtpEncryption((string) ($config['encryption'] ?? 'tls')));
+        $this->set('smtp_sender_email', strtolower(trim((string) ($config['sender_email'] ?? ''))));
+        $this->set('smtp_sender_name', trim((string) ($config['sender_name'] ?? 'Betech ITMS')));
+        $this->set('smtp_support_to', trim((string) ($config['support_to'] ?? '')));
+
+        $password = trim((string) ($config['pass'] ?? $config['password'] ?? ''));
+
+        if ($password !== '') {
+            $this->set('smtp_pass', $password);
+        }
+    }
+
     private function hasSecret(string $key): bool
     {
         $value = $this->get($key);
@@ -377,6 +449,32 @@ class Setting
         $normalized = strtolower(trim((string) $value));
 
         return in_array($normalized, ['1', 'true', 'yes', 'on'], true);
+    }
+
+    private function normalizeSmtpEncryption(string $encryption): string
+    {
+        $normalized = strtolower(trim($encryption));
+
+        return in_array($normalized, ['tls', 'ssl', 'none'], true) ? $normalized : 'tls';
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function parseSmtpSupportAddresses(string $raw): array
+    {
+        $entries = preg_split('/[\s,;]+/', $raw) ?: [];
+        $unique = [];
+
+        foreach ($entries as $entry) {
+            $email = strtolower(trim((string) $entry));
+
+            if ($email !== '' && filter_var($email, FILTER_VALIDATE_EMAIL) !== false) {
+                $unique[$email] = true;
+            }
+        }
+
+        return array_keys($unique);
     }
 
     /**
