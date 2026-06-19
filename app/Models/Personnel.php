@@ -545,43 +545,101 @@ class Personnel
      */
     public function searchActive(string $query, int $limit = 20): array
     {
-        $conditions = [
-            'status' => self::STATUS_ACTIVE,
-            'ORDER' => ['name' => 'ASC'],
-            'LIMIT' => max(1, min(100, $limit)),
-        ];
-
+        $limit = max(1, min(100, $limit));
         $trimmedQuery = trim($query);
 
-        if ($trimmedQuery !== '') {
-            $conditions['OR'] = [
-                'name[~]' => $trimmedQuery,
-                'email[~]' => $trimmedQuery,
-                'department[~]' => $trimmedQuery,
-                'external_id[~]' => $trimmedQuery,
-            ];
+        try {
+            return $this->querySearchActive($trimmedQuery, $limit, true);
+        } catch (\Throwable) {
+            return $this->querySearchActive($trimmedQuery, $limit, false);
+        }
+    }
+
+    /**
+     * @return list<array{id: string, external_id: string, name: string, email: string, department: string|null}>
+     */
+    private function querySearchActive(string $trimmedQuery, int $limit, bool $extendedSchema): array
+    {
+        $params = [];
+        $whereParts = [];
+
+        if ($extendedSchema) {
+            $whereParts[] = "(status IS NULL OR TRIM(status) = '' OR LOWER(status) NOT IN ('offboarded', 'inactive', 'disabled'))";
         }
 
-        $rows = $this->db()->select('personnel', [
-            'id',
-            'external_id',
-            'name',
-            'email',
-            'department',
-        ], $conditions);
+        if ($trimmedQuery !== '') {
+            $like = '%' . $this->escapeLike($trimmedQuery) . '%';
+            $searchParts = [
+                'name LIKE ?',
+                'email LIKE ?',
+            ];
+            $params[] = $like;
+            $params[] = $like;
+
+            if ($extendedSchema) {
+                $searchParts[] = "COALESCE(department, '') LIKE ?";
+                $searchParts[] = "COALESCE(external_id, '') LIKE ?";
+                $searchParts[] = "COALESCE(title, '') LIKE ?";
+                $params[] = $like;
+                $params[] = $like;
+                $params[] = $like;
+            }
+
+            $whereParts[] = '(' . implode(' OR ', $searchParts) . ')';
+        }
+
+        $selectColumns = $extendedSchema
+            ? 'id, name, email, department, external_id'
+            : 'id, name, email';
+
+        $whereClause = $whereParts !== [] ? 'WHERE ' . implode(' AND ', $whereParts) : '';
+
+        $sql = sprintf(
+            'SELECT %s FROM personnel %s ORDER BY name ASC LIMIT %d',
+            $selectColumns,
+            $whereClause,
+            $limit
+        );
+
+        $statement = $this->db()->query($sql, $params);
+
+        if ($statement === false) {
+            throw new \RuntimeException('Personnel search query failed.');
+        }
+
+        $rows = $statement->fetchAll();
+
+        if (!is_array($rows)) {
+            return [];
+        }
 
         return array_map(
-            fn (array $row): array => [
-                'id' => (string) $row['id'],
-                'external_id' => (string) ($row['external_id'] ?? ''),
-                'name' => (string) $row['name'],
-                'email' => (string) $row['email'],
-                'department' => isset($row['department']) && $row['department'] !== null
-                    ? (string) $row['department']
-                    : null,
-            ],
+            fn (array $row): array => $this->formatSearchResult($row),
             $rows
         );
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     *
+     * @return array{id: string, external_id: string, name: string, email: string, department: string|null}
+     */
+    private function formatSearchResult(array $row): array
+    {
+        return [
+            'id' => (string) ($row['id'] ?? ''),
+            'external_id' => (string) ($row['external_id'] ?? ''),
+            'name' => (string) ($row['name'] ?? ''),
+            'email' => (string) ($row['email'] ?? ''),
+            'department' => isset($row['department']) && $row['department'] !== null && $row['department'] !== ''
+                ? (string) $row['department']
+                : null,
+        ];
+    }
+
+    private function escapeLike(string $value): string
+    {
+        return str_replace(['\\', '%', '_'], ['\\\\', '\%', '\_'], $value);
     }
 
     public function findById(int $personnelId): ?array

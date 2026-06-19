@@ -26,7 +26,7 @@
         </button>
     </div>
     <div
-        x-show="showUserResults && (userSearchResults.length > 0 || (userSearchQuery !== '' && !userSearchLoading))"
+        x-show="showUserResults && (userSearchResults.length > 0 || userSearchError || (userSearchQuery !== '' && !userSearchLoading))"
         x-cloak
         @click.outside="showUserResults = false"
         class="absolute z-10 mt-2 max-h-56 w-full overflow-y-auto rounded-xl border border-zinc-200 bg-white shadow-soft"
@@ -43,7 +43,12 @@
             </button>
         </template>
         <p
-            x-show="userSearchResults.length === 0 && userSearchQuery !== '' && !userSearchLoading"
+            x-show="userSearchError"
+            class="px-4 py-3 text-sm text-rose-600"
+            x-text="userSearchError"
+        ></p>
+        <p
+            x-show="userSearchResults.length === 0 && userSearchQuery !== '' && !userSearchLoading && !userSearchError"
             class="px-4 py-3 text-sm text-zinc-500"
             x-text="window.__i18n.no_users_found"
         ></p>

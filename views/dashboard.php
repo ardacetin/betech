@@ -1830,13 +1830,15 @@ $i18nScript = json_encode([
                             :placeholder="window.__i18n.search_users_placeholder"
                             class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4"
                         >
-                        <div x-show="showAssignLicensePersonnelResults && assignLicensePersonnelSearchResults.length > 0" x-cloak class="absolute z-10 mt-2 w-full overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-soft">
+                        <div x-show="showAssignLicensePersonnelResults && (assignLicensePersonnelSearchResults.length > 0 || assignLicensePersonnelSearchError || (assignLicensePersonnelSearchQuery !== '' && !assignLicensePersonnelSearchLoading))" x-cloak @click.outside="showAssignLicensePersonnelResults = false" class="absolute z-10 mt-2 w-full overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-soft">
                             <template x-for="personnel in assignLicensePersonnelSearchResults" :key="personnel.id">
                                 <button type="button" @click="selectAssignLicensePersonnel(personnel)" class="block w-full px-4 py-3 text-left hover:bg-zinc-50">
                                     <p class="text-sm font-medium text-zinc-900" x-text="personnel.name"></p>
                                     <p class="text-xs text-zinc-500" x-text="personnel.email"></p>
                                 </button>
                             </template>
+                            <p x-show="assignLicensePersonnelSearchError" class="px-4 py-3 text-sm text-rose-600" x-text="assignLicensePersonnelSearchError"></p>
+                            <p x-show="assignLicensePersonnelSearchResults.length === 0 && assignLicensePersonnelSearchQuery !== '' && !assignLicensePersonnelSearchLoading && !assignLicensePersonnelSearchError" class="px-4 py-3 text-sm text-zinc-500" x-text="window.__i18n.no_users_found"></p>
                         </div>
                         <p x-show="assignLicensePersonnelSearchLoading" x-cloak class="mt-2 text-xs text-zinc-500"><?= htmlspecialchars(__('history_loading'), ENT_QUOTES, 'UTF-8') ?></p>
                     </div>
@@ -1987,7 +1989,7 @@ $i18nScript = json_encode([
                                 class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4"
                             >
                             <div
-                                x-show="showTicketUserResults && (ticketUserSearchResults.length > 0 || (ticketUserSearchQuery !== '' && !ticketUserSearchLoading))"
+                                x-show="showTicketUserResults && (ticketUserSearchResults.length > 0 || ticketUserSearchError || (ticketUserSearchQuery !== '' && !ticketUserSearchLoading))"
                                 x-cloak
                                 @click.outside="showTicketUserResults = false"
                                 class="absolute z-10 mt-2 max-h-56 w-full overflow-y-auto rounded-xl border border-zinc-200 bg-white shadow-soft"
@@ -1998,7 +2000,8 @@ $i18nScript = json_encode([
                                         <span class="text-xs text-zinc-500" x-text="user.email"></span>
                                     </button>
                                 </template>
-                                <p x-show="ticketUserSearchResults.length === 0 && ticketUserSearchQuery !== '' && !ticketUserSearchLoading" class="px-4 py-3 text-sm text-zinc-500" x-text="window.__i18n.no_users_found"></p>
+                                <p x-show="ticketUserSearchError" class="px-4 py-3 text-sm text-rose-600" x-text="ticketUserSearchError"></p>
+                                <p x-show="ticketUserSearchResults.length === 0 && ticketUserSearchQuery !== '' && !ticketUserSearchLoading && !ticketUserSearchError" class="px-4 py-3 text-sm text-zinc-500" x-text="window.__i18n.no_users_found"></p>
                             </div>
                         </div>
                     </div>
@@ -2318,6 +2321,7 @@ $i18nScript = json_encode([
             assignLicensePersonnelSearchQuery: '',
             assignLicensePersonnelSearchResults: [],
             assignLicensePersonnelSearchLoading: false,
+            assignLicensePersonnelSearchError: '',
             showAssignLicensePersonnelResults: false,
             assignLicenseAssignments: [],
             assignLicenseAssignmentsLoading: false,
@@ -2373,6 +2377,7 @@ $i18nScript = json_encode([
             ticketUserSearchQuery: '',
             ticketUserSearchResults: [],
             ticketUserSearchLoading: false,
+            ticketUserSearchError: '',
             showTicketUserResults: false,
             isTicketDetailOpen: false,
             ticketDetailLoading: false,
@@ -2404,6 +2409,7 @@ $i18nScript = json_encode([
             userSearchQuery: '',
             userSearchResults: [],
             userSearchLoading: false,
+            userSearchError: '',
             showUserResults: false,
             selectedUser: null,
             isManualUserFormOpen: false,
@@ -2710,6 +2716,33 @@ $i18nScript = json_encode([
                 }
 
                 return fallback;
+            },
+            async fetchPersonnelSearchOptions(query) {
+                const trimmedQuery = String(query ?? '').trim();
+
+                try {
+                    const response = await fetch(`/api/personnel/search?q=${encodeURIComponent(trimmedQuery)}`, {
+                        headers: { Accept: 'application/json' },
+                    });
+                    const result = await response.json().catch(() => ({}));
+
+                    if (!response.ok) {
+                        return {
+                            data: [],
+                            error: this.apiErrorMessage(result, window.__i18n.personnel_search_failed),
+                        };
+                    }
+
+                    return {
+                        data: Array.isArray(result.data) ? result.data : [],
+                        error: '',
+                    };
+                } catch (error) {
+                    return {
+                        data: [],
+                        error: window.__i18n.personnel_search_failed,
+                    };
+                }
             },
             async fetchDashboardStats() {
                 if (!this.canManageAssets || this.dashboardLoading) {
@@ -3185,29 +3218,11 @@ $i18nScript = json_encode([
                 this.assignUserSearchLoading = true;
                 this.assignUserSearchError = '';
 
-                try {
-                    const query = encodeURIComponent(this.assignUserSearchQuery.trim());
-                    const response = await fetch(`/api/personnel/search?q=${query}`, {
-                        headers: { 'Accept': 'application/json' },
-                    });
-                    const result = await response.json();
-
-                    if (!response.ok) {
-                        this.assignUserSearchResults = [];
-                        this.assignUserSearchError = result.message || window.__i18n.personnel_search_failed;
-                        this.showAssignUserResults = true;
-                        return;
-                    }
-
-                    this.assignUserSearchResults = Array.isArray(result.data) ? result.data : [];
-                    this.showAssignUserResults = true;
-                } catch (error) {
-                    this.assignUserSearchResults = [];
-                    this.assignUserSearchError = window.__i18n.personnel_search_failed;
-                    this.showAssignUserResults = true;
-                } finally {
-                    this.assignUserSearchLoading = false;
-                }
+                const result = await this.fetchPersonnelSearchOptions(this.assignUserSearchQuery);
+                this.assignUserSearchResults = result.data;
+                this.assignUserSearchError = result.error;
+                this.showAssignUserResults = true;
+                this.assignUserSearchLoading = false;
             },
             selectAssignUser(user) {
                 this.assignSelectedUser = user;
@@ -3376,31 +3391,11 @@ $i18nScript = json_encode([
                 this.transferUserSearchLoading = true;
                 this.transferUserSearchError = '';
 
-                try {
-                    const query = encodeURIComponent(this.transferUserSearchQuery.trim());
-                    const response = await fetch(`/api/personnel/search?q=${query}`, {
-                        headers: {
-                            'Accept': 'application/json',
-                        },
-                    });
-                    const result = await response.json();
-
-                    if (!response.ok) {
-                        this.transferUserSearchResults = [];
-                        this.transferUserSearchError = result.message || window.__i18n.personnel_search_failed;
-                        this.showTransferUserResults = true;
-                        return;
-                    }
-
-                    this.transferUserSearchResults = Array.isArray(result.data) ? result.data : [];
-                    this.showTransferUserResults = true;
-                } catch (error) {
-                    this.transferUserSearchResults = [];
-                    this.transferUserSearchError = window.__i18n.personnel_search_failed;
-                    this.showTransferUserResults = true;
-                } finally {
-                    this.transferUserSearchLoading = false;
-                }
+                const result = await this.fetchPersonnelSearchOptions(this.transferUserSearchQuery);
+                this.transferUserSearchResults = result.data;
+                this.transferUserSearchError = result.error;
+                this.showTransferUserResults = true;
+                this.transferUserSearchLoading = false;
             },
             selectTransferUser(user) {
                 this.transferSelectedUser = user;
@@ -3794,6 +3789,7 @@ $i18nScript = json_encode([
                 this.userSearchQuery = '';
                 this.userSearchResults = [];
                 this.userSearchLoading = false;
+                this.userSearchError = '';
                 this.showUserResults = false;
                 this.selectedUser = null;
                 this.closeManualUserForm();
@@ -3848,33 +3844,19 @@ $i18nScript = json_encode([
             },
             async searchUsers() {
                 this.userSearchLoading = true;
+                this.userSearchError = '';
 
-                try {
-                    const query = encodeURIComponent(this.userSearchQuery.trim());
-                    const response = await fetch(`/api/personnel/search?q=${query}`, {
-                        headers: {
-                            'Accept': 'application/json',
-                        },
-                    });
-                    const result = await response.json();
-
-                    if (!response.ok) {
-                        this.userSearchResults = [];
-                        return;
-                    }
-
-                    this.userSearchResults = Array.isArray(result.data) ? result.data : [];
-                    this.showUserResults = true;
-                } catch (error) {
-                    this.userSearchResults = [];
-                } finally {
-                    this.userSearchLoading = false;
-                }
+                const result = await this.fetchPersonnelSearchOptions(this.userSearchQuery);
+                this.userSearchResults = result.data;
+                this.userSearchError = result.error;
+                this.showUserResults = true;
+                this.userSearchLoading = false;
             },
             selectUser(user) {
                 this.selectedUser = user;
                 this.userSearchQuery = '';
                 this.userSearchResults = [];
+                this.userSearchError = '';
                 this.showUserResults = false;
             },
             clearSelectedUser() {
@@ -5292,6 +5274,7 @@ $i18nScript = json_encode([
                 this.ticketSelectedPersonnel = null;
                 this.ticketUserSearchQuery = '';
                 this.ticketUserSearchResults = [];
+                this.ticketUserSearchError = '';
                 this.showTicketUserResults = false;
                 this.isTicketModalOpen = true;
             },
@@ -5309,29 +5292,18 @@ $i18nScript = json_encode([
                 this.ticketSelectedPersonnel = user;
                 this.ticketUserSearchQuery = '';
                 this.ticketUserSearchResults = [];
+                this.ticketUserSearchError = '';
                 this.showTicketUserResults = false;
             },
             async searchTicketPersonnel() {
-                const query = this.ticketUserSearchQuery.trim();
-
-                if (query === '') {
-                    this.ticketUserSearchResults = [];
-                    return;
-                }
-
                 this.ticketUserSearchLoading = true;
+                this.ticketUserSearchError = '';
 
-                try {
-                    const response = await fetch(`/api/personnel/search?q=${encodeURIComponent(query)}`, {
-                        headers: { Accept: 'application/json' },
-                    });
-                    const result = await response.json();
-                    this.ticketUserSearchResults = Array.isArray(result.data) ? result.data : [];
-                } catch (error) {
-                    this.ticketUserSearchResults = [];
-                } finally {
-                    this.ticketUserSearchLoading = false;
-                }
+                const result = await this.fetchPersonnelSearchOptions(this.ticketUserSearchQuery);
+                this.ticketUserSearchResults = result.data;
+                this.ticketUserSearchError = result.error;
+                this.showTicketUserResults = true;
+                this.ticketUserSearchLoading = false;
             },
             async submitTicketForm() {
                 if (!this.ticketSelectedPersonnel?.id) {
@@ -5618,6 +5590,7 @@ $i18nScript = json_encode([
                 this.assignLicenseSelectedPersonnel = null;
                 this.assignLicensePersonnelSearchQuery = '';
                 this.assignLicensePersonnelSearchResults = [];
+                this.assignLicensePersonnelSearchError = '';
                 this.showAssignLicensePersonnelResults = false;
                 this.assignLicenseAssignments = [];
                 this.isAssignLicenseModalOpen = true;
@@ -5639,6 +5612,7 @@ $i18nScript = json_encode([
                 this.assignLicenseSelectedPersonnel = null;
                 this.assignLicensePersonnelSearchQuery = '';
                 this.assignLicensePersonnelSearchResults = [];
+                this.assignLicensePersonnelSearchError = '';
                 this.showAssignLicensePersonnelResults = false;
                 this.assignLicenseAssignments = [];
                 this.assignLicenseAssignmentsLoading = false;
@@ -5681,35 +5655,19 @@ $i18nScript = json_encode([
             },
             async searchAssignLicensePersonnel() {
                 this.assignLicensePersonnelSearchLoading = true;
+                this.assignLicensePersonnelSearchError = '';
 
-                try {
-                    const query = encodeURIComponent(this.assignLicensePersonnelSearchQuery.trim());
-                    const response = await fetch(`/api/personnel/search?q=${query}`, {
-                        headers: { 'Accept': 'application/json' },
-                    });
-                    const result = await response.json();
-
-                    if (!response.ok) {
-                        this.assignLicensePersonnelSearchResults = [];
-                        if (response.status === 500) {
-                            const msg = result.message || window.__i18n.licenses_fetch_error || 'Personel aranırken sunucu hatası oluştu.';
-                            alert('Hata: ' + msg);
-                        }
-                        return;
-                    }
-
-                    this.assignLicensePersonnelSearchResults = Array.isArray(result.data) ? result.data : [];
-                } catch (error) {
-                    this.assignLicensePersonnelSearchResults = [];
-                    alert(window.__i18n.licenses_network_error || 'Ağ hatası oluştu.');
-                } finally {
-                    this.assignLicensePersonnelSearchLoading = false;
-                }
+                const result = await this.fetchPersonnelSearchOptions(this.assignLicensePersonnelSearchQuery);
+                this.assignLicensePersonnelSearchResults = result.data;
+                this.assignLicensePersonnelSearchError = result.error;
+                this.showAssignLicensePersonnelResults = true;
+                this.assignLicensePersonnelSearchLoading = false;
             },
             selectAssignLicensePersonnel(personnel) {
                 this.assignLicenseSelectedPersonnel = personnel;
                 this.assignLicensePersonnelSearchQuery = '';
                 this.assignLicensePersonnelSearchResults = [];
+                this.assignLicensePersonnelSearchError = '';
                 this.showAssignLicensePersonnelResults = false;
             },
             clearAssignLicensePersonnel() {

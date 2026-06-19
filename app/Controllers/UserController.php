@@ -188,12 +188,13 @@ class UserController
             return $this->jsonResponse($response, 500, [
                 'status' => 'error',
                 'message' => __('user_search_failed') . $exception->getMessage(),
+                'data' => [],
             ]);
         }
 
         return $this->jsonResponse($response, 200, [
             'status' => 'success',
-            'data' => $users,
+            'data' => array_values($users),
         ]);
     }
 
