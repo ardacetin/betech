@@ -49,6 +49,8 @@ $i18n = [
     'status_storage' => __('status_storage'),
     'status_broken' => __('status_broken'),
     'status_under_repair' => __('status_under_repair'),
+    'portal_report_issue' => __('portal_report_issue'),
+    'portal_ticket_for_asset' => __('portal_ticket_for_asset'),
 ];
 ?>
 <div class="mx-auto flex min-h-full max-w-3xl flex-col" x-data="endUserPortal()" x-init="init()">
@@ -100,6 +102,9 @@ $i18n = [
                         <div class="mt-4 flex flex-wrap gap-2">
                             <button type="button" @click="printTutanak(asset.id)" class="rounded-lg border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-700 transition hover:bg-zinc-50">
                                 <?= htmlspecialchars(__('action_print_tutanak'), ENT_QUOTES, 'UTF-8') ?>
+                            </button>
+                            <button type="button" @click="openTicketModalForAsset(asset)" class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-900 transition hover:bg-amber-100">
+                                <?= htmlspecialchars(__('portal_report_issue'), ENT_QUOTES, 'UTF-8') ?>
                             </button>
                         </div>
                     </article>
@@ -157,7 +162,10 @@ $i18n = [
         <div class="relative max-h-[90vh] w-full overflow-y-auto rounded-t-2xl border border-zinc-200 bg-white shadow-soft sm:max-w-lg sm:rounded-2xl">
             <div class="border-b border-zinc-200 px-5 py-4">
                 <h3 class="text-lg font-semibold text-zinc-900"><?= htmlspecialchars(__('portal_new_ticket'), ENT_QUOTES, 'UTF-8') ?></h3>
-                <p class="mt-1 text-sm text-zinc-500"><?= htmlspecialchars(__('portal_new_ticket_subtitle'), ENT_QUOTES, 'UTF-8') ?></p>
+                <p class="mt-1 text-sm text-zinc-500" x-show="!ticketLinkedAsset"><?= htmlspecialchars(__('portal_new_ticket_subtitle'), ENT_QUOTES, 'UTF-8') ?></p>
+            </div>
+            <div x-show="ticketLinkedAsset" x-cloak class="mx-5 mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+                <p class="text-sm font-medium text-amber-950" x-text="ticketLinkedAssetMessage()"></p>
             </div>
             <form @submit.prevent="submitTicket()" class="space-y-4 px-5 py-5">
                 <label class="block">
@@ -266,6 +274,7 @@ $i18n = [
             toastTimer: null,
             isTicketModalOpen: false,
             isTicketSubmitting: false,
+            ticketLinkedAsset: null,
             ticketForm: { subject: '', description: '', priority: 'medium' },
             ticketFormError: '',
             isTicketDetailOpen: false,
@@ -360,13 +369,34 @@ $i18n = [
                 window.open(`/api/assets/${assetId}/tutanak`, '_blank', 'noopener,noreferrer');
             },
             openTicketModal() {
+                this.ticketLinkedAsset = null;
                 this.ticketForm = { subject: '', description: '', priority: 'medium' };
                 this.ticketFormError = '';
                 this.isTicketModalOpen = true;
             },
+            openTicketModalForAsset(asset) {
+                this.ticketLinkedAsset = {
+                    id: asset.id,
+                    name: asset.name || '',
+                    asset_tag: asset.asset_tag || '',
+                };
+                this.ticketForm = { subject: '', description: '', priority: 'medium' };
+                this.ticketFormError = '';
+                this.isTicketModalOpen = true;
+            },
+            ticketLinkedAssetMessage() {
+                if (!this.ticketLinkedAsset) {
+                    return '';
+                }
+
+                return window.__portalI18n.portal_ticket_for_asset
+                    .replace(':name', this.ticketLinkedAsset.name || '—')
+                    .replace(':tag', this.ticketLinkedAsset.asset_tag || '—');
+            },
             closeTicketModal() {
                 if (this.isTicketSubmitting) return;
                 this.isTicketModalOpen = false;
+                this.ticketLinkedAsset = null;
             },
             showToast(message) {
                 this.toastMessage = message;
@@ -388,6 +418,9 @@ $i18n = [
                     description: this.ticketForm.description.trim(),
                     priority: this.ticketForm.priority,
                 };
+                if (this.ticketLinkedAsset?.id) {
+                    payload.asset_id = Number(this.ticketLinkedAsset.id);
+                }
                 try {
                     const response = await fetch('/api/tickets', {
                         method: 'POST',
@@ -400,6 +433,7 @@ $i18n = [
                         return;
                     }
                     this.isTicketModalOpen = false;
+                    this.ticketLinkedAsset = null;
                     this.ticketForm = { subject: '', description: '', priority: 'medium' };
                     this.activeTab = 'tickets';
                     if (result.data) {

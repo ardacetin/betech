@@ -677,4 +677,8 @@ return [
     'portal_action_not_allowed' => 'This action is not available in the employee portal.',
     'portal_profile_not_linked' => 'Your account is not linked to a personnel record yet. Please contact IT support.',
     'portal_ticket_asset_not_owned' => 'You can only link assets that are assigned to you.',
+    'portal_report_issue' => 'Report Issue',
+    'portal_ticket_for_asset' => 'You are reporting an issue for :name (:tag).',
+    'ticket_linked_asset_title' => 'Linked Asset',
+    'action_view_linked_asset' => 'View Asset Details',
 ];

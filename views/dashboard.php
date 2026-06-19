@@ -1961,9 +1961,23 @@ $i18nScript = json_encode([
                         <p class="mt-1 text-sm font-medium text-zinc-900" x-text="ticketDetail?.personnel_name"></p>
                         <p class="text-xs text-zinc-500" x-text="ticketDetail?.personnel_email"></p>
                     </div>
-                    <div class="rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3">
+                    <div class="rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3" x-show="!ticketDetail?.asset_id">
                         <p class="text-xs uppercase tracking-wide text-zinc-400"><?= htmlspecialchars(__('col_ticket_asset'), ENT_QUOTES, 'UTF-8') ?></p>
-                        <p class="mt-1 text-sm text-zinc-700" x-text="ticketDetail?.asset_label || '—'"></p>
+                        <p class="mt-1 text-sm text-zinc-700">—</p>
+                    </div>
+                </div>
+                <div class="mt-4 rounded-xl border border-sky-200 bg-sky-50 px-4 py-4" x-show="ticketDetail?.asset_id" x-cloak>
+                    <p class="text-xs font-semibold uppercase tracking-wide text-sky-700"><?= htmlspecialchars(__('ticket_linked_asset_title'), ENT_QUOTES, 'UTF-8') ?></p>
+                    <div class="mt-2 flex flex-wrap items-start justify-between gap-3">
+                        <div class="min-w-0">
+                            <p class="text-base font-semibold text-zinc-900" x-text="ticketDetail?.asset_name"></p>
+                            <p class="mt-1 text-sm font-medium tabular-nums text-sky-800" x-text="ticketDetail?.asset_tag"></p>
+                        </div>
+                        <button
+                            type="button"
+                            @click="openTicketLinkedAsset()"
+                            class="shrink-0 rounded-lg border border-sky-300 bg-white px-3 py-1.5 text-xs font-medium text-sky-900 transition hover:bg-sky-100"
+                        ><?= htmlspecialchars(__('action_view_linked_asset'), ENT_QUOTES, 'UTF-8') ?></button>
                     </div>
                 </div>
                 <p class="mt-4 rounded-xl border border-zinc-200 bg-white px-4 py-3 text-sm text-zinc-700" x-text="ticketDetail?.description"></p>
@@ -4683,6 +4697,27 @@ $i18nScript = json_encode([
 
                 this.isTicketDetailOpen = false;
                 this.ticketDetail = null;
+            },
+            openTicketLinkedAsset() {
+                const ticket = this.ticketDetail;
+                if (!ticket?.asset_id) {
+                    return;
+                }
+
+                this.closeTicketDetail();
+                this.activeView = 'assets';
+                this.openDetailModal({
+                    id: ticket.asset_id,
+                    asset_tag: ticket.asset_tag || '',
+                    name: ticket.asset_name || '',
+                    status: 'ready',
+                    category_name: '',
+                    user_id: null,
+                    user_name: null,
+                    location_id: null,
+                    location_name: null,
+                    location_building: null,
+                });
             },
             async updateTicketDetail() {
                 if (!this.ticketDetail?.id) {

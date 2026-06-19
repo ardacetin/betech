@@ -697,4 +697,8 @@ return [
     'portal_action_not_allowed' => 'Bu işlem personel portalında kullanılamaz.',
     'portal_profile_not_linked' => 'Hesabınız henüz bir personel kaydıyla eşleştirilmedi. Lütfen BT destek ekibiyle iletişime geçin.',
     'portal_ticket_asset_not_owned' => 'Yalnızca size zimmetli envanterleri bağlayabilirsiniz.',
+    'portal_report_issue' => 'Sorun Bildir',
+    'portal_ticket_for_asset' => ':name (:tag) için arıza bildiriyorsunuz.',
+    'ticket_linked_asset_title' => 'Bağlı Envanter',
+    'action_view_linked_asset' => 'Envanter Detayına Git',
 ];
