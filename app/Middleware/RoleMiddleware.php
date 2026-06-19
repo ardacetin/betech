@@ -169,6 +169,66 @@ class RoleMiddleware implements MiddlewareInterface
             ],
             [
                 'methods' => ['GET'],
+                'pattern' => '/api/ip-networks',
+                'roles' => $operational,
+            ],
+            [
+                'methods' => ['POST'],
+                'pattern' => '/api/ip-networks',
+                'roles' => $operational,
+            ],
+            [
+                'methods' => ['GET'],
+                'pattern' => '/api/ip-networks/import/template',
+                'roles' => $operational,
+            ],
+            [
+                'methods' => ['POST'],
+                'pattern' => '/api/ip-networks/import',
+                'roles' => $operational,
+            ],
+            [
+                'methods' => ['GET'],
+                'pattern' => '/api/ip-addresses/import/template',
+                'roles' => $operational,
+            ],
+            [
+                'methods' => ['POST'],
+                'pattern' => '/api/ip-addresses/import',
+                'roles' => $operational,
+            ],
+            [
+                'methods' => ['GET'],
+                'pattern' => '/api/ip-networks/{id}',
+                'roles' => $operational,
+            ],
+            [
+                'methods' => ['PUT'],
+                'pattern' => '/api/ip-networks/{id}',
+                'roles' => $operational,
+            ],
+            [
+                'methods' => ['DELETE'],
+                'pattern' => '/api/ip-networks/{id}',
+                'roles' => $operational,
+            ],
+            [
+                'methods' => ['GET'],
+                'pattern' => '/api/ip-networks/{id}/addresses',
+                'roles' => $operational,
+            ],
+            [
+                'methods' => ['POST'],
+                'pattern' => '/api/ip-networks/{id}/generate',
+                'roles' => $operational,
+            ],
+            [
+                'methods' => ['PUT'],
+                'pattern' => '/api/ip-addresses/{id}',
+                'roles' => $operational,
+            ],
+            [
+                'methods' => ['GET'],
                 'pattern' => '/api/consumables',
                 'roles' => $operational,
             ],

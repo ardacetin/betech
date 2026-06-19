@@ -324,6 +324,26 @@ class Asset
         return $this->db()->has('assets', $conditions);
     }
 
+    /**
+     * @return array<string, mixed>|null
+     */
+    public function findByAssetTag(string $assetTag): ?array
+    {
+        $trimmed = trim($assetTag);
+
+        if ($trimmed === '') {
+            return null;
+        }
+
+        $row = $this->db()->get('assets', '*', ['asset_tag' => $trimmed]);
+
+        if (!is_array($row) || $row === []) {
+            return null;
+        }
+
+        return $this->normalizeRow($row);
+    }
+
     public function serialNumberExists(string $serialNumber, ?int $ignoreAssetId = null): bool
     {
         $trimmed = trim($serialNumber);

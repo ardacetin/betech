@@ -1,0 +1,442 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Controllers;
+
+use App\Models\Asset;
+use App\Models\IpAddress;
+use App\Models\IpNetwork;
+use App\Services\IpamCsvImportService;
+use Psr\Http\Message\ResponseInterface;
+use Psr\Http\Message\ServerRequestInterface;
+use Psr\Http\Message\UploadedFileInterface;
+
+class IpNetworkController
+{
+    private const MAX_IMPORT_BYTES = 5_242_880;
+
+    public function __construct(
+        private readonly IpNetwork $ipNetworkModel,
+        private readonly IpAddress $ipAddressModel,
+        private readonly Asset $assetModel,
+        private readonly IpamCsvImportService $ipamCsvImportService
+    ) {
+    }
+
+    public function index(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
+    {
+        return $this->jsonResponse($response, 200, [
+            'status' => 'success',
+            'data' => $this->ipNetworkModel->findAll(),
+        ]);
+    }
+
+    public function store(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
+    {
+        $payload = $this->resolvePayload($request);
+
+        if ($payload === null) {
+            return $this->jsonResponse($response, 400, [
+                'status' => 'error',
+                'message' => __('ipam_invalid_payload'),
+            ]);
+        }
+
+        try {
+            $network = $this->ipNetworkModel->create(
+                (string) ($payload['name'] ?? ''),
+                (string) ($payload['network_address'] ?? ''),
+                (int) ($payload['cidr'] ?? 0),
+                array_key_exists('gateway', $payload) ? (string) $payload['gateway'] : null,
+                isset($payload['vlan_id']) && (int) $payload['vlan_id'] > 0 ? (int) $payload['vlan_id'] : null,
+                array_key_exists('description', $payload) ? (string) $payload['description'] : null,
+                !array_key_exists('auto_generate', $payload) || (bool) $payload['auto_generate']
+            );
+        } catch (\InvalidArgumentException $exception) {
+            return $this->jsonResponse($response, 422, [
+                'status' => 'error',
+                'message' => $exception->getMessage(),
+            ]);
+        } catch (\Throwable) {
+            return $this->jsonResponse($response, 500, [
+                'status' => 'error',
+                'message' => __('ipam_network_create_error'),
+            ]);
+        }
+
+        return $this->jsonResponse($response, 201, [
+            'status' => 'success',
+            'message' => __('ipam_network_create_success'),
+            'data' => $network,
+        ]);
+    }
+
+    public function show(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
+    {
+        $networkId = (int) ($args['id'] ?? 0);
+
+        if ($networkId <= 0) {
+            return $this->jsonResponse($response, 400, [
+                'status' => 'error',
+                'message' => __('ipam_invalid_id'),
+            ]);
+        }
+
+        $network = $this->ipNetworkModel->findById($networkId);
+
+        if ($network === null) {
+            return $this->jsonResponse($response, 404, [
+                'status' => 'error',
+                'message' => __('ipam_network_not_found'),
+            ]);
+        }
+
+        return $this->jsonResponse($response, 200, [
+            'status' => 'success',
+            'data' => $network,
+        ]);
+    }
+
+    public function update(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
+    {
+        $networkId = (int) ($args['id'] ?? 0);
+
+        if ($networkId <= 0) {
+            return $this->jsonResponse($response, 400, [
+                'status' => 'error',
+                'message' => __('ipam_invalid_id'),
+            ]);
+        }
+
+        $payload = $this->resolvePayload($request);
+
+        if ($payload === null) {
+            return $this->jsonResponse($response, 400, [
+                'status' => 'error',
+                'message' => __('ipam_invalid_payload'),
+            ]);
+        }
+
+        try {
+            $network = $this->ipNetworkModel->update($networkId, $payload);
+        } catch (\InvalidArgumentException $exception) {
+            return $this->jsonResponse($response, 422, [
+                'status' => 'error',
+                'message' => $exception->getMessage(),
+            ]);
+        } catch (\Throwable) {
+            return $this->jsonResponse($response, 500, [
+                'status' => 'error',
+                'message' => __('ipam_network_update_error'),
+            ]);
+        }
+
+        if ($network === null) {
+            return $this->jsonResponse($response, 404, [
+                'status' => 'error',
+                'message' => __('ipam_network_not_found'),
+            ]);
+        }
+
+        return $this->jsonResponse($response, 200, [
+            'status' => 'success',
+            'message' => __('ipam_network_update_success'),
+            'data' => $network,
+        ]);
+    }
+
+    public function destroy(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
+    {
+        $networkId = (int) ($args['id'] ?? 0);
+
+        if ($networkId <= 0) {
+            return $this->jsonResponse($response, 400, [
+                'status' => 'error',
+                'message' => __('ipam_invalid_id'),
+            ]);
+        }
+
+        if (!$this->ipNetworkModel->delete($networkId)) {
+            return $this->jsonResponse($response, 404, [
+                'status' => 'error',
+                'message' => __('ipam_network_not_found'),
+            ]);
+        }
+
+        return $this->jsonResponse($response, 200, [
+            'status' => 'success',
+            'message' => __('ipam_network_delete_success'),
+        ]);
+    }
+
+    public function addresses(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
+    {
+        $networkId = (int) ($args['id'] ?? 0);
+
+        if ($networkId <= 0) {
+            return $this->jsonResponse($response, 400, [
+                'status' => 'error',
+                'message' => __('ipam_invalid_id'),
+            ]);
+        }
+
+        $network = $this->ipNetworkModel->findById($networkId);
+
+        if ($network === null) {
+            return $this->jsonResponse($response, 404, [
+                'status' => 'error',
+                'message' => __('ipam_network_not_found'),
+            ]);
+        }
+
+        $query = $request->getQueryParams();
+        $status = isset($query['status']) ? (string) $query['status'] : null;
+
+        return $this->jsonResponse($response, 200, [
+            'status' => 'success',
+            'data' => [
+                'network' => $network,
+                'addresses' => $this->ipAddressModel->findByNetworkId($networkId, $status),
+            ],
+        ]);
+    }
+
+    public function generateAddresses(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
+    {
+        $networkId = (int) ($args['id'] ?? 0);
+
+        if ($networkId <= 0) {
+            return $this->jsonResponse($response, 400, [
+                'status' => 'error',
+                'message' => __('ipam_invalid_id'),
+            ]);
+        }
+
+        try {
+            $generated = $this->ipNetworkModel->generateAddresses($networkId);
+            $network = $this->ipNetworkModel->findById($networkId);
+        } catch (\InvalidArgumentException $exception) {
+            return $this->jsonResponse($response, 422, [
+                'status' => 'error',
+                'message' => $exception->getMessage(),
+            ]);
+        } catch (\Throwable) {
+            return $this->jsonResponse($response, 500, [
+                'status' => 'error',
+                'message' => __('ipam_generate_error'),
+            ]);
+        }
+
+        if ($network === null) {
+            return $this->jsonResponse($response, 404, [
+                'status' => 'error',
+                'message' => __('ipam_network_not_found'),
+            ]);
+        }
+
+        return $this->jsonResponse($response, 200, [
+            'status' => 'success',
+            'message' => sprintf(__('ipam_generate_success'), $generated),
+            'data' => $network,
+        ]);
+    }
+
+    public function updateAddress(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
+    {
+        $addressId = (int) ($args['id'] ?? 0);
+
+        if ($addressId <= 0) {
+            return $this->jsonResponse($response, 400, [
+                'status' => 'error',
+                'message' => __('ipam_invalid_id'),
+            ]);
+        }
+
+        $payload = $this->resolvePayload($request);
+
+        if ($payload === null) {
+            return $this->jsonResponse($response, 400, [
+                'status' => 'error',
+                'message' => __('ipam_invalid_payload'),
+            ]);
+        }
+
+        if (array_key_exists('asset_id', $payload) && $payload['asset_id'] !== null && (int) $payload['asset_id'] > 0) {
+            $asset = $this->assetModel->findById((int) $payload['asset_id']);
+
+            if ($asset === null) {
+                return $this->jsonResponse($response, 422, [
+                    'status' => 'error',
+                    'message' => __('ipam_asset_not_found'),
+                ]);
+            }
+        }
+
+        try {
+            $address = $this->ipAddressModel->update($addressId, $payload);
+        } catch (\InvalidArgumentException $exception) {
+            return $this->jsonResponse($response, 422, [
+                'status' => 'error',
+                'message' => $exception->getMessage(),
+            ]);
+        } catch (\Throwable) {
+            return $this->jsonResponse($response, 500, [
+                'status' => 'error',
+                'message' => __('ipam_address_update_error'),
+            ]);
+        }
+
+        if ($address === null) {
+            return $this->jsonResponse($response, 404, [
+                'status' => 'error',
+                'message' => __('ipam_address_not_found'),
+            ]);
+        }
+
+        return $this->jsonResponse($response, 200, [
+            'status' => 'success',
+            'message' => __('ipam_address_update_success'),
+            'data' => $address,
+        ]);
+    }
+
+    public function networkImportTemplate(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
+    {
+        $csv = "\xEF\xBB\xBF" . IpamCsvImportService::networkTemplateCsvContent();
+        $response->getBody()->write($csv);
+
+        return $response
+            ->withHeader('Content-Type', 'text/csv; charset=utf-8')
+            ->withHeader('Content-Disposition', 'attachment; filename="ip_networks_import_template.csv"');
+    }
+
+    public function addressImportTemplate(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
+    {
+        $csv = "\xEF\xBB\xBF" . IpamCsvImportService::addressTemplateCsvContent();
+        $response->getBody()->write($csv);
+
+        return $response
+            ->withHeader('Content-Type', 'text/csv; charset=utf-8')
+            ->withHeader('Content-Disposition', 'attachment; filename="ip_addresses_import_template.csv"');
+    }
+
+    public function importNetworks(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
+    {
+        return $this->handleImport($request, $response, 'networks');
+    }
+
+    public function importAddresses(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
+    {
+        return $this->handleImport($request, $response, 'addresses');
+    }
+
+    private function handleImport(ServerRequestInterface $request, ResponseInterface $response, string $type): ResponseInterface
+    {
+        $csvContent = $this->resolveUploadedCsv($request);
+
+        if ($csvContent === null) {
+            return $this->jsonResponse($response, 400, [
+                'status' => 'error',
+                'message' => __('import_file_missing'),
+            ]);
+        }
+
+        if ($csvContent === '') {
+            return $this->jsonResponse($response, 422, [
+                'status' => 'error',
+                'message' => __('import_csv_empty'),
+            ]);
+        }
+
+        if (strlen($csvContent) > self::MAX_IMPORT_BYTES) {
+            return $this->jsonResponse($response, 422, [
+                'status' => 'error',
+                'message' => __('import_file_too_large'),
+            ]);
+        }
+
+        $result = $type === 'networks'
+            ? $this->ipamCsvImportService->importNetworksFromString($csvContent)
+            : $this->ipamCsvImportService->importAddressesFromString($csvContent);
+
+        $imported = (int) $result['imported'];
+        $failed = (int) $result['failed'];
+
+        if ($imported === 0 && $failed > 0) {
+            return $this->jsonResponse($response, 422, [
+                'status' => 'error',
+                'message' => __('import_all_failed'),
+                'errors' => $result['errors'],
+            ]);
+        }
+
+        $message = $failed > 0
+            ? sprintf(__('ipam_import_partial_success'), $imported, $failed)
+            : sprintf(__('ipam_import_success'), $imported);
+
+        return $this->jsonResponse($response, 200, [
+            'status' => 'success',
+            'message' => $message,
+            'data' => $result,
+        ]);
+    }
+
+    private function resolveUploadedCsv(ServerRequestInterface $request): ?string
+    {
+        $uploadedFiles = $request->getUploadedFiles();
+
+        foreach (['file', 'csv'] as $key) {
+            if (!isset($uploadedFiles[$key])) {
+                continue;
+            }
+
+            $file = $uploadedFiles[$key];
+
+            if (!$file instanceof UploadedFileInterface || $file->getError() !== UPLOAD_ERR_OK) {
+                return null;
+            }
+
+            $stream = $file->getStream();
+            $stream->rewind();
+
+            return $stream->getContents();
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function resolvePayload(ServerRequestInterface $request): ?array
+    {
+        $parsedBody = $request->getParsedBody();
+
+        if (is_array($parsedBody)) {
+            return $parsedBody;
+        }
+
+        $rawBody = (string) $request->getBody();
+
+        if ($rawBody === '') {
+            return [];
+        }
+
+        $decoded = json_decode($rawBody, true);
+
+        return is_array($decoded) ? $decoded : null;
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     */
+    private function jsonResponse(ResponseInterface $response, int $statusCode, array $payload): ResponseInterface
+    {
+        $response->getBody()->write(json_encode($payload, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE));
+
+        return $response
+            ->withHeader('Content-Type', 'application/json; charset=utf-8')
+            ->withStatus($statusCode);
+    }
+}

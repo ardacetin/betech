@@ -298,6 +298,26 @@ $i18nScript = json_encode([
     'audit_entity_category' => __('audit_entity_category'),
     'audit_entity_setting' => __('audit_entity_setting'),
     'audit_entity_user' => __('audit_entity_user'),
+    'nav_ipam' => __('nav_ipam'),
+    'ipam_page_title' => __('ipam_page_title'),
+    'ipam_page_subtitle' => __('ipam_page_subtitle'),
+    'ipam_loading' => __('ipam_loading'),
+    'ipam_networks_empty' => __('ipam_networks_empty'),
+    'ipam_fetch_error' => __('ipam_fetch_error'),
+    'ipam_network_error' => __('ipam_network_error'),
+    'ipam_network_create_success' => __('ipam_network_create_success'),
+    'ipam_network_update_success' => __('ipam_network_update_success'),
+    'ipam_network_delete_success' => __('ipam_network_delete_success'),
+    'ipam_network_delete_confirm' => __('ipam_network_delete_confirm'),
+    'ipam_address_update_success' => __('ipam_address_update_success'),
+    'ipam_utilization' => __('ipam_utilization'),
+    'ipam_status_available' => __('ipam_status_available'),
+    'ipam_status_reserved' => __('ipam_status_reserved'),
+    'ipam_status_assigned' => __('ipam_status_assigned'),
+    'ipam_status_dhcp' => __('ipam_status_dhcp'),
+    'ipam_filter_all' => __('ipam_filter_all'),
+    'ipam_import_success' => __('ipam_import_success'),
+    'ipam_import_partial_success' => __('ipam_import_partial_success'),
 ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
 ?>
 <div class="min-h-full" x-data="assetDashboard()" x-init="restoreDashboardView(); if (canManageAssets) { fetchCategories(); fetchLocations(); fetchLicenses(); fetchConsumables(); fetchTickets(); if (activeView === 'dashboard') { fetchDashboardStats(); } } this.isAssignLicenseModalOpen = false;">
@@ -359,6 +379,15 @@ $i18nScript = json_encode([
                 >
                     <span class="h-2 w-2 rounded-full" :class="activeView === 'helpdesk' ? 'bg-zinc-900' : 'bg-zinc-300'"></span>
                     <?= htmlspecialchars(__('nav_helpdesk'), ENT_QUOTES, 'UTF-8') ?>
+                </button>
+                <button
+                    type="button"
+                    @click="activeView = 'ipam'; ipamSubView = 'networks'; fetchIpNetworks()"
+                    class="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm font-medium transition"
+                    :class="activeView === 'ipam' ? 'bg-zinc-100 text-zinc-900' : 'text-zinc-600 hover:bg-zinc-50'"
+                >
+                    <span class="h-2 w-2 rounded-full" :class="activeView === 'ipam' ? 'bg-zinc-900' : 'bg-zinc-300'"></span>
+                    <?= htmlspecialchars(__('nav_ipam'), ENT_QUOTES, 'UTF-8') ?>
                 </button>
                 <?php endif; ?>
                 <?php if ($canAccessPersonnel): ?>
@@ -749,6 +778,7 @@ $i18nScript = json_encode([
                 <?php require __DIR__ . '/partials/licenses_panel.php'; ?>
                 <?php require __DIR__ . '/partials/consumables_panel.php'; ?>
                 <?php require __DIR__ . '/partials/helpdesk_panel.php'; ?>
+                <?php require __DIR__ . '/partials/ipam_panel.php'; ?>
                 <?php endif; ?>
                 <?php if ($canAccessSettings): ?>
                 <?php require __DIR__ . '/partials/audit_logs_panel.php'; ?>
@@ -2147,6 +2177,7 @@ $i18nScript = json_encode([
                 licenses: <?= json_encode(__('licenses_page_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 consumables: <?= json_encode(__('consumables_page_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 helpdesk: <?= json_encode(__('helpdesk_page_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
+                ipam: <?= json_encode(__('ipam_page_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 settings: <?= json_encode(__('settings_page_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 categories: <?= json_encode(__('categories_page_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 locations: <?= json_encode(__('locations_page_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
@@ -2161,6 +2192,7 @@ $i18nScript = json_encode([
                 licenses: <?= json_encode(__('licenses_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 consumables: <?= json_encode(__('consumables_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 helpdesk: <?= json_encode(__('helpdesk_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
+                ipam: <?= json_encode(__('ipam_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 settings: <?= json_encode(__('settings_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 categories: <?= json_encode(__('categories_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 locations: <?= json_encode(__('locations_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
@@ -2483,6 +2515,55 @@ $i18nScript = json_encode([
             isOffboarding: false,
             offboardSuccessMessage: '',
             offboardErrorMessage: '',
+            ipamSubView: 'networks',
+            ipNetworks: [],
+            ipNetworksLoading: false,
+            ipNetworksError: '',
+            ipNetworksSuccessMessage: '',
+            selectedIpNetwork: null,
+            ipAddresses: [],
+            ipAddressesLoading: false,
+            ipAddressesError: '',
+            ipAddressStatusFilter: 'all',
+            ipAddressStatusFilters: [
+                { value: 'all', label: window.__i18n.ipam_filter_all },
+                { value: 'available', label: window.__i18n.ipam_status_available },
+                { value: 'assigned', label: window.__i18n.ipam_status_assigned },
+                { value: 'reserved', label: window.__i18n.ipam_status_reserved },
+                { value: 'dhcp', label: window.__i18n.ipam_status_dhcp },
+            ],
+            isIpNetworkModalOpen: false,
+            isIpNetworkSubmitting: false,
+            ipNetworkForm: {
+                id: null,
+                name: '',
+                network_address: '',
+                cidr: 24,
+                gateway: '',
+                vlan_id: '',
+                description: '',
+                auto_generate: true,
+            },
+            ipNetworkFormError: '',
+            isIpAddressModalOpen: false,
+            isIpAddressSubmitting: false,
+            ipAddressForm: {
+                id: null,
+                ip_address: '',
+                status: 'available',
+                hostname: '',
+                mac_address: '',
+                notes: '',
+            },
+            ipAddressFormError: '',
+            isIpamImportOpen: false,
+            isIpamImportSubmitting: false,
+            ipamImportType: 'networks',
+            ipamImportFile: null,
+            ipamImportFileName: '',
+            ipamImportErrorMessage: '',
+            ipamImportSuccessMessage: '',
+            ipamImportResultErrors: [],
             auditLogs: [],
             auditLogsLoading: false,
             auditLogsError: '',
@@ -2588,6 +2669,11 @@ $i18nScript = json_encode([
 
                     if (this.activeView === 'helpdesk') {
                         this.fetchTickets();
+                    }
+
+                    if (this.activeView === 'ipam') {
+                        this.ipamSubView = 'networks';
+                        this.fetchIpNetworks();
                     }
 
                     if (this.activeView === 'audit_logs' && this.canAccessSettings) {
@@ -4380,6 +4466,356 @@ $i18nScript = json_encode([
                     this.licensesLoading = false;
                 }
             },
+            async fetchIpNetworks() {
+                if (!this.canManageAssets) {
+                    return;
+                }
+
+                this.ipNetworksLoading = true;
+                this.ipNetworksError = '';
+
+                try {
+                    const response = await fetch('/api/ip-networks', {
+                        headers: { Accept: 'application/json' },
+                    });
+                    const result = await response.json();
+
+                    if (!response.ok) {
+                        this.ipNetworksError = result.message || window.__i18n.ipam_fetch_error;
+                        this.ipNetworks = [];
+                        return;
+                    }
+
+                    this.ipNetworks = Array.isArray(result.data) ? result.data : [];
+                } catch (error) {
+                    this.ipNetworksError = window.__i18n.ipam_network_error;
+                    this.ipNetworks = [];
+                } finally {
+                    this.ipNetworksLoading = false;
+                }
+            },
+            async openIpNetworkAddresses(network) {
+                this.selectedIpNetwork = network;
+                this.ipamSubView = 'addresses';
+                this.ipAddressStatusFilter = 'all';
+                await this.fetchIpAddresses(network.id);
+            },
+            backToIpNetworks() {
+                this.ipamSubView = 'networks';
+                this.selectedIpNetwork = null;
+                this.ipAddresses = [];
+                this.ipAddressesError = '';
+            },
+            async fetchIpAddresses(networkId) {
+                this.ipAddressesLoading = true;
+                this.ipAddressesError = '';
+
+                try {
+                    const response = await fetch(`/api/ip-networks/${networkId}/addresses`, {
+                        headers: { Accept: 'application/json' },
+                    });
+                    const result = await response.json();
+
+                    if (!response.ok) {
+                        this.ipAddressesError = result.message || window.__i18n.ipam_fetch_error;
+                        this.ipAddresses = [];
+                        return;
+                    }
+
+                    const payload = result.data || {};
+                    this.selectedIpNetwork = payload.network || this.selectedIpNetwork;
+                    this.ipAddresses = Array.isArray(payload.addresses) ? payload.addresses : [];
+                } catch (error) {
+                    this.ipAddressesError = window.__i18n.ipam_network_error;
+                    this.ipAddresses = [];
+                } finally {
+                    this.ipAddressesLoading = false;
+                }
+            },
+            formatIpUtilization(network) {
+                const template = window.__i18n.ipam_utilization || ':used/:capacity';
+                return template
+                    .replace(':used', String(network.used_ips ?? 0))
+                    .replace(':capacity', String(network.capacity_ips ?? 0));
+            },
+            setIpAddressStatusFilter(value) {
+                this.ipAddressStatusFilter = value;
+            },
+            ipAddressStatusLabel(status) {
+                const map = {
+                    available: window.__i18n.ipam_status_available,
+                    reserved: window.__i18n.ipam_status_reserved,
+                    assigned: window.__i18n.ipam_status_assigned,
+                    dhcp: window.__i18n.ipam_status_dhcp,
+                };
+
+                return map[status] || status;
+            },
+            ipAddressStatusClass(status) {
+                const map = {
+                    available: 'bg-emerald-50 text-emerald-700 ring-emerald-600/20',
+                    assigned: 'bg-rose-50 text-rose-700 ring-rose-600/20',
+                    reserved: 'bg-amber-50 text-amber-700 ring-amber-600/20',
+                    dhcp: 'bg-sky-50 text-sky-700 ring-sky-600/20',
+                };
+
+                return map[status] || 'bg-zinc-100 text-zinc-700 ring-zinc-300';
+            },
+            ipAddressGridClass(status) {
+                const map = {
+                    available: 'border-emerald-200 bg-emerald-50 text-emerald-800',
+                    assigned: 'border-rose-200 bg-rose-50 text-rose-800',
+                    reserved: 'border-amber-200 bg-amber-50 text-amber-800',
+                    dhcp: 'border-sky-200 bg-sky-50 text-sky-800',
+                };
+
+                return map[status] || 'border-zinc-200 bg-white text-zinc-700';
+            },
+            openIpNetworkModal(network = null) {
+                this.ipNetworkFormError = '';
+                this.ipNetworkForm = network ? {
+                    id: network.id,
+                    name: network.name || '',
+                    network_address: network.network_address || '',
+                    cidr: network.cidr || 24,
+                    gateway: network.gateway || '',
+                    vlan_id: network.vlan_id || '',
+                    description: network.description || '',
+                    auto_generate: false,
+                } : {
+                    id: null,
+                    name: '',
+                    network_address: '',
+                    cidr: 24,
+                    gateway: '',
+                    vlan_id: '',
+                    description: '',
+                    auto_generate: true,
+                };
+                this.isIpNetworkModalOpen = true;
+            },
+            closeIpNetworkModal() {
+                if (this.isIpNetworkSubmitting) {
+                    return;
+                }
+
+                this.isIpNetworkModalOpen = false;
+            },
+            async submitIpNetworkForm() {
+                this.isIpNetworkSubmitting = true;
+                this.ipNetworkFormError = '';
+
+                const isEdit = Boolean(this.ipNetworkForm.id);
+                const url = isEdit ? `/api/ip-networks/${this.ipNetworkForm.id}` : '/api/ip-networks';
+                const method = isEdit ? 'PUT' : 'POST';
+                const payload = isEdit ? {
+                    name: this.ipNetworkForm.name,
+                    gateway: this.ipNetworkForm.gateway,
+                    vlan_id: this.ipNetworkForm.vlan_id,
+                    description: this.ipNetworkForm.description,
+                } : {
+                    name: this.ipNetworkForm.name,
+                    network_address: this.ipNetworkForm.network_address,
+                    cidr: Number(this.ipNetworkForm.cidr),
+                    gateway: this.ipNetworkForm.gateway,
+                    vlan_id: this.ipNetworkForm.vlan_id,
+                    description: this.ipNetworkForm.description,
+                    auto_generate: Boolean(this.ipNetworkForm.auto_generate),
+                };
+
+                try {
+                    const response = await fetch(url, {
+                        method,
+                        headers: {
+                            'Accept': 'application/json',
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify(payload),
+                    });
+                    const result = await response.json();
+
+                    if (!response.ok) {
+                        this.ipNetworkFormError = result.message || window.__i18n.ipam_network_error;
+                        return;
+                    }
+
+                    this.isIpNetworkModalOpen = false;
+                    this.ipNetworksSuccessMessage = result.message || (isEdit
+                        ? window.__i18n.ipam_network_update_success
+                        : window.__i18n.ipam_network_create_success);
+                    await this.fetchIpNetworks();
+                } catch (error) {
+                    this.ipNetworkFormError = window.__i18n.ipam_network_error;
+                } finally {
+                    this.isIpNetworkSubmitting = false;
+                }
+            },
+            async deleteIpNetwork(network) {
+                if (!network?.id || !window.confirm(window.__i18n.ipam_network_delete_confirm)) {
+                    return;
+                }
+
+                try {
+                    const response = await fetch(`/api/ip-networks/${network.id}`, {
+                        method: 'DELETE',
+                        headers: { Accept: 'application/json' },
+                    });
+                    const result = await response.json();
+
+                    if (!response.ok) {
+                        this.ipNetworksError = result.message || window.__i18n.ipam_network_error;
+                        return;
+                    }
+
+                    this.ipNetworksSuccessMessage = result.message || window.__i18n.ipam_network_delete_success;
+
+                    if (this.selectedIpNetwork?.id === network.id) {
+                        this.backToIpNetworks();
+                    }
+
+                    await this.fetchIpNetworks();
+                } catch (error) {
+                    this.ipNetworksError = window.__i18n.ipam_network_error;
+                }
+            },
+            openIpAddressModal(address) {
+                this.ipAddressFormError = '';
+                this.ipAddressForm = {
+                    id: address.id,
+                    ip_address: address.ip_address,
+                    status: address.status,
+                    hostname: address.hostname || '',
+                    mac_address: address.mac_address || '',
+                    notes: address.notes || '',
+                };
+                this.isIpAddressModalOpen = true;
+            },
+            closeIpAddressModal() {
+                if (this.isIpAddressSubmitting) {
+                    return;
+                }
+
+                this.isIpAddressModalOpen = false;
+            },
+            async submitIpAddressForm() {
+                this.isIpAddressSubmitting = true;
+                this.ipAddressFormError = '';
+
+                try {
+                    const response = await fetch(`/api/ip-addresses/${this.ipAddressForm.id}`, {
+                        method: 'PUT',
+                        headers: {
+                            'Accept': 'application/json',
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            status: this.ipAddressForm.status,
+                            hostname: this.ipAddressForm.hostname,
+                            mac_address: this.ipAddressForm.mac_address,
+                            notes: this.ipAddressForm.notes,
+                        }),
+                    });
+                    const result = await response.json();
+
+                    if (!response.ok) {
+                        this.ipAddressFormError = result.message || window.__i18n.ipam_network_error;
+                        return;
+                    }
+
+                    this.isIpAddressModalOpen = false;
+                    this.ipNetworksSuccessMessage = result.message || window.__i18n.ipam_address_update_success;
+
+                    if (this.selectedIpNetwork?.id) {
+                        await this.fetchIpAddresses(this.selectedIpNetwork.id);
+                        await this.fetchIpNetworks();
+                    }
+                } catch (error) {
+                    this.ipAddressFormError = window.__i18n.ipam_network_error;
+                } finally {
+                    this.isIpAddressSubmitting = false;
+                }
+            },
+            openAssetFromIpam(address) {
+                if (!address?.asset_id) {
+                    return;
+                }
+
+                this.openDetailModal({
+                    id: address.asset_id,
+                    asset_tag: address.asset_tag,
+                    name: address.asset_name,
+                    category_name: '',
+                });
+            },
+            openIpamImportModal() {
+                this.ipamImportFile = null;
+                this.ipamImportFileName = '';
+                this.ipamImportErrorMessage = '';
+                this.ipamImportSuccessMessage = '';
+                this.ipamImportResultErrors = [];
+                this.isIpamImportOpen = true;
+            },
+            closeIpamImportModal() {
+                if (this.isIpamImportSubmitting) {
+                    return;
+                }
+
+                this.isIpamImportOpen = false;
+            },
+            onIpamImportFileSelected(event) {
+                const file = event.target.files?.[0] ?? null;
+                this.ipamImportFile = file;
+                this.ipamImportFileName = file ? file.name : '';
+                this.ipamImportErrorMessage = '';
+                this.ipamImportSuccessMessage = '';
+                this.ipamImportResultErrors = [];
+            },
+            async submitIpamImport() {
+                if (!this.ipamImportFile) {
+                    this.ipamImportErrorMessage = window.__i18n.import_file_missing;
+                    return;
+                }
+
+                this.isIpamImportSubmitting = true;
+                this.ipamImportErrorMessage = '';
+                this.ipamImportSuccessMessage = '';
+                this.ipamImportResultErrors = [];
+
+                const formData = new FormData();
+                formData.append('file', this.ipamImportFile);
+                const endpoint = this.ipamImportType === 'networks'
+                    ? '/api/ip-networks/import'
+                    : '/api/ip-addresses/import';
+
+                try {
+                    const response = await fetch(endpoint, {
+                        method: 'POST',
+                        headers: { Accept: 'application/json' },
+                        body: formData,
+                    });
+                    const result = await response.json();
+                    const data = result?.data ?? {};
+                    const errors = Array.isArray(data.errors) ? data.errors : [];
+
+                    if (!response.ok) {
+                        this.ipamImportErrorMessage = result.message || window.__i18n.import_all_failed;
+                        this.ipamImportResultErrors = errors;
+                        return;
+                    }
+
+                    this.ipamImportSuccessMessage = result.message || window.__i18n.ipam_import_success.replace('%d', String(data.imported ?? 0));
+                    this.ipamImportResultErrors = errors;
+                    await this.fetchIpNetworks();
+
+                    if (this.selectedIpNetwork?.id && this.ipamImportType === 'addresses') {
+                        await this.fetchIpAddresses(this.selectedIpNetwork.id);
+                    }
+                } catch (error) {
+                    this.ipamImportErrorMessage = window.__i18n.import_network_error;
+                } finally {
+                    this.isIpamImportSubmitting = false;
+                }
+            },
             async fetchConsumables() {
                 if (!this.canManageAssets) {
                     return;
@@ -4570,6 +5006,13 @@ $i18nScript = json_encode([
                 }
 
                 return this.tickets.filter((ticket) => ticket.status === this.ticketStatusFilter);
+            },
+            get filteredIpAddresses() {
+                if (this.ipAddressStatusFilter === 'all') {
+                    return this.ipAddresses;
+                }
+
+                return this.ipAddresses.filter((address) => address.status === this.ipAddressStatusFilter);
             },
             setTicketStatusFilter(value) {
                 this.ticketStatusFilter = value;

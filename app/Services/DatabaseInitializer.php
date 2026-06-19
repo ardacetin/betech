@@ -92,6 +92,10 @@ class DatabaseInitializer
                 foreach ($this->patchAuditLogs($connection) as $warning) {
                     $warnings[] = $warning;
                 }
+
+                foreach ($this->patchIpam($connection) as $warning) {
+                    $warnings[] = $warning;
+                }
             }
 
             foreach ($this->patchPersonnelSeparation($connection) as $warning) {
@@ -817,6 +821,28 @@ class DatabaseInitializer
         }
 
         return $warnings;
+    }
+
+    /**
+     * @param object $connection Medoo instance
+     *
+     * @return list<string>
+     */
+    private function patchIpam(object $connection): array
+    {
+        $warnings = [];
+
+        if (!$this->tableExists($connection, 'ip_networks')) {
+            $this->applySqlFile($connection, $this->getIpamMigrationPath());
+            $warnings[] = 'Self-healed database: created IPAM tables.';
+        }
+
+        return $warnings;
+    }
+
+    private function getIpamMigrationPath(): string
+    {
+        return dirname($this->schemaPath) . '/migrations/016_create_ipam_tables.sql';
     }
 
     private function getAuditLogsTableMigrationPath(): string
