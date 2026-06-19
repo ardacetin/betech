@@ -83,6 +83,7 @@ $i18nScript = json_encode([
     'locale' => $locale ?? 'tr',
     'no_category_fields' => __('no_category_fields'),
     'no_users_found' => __('no_users_found'),
+    'personnel_search_failed' => __('personnel_search_failed'),
     'search_users_placeholder' => __('search_users_placeholder'),
     'label_mac_address_1' => __('label_mac_address_1'),
     'label_mac_address_2' => __('label_mac_address_2'),
@@ -1229,7 +1230,7 @@ $i18nScript = json_encode([
                     >
 
                     <div
-                        x-show="showAssignUserResults && (assignUserSearchResults.length > 0 || (assignUserSearchQuery !== '' && !assignUserSearchLoading))"
+                        x-show="showAssignUserResults && (assignUserSearchResults.length > 0 || assignUserSearchError || (assignUserSearchQuery !== '' && !assignUserSearchLoading))"
                         x-cloak
                         @click.outside="showAssignUserResults = false"
                         class="absolute z-10 mt-2 max-h-56 w-full overflow-y-auto rounded-xl border border-zinc-200 bg-white shadow-soft"
@@ -1245,7 +1246,12 @@ $i18nScript = json_encode([
                             </button>
                         </template>
                         <p
-                            x-show="assignUserSearchResults.length === 0 && assignUserSearchQuery !== '' && !assignUserSearchLoading"
+                            x-show="assignUserSearchError"
+                            class="px-4 py-3 text-sm text-rose-600"
+                            x-text="assignUserSearchError"
+                        ></p>
+                        <p
+                            x-show="assignUserSearchResults.length === 0 && assignUserSearchQuery !== '' && !assignUserSearchLoading && !assignUserSearchError"
                             class="px-4 py-3 text-sm text-zinc-500"
                             x-text="window.__i18n.no_users_found"
                         ></p>
@@ -1392,7 +1398,7 @@ $i18nScript = json_encode([
                         class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4"
                     >
                     <div
-                        x-show="showTransferUserResults && (transferUserSearchResults.length > 0 || (transferUserSearchQuery !== '' && !transferUserSearchLoading))"
+                        x-show="showTransferUserResults && (transferUserSearchResults.length > 0 || transferUserSearchError || (transferUserSearchQuery !== '' && !transferUserSearchLoading))"
                         x-cloak
                         @click.outside="showTransferUserResults = false"
                         class="absolute z-10 mt-2 max-h-56 w-full overflow-y-auto rounded-xl border border-zinc-200 bg-white shadow-soft"
@@ -1409,7 +1415,12 @@ $i18nScript = json_encode([
                             </button>
                         </template>
                         <p
-                            x-show="transferUserSearchResults.length === 0 && transferUserSearchQuery !== '' && !transferUserSearchLoading"
+                            x-show="transferUserSearchError"
+                            class="px-4 py-3 text-sm text-rose-600"
+                            x-text="transferUserSearchError"
+                        ></p>
+                        <p
+                            x-show="transferUserSearchResults.length === 0 && transferUserSearchQuery !== '' && !transferUserSearchLoading && !transferUserSearchError"
                             class="px-4 py-3 text-sm text-zinc-500"
                             x-text="window.__i18n.no_users_found"
                         ></p>
@@ -2224,6 +2235,7 @@ $i18nScript = json_encode([
             assignUserSearchResults: [],
             assignUserSearchLoading: false,
             showAssignUserResults: false,
+            assignUserSearchError: '',
             assignLocationId: '',
             assignErrorMessage: '',
             isReturnOpen: false,
@@ -2236,6 +2248,7 @@ $i18nScript = json_encode([
             transferUserSearchResults: [],
             transferUserSearchLoading: false,
             showTransferUserResults: false,
+            transferUserSearchError: '',
             transferErrorMessage: '',
             categories: [],
             categoriesLoading: false,
@@ -3164,11 +3177,13 @@ $i18nScript = json_encode([
                 this.assignUserSearchQuery = '';
                 this.assignUserSearchResults = [];
                 this.assignUserSearchLoading = false;
+                this.assignUserSearchError = '';
                 this.showAssignUserResults = false;
                 this.assignSelectedUser = null;
             },
             async searchAssignUsers() {
                 this.assignUserSearchLoading = true;
+                this.assignUserSearchError = '';
 
                 try {
                     const query = encodeURIComponent(this.assignUserSearchQuery.trim());
@@ -3179,6 +3194,8 @@ $i18nScript = json_encode([
 
                     if (!response.ok) {
                         this.assignUserSearchResults = [];
+                        this.assignUserSearchError = result.message || window.__i18n.personnel_search_failed;
+                        this.showAssignUserResults = true;
                         return;
                     }
 
@@ -3186,6 +3203,8 @@ $i18nScript = json_encode([
                     this.showAssignUserResults = true;
                 } catch (error) {
                     this.assignUserSearchResults = [];
+                    this.assignUserSearchError = window.__i18n.personnel_search_failed;
+                    this.showAssignUserResults = true;
                 } finally {
                     this.assignUserSearchLoading = false;
                 }
@@ -3194,6 +3213,7 @@ $i18nScript = json_encode([
                 this.assignSelectedUser = user;
                 this.assignUserSearchQuery = '';
                 this.assignUserSearchResults = [];
+                this.assignUserSearchError = '';
                 this.showAssignUserResults = false;
                 this.assignErrorMessage = '';
             },
@@ -3348,11 +3368,13 @@ $i18nScript = json_encode([
                 this.transferUserSearchQuery = '';
                 this.transferUserSearchResults = [];
                 this.transferUserSearchLoading = false;
+                this.transferUserSearchError = '';
                 this.showTransferUserResults = false;
                 this.transferSelectedUser = null;
             },
             async searchTransferUsers() {
                 this.transferUserSearchLoading = true;
+                this.transferUserSearchError = '';
 
                 try {
                     const query = encodeURIComponent(this.transferUserSearchQuery.trim());
@@ -3365,6 +3387,8 @@ $i18nScript = json_encode([
 
                     if (!response.ok) {
                         this.transferUserSearchResults = [];
+                        this.transferUserSearchError = result.message || window.__i18n.personnel_search_failed;
+                        this.showTransferUserResults = true;
                         return;
                     }
 
@@ -3372,6 +3396,8 @@ $i18nScript = json_encode([
                     this.showTransferUserResults = true;
                 } catch (error) {
                     this.transferUserSearchResults = [];
+                    this.transferUserSearchError = window.__i18n.personnel_search_failed;
+                    this.showTransferUserResults = true;
                 } finally {
                     this.transferUserSearchLoading = false;
                 }
@@ -3380,6 +3406,7 @@ $i18nScript = json_encode([
                 this.transferSelectedUser = user;
                 this.transferUserSearchQuery = '';
                 this.transferUserSearchResults = [];
+                this.transferUserSearchError = '';
                 this.showTransferUserResults = false;
                 this.transferErrorMessage = '';
             },

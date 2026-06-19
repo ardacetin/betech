@@ -540,6 +540,50 @@ class Personnel
         return $person;
     }
 
+    /**
+     * @return list<array{id: string, external_id: string, name: string, email: string, department: string|null}>
+     */
+    public function searchActive(string $query, int $limit = 20): array
+    {
+        $conditions = [
+            'status' => self::STATUS_ACTIVE,
+            'ORDER' => ['name' => 'ASC'],
+            'LIMIT' => max(1, min(100, $limit)),
+        ];
+
+        $trimmedQuery = trim($query);
+
+        if ($trimmedQuery !== '') {
+            $conditions['OR'] = [
+                'name[~]' => $trimmedQuery,
+                'email[~]' => $trimmedQuery,
+                'department[~]' => $trimmedQuery,
+                'external_id[~]' => $trimmedQuery,
+            ];
+        }
+
+        $rows = $this->db()->select('personnel', [
+            'id',
+            'external_id',
+            'name',
+            'email',
+            'department',
+        ], $conditions);
+
+        return array_map(
+            fn (array $row): array => [
+                'id' => (string) $row['id'],
+                'external_id' => (string) ($row['external_id'] ?? ''),
+                'name' => (string) $row['name'],
+                'email' => (string) $row['email'],
+                'department' => isset($row['department']) && $row['department'] !== null
+                    ? (string) $row['department']
+                    : null,
+            ],
+            $rows
+        );
+    }
+
     public function findById(int $personnelId): ?array
     {
         $row = $this->db()->get('personnel', [

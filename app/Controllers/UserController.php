@@ -183,16 +183,7 @@ class UserController
         $query = trim((string) ($queryParams['q'] ?? ''));
 
         try {
-            $driver = $this->userIntegrationFactory->make();
-            $users = $driver->searchUsers($query);
-            $activeDriver = strtolower(trim($this->settingModel->get('active_auth_driver', 'local') ?? 'local'));
-
-            if ($activeDriver !== 'local') {
-                $users = array_map(
-                    fn (array $user): array => $this->personnelModel->syncFromDirectory($user),
-                    $users
-                );
-            }
+            $users = $this->personnelModel->searchActive($query);
         } catch (\Throwable $exception) {
             return $this->jsonResponse($response, 500, [
                 'status' => 'error',

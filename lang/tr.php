@@ -305,6 +305,7 @@ return [
     'assign_user_hint' => 'Kullanıcı arayın ve cihazı personele zimmetleyin.',
     'search_users_placeholder' => 'Ad, e-posta veya departman ara...',
     'no_users_found' => 'Kullanıcı bulunamadı.',
+    'personnel_search_failed' => 'Arama başarısız.',
     'unassign_user' => 'Zimmeti Kaldır',
     'action_assign' => 'Zimmetle',
     'action_edit' => 'Düzenle',

@@ -305,6 +305,7 @@ return [
     'assign_user_hint' => 'Search for a user to assign (zimmet) this device.',
     'search_users_placeholder' => 'Search by name, email, or department...',
     'no_users_found' => 'No users found.',
+    'personnel_search_failed' => 'Search failed.',
     'unassign_user' => 'Remove Assignment',
     'action_assign' => 'Assign',
     'action_edit' => 'Edit',
