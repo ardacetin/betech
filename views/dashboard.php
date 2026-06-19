@@ -465,7 +465,7 @@ $i18nScript = json_encode([
             </div>
         </aside>
 
-        <main class="flex-1<?= $isEndUser ? ' bg-gray-50' : '' ?>">
+        <main class="flex-1">
             <header class="sticky top-0 z-10 border-b border-zinc-200 bg-white/90 backdrop-blur">
                 <div class="mx-auto flex max-w-7xl items-center justify-between gap-4 px-6 py-4">
                     <div>
@@ -568,7 +568,7 @@ $i18nScript = json_encode([
                             type="button"
                             x-show="activeView === 'my_tickets' && isEndUser"
                             @click="openPortalTicketModal()"
-                            class="inline-flex items-center gap-2 rounded-md bg-gray-900 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-gray-800"
+                            class="inline-flex items-center gap-2 rounded-xl bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white shadow-soft transition hover:bg-zinc-800"
                         >
                             <span class="text-lg leading-none">+</span>
                             <?= htmlspecialchars(__('portal_open_new_ticket'), ENT_QUOTES, 'UTF-8') ?>
@@ -2796,7 +2796,7 @@ $i18nScript = json_encode([
                 this.openPortalTicketDetail({ id: Number(ticketId) });
             },
             portalAssetStatusClass(status) {
-                return window.__portalStatusStyles[status] || 'bg-gray-100 text-gray-700 ring-gray-500/20';
+                return window.__portalStatusStyles[status] || 'bg-zinc-100 text-zinc-700 ring-zinc-500/20';
             },
             portalAssetStatusLabel(status) {
                 const map = {
@@ -2814,10 +2814,10 @@ $i18nScript = json_encode([
                     open: 'bg-sky-50 text-sky-700 ring-sky-600/20',
                     in_progress: 'bg-indigo-50 text-indigo-700 ring-indigo-600/20',
                     resolved: 'bg-emerald-50 text-emerald-700 ring-emerald-600/20',
-                    closed: 'bg-gray-100 text-gray-700 ring-gray-500/20',
+                    closed: 'bg-zinc-100 text-zinc-700 ring-zinc-500/20',
                 };
 
-                return classes[status] || 'bg-gray-100 text-gray-700 ring-gray-500/20';
+                return classes[status] || 'bg-zinc-100 text-zinc-700 ring-zinc-500/20';
             },
             portalTicketStatusLabel(status) {
                 const map = {
