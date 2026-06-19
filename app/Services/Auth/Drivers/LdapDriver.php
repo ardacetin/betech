@@ -170,6 +170,7 @@ class LdapDriver implements UserIntegrationInterface
     ): array {
         $users = [];
         $cookie = '';
+        // RFC 2696 / LDAP_CONTROL_PAGEDRESULTS keeps each LDAP response bounded (SYNC_PAGE_SIZE).
         $supportsPagedResults = defined('LDAP_CONTROL_PAGEDRESULTS');
 
         do {
@@ -241,6 +242,8 @@ class LdapDriver implements UserIntegrationInterface
                     $users[] = $mapped;
                 }
             }
+
+            unset($entries, $search);
 
             if (!$supportsPagedResults) {
                 break;

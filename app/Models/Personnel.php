@@ -19,6 +19,10 @@ class Personnel
 
     public const PAGE_SIZE = 50;
 
+    private const DIRECTORY_SYNC_INSERT_CHUNK = 500;
+
+    private const DIRECTORY_SYNC_UPDATE_CHUNK = 200;
+
     public function __construct(
         private readonly DatabaseService $databaseService
     ) {
@@ -75,32 +79,167 @@ class Personnel
      */
     public function syncDirectory(array $directoryUsers, string $provider): array
     {
+        $total = count($directoryUsers);
+
+        $stats = $this->db()->action(function (Medoo $db) use ($directoryUsers, $provider, $total): array {
+            return $this->performBulkDirectorySync($db, $directoryUsers, $provider, $total);
+        });
+
+        return is_array($stats)
+            ? $stats
+            : [
+                'created' => 0,
+                'updated' => 0,
+                'skipped' => 0,
+                'total' => $total,
+            ];
+    }
+
+    /**
+     * @param list<array{id?: string, external_id?: string, name?: string, email?: string, department?: string|null, title?: string|null}> $directoryUsers
+     *
+     * @return array{created: int, updated: int, skipped: int, total: int}
+     */
+    private function performBulkDirectorySync(Medoo $db, array $directoryUsers, string $provider, int $total): array
+    {
         $stats = [
             'created' => 0,
             'updated' => 0,
             'skipped' => 0,
-            'total' => count($directoryUsers),
+            'total' => $total,
         ];
 
+        $normalizedProvider = $this->normalizeProvider($provider);
+        $existingIndex = $this->loadDirectorySyncIndex($db);
+        $insertRows = [];
+        $updateRows = [];
+
         foreach ($directoryUsers as $directoryUser) {
-            $outcome = $this->upsertFromDirectory($directoryUser, $provider);
-            $stats[$outcome]++;
+            $payload = $this->normalizeDirectoryPayload($directoryUser, $normalizedProvider);
+
+            if ($payload === null) {
+                $stats['skipped']++;
+                continue;
+            }
+
+            $existing = $this->findExistingInDirectoryIndex(
+                $existingIndex,
+                $payload['external_id'],
+                $payload['email']
+            );
+
+            if ($existing !== null) {
+                $updatePayload = $payload;
+
+                if (($existing['status'] ?? self::STATUS_ACTIVE) === self::STATUS_OFFBOARDED) {
+                    unset($updatePayload['provider']);
+                }
+
+                if (!$this->directoryRecordChanged($existing, $updatePayload)) {
+                    $stats['skipped']++;
+                    continue;
+                }
+
+                $updateRows[] = [
+                    'id' => (int) $existing['id'],
+                    'data' => $updatePayload,
+                ];
+                $stats['updated']++;
+                continue;
+            }
+
+            $insertRows[] = [
+                'status' => self::STATUS_ACTIVE,
+                ...$payload,
+            ];
+            $stats['created']++;
         }
+
+        unset($directoryUsers, $existingIndex);
+
+        $this->bulkInsertPersonnel($db, $insertRows);
+        unset($insertRows);
+
+        $this->bulkUpdatePersonnel($db, $updateRows);
+        unset($updateRows);
 
         return $stats;
     }
 
     /**
+     * @return array{by_external_id: array<string, array<string, mixed>>, by_email: array<string, array<string, mixed>>}
+     */
+    private function loadDirectorySyncIndex(Medoo $db): array
+    {
+        $rows = $db->select('personnel', [
+            'id',
+            'status',
+            'external_id',
+            'name',
+            'email',
+            'department',
+            'title',
+            'provider',
+        ]);
+
+        $byExternalId = [];
+        $byEmail = [];
+
+        foreach ($rows as $row) {
+            $externalId = strtolower(trim((string) ($row['external_id'] ?? '')));
+
+            if ($externalId !== '') {
+                $byExternalId[$externalId] = $row;
+            }
+
+            $email = strtolower(trim((string) ($row['email'] ?? '')));
+
+            if ($email !== '') {
+                $byEmail[$email] = $row;
+            }
+        }
+
+        unset($rows);
+
+        return [
+            'by_external_id' => $byExternalId,
+            'by_email' => $byEmail,
+        ];
+    }
+
+    /**
+     * @param array{by_external_id: array<string, array<string, mixed>>, by_email: array<string, array<string, mixed>>} $index
+     *
+     * @return array<string, mixed>|null
+     */
+    private function findExistingInDirectoryIndex(array $index, string $externalId, string $email): ?array
+    {
+        $externalKey = strtolower(trim($externalId));
+
+        if ($externalKey !== '' && isset($index['by_external_id'][$externalKey])) {
+            return $index['by_external_id'][$externalKey];
+        }
+
+        $emailKey = strtolower(trim($email));
+
+        if ($emailKey !== '' && isset($index['by_email'][$emailKey])) {
+            return $index['by_email'][$emailKey];
+        }
+
+        return null;
+    }
+
+    /**
      * @param array{id?: string, external_id?: string, name?: string, email?: string, department?: string|null, title?: string|null} $directoryUser
      *
-     * @return 'created'|'updated'|'skipped'
+     * @return array{name: string, email: string, department: string|null, title: string|null, provider: string, external_id: string}|null
      */
-    public function upsertFromDirectory(array $directoryUser, string $provider): string
+    private function normalizeDirectoryPayload(array $directoryUser, string $provider): ?array
     {
         $externalId = trim((string) ($directoryUser['external_id'] ?? $directoryUser['id'] ?? ''));
 
         if ($externalId === '') {
-            return 'skipped';
+            return null;
         }
 
         $email = strtolower(trim((string) ($directoryUser['email'] ?? '')));
@@ -121,7 +260,106 @@ class Personnel
             ? trim((string) $directoryUser['title'])
             : null;
         $title = $title === '' ? null : $title;
+
+        return [
+            'name' => $name,
+            'email' => $email,
+            'department' => $department,
+            'title' => $title,
+            'provider' => $provider,
+            'external_id' => $externalId,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $rows
+     */
+    private function bulkInsertPersonnel(Medoo $db, array $rows): void
+    {
+        if ($rows === []) {
+            return;
+        }
+
+        foreach (array_chunk($rows, self::DIRECTORY_SYNC_INSERT_CHUNK) as $chunk) {
+            $db->insert('personnel', $chunk);
+        }
+    }
+
+    /**
+     * @param list<array{id: int, data: array<string, mixed>}> $updates
+     */
+    private function bulkUpdatePersonnel(Medoo $db, array $updates): void
+    {
+        if ($updates === []) {
+            return;
+        }
+
+        foreach (array_chunk($updates, self::DIRECTORY_SYNC_UPDATE_CHUNK) as $chunk) {
+            $ids = [];
+            $fieldsPresent = [];
+
+            foreach ($chunk as $update) {
+                $ids[] = (int) $update['id'];
+
+                foreach (array_keys($update['data']) as $field) {
+                    $fieldsPresent[$field] = true;
+                }
+            }
+
+            $params = [];
+            $setClauses = [];
+
+            foreach (array_keys($fieldsPresent) as $field) {
+                $caseSql = ['CASE `id`'];
+                $hasBranch = false;
+
+                foreach ($chunk as $update) {
+                    if (!array_key_exists($field, $update['data'])) {
+                        continue;
+                    }
+
+                    $caseSql[] = 'WHEN ? THEN ?';
+                    $params[] = (int) $update['id'];
+                    $params[] = $update['data'][$field];
+                    $hasBranch = true;
+                }
+
+                if (!$hasBranch) {
+                    continue;
+                }
+
+                $caseSql[] = sprintf('ELSE `%s` END', $field);
+                $setClauses[] = sprintf('`%s` = %s', $field, implode(' ', $caseSql));
+            }
+
+            if ($setClauses === []) {
+                continue;
+            }
+
+            $idPlaceholders = implode(',', array_fill(0, count($ids), '?'));
+            $sql = sprintf(
+                'UPDATE `personnel` SET %s WHERE `id` IN (%s)',
+                implode(', ', $setClauses),
+                $idPlaceholders
+            );
+
+            $db->query($sql, [...$params, ...$ids]);
+        }
+    }
+
+    /**
+     * @param array{id?: string, external_id?: string, name?: string, email?: string, department?: string|null, title?: string|null} $directoryUser
+     *
+     * @return 'created'|'updated'|'skipped'
+     */
+    public function upsertFromDirectory(array $directoryUser, string $provider): string
+    {
         $normalizedProvider = $this->normalizeProvider($provider);
+        $payload = $this->normalizeDirectoryPayload($directoryUser, $normalizedProvider);
+
+        if ($payload === null) {
+            return 'skipped';
+        }
 
         $existing = $this->db()->get('personnel', [
             'id',
@@ -134,30 +372,23 @@ class Personnel
             'provider',
         ], [
             'OR' => [
-                'external_id' => $externalId,
-                'email' => $email,
+                'external_id' => $payload['external_id'],
+                'email' => $payload['email'],
             ],
         ]);
 
-        $payload = [
-            'name' => $name,
-            'email' => $email,
-            'department' => $department,
-            'title' => $title,
-            'provider' => $normalizedProvider,
-            'external_id' => $externalId,
-        ];
-
         if ($existing !== null) {
+            $updatePayload = $payload;
+
             if (($existing['status'] ?? self::STATUS_ACTIVE) === self::STATUS_OFFBOARDED) {
-                unset($payload['provider']);
+                unset($updatePayload['provider']);
             }
 
-            if (!$this->directoryRecordChanged($existing, $payload)) {
+            if (!$this->directoryRecordChanged($existing, $updatePayload)) {
                 return 'skipped';
             }
 
-            $this->db()->update('personnel', $payload, ['id' => (int) $existing['id']]);
+            $this->db()->update('personnel', $updatePayload, ['id' => (int) $existing['id']]);
 
             return 'updated';
         }

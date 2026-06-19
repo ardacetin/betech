@@ -299,7 +299,11 @@ class UserController
             ]);
         }
 
-        $stats = $this->personnelModel->syncDirectory($directoryUsers, $activeDriver);
+        try {
+            $stats = $this->personnelModel->syncDirectory($directoryUsers, $activeDriver);
+        } finally {
+            unset($directoryUsers);
+        }
 
         return $this->jsonResponse($response, 200, [
             'status' => 'success',
@@ -354,7 +358,11 @@ class UserController
             ]);
         }
 
-        $stats = $this->personnelModel->syncDirectory($directoryUsers, Personnel::PROVIDER_LDAP);
+        try {
+            $stats = $this->personnelModel->syncDirectory($directoryUsers, Personnel::PROVIDER_LDAP);
+        } finally {
+            unset($directoryUsers);
+        }
 
         return $this->jsonResponse($response, 200, [
             'status' => 'success',
