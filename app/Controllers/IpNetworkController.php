@@ -202,6 +202,37 @@ class IpNetworkController
         ]);
     }
 
+    public function exportNetworkAddresses(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
+    {
+        $networkId = (int) ($args['id'] ?? 0);
+
+        if ($networkId <= 0) {
+            return $this->jsonResponse($response, 400, [
+                'status' => 'error',
+                'message' => __('ipam_invalid_id'),
+            ]);
+        }
+
+        $network = $this->ipNetworkModel->findById($networkId);
+
+        if ($network === null) {
+            return $this->jsonResponse($response, 404, [
+                'status' => 'error',
+                'message' => __('ipam_network_not_found'),
+            ]);
+        }
+
+        $addresses = $this->ipAddressModel->findByNetworkId($networkId);
+        $csv = $this->ipamCsvImportService->exportNetworkAddressesToCsv($addresses);
+        $filename = $this->buildNetworkExportFilename($network);
+
+        $response->getBody()->write("\xEF\xBB\xBF" . $csv);
+
+        return $response
+            ->withHeader('Content-Type', 'text/csv; charset=utf-8')
+            ->withHeader('Content-Disposition', 'attachment; filename="' . $filename . '"');
+    }
+
     public function generateAddresses(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
     {
         $networkId = (int) ($args['id'] ?? 0);
@@ -426,6 +457,22 @@ class IpNetworkController
         $decoded = json_decode($rawBody, true);
 
         return is_array($decoded) ? $decoded : null;
+    }
+
+    /**
+     * @param array<string, mixed> $network
+     */
+    private function buildNetworkExportFilename(array $network): string
+    {
+        $slug = strtolower(trim((string) ($network['name'] ?? 'network')));
+        $slug = preg_replace('/[^a-z0-9._-]+/i', '-', $slug) ?? 'network';
+        $slug = trim($slug, '-');
+
+        if ($slug === '') {
+            $slug = 'network';
+        }
+
+        return sprintf('ipam-network-%s-%s.csv', $slug, date('Y-m-d'));
     }
 
     /**

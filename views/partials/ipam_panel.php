@@ -21,6 +21,12 @@ declare(strict_types=1);
                 @click="backToIpNetworks()"
                 class="inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-4 py-2.5 text-sm font-medium text-zinc-700 shadow-soft transition hover:bg-zinc-50"
             ><?= htmlspecialchars(__('ipam_back_to_networks'), ENT_QUOTES, 'UTF-8') ?></button>
+            <a
+                x-show="ipamSubView === 'addresses' && selectedIpNetwork?.id"
+                x-cloak
+                :href="selectedIpNetwork?.id ? `/api/ip-networks/${selectedIpNetwork.id}/export` : '#'"
+                class="inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-4 py-2.5 text-sm font-medium text-zinc-700 shadow-soft transition hover:bg-zinc-50"
+            ><?= htmlspecialchars(__('ipam_export_excel'), ENT_QUOTES, 'UTF-8') ?></a>
             <button
                 type="button"
                 @click="openIpamImportModal()"

@@ -97,6 +97,47 @@ class IpamCsvImportService
     }
 
     /**
+     * @param list<array<string, mixed>> $addresses
+     */
+    public function exportNetworkAddressesToCsv(array $addresses): string
+    {
+        $headers = [
+            __('ipam_col_ip'),
+            __('ipam_col_status'),
+            __('ipam_col_asset_tag'),
+            __('ipam_col_hostname'),
+            __('ipam_col_mac'),
+            __('ipam_notes'),
+        ];
+
+        $lines = [self::buildCsvLine($headers)];
+
+        foreach ($addresses as $address) {
+            $lines[] = self::buildCsvLine([
+                (string) ($address['ip_address'] ?? ''),
+                $this->statusLabelForExport((string) ($address['status'] ?? IpAddress::STATUS_AVAILABLE)),
+                (string) ($address['asset_tag'] ?? ''),
+                (string) ($address['hostname'] ?? ''),
+                (string) ($address['mac_address'] ?? ''),
+                (string) ($address['notes'] ?? ''),
+            ]);
+        }
+
+        return implode('', $lines);
+    }
+
+    private function statusLabelForExport(string $status): string
+    {
+        return match (strtolower(trim($status))) {
+            IpAddress::STATUS_AVAILABLE => __('ipam_status_available'),
+            IpAddress::STATUS_RESERVED => __('ipam_status_reserved'),
+            IpAddress::STATUS_ASSIGNED => __('ipam_status_assigned'),
+            IpAddress::STATUS_DHCP => __('ipam_status_dhcp'),
+            default => $status,
+        };
+    }
+
+    /**
      * @return array{
      *     imported: int,
      *     failed: int,

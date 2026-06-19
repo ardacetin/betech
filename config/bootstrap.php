@@ -229,6 +229,7 @@ $app->get('/api/ip-networks/{id}', [$ipNetworkController, 'show']);
 $app->put('/api/ip-networks/{id}', [$ipNetworkController, 'update']);
 $app->delete('/api/ip-networks/{id}', [$ipNetworkController, 'destroy']);
 $app->get('/api/ip-networks/{id}/addresses', [$ipNetworkController, 'addresses']);
+$app->get('/api/ip-networks/{id}/export', [$ipNetworkController, 'exportNetworkAddresses']);
 $app->post('/api/ip-networks/{id}/generate', [$ipNetworkController, 'generateAddresses']);
 $app->put('/api/ip-addresses/{id}', [$ipNetworkController, 'updateAddress']);
 $app->get('/api/consumables', [$consumableController, 'index']);

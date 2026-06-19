@@ -869,6 +869,7 @@ return [
     'ipam_auto_generate_ips' => 'Automatically generate usable IP addresses',
     'ipam_back_to_networks' => 'Back to Networks',
     'ipam_import_excel' => 'Import from Excel',
+    'ipam_export_excel' => 'Export to Excel',
     'ipam_import_modal_title' => 'Import IPAM Data from Excel/CSV',
     'ipam_import_modal_subtitle' => 'Export your spreadsheet as CSV and upload it here to migrate existing IP records.',
     'ipam_import_type' => 'Import Type',
@@ -889,5 +890,6 @@ return [
     'ipam_col_status' => 'Status',
     'ipam_col_hostname' => 'Hostname',
     'ipam_col_asset' => 'Asset',
+    'ipam_col_asset_tag' => 'Asset Tag',
     'ipam_col_mac' => 'MAC Address',
 ];

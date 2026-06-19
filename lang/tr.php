@@ -893,6 +893,7 @@ return [
     'ipam_auto_generate_ips' => 'Kullanılabilir IP adreslerini otomatik oluştur',
     'ipam_back_to_networks' => 'Ağlara Dön',
     'ipam_import_excel' => 'Excel\'den İçe Aktar',
+    'ipam_export_excel' => 'Excel\'e Aktar',
     'ipam_import_modal_title' => 'Excel/CSV ile IPAM Verisi İçe Aktar',
     'ipam_import_modal_subtitle' => 'Mevcut Excel tablolarınızı CSV olarak kaydedip buradan yükleyerek geçiş yapın.',
     'ipam_import_type' => 'İçe Aktarma Türü',
@@ -913,5 +914,6 @@ return [
     'ipam_col_status' => 'Durum',
     'ipam_col_hostname' => 'Hostname',
     'ipam_col_asset' => 'Envanter',
+    'ipam_col_asset_tag' => 'Cihaz Etiketi',
     'ipam_col_mac' => 'MAC Adresi',
 ];
