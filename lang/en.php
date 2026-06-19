@@ -735,6 +735,8 @@ return [
     'portal_ticket_asset_optional' => 'Related Asset (optional)',
     'portal_assets_loading' => 'Loading your assets...',
     'portal_assets_empty' => 'No assets are currently assigned to you.',
+    'portal_assets_empty_hint' => 'Use the My Tickets tab to request hardware or report an issue.',
+    'portal_create_ticket' => 'Create Request',
     'portal_assets_error' => 'Unable to load your assets.',
     'portal_tickets_loading' => 'Loading your tickets...',
     'portal_tickets_empty' => 'You have not opened any support tickets yet.',

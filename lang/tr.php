@@ -759,6 +759,8 @@ return [
     'portal_ticket_asset_optional' => 'İlgili Envanter (isteğe bağlı)',
     'portal_assets_loading' => 'Envanterleriniz yükleniyor...',
     'portal_assets_empty' => 'Size atanmış envanter bulunmuyor.',
+    'portal_assets_empty_hint' => 'Donanım talebinde bulunmak veya arıza bildirmek için Taleplerim menüsünü kullanabilirsiniz.',
+    'portal_create_ticket' => 'Talep Oluştur',
     'portal_assets_error' => 'Envanterleriniz yüklenemedi.',
     'portal_tickets_loading' => 'Talepleriniz yükleniyor...',
     'portal_tickets_empty' => 'Henüz destek talebi oluşturmadınız.',

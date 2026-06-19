@@ -10,7 +10,7 @@ declare(strict_types=1);
  */
 ?>
 <!DOCTYPE html>
-<html lang="<?= htmlspecialchars($locale ?? 'tr', ENT_QUOTES, 'UTF-8') ?>" class="h-full bg-zinc-50">
+<html lang="<?= htmlspecialchars($locale ?? 'tr', ENT_QUOTES, 'UTF-8') ?>" class="h-full bg-gray-50">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -24,7 +24,7 @@ declare(strict_types=1);
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
-<body class="h-full font-sans text-zinc-900 antialiased">
+<body class="min-h-full bg-gray-50 font-sans text-gray-900 antialiased">
     <?= $content ?>
     <?php if (!empty($csrfToken)): ?>
         <script>
