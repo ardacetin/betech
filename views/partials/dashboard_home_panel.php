@@ -24,21 +24,48 @@ declare(strict_types=1);
                     <p class="mt-1 text-xs text-zinc-500"><?= htmlspecialchars(__('dashboard_section_helpdesk_subtitle'), ENT_QUOTES, 'UTF-8') ?></p>
                 </div>
             </div>
-            <div class="grid gap-4 sm:grid-cols-3">
-                <article class="rounded-2xl border border-amber-200 bg-amber-50/80 p-6 shadow-sm">
-                    <p class="text-xs font-semibold uppercase tracking-wide text-amber-800"><?= htmlspecialchars(__('dashboard_ticket_open'), ENT_QUOTES, 'UTF-8') ?></p>
-                    <p class="mt-3 text-4xl font-semibold tabular-nums tracking-tight text-amber-950" x-text="dashboardStats.help_desk?.open ?? 0"></p>
-                    <p class="mt-2 text-xs text-amber-800/80"><?= htmlspecialchars(__('dashboard_ticket_open_hint'), ENT_QUOTES, 'UTF-8') ?></p>
+            <div class="grid grid-cols-1 gap-6 md:grid-cols-3">
+                <article class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+                    <div class="flex items-start justify-between gap-4">
+                        <div class="min-w-0">
+                            <p class="text-sm font-semibold uppercase tracking-wider text-gray-500"><?= htmlspecialchars(__('dashboard_ticket_open'), ENT_QUOTES, 'UTF-8') ?></p>
+                            <p class="mt-3 text-4xl font-bold tabular-nums tracking-tight text-gray-900" x-text="dashboardStats.help_desk?.open ?? 0"></p>
+                            <p class="mt-2 text-xs text-gray-500"><?= htmlspecialchars(__('dashboard_ticket_open_hint'), ENT_QUOTES, 'UTF-8') ?></p>
+                        </div>
+                        <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-amber-50 text-amber-600">
+                            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 13.5h3.86a2.25 2.25 0 012.012 1.244l.256.512a2.25 2.25 0 002.013 1.244h3.218a2.25 2.25 0 002.013-1.244l.256-.512a2.25 2.25 0 012.013-1.244h3.859M12 3v8.25m0 0l-3-3m3 3l3-3" />
+                            </svg>
+                        </span>
+                    </div>
                 </article>
-                <article class="rounded-2xl border border-sky-200 bg-sky-50/80 p-6 shadow-sm">
-                    <p class="text-xs font-semibold uppercase tracking-wide text-sky-800"><?= htmlspecialchars(__('dashboard_ticket_in_progress'), ENT_QUOTES, 'UTF-8') ?></p>
-                    <p class="mt-3 text-4xl font-semibold tabular-nums tracking-tight text-sky-950" x-text="dashboardStats.help_desk?.in_progress ?? 0"></p>
-                    <p class="mt-2 text-xs text-sky-800/80"><?= htmlspecialchars(__('dashboard_ticket_in_progress_hint'), ENT_QUOTES, 'UTF-8') ?></p>
+                <article class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+                    <div class="flex items-start justify-between gap-4">
+                        <div class="min-w-0">
+                            <p class="text-sm font-semibold uppercase tracking-wider text-gray-500"><?= htmlspecialchars(__('dashboard_ticket_in_progress'), ENT_QUOTES, 'UTF-8') ?></p>
+                            <p class="mt-3 text-4xl font-bold tabular-nums tracking-tight text-gray-900" x-text="dashboardStats.help_desk?.in_progress ?? 0"></p>
+                            <p class="mt-2 text-xs text-gray-500"><?= htmlspecialchars(__('dashboard_ticket_in_progress_hint'), ENT_QUOTES, 'UTF-8') ?></p>
+                        </div>
+                        <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-blue-50 text-blue-600">
+                            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
+                            </svg>
+                        </span>
+                    </div>
                 </article>
-                <article class="rounded-2xl border border-rose-200 bg-rose-50/80 p-6 shadow-sm">
-                    <p class="text-xs font-semibold uppercase tracking-wide text-rose-800"><?= htmlspecialchars(__('dashboard_ticket_critical'), ENT_QUOTES, 'UTF-8') ?></p>
-                    <p class="mt-3 text-4xl font-semibold tabular-nums tracking-tight text-rose-950" x-text="dashboardStats.help_desk?.critical ?? 0"></p>
-                    <p class="mt-2 text-xs text-rose-800/80"><?= htmlspecialchars(__('dashboard_ticket_critical_hint'), ENT_QUOTES, 'UTF-8') ?></p>
+                <article class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+                    <div class="flex items-start justify-between gap-4">
+                        <div class="min-w-0">
+                            <p class="text-sm font-semibold uppercase tracking-wider text-gray-500"><?= htmlspecialchars(__('dashboard_ticket_critical'), ENT_QUOTES, 'UTF-8') ?></p>
+                            <p class="mt-3 text-4xl font-bold tabular-nums tracking-tight text-gray-900" x-text="dashboardStats.help_desk?.critical ?? 0"></p>
+                            <p class="mt-2 text-xs text-gray-500"><?= htmlspecialchars(__('dashboard_ticket_critical_hint'), ENT_QUOTES, 'UTF-8') ?></p>
+                        </div>
+                        <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-red-50 text-red-600">
+                            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+                            </svg>
+                        </span>
+                    </div>
                 </article>
             </div>
         </section>
