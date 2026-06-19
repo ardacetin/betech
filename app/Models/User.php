@@ -239,6 +239,32 @@ class User
         return $row === null ? null : $this->normalizeAuthRow($row);
     }
 
+    /**
+     * @return list<string>
+     */
+    public function findOperationalEmails(): array
+    {
+        $rows = $this->db()->select('users', ['email'], [
+            'role' => [self::ROLE_SUPER_ADMIN, self::ROLE_TECHNICIAN],
+        ]);
+
+        $emails = [];
+
+        foreach ($rows as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+
+            $email = strtolower(trim((string) ($row['email'] ?? '')));
+
+            if ($email !== '' && filter_var($email, FILTER_VALIDATE_EMAIL) !== false) {
+                $emails[$email] = true;
+            }
+        }
+
+        return array_keys($emails);
+    }
+
     public function updatePasswordHash(int $userId, string $plainPassword): void
     {
         if ($userId <= 0 || $plainPassword === '') {

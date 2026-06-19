@@ -45,6 +45,8 @@ use App\Services\ClientIpResolver;
 use App\Services\DatabaseService;
 use App\Services\EndUserContextService;
 use App\Services\LoginAttemptService;
+use App\Services\Mail\MailService;
+use App\Services\Mail\TicketNotificationService;
 use App\Services\QrCodeService;
 use App\Services\Translator;
 use App\Services\ViewRenderer;
@@ -59,6 +61,7 @@ $dotenv->safeLoad();
 
 $appConfig = require $rootPath . '/config/app.php';
 $databaseConfig = require $rootPath . '/config/database.php';
+$mailConfig = require $rootPath . '/config/mail.php';
 
 $isHttps = request_is_https();
 
@@ -143,7 +146,23 @@ $locationController = new LocationController($locationModel);
 $licenseController = new LicenseController($licenseModel);
 $consumableController = new ConsumableController($consumableModel);
 $ticketModel = new Ticket($databaseService);
-$ticketController = new TicketController($ticketModel, $userModel, $assetModel, $sessionAuthService, $endUserContextService);
+$mailService = new MailService($mailConfig, $appLogger);
+$ticketNotificationService = new TicketNotificationService(
+    $mailService,
+    $viewRenderer,
+    $userModel,
+    $appLogger,
+    $appConfig['url'],
+    $mailConfig
+);
+$ticketController = new TicketController(
+    $ticketModel,
+    $userModel,
+    $assetModel,
+    $sessionAuthService,
+    $endUserContextService,
+    $ticketNotificationService
+);
 $endUserController = new EndUserController($assetModel, $endUserContextService);
 
 $app->get('/login', [$authController, 'showLoginForm']);

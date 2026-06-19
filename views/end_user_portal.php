@@ -286,6 +286,13 @@ $i18n = [
             isTicketCommentSubmitting: false,
             init() {
                 this.fetchAssets();
+                const params = new URLSearchParams(window.location.search);
+                const ticketId = params.get('ticket');
+
+                if (ticketId) {
+                    this.activeTab = 'tickets';
+                    this.fetchTickets().then(() => this.maybeOpenTicketFromUrl(ticketId));
+                }
             },
             switchToTickets() {
                 this.activeTab = 'tickets';
@@ -328,6 +335,20 @@ $i18n = [
                 } finally {
                     this.ticketsLoading = false;
                 }
+            },
+            maybeOpenTicketFromUrl(ticketId) {
+                if (!ticketId) {
+                    return;
+                }
+
+                const ticket = this.tickets.find((item) => String(item.id) === String(ticketId));
+
+                if (ticket) {
+                    this.openTicketDetail(ticket);
+                    return;
+                }
+
+                this.openTicketDetail({ id: Number(ticketId) });
             },
             statusClass(status) {
                 return window.__portalStatusStyles[status] || 'bg-zinc-100 text-zinc-700 ring-zinc-500/20';

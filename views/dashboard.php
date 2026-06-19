@@ -4552,12 +4552,31 @@ $i18nScript = json_encode([
                     }
 
                     this.tickets = Array.isArray(result.data) ? result.data : [];
+                    this.maybeOpenTicketFromUrl();
                 } catch (error) {
                     this.ticketsError = window.__i18n.helpdesk_network_error;
                     this.tickets = [];
                 } finally {
                     this.ticketsLoading = false;
                 }
+            },
+            maybeOpenTicketFromUrl() {
+                const params = new URLSearchParams(window.location.search);
+                const ticketId = params.get('ticket');
+
+                if (!ticketId) {
+                    return;
+                }
+
+                this.activeView = 'helpdesk';
+                const ticket = this.tickets.find((item) => String(item.id) === String(ticketId));
+
+                if (ticket) {
+                    this.openTicketDetail(ticket);
+                    return;
+                }
+
+                this.openTicketDetail({ id: Number(ticketId) });
             },
             openTicketModal() {
                 this.ticketForm = {

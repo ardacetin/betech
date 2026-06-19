@@ -9,6 +9,7 @@ use App\Models\Ticket;
 use App\Models\User;
 use App\Services\Auth\SessionAuthService;
 use App\Services\EndUserContextService;
+use App\Services\Mail\TicketNotificationService;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 
@@ -19,7 +20,8 @@ class TicketController
         private readonly User $userModel,
         private readonly Asset $assetModel,
         private readonly SessionAuthService $sessionAuthService,
-        private readonly EndUserContextService $endUserContextService
+        private readonly EndUserContextService $endUserContextService,
+        private readonly TicketNotificationService $ticketNotificationService
     ) {
     }
 
@@ -165,6 +167,8 @@ class TicketController
             ]);
         }
 
+        $this->ticketNotificationService->deferNewTicketAlert($ticket);
+
         return $this->jsonResponse($response, 201, [
             'status' => 'success',
             'message' => __('ticket_create_success'),
@@ -199,6 +203,15 @@ class TicketController
             ]);
         }
 
+        $existing = $this->ticketModel->findById($ticketId);
+
+        if ($existing === null) {
+            return $this->jsonResponse($response, 404, [
+                'status' => 'error',
+                'message' => __('ticket_not_found'),
+            ]);
+        }
+
         try {
             $ticket = $this->ticketModel->update($ticketId, $payload);
         } catch (\InvalidArgumentException $exception) {
@@ -218,6 +231,15 @@ class TicketController
                 'status' => 'error',
                 'message' => __('ticket_not_found'),
             ]);
+        }
+
+        if (array_key_exists('status', $payload)) {
+            $previousStatus = (string) ($existing['status'] ?? '');
+            $newStatus = (string) ($ticket['status'] ?? '');
+
+            if ($previousStatus !== $newStatus) {
+                $this->ticketNotificationService->deferStatusChangeAlert($ticket, $previousStatus);
+            }
         }
 
         return $this->jsonResponse($response, 200, [
@@ -313,6 +335,14 @@ class TicketController
                 'status' => 'error',
                 'message' => __('ticket_comment_create_error'),
             ]);
+        }
+
+        if (!$this->endUserContextService->isEndUser()) {
+            $ticket = $this->ticketModel->findById($ticketId);
+
+            if ($ticket !== null) {
+                $this->ticketNotificationService->deferStaffReplyAlert($ticket, $comment);
+            }
         }
 
         return $this->jsonResponse($response, 201, [
