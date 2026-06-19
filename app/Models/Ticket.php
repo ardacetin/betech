@@ -43,6 +43,54 @@ class Ticket
     }
 
     /**
+     * @return list<array<string, mixed>>
+     */
+    public function findStaleOpenTickets(int $hours = 48): array
+    {
+        if ($hours < 1) {
+            return [];
+        }
+
+        $statement = $this->db()->query(
+            'SELECT tickets.id
+            FROM tickets
+            WHERE tickets.status = :status
+              AND tickets.updated_at <= DATE_SUB(NOW(), INTERVAL :hours HOUR)
+            ORDER BY tickets.updated_at ASC, tickets.id ASC',
+            [
+                ':status' => self::STATUS_OPEN,
+                ':hours' => $hours,
+            ]
+        );
+
+        if ($statement === false) {
+            return [];
+        }
+
+        $ticketIds = [];
+
+        foreach ($statement->fetchAll() as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+
+            $ticketId = (int) ($row['id'] ?? 0);
+
+            if ($ticketId > 0) {
+                $ticketIds[] = $ticketId;
+            }
+        }
+
+        if ($ticketIds === []) {
+            return [];
+        }
+
+        return $this->mapRows($this->selectRows([
+            'tickets.id' => $ticketIds,
+        ]));
+    }
+
+    /**
      * @return array<string, mixed>|null
      */
     public function findById(int $id, bool $withComments = false): ?array

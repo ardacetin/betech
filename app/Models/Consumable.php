@@ -174,6 +174,36 @@ class Consumable
     }
 
     /**
+     * @return list<array<string, mixed>>
+     */
+    public function findLowStock(): array
+    {
+        $rows = $this->db()->select('consumables', [
+            '[>]locations' => ['location_id' => 'id'],
+        ], [
+            'consumables.id',
+            'consumables.name',
+            'consumables.quantity',
+            'consumables.min_stock_level',
+            'consumables.location_id',
+            'consumables.created_at',
+            'locations.name(location_name)',
+            'locations.building(location_building)',
+        ], [
+            'consumables.quantity[<=]consumables.min_stock_level',
+            'ORDER' => [
+                'consumables.quantity' => 'ASC',
+                'consumables.name' => 'ASC',
+            ],
+        ]);
+
+        return array_map(
+            fn (array $row): array => $this->normalizeRow($row),
+            $rows
+        );
+    }
+
+    /**
      * @return array<string, mixed>
      */
     public function checkout(int $id, int $quantity): array

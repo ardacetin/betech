@@ -765,6 +765,33 @@ class Personnel
         ]);
     }
 
+    /**
+     * @return list<string>
+     */
+    public function findAdminEmails(): array
+    {
+        $rows = $this->db()->select('personnel', ['email'], [
+            'role' => self::ROLE_ADMIN,
+            'status' => self::STATUS_ACTIVE,
+        ]);
+
+        $emails = [];
+
+        foreach ($rows as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+
+            $email = strtolower(trim((string) ($row['email'] ?? '')));
+
+            if ($email !== '' && filter_var($email, FILTER_VALIDATE_EMAIL) !== false) {
+                $emails[$email] = true;
+            }
+        }
+
+        return array_keys($emails);
+    }
+
     public function promoteToAdminByUsername(string $username): ?array
     {
         $person = $this->findByExternalId($username);

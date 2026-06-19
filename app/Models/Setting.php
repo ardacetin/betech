@@ -491,6 +491,20 @@ class Setting
     /**
      * @return list<string>
      */
+    public function getAdminNotificationEmails(): array
+    {
+        $dedicated = $this->parseSmtpSupportAddresses($this->get('admin_notification_email', '') ?? '');
+
+        if ($dedicated !== []) {
+            return $dedicated;
+        }
+
+        return $this->getSmtpConfig()['support_addresses'];
+    }
+
+    /**
+     * @return list<string>
+     */
     private function parseSmtpSupportAddresses(string $raw): array
     {
         $entries = preg_split('/[\s,;]+/', $raw) ?: [];

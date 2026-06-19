@@ -207,6 +207,45 @@ class License
         return !$this->db()->has('licenses', ['id' => $id]);
     }
 
+    /**
+     * @return list<array<string, mixed>>
+     */
+    public function findExpiringWithinDays(int $days = 30): array
+    {
+        if ($days < 1) {
+            return [];
+        }
+
+        $statement = $this->db()->query(
+            'SELECT id, name, vendor, seats, expiration_date
+            FROM licenses
+            WHERE expiration_date IS NOT NULL
+              AND expiration_date >= CURDATE()
+              AND expiration_date <= DATE_ADD(CURDATE(), INTERVAL :days DAY)
+            ORDER BY expiration_date ASC, vendor ASC, name ASC',
+            [
+                ':days' => $days,
+            ]
+        );
+
+        if ($statement === false) {
+            return [];
+        }
+
+        $licenses = [];
+
+        foreach ($statement->fetchAll() as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+
+            $license = $this->withSeatMetrics($this->normalizeLicenseRow($row));
+            $licenses[] = $license;
+        }
+
+        return $licenses;
+    }
+
     public function countAssignments(int $licenseId): int
     {
         return $this->db()->count('license_assignments', [
