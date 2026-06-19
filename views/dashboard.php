@@ -147,6 +147,7 @@ $i18nScript = json_encode([
     'transfer_error' => __('transfer_error'),
     'transfer_network_error' => __('transfer_network_error'),
     'transfer_select_user' => __('transfer_select_user'),
+    'transfer_print_tutanak_prompt' => __('transfer_print_tutanak_prompt'),
     'assign_select_user' => __('assign_select_user'),
     'assign_success' => __('assign_success'),
     'assign_error' => __('assign_error'),
@@ -3218,7 +3219,17 @@ $i18nScript = json_encode([
                         return;
                     }
 
+                    const assetId = this.transferAsset.id;
+                    const recipientName = this.transferSelectedUser?.name || '';
                     this.closeTransferModal();
+
+                    const tutanakPrompt = (window.__i18n.transfer_print_tutanak_prompt || '')
+                        .replace('{name}', recipientName);
+
+                    if (window.confirm(tutanakPrompt)) {
+                        this.printTutanak(assetId);
+                    }
+
                     window.location.reload();
                 } catch (error) {
                     this.transferErrorMessage = window.__i18n.transfer_network_error;

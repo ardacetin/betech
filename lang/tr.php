@@ -332,6 +332,7 @@ return [
     'transfer_invalid_user' => 'Seçilen personel geçersiz.',
     'transfer_same_user' => 'Envanter zaten seçilen personele zimmetli.',
     'transfer_select_user' => 'Lütfen devredilecek personeli seçin.',
+    'transfer_print_tutanak_prompt' => 'Devir tamamlandı. {name} için Malzeme Teslim Tutanağını açmak ister misiniz?',
     'assign_modal_title' => 'Personele Zimmetle',
     'assign_modal_subtitle' => 'Envanteri seçilen personele teslim edin. Durum otomatik olarak "Dağıtılmış" olarak güncellenir.',
     'assign_select_user_hint' => 'Zimmetlenecek personeli arayın ve seçin.',

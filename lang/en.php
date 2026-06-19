@@ -332,6 +332,7 @@ return [
     'transfer_invalid_user' => 'The selected personnel is invalid.',
     'transfer_same_user' => 'The asset is already assigned to the selected user.',
     'transfer_select_user' => 'Please select the target personnel.',
+    'transfer_print_tutanak_prompt' => 'Transfer complete. Open the handover protocol for {name} to print and sign?',
     'assign_modal_title' => 'Assign to Personnel',
     'assign_modal_subtitle' => 'Hand over the asset to the selected person. Status is automatically set to Deployed.',
     'assign_select_user_hint' => 'Search and select the personnel to assign.',
