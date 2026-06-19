@@ -26,6 +26,17 @@ class AnalyticsService
      *         unassigned: int,
      *         assigned_percentage: float,
      *         unassigned_percentage: float
+     *     },
+     *     help_desk: array{open: int, in_progress: int, critical: int},
+     *     licenses: array{
+     *         total: int,
+     *         expiring_soon: int,
+     *         seat_usage: list<array{id: int, name: string, vendor: string, assigned_seats: int, seats: int, usage_percentage: float}>
+     *     },
+     *     consumables: array{
+     *         total: int,
+     *         low_stock: int,
+     *         low_stock_items: list<array{id: int, name: string, quantity: int, min_stock_level: int, stock_percentage: float}>
      *     }
      * }
      */
@@ -42,6 +53,9 @@ class AnalyticsService
             'by_status' => $byStatus,
             'by_category' => $byCategory,
             'assignment' => $assignment,
+            'help_desk' => $this->fetchHelpDeskStats(),
+            'licenses' => $this->fetchLicenseStats(),
+            'consumables' => $this->fetchConsumableStats(),
         ];
     }
 
@@ -99,6 +113,17 @@ class AnalyticsService
      *         unassigned: int,
      *         assigned_percentage: float,
      *         unassigned_percentage: float
+     *     },
+     *     help_desk: array{open: int, in_progress: int, critical: int},
+     *     licenses: array{
+     *         total: int,
+     *         expiring_soon: int,
+     *         seat_usage: list<array{id: int, name: string, vendor: string, assigned_seats: int, seats: int, usage_percentage: float}>
+     *     },
+     *     consumables: array{
+     *         total: int,
+     *         low_stock: int,
+     *         low_stock_items: list<array{id: int, name: string, quantity: int, min_stock_level: int, stock_percentage: float}>
      *     }
      * }
      */
@@ -129,6 +154,21 @@ class AnalyticsService
                 'unassigned' => 0,
                 'assigned_percentage' => 0.0,
                 'unassigned_percentage' => 0.0,
+            ],
+            'help_desk' => [
+                'open' => 0,
+                'in_progress' => 0,
+                'critical' => 0,
+            ],
+            'licenses' => [
+                'total' => 0,
+                'expiring_soon' => 0,
+                'seat_usage' => [],
+            ],
+            'consumables' => [
+                'total' => 0,
+                'low_stock' => 0,
+                'low_stock_items' => [],
             ],
         ];
     }
@@ -213,6 +253,141 @@ class AnalyticsService
             'deployed' => $countsByStatus['deployed'] ?? 0,
             'in_storage' => ($countsByStatus['ready'] ?? 0) + ($countsByStatus['storage'] ?? 0),
             'broken' => $countsByStatus['broken'] ?? 0,
+        ];
+    }
+
+    /**
+     * @return array{open: int, in_progress: int, critical: int}
+     */
+    private function fetchHelpDeskStats(): array
+    {
+        return [
+            'open' => (int) $this->db()->count('tickets', ['status' => 'open']),
+            'in_progress' => (int) $this->db()->count('tickets', ['status' => 'in_progress']),
+            'critical' => (int) $this->db()->count('tickets', [
+                'AND' => [
+                    'priority' => 'critical',
+                    'status' => ['open', 'in_progress'],
+                ],
+            ]),
+        ];
+    }
+
+    /**
+     * @return array{
+     *     total: int,
+     *     expiring_soon: int,
+     *     seat_usage: list<array{id: int, name: string, vendor: string, assigned_seats: int, seats: int, usage_percentage: float}>
+     * }
+     */
+    private function fetchLicenseStats(): array
+    {
+        $total = (int) $this->db()->count('licenses');
+
+        $expiringStatement = $this->db()->query(
+            'SELECT COUNT(*) AS total FROM licenses
+            WHERE expiration_date IS NOT NULL
+              AND expiration_date >= CURDATE()
+              AND expiration_date <= DATE_ADD(CURDATE(), INTERVAL 30 DAY)'
+        );
+
+        $expiringSoon = 0;
+
+        if ($expiringStatement !== false) {
+            $row = $expiringStatement->fetch();
+            $expiringSoon = (int) ($row['total'] ?? 0);
+        }
+
+        $usageStatement = $this->db()->query(
+            'SELECT
+                l.id,
+                l.name,
+                l.vendor,
+                l.seats,
+                COUNT(la.id) AS assigned_seats
+            FROM licenses l
+            LEFT JOIN license_assignments la ON la.license_id = l.id
+            GROUP BY l.id, l.name, l.vendor, l.seats
+            ORDER BY (COUNT(la.id) / GREATEST(l.seats, 1)) DESC, l.name ASC
+            LIMIT 5'
+        );
+
+        $seatUsage = [];
+
+        if ($usageStatement !== false) {
+            foreach ($usageStatement->fetchAll() as $row) {
+                $seats = max(1, (int) ($row['seats'] ?? 0));
+                $assignedSeats = (int) ($row['assigned_seats'] ?? 0);
+
+                $seatUsage[] = [
+                    'id' => (int) ($row['id'] ?? 0),
+                    'name' => (string) ($row['name'] ?? ''),
+                    'vendor' => (string) ($row['vendor'] ?? ''),
+                    'assigned_seats' => $assignedSeats,
+                    'seats' => $seats,
+                    'usage_percentage' => $this->percentage($assignedSeats, $seats),
+                ];
+            }
+        }
+
+        return [
+            'total' => $total,
+            'expiring_soon' => $expiringSoon,
+            'seat_usage' => $seatUsage,
+        ];
+    }
+
+    /**
+     * @return array{
+     *     total: int,
+     *     low_stock: int,
+     *     low_stock_items: list<array{id: int, name: string, quantity: int, min_stock_level: int, stock_percentage: float}>
+     * }
+     */
+    private function fetchConsumableStats(): array
+    {
+        $total = (int) $this->db()->count('consumables');
+
+        $countStatement = $this->db()->query(
+            'SELECT COUNT(*) AS total FROM consumables WHERE quantity <= min_stock_level'
+        );
+        $lowStock = 0;
+
+        if ($countStatement !== false) {
+            $countRow = $countStatement->fetch();
+            $lowStock = (int) ($countRow['total'] ?? 0);
+        }
+
+        $itemsStatement = $this->db()->query(
+            'SELECT id, name, quantity, min_stock_level
+            FROM consumables
+            WHERE quantity <= min_stock_level
+            ORDER BY quantity ASC, name ASC
+            LIMIT 5'
+        );
+
+        $lowStockItems = [];
+
+        if ($itemsStatement !== false) {
+            foreach ($itemsStatement->fetchAll() as $row) {
+                $quantity = (int) ($row['quantity'] ?? 0);
+                $minStockLevel = max(0, (int) ($row['min_stock_level'] ?? 0));
+                $denominator = max(1, $minStockLevel);
+
+                $lowStockItems[] = [
+                    'id' => (int) ($row['id'] ?? 0),
+                    'name' => (string) ($row['name'] ?? ''),
+                    'quantity' => $quantity,
+                    'min_stock_level' => $minStockLevel,
+                    'stock_percentage' => $this->percentage(min($quantity, $denominator), $denominator),
+                ];
+            }
+        }
+
+        return [
+            'total' => $total,
+            'low_stock' => $lowStock,
+            'low_stock_items' => $lowStockItems,
         ];
     }
 
