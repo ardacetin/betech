@@ -1552,22 +1552,13 @@ $i18nScript = json_encode([
                     <div x-show="categoryForm.fields.length > 0" x-cloak class="mt-4 space-y-3">
                         <template x-for="(field, index) in categoryForm.fields" :key="index">
                             <div class="grid gap-3 rounded-xl border border-zinc-200 bg-zinc-50 p-4 sm:grid-cols-12">
-                                <label class="block sm:col-span-3">
-                                    <span class="mb-1 block text-xs font-medium text-zinc-600"><?= htmlspecialchars(__('settings_field_name'), ENT_QUOTES, 'UTF-8') ?></span>
-                                    <input
-                                        type="text"
-                                        x-model="field.name"
-                                        class="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-400"
-                                        placeholder="ram"
-                                    >
-                                </label>
-                                <label class="block sm:col-span-4">
-                                    <span class="mb-1 block text-xs font-medium text-zinc-600"><?= htmlspecialchars(__('settings_field_label'), ENT_QUOTES, 'UTF-8') ?></span>
+                                <label class="block sm:col-span-7">
+                                    <span class="mb-1 block text-xs font-medium text-zinc-600"><?= htmlspecialchars(__('category_field_label'), ENT_QUOTES, 'UTF-8') ?></span>
                                     <input
                                         type="text"
                                         x-model="field.label"
                                         class="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-400"
-                                        placeholder="<?= htmlspecialchars(__('settings_field_label_placeholder'), ENT_QUOTES, 'UTF-8') ?>"
+                                        placeholder="<?= htmlspecialchars(__('category_field_label_placeholder'), ENT_QUOTES, 'UTF-8') ?>"
                                     >
                                 </label>
                                 <label class="block sm:col-span-3">
@@ -4395,7 +4386,6 @@ $i18nScript = json_encode([
             },
             addCategoryField() {
                 this.categoryForm.fields.push({
-                    name: '',
                     label: '',
                     type: 'text',
                 });
@@ -4407,9 +4397,8 @@ $i18nScript = json_encode([
                 const payload = {
                     name: this.categoryForm.name.trim(),
                     fields: this.categoryForm.fields
-                        .filter((field) => field && (field.name?.trim() || field.label?.trim()))
+                        .filter((field) => field && field.label?.trim())
                         .map((field) => ({
-                            name: String(field.name || '').trim(),
                             label: String(field.label || '').trim(),
                             type: field.type || 'text',
                         })),

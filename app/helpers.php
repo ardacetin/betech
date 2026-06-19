@@ -55,11 +55,20 @@ function request_is_https(): bool
 }
 
 /**
- * Build a stable custom field code from a human-readable label.
+ * Build a stable machine-readable field code from a human-readable label.
+ *
+ * Converts to lowercase, replaces spaces/special chars with underscores,
+ * and transliterates Turkish characters (e.g. "İşlemci Tipi" -> "islemci_tipi").
  */
 function custom_field_code_from_label(string $label): string
 {
-    $map = [
+    $normalized = trim($label);
+
+    if ($normalized === '') {
+        return 'field';
+    }
+
+    $normalized = strtr($normalized, [
         'ç' => 'c',
         'Ç' => 'c',
         'ğ' => 'g',
@@ -73,11 +82,12 @@ function custom_field_code_from_label(string $label): string
         'Ş' => 's',
         'ü' => 'u',
         'Ü' => 'u',
-    ];
+    ]);
 
-    $normalized = strtr(trim($label), $map);
     $normalized = mb_strtolower($normalized, 'UTF-8');
-    $name = preg_replace('/[^a-z0-9]+/', '_', $normalized) ?? '';
+    $normalized = str_replace(' ', '_', $normalized);
+    $name = preg_replace('/[^a-z0-9_]+/', '_', $normalized) ?? '';
+    $name = preg_replace('/_+/', '_', $name) ?? '';
     $name = trim($name, '_');
 
     if ($name === '') {

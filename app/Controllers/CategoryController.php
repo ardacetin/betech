@@ -317,31 +317,15 @@ class CategoryController
                     continue;
                 }
 
-                $name = trim((string) ($field['name'] ?? ''));
                 $label = trim((string) ($field['label'] ?? ''));
-
-                if ($name === '' && $label === '') {
-                    $errors['fields'][] = sprintf(__('category_field_name_or_label_required'), $index);
-                    continue;
-                }
-
-                if ($name === '' && $label !== '') {
-                    $name = $this->fieldNameFromLabel($label);
-                }
-
-                if (!preg_match('/^[a-z][a-z0-9_]*$/', $name)) {
-                    $errors['fields'][] = sprintf(__('category_field_name_invalid'), $index);
-                }
-
-                if (isset($seenNames[$name])) {
-                    $errors['fields'][] = sprintf(__('category_field_name_duplicate'), $name);
-                }
-
-                $seenNames[$name] = true;
 
                 if ($label === '') {
                     $errors['fields'][] = sprintf(__('category_field_label_required'), $index);
+                    continue;
                 }
+
+                $name = $this->uniqueFieldCodeFromLabel($label, $seenNames);
+                $seenNames[$name] = true;
 
                 $type = trim((string) ($field['type'] ?? 'text'));
 
@@ -366,22 +350,21 @@ class CategoryController
         }
 
         $normalized = [];
+        $usedNames = [];
 
         foreach ($fields as $field) {
             if (!is_array($field)) {
                 continue;
             }
 
-            $name = trim((string) ($field['name'] ?? ''));
             $label = trim((string) ($field['label'] ?? ''));
 
-            if ($name === '' && $label !== '') {
-                $name = $this->fieldNameFromLabel($label);
-            }
-
-            if ($name === '' || $label === '') {
+            if ($label === '') {
                 continue;
             }
+
+            $name = $this->uniqueFieldCodeFromLabel($label, $usedNames);
+            $usedNames[$name] = true;
 
             $type = trim((string) ($field['type'] ?? 'text'));
 
@@ -407,24 +390,18 @@ class CategoryController
         return $normalized;
     }
 
-    private function fieldNameFromLabel(string $label): string
+    /**
+     * @param array<string, bool> $usedNames
+     */
+    private function uniqueFieldCodeFromLabel(string $label, array $usedNames): string
     {
-        $normalized = mb_strtolower(trim($label), 'UTF-8');
-        $transliterated = iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $normalized);
+        $baseName = custom_field_code_from_label($label);
+        $name = $baseName;
+        $suffix = 2;
 
-        if ($transliterated === false) {
-            $transliterated = $normalized;
-        }
-
-        $name = preg_replace('/[^a-z0-9]+/', '_', $transliterated) ?? '';
-        $name = trim($name, '_');
-
-        if ($name === '') {
-            return 'field';
-        }
-
-        if (preg_match('/^[0-9]/', $name)) {
-            $name = 'field_' . $name;
+        while (isset($usedNames[$name])) {
+            $name = $baseName . '_' . $suffix;
+            ++$suffix;
         }
 
         return $name;

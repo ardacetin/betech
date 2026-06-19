@@ -173,6 +173,8 @@ return [
     'category_fields_hint' => 'Bu kategorideki envanterler için teknik özellik alanlarını ekleyin.',
     'category_no_fields' => 'Henüz alan eklenmedi. Aşağıdaki butonla alan tanımlayabilirsiniz.',
     'category_add_field' => 'Alan Ekle',
+    'category_field_label' => 'Alan Adı',
+    'category_field_label_placeholder' => 'Örn: İşlemci Tipi',
     'category_remove_field' => 'Kaldır',
     'category_save' => 'Kaydet',
     'category_create_success' => 'Kategori başarıyla oluşturuldu.',

@@ -173,6 +173,8 @@ return [
     'category_fields_hint' => 'Add technical specification fields for assets in this category.',
     'category_no_fields' => 'No fields added yet. Use the button below to define fields.',
     'category_add_field' => 'Add Field',
+    'category_field_label' => 'Field Name',
+    'category_field_label_placeholder' => 'e.g. Processor Type',
     'category_remove_field' => 'Remove',
     'category_save' => 'Save',
     'category_create_success' => 'Category created successfully.',
