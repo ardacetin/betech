@@ -261,15 +261,19 @@ class TicketController
         $changes = $this->snapshotTicketChanges($existing, $ticket, $payload);
 
         if ($changes['new'] !== []) {
-            $this->auditLogger->logFromRequest(
-                $request,
-                $this->sessionAuthService->userId(),
-                AuditLog::ACTION_UPDATED,
-                AuditLog::ENTITY_TICKET,
-                $ticketId,
-                $changes['old'],
-                $changes['new']
-            );
+            try {
+                $this->auditLogger->logFromRequest(
+                    $request,
+                    $this->sessionAuthService->userId(),
+                    AuditLog::ACTION_UPDATED,
+                    AuditLog::ENTITY_TICKET,
+                    $ticketId,
+                    $changes['old'],
+                    $changes['new']
+                );
+            } catch (\Throwable) {
+                // Audit logging must never block ticket updates.
+            }
         }
 
         return $this->jsonResponse($response, 200, [

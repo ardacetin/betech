@@ -11,6 +11,10 @@ use App\Services\ViewRenderer;
 
 class TicketNotificationService
 {
+    /**
+     * All outbound ticket alerts are queued via DeferredTaskRunner so SMTP/Telegram
+     * never block the JSON API response or hold the PHP session lock.
+     */
     public function __construct(
         private readonly MailService $mailService,
         private readonly MailConfigResolver $mailConfigResolver,

@@ -5930,12 +5930,16 @@ $i18nScript = json_encode([
 
                 return date.toLocaleString(window.__i18n.locale || 'tr');
             },
-            async fetchTickets() {
+            async fetchTickets(options = {}) {
                 if (!this.canManageAssets) {
                     return;
                 }
 
-                this.ticketsLoading = true;
+                const silent = options.silent === true;
+
+                if (!silent) {
+                    this.ticketsLoading = true;
+                }
                 this.ticketsError = '';
 
                 try {
@@ -5956,7 +5960,22 @@ $i18nScript = json_encode([
                     this.ticketsError = window.__i18n.helpdesk_network_error;
                     this.tickets = [];
                 } finally {
-                    this.ticketsLoading = false;
+                    if (!silent) {
+                        this.ticketsLoading = false;
+                    }
+                }
+            },
+            mergeTicketIntoList(ticket) {
+                if (!ticket?.id) {
+                    return;
+                }
+
+                const index = this.tickets.findIndex((item) => Number(item.id) === Number(ticket.id));
+
+                if (index >= 0) {
+                    this.tickets[index] = { ...this.tickets[index], ...ticket };
+                } else {
+                    this.tickets.unshift(ticket);
                 }
             },
             async fetchAuditLogs() {
@@ -6177,7 +6196,8 @@ $i18nScript = json_encode([
 
                     this.ticketsSuccessMessage = this.apiErrorMessage(result, window.__i18n.ticket_create_success);
                     this.isTicketModalOpen = false;
-                    await this.fetchTickets();
+                    this.mergeTicketIntoList(result.data);
+                    this.fetchTickets({ silent: true });
                 } catch (error) {
                     this.ticketFormError = window.__i18n.helpdesk_network_error;
                 } finally {
@@ -6277,7 +6297,13 @@ $i18nScript = json_encode([
 
                     this.ticketsSuccessMessage = this.apiErrorMessage(result, window.__i18n.ticket_update_success);
                     this.ticketDetail = result.data;
-                    await this.fetchTickets();
+                    this.ticketDetailForm = {
+                        status: result.data.status,
+                        priority: result.data.priority,
+                        category_id: result.data.category_id ? String(result.data.category_id) : '',
+                    };
+                    this.mergeTicketIntoList(result.data);
+                    this.fetchTickets({ silent: true });
                 } catch (error) {
                     this.ticketsError = window.__i18n.helpdesk_network_error;
                 } finally {
@@ -6348,7 +6374,7 @@ $i18nScript = json_encode([
                     this.ticketsSuccessMessage = this.apiErrorMessage(result, window.__i18n.ticket_delete_success);
                     this.isTicketDetailOpen = false;
                     this.ticketDetail = null;
-                    await this.fetchTickets();
+                    this.fetchTickets({ silent: true });
                 } catch (error) {
                     this.ticketsError = window.__i18n.helpdesk_network_error;
                 }

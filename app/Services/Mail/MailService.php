@@ -110,7 +110,8 @@ class MailService
         $mailer->SMTPAuth = $config['username'] !== '';
         $mailer->Username = $config['username'];
         $mailer->Password = $config['password'];
-        $mailer->Timeout = 15;
+        $mailer->Timeout = 8;
+        $mailer->SMTPKeepAlive = false;
 
         $encryption = $config['encryption'];
 

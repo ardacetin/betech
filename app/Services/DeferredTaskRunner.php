@@ -44,13 +44,26 @@ class DeferredTaskRunner
         }
     }
 
+    /**
+     * Release the HTTP response and session lock before slow background work (SMTP, etc.).
+     */
     private static function flushResponseToClient(): void
     {
+        if (session_status() === PHP_SESSION_ACTIVE) {
+            session_write_close();
+        }
+
+        ignore_user_abort(true);
+
         while (ob_get_level() > 0) {
             @ob_end_flush();
         }
 
-        if (function_exists('fastcgi_finish_request')) {
+        @flush();
+
+        if (function_exists('litespeed_finish_request')) {
+            @litespeed_finish_request();
+        } elseif (function_exists('fastcgi_finish_request')) {
             @fastcgi_finish_request();
         }
     }
