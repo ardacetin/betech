@@ -79,6 +79,24 @@ $assetOptions = array_map(
 );
 $assetOptionsJson = json_encode($assetOptions, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
 
+$assetFilterDefinitions = $assetFilterDefinitions ?? [];
+$assetActiveFilters = $assetActiveFilters ?? [];
+$initialAssetFilters = [];
+
+foreach ($assetFilterDefinitions as $filterDefinition) {
+    $filterName = (string) ($filterDefinition['name'] ?? '');
+
+    if ($filterName === '') {
+        continue;
+    }
+
+    $initialAssetFilters[$filterName] = $assetActiveFilters[$filterName] ?? '';
+}
+
+$assetFilterFieldsJson = json_encode($assetFilterDefinitions, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
+$initialAssetFiltersJson = json_encode($initialAssetFilters, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
+$inventoryAssetsJson = json_encode($canManageAssets ? $assets : [], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
+
 $i18nScript = json_encode([
     'create_error' => __('create_error'),
     'update_error' => __('update_error'),
@@ -362,6 +380,15 @@ $i18nScript = json_encode([
     'status_storage' => __('status_storage'),
     'status_broken' => __('status_broken'),
     'status_under_repair' => __('status_under_repair'),
+    'col_asset_tag' => __('col_asset_tag'),
+    'col_name' => __('col_name'),
+    'col_category' => __('col_category'),
+    'col_status' => __('col_status'),
+    'col_assigned_user' => __('col_assigned_user'),
+    'col_location' => __('col_location'),
+    'label_serial_number' => __('label_serial_number'),
+    'unknown_category' => __('unknown_category'),
+    'inventory_filter_error' => __('inventory_filter_error'),
 ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
 ?>
 <div class="min-h-screen bg-gray-50" x-data="assetDashboard()" x-init="restoreDashboardView(); if (isEndUser) { initEndUserPortal(); } else if (canManageAssets) { fetchCategories(); fetchLocations(); fetchTicketCategories(); fetchLicenses(); fetchConsumables(); fetchTickets(); if (activeView === 'dashboard') { fetchDashboardStats(); } if (activeView === 'reports') { fetchReports(); } } this.isAssignLicenseModalOpen = false;">
@@ -547,219 +574,7 @@ $i18nScript = json_encode([
                 <?php endif; ?>
 
                 <?php if (!$isEndUser): ?>
-                <div x-show="activeView === 'assets'" x-cloak class="space-y-8">
-                <section class="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-soft">
-                    <div class="border-b border-zinc-200 px-6 py-4">
-                        <h2 class="text-lg font-semibold text-zinc-900"><?= htmlspecialchars(__('inventory_title'), ENT_QUOTES, 'UTF-8') ?></h2>
-                        <p class="mt-1 text-sm text-zinc-500"><?= htmlspecialchars(__('inventory_subtitle'), ENT_QUOTES, 'UTF-8') ?></p>
-                    </div>
-
-                    <div x-show="importSummaryMessage" x-cloak class="border-b border-zinc-200 px-6 py-4">
-                        <p
-                            class="rounded-xl px-4 py-3 text-sm"
-                            :class="importSummaryIsError ? 'border border-rose-200 bg-rose-50 text-rose-700' : 'border border-emerald-200 bg-emerald-50 text-emerald-700'"
-                            x-text="importSummaryMessage"
-                        ></p>
-                        <ul x-show="importSummaryErrors.length > 0" x-cloak class="mt-3 max-h-40 space-y-1 overflow-y-auto rounded-xl border border-rose-100 bg-rose-50/50 px-4 py-3 text-xs text-rose-700">
-                            <template x-for="(item, index) in importSummaryErrors" :key="index">
-                                <li x-text="formatImportError(item)"></li>
-                            </template>
-                        </ul>
-                    </div>
-
-                    <div class="overflow-x-auto">
-                        <table class="min-w-full divide-y divide-zinc-200">
-                            <thead class="bg-zinc-50">
-                                <tr>
-                                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500"><?= htmlspecialchars(__('col_asset_tag'), ENT_QUOTES, 'UTF-8') ?></th>
-                                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500"><?= htmlspecialchars(__('col_name'), ENT_QUOTES, 'UTF-8') ?></th>
-                                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500"><?= htmlspecialchars(__('col_category'), ENT_QUOTES, 'UTF-8') ?></th>
-                                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500"><?= htmlspecialchars(__('col_status'), ENT_QUOTES, 'UTF-8') ?></th>
-                                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500"><?= htmlspecialchars(__('col_assigned_user'), ENT_QUOTES, 'UTF-8') ?></th>
-                                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500"><?= htmlspecialchars(__('col_location'), ENT_QUOTES, 'UTF-8') ?></th>
-                                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500"><?= htmlspecialchars(__('col_properties'), ENT_QUOTES, 'UTF-8') ?></th>
-                                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500"><?= htmlspecialchars(__('col_actions'), ENT_QUOTES, 'UTF-8') ?></th>
-                                </tr>
-                            </thead>
-                            <tbody class="divide-y divide-zinc-100 bg-white">
-                                <?php if ($assets === []): ?>
-                                <tr>
-                                    <td colspan="8" class="px-6 py-12 text-center text-sm text-zinc-500">
-                                        <?= htmlspecialchars(__('empty_assets_prefix'), ENT_QUOTES, 'UTF-8') ?>
-                                        <span class="font-medium text-zinc-700"><?= htmlspecialchars(__('add_asset'), ENT_QUOTES, 'UTF-8') ?></span>
-                                        <?= htmlspecialchars(__('empty_assets_suffix'), ENT_QUOTES, 'UTF-8') ?>
-                                    </td>
-                                </tr>
-                                <?php else: ?>
-                                    <?php foreach ($assets as $asset):
-                                        $status = (string) ($asset['status'] ?? 'ready');
-                                        $statusClass = $statusStyles[$status] ?? 'bg-zinc-100 text-zinc-700 ring-zinc-500/20';
-                                        $properties = is_array($asset['properties'] ?? null) ? $asset['properties'] : [];
-                                        $locationLabel = $formatLocationLabel(
-                                            isset($asset['location_building']) ? (string) $asset['location_building'] : null,
-                                            isset($asset['location_name']) ? (string) $asset['location_name'] : null
-                                        );
-                                    ?>
-                                    <tr class="hover:bg-zinc-50/80">
-                                        <td class="whitespace-nowrap px-6 py-4 text-sm font-medium text-zinc-900">
-                                            <?= htmlspecialchars((string) $asset['asset_tag'], ENT_QUOTES, 'UTF-8') ?>
-                                        </td>
-                                        <td class="px-6 py-4 text-sm text-zinc-700">
-                                            <?= htmlspecialchars((string) $asset['name'], ENT_QUOTES, 'UTF-8') ?>
-                                        </td>
-                                        <td class="px-6 py-4 text-sm text-zinc-600">
-                                            <?= htmlspecialchars((string) ($asset['category_name'] ?? __('unknown_category')), ENT_QUOTES, 'UTF-8') ?>
-                                        </td>
-                                        <td class="px-6 py-4">
-                                            <span class="inline-flex rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-inset <?= $statusClass ?>">
-                                                <?= htmlspecialchars($translateStatus($status), ENT_QUOTES, 'UTF-8') ?>
-                                            </span>
-                                        </td>
-                                        <td class="px-6 py-4 text-sm text-zinc-600">
-                                            <?php if (!empty($asset['user_name'])): ?>
-                                                <?= htmlspecialchars((string) $asset['user_name'], ENT_QUOTES, 'UTF-8') ?>
-                                            <?php else: ?>
-                                                <span class="text-zinc-400"><?= htmlspecialchars(__('not_assigned'), ENT_QUOTES, 'UTF-8') ?></span>
-                                            <?php endif; ?>
-                                        </td>
-                                        <td class="px-6 py-4 text-sm text-zinc-600">
-                                            <?php if ($locationLabel !== ''): ?>
-                                                <?= htmlspecialchars($locationLabel, ENT_QUOTES, 'UTF-8') ?>
-                                            <?php else: ?>
-                                                <span class="text-zinc-400"><?= htmlspecialchars(__('not_located'), ENT_QUOTES, 'UTF-8') ?></span>
-                                            <?php endif; ?>
-                                        </td>
-                                        <td class="px-6 py-4">
-                                            <div class="flex max-w-xl flex-wrap gap-2">
-                                                <?php if ($properties === []): ?>
-                                                    <span class="text-xs text-zinc-400"><?= htmlspecialchars(__('no_properties'), ENT_QUOTES, 'UTF-8') ?></span>
-                                                <?php else: ?>
-                                                    <?php foreach ($properties as $key => $value): ?>
-                                                    <span class="inline-flex items-center gap-1 rounded-full bg-zinc-100 px-2.5 py-1 text-xs text-zinc-700">
-                                                        <span class="font-medium"><?= htmlspecialchars((string) $key, ENT_QUOTES, 'UTF-8') ?>:</span>
-                                                        <span><?= htmlspecialchars($formatPropertyValue($value), ENT_QUOTES, 'UTF-8') ?></span>
-                                                    </span>
-                                                    <?php endforeach; ?>
-                                                <?php endif; ?>
-                                            </div>
-                                        </td>
-                                        <td class="px-6 py-4">
-                                            <div class="flex flex-wrap gap-2">
-                                                <button
-                                                    type="button"
-                                                    @click='openDetailModal(<?= json_encode([
-                                                        'id' => (int) $asset['id'],
-                                                        'asset_tag' => (string) $asset['asset_tag'],
-                                                        'name' => (string) $asset['name'],
-                                                        'status' => $status,
-                                                        'category_name' => (string) ($asset['category_name'] ?? __('unknown_category')),
-                                                        'user_id' => $asset['user_id'] ?? null,
-                                                        'user_name' => $asset['user_name'] ?? null,
-                                                        'location_id' => $asset['location_id'] ?? null,
-                                                        'location_name' => $asset['location_name'] ?? null,
-                                                        'location_building' => $asset['location_building'] ?? null,
-                                                    ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>)'
-                                                    class="rounded-lg border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-700 transition hover:bg-zinc-50"
-                                                >
-                                                    <?= htmlspecialchars(__('action_view_history'), ENT_QUOTES, 'UTF-8') ?>
-                                                </button>
-                                                <?php if ($canManageAssets): ?>
-                                                <?php if (empty($asset['user_id'])): ?>
-                                                <button
-                                                    type="button"
-                                                    @click='openAssignModal(<?= json_encode([
-                                                        'id' => (int) $asset['id'],
-                                                        'asset_tag' => (string) $asset['asset_tag'],
-                                                        'name' => (string) $asset['name'],
-                                                        'serial_number' => (string) ($asset['serial_number'] ?? ''),
-                                                        'category_name' => (string) ($asset['category_name'] ?? __('unknown_category')),
-                                                        'location_id' => $asset['location_id'] ?? null,
-                                                        'location_name' => $asset['location_name'] ?? null,
-                                                    ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>)'
-                                                    class="rounded-lg border border-emerald-200 px-3 py-1.5 text-xs font-medium text-emerald-800 transition hover:bg-emerald-50"
-                                                >
-                                                    <?= htmlspecialchars(__('action_assign'), ENT_QUOTES, 'UTF-8') ?>
-                                                </button>
-                                                <?php endif; ?>
-                                                <button
-                                                    type="button"
-                                                    @click='openEditModal(<?= json_encode([
-                                                        'id' => (int) $asset['id'],
-                                                        'asset_tag' => (string) $asset['asset_tag'],
-                                                        'name' => (string) $asset['name'],
-                                                        'status' => $status,
-                                                        'category_id' => $asset['category_id'] ?? null,
-                                                        'user_id' => $asset['user_id'] ?? null,
-                                                        'user_name' => $asset['user_name'] ?? null,
-                                                        'location_id' => $asset['location_id'] ?? null,
-                                                        'location_name' => $asset['location_name'] ?? null,
-                                                        'location_building' => $asset['location_building'] ?? null,
-                                                        'properties' => is_array($asset['properties'] ?? null) ? $asset['properties'] : [],
-                                                    ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>)'
-                                                    class="rounded-lg border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-700 transition hover:bg-zinc-50"
-                                                >
-                                                    <?= htmlspecialchars(__('action_edit'), ENT_QUOTES, 'UTF-8') ?>
-                                                </button>
-                                                <?php endif; ?>
-                                                <?php if (!empty($asset['user_id'])): ?>
-                                                <button
-                                                    type="button"
-                                                    @click="printTutanak(<?= (int) $asset['id'] ?>)"
-                                                    class="rounded-lg border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-700 transition hover:bg-zinc-50"
-                                                >
-                                                    <?= htmlspecialchars(__('action_print_tutanak'), ENT_QUOTES, 'UTF-8') ?>
-                                                </button>
-                                                <?php if ($canManageAssets): ?>
-                                                <button
-                                                    type="button"
-                                                    @click='openReturnModal(<?= json_encode([
-                                                        'id' => (int) $asset['id'],
-                                                        'asset_tag' => (string) $asset['asset_tag'],
-                                                        'name' => (string) $asset['name'],
-                                                        'user_id' => $asset['user_id'] ?? null,
-                                                        'user_name' => $asset['user_name'] ?? null,
-                                                    ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>)'
-                                                    class="rounded-lg border border-amber-200 px-3 py-1.5 text-xs font-medium text-amber-800 transition hover:bg-amber-50"
-                                                >
-                                                    <?= htmlspecialchars(__('action_return_to_storage'), ENT_QUOTES, 'UTF-8') ?>
-                                                </button>
-                                                <button
-                                                    type="button"
-                                                    @click='openTransferModal(<?= json_encode([
-                                                        'id' => (int) $asset['id'],
-                                                        'asset_tag' => (string) $asset['asset_tag'],
-                                                        'name' => (string) $asset['name'],
-                                                        'user_id' => $asset['user_id'] ?? null,
-                                                        'user_name' => $asset['user_name'] ?? null,
-                                                        'location_id' => $asset['location_id'] ?? null,
-                                                        'location_name' => $asset['location_name'] ?? null,
-                                                        'location_building' => $asset['location_building'] ?? null,
-                                                    ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>)'
-                                                    class="rounded-lg border border-indigo-200 px-3 py-1.5 text-xs font-medium text-indigo-800 transition hover:bg-indigo-50"
-                                                >
-                                                    <?= htmlspecialchars(__('action_transfer'), ENT_QUOTES, 'UTF-8') ?>
-                                                </button>
-                                                <?php endif; ?>
-                                                <?php endif; ?>
-                                                <?php if ($isSuperAdmin): ?>
-                                                <button
-                                                    type="button"
-                                                    @click="deleteAsset(<?= (int) $asset['id'] ?>)"
-                                                    class="rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-medium text-rose-700 transition hover:bg-rose-50"
-                                                >
-                                                    <?= htmlspecialchars(__('action_delete_asset'), ENT_QUOTES, 'UTF-8') ?>
-                                                </button>
-                                                <?php endif; ?>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                    <?php endforeach; ?>
-                                <?php endif; ?>
-                            </tbody>
-                        </table>
-                    </div>
-                </section>
-                </div>
+                <?php require __DIR__ . '/partials/assets_inventory_panel.php'; ?>
                 <?php endif; ?>
 
                 <?php if ($isEndUser): ?>
@@ -2334,6 +2149,11 @@ $i18nScript = json_encode([
             importSummaryMessage: '',
             importSummaryIsError: false,
             importSummaryErrors: [],
+            inventoryAssets: <?= $inventoryAssetsJson ?>,
+            assetFilterFields: <?= $assetFilterFieldsJson ?>,
+            assetFilters: <?= $initialAssetFiltersJson ?>,
+            assetFiltersLoading: false,
+            assetFiltersError: '',
             isEditOpen: false,
             isDetailOpen: false,
             isTransferOpen: false,
@@ -4049,6 +3869,206 @@ $i18nScript = json_encode([
                 }
 
                 this.setImportFile(file);
+            },
+            resolveAssetFilterLabel(field) {
+                if (field?.label_key && window.__i18n[field.label_key]) {
+                    return window.__i18n[field.label_key];
+                }
+
+                const locale = window.__i18n.locale || 'tr';
+
+                if (locale === 'en' && field?.label_en) {
+                    return field.label_en;
+                }
+
+                return field?.label || field?.name || '';
+            },
+            resolveAssetFilterOptionLabel(option) {
+                if (option?.label_key && window.__i18n[option.label_key]) {
+                    return window.__i18n[option.label_key];
+                }
+
+                return option?.label || option?.value || '';
+            },
+            hasActiveAssetFilters() {
+                return Object.values(this.assetFilters || {}).some((value) => String(value || '').trim() !== '');
+            },
+            inventoryStatusClass(status) {
+                const classes = {
+                    ready: 'bg-sky-50 text-sky-700 ring-sky-600/20',
+                    deployed: 'bg-emerald-50 text-emerald-700 ring-emerald-600/20',
+                    storage: 'bg-amber-50 text-amber-700 ring-amber-600/20',
+                    broken: 'bg-rose-50 text-rose-700 ring-rose-600/20',
+                    under_repair: 'bg-indigo-50 text-indigo-700 ring-indigo-600/20',
+                };
+
+                return classes[status] || 'bg-zinc-100 text-zinc-700 ring-zinc-500/20';
+            },
+            translateInventoryStatus(status) {
+                const key = `status_${status}`;
+
+                return window.__i18n[key] || status;
+            },
+            formatInventoryLocation(asset) {
+                const building = String(asset?.location_building || '').trim();
+                const name = String(asset?.location_name || '').trim();
+
+                if (name === '') {
+                    return '';
+                }
+
+                if (building === '') {
+                    return name;
+                }
+
+                return `${building} / ${name}`;
+            },
+            inventoryPropertyEntries(asset) {
+                const properties = asset?.properties;
+
+                if (!properties || typeof properties !== 'object' || Array.isArray(properties)) {
+                    return [];
+                }
+
+                return Object.entries(properties);
+            },
+            formatInventoryPropertyValue(value) {
+                if (Array.isArray(value)) {
+                    return JSON.stringify(value);
+                }
+
+                if (typeof value === 'boolean') {
+                    return value ? 'true' : 'false';
+                }
+
+                return String(value ?? '');
+            },
+            buildInventoryDetailPayload(asset) {
+                return {
+                    id: asset.id,
+                    asset_tag: asset.asset_tag,
+                    name: asset.name,
+                    status: asset.status,
+                    category_name: asset.category_name || window.__i18n.unknown_category,
+                    user_id: asset.user_id ?? null,
+                    user_name: asset.user_name ?? null,
+                    location_id: asset.location_id ?? null,
+                    location_name: asset.location_name ?? null,
+                    location_building: asset.location_building ?? null,
+                };
+            },
+            buildInventoryAssignPayload(asset) {
+                return {
+                    id: asset.id,
+                    asset_tag: asset.asset_tag,
+                    name: asset.name,
+                    serial_number: asset.serial_number || '',
+                    category_name: asset.category_name || window.__i18n.unknown_category,
+                    location_id: asset.location_id ?? null,
+                    location_name: asset.location_name ?? null,
+                };
+            },
+            buildInventoryEditPayload(asset) {
+                return {
+                    id: asset.id,
+                    asset_tag: asset.asset_tag,
+                    name: asset.name,
+                    status: asset.status,
+                    category_id: asset.category_id ?? null,
+                    user_id: asset.user_id ?? null,
+                    user_name: asset.user_name ?? null,
+                    location_id: asset.location_id ?? null,
+                    location_name: asset.location_name ?? null,
+                    location_building: asset.location_building ?? null,
+                    properties: asset.properties && typeof asset.properties === 'object' ? asset.properties : {},
+                };
+            },
+            buildInventoryReturnPayload(asset) {
+                return {
+                    id: asset.id,
+                    asset_tag: asset.asset_tag,
+                    name: asset.name,
+                    user_id: asset.user_id ?? null,
+                    user_name: asset.user_name ?? null,
+                };
+            },
+            buildInventoryTransferPayload(asset) {
+                return {
+                    id: asset.id,
+                    asset_tag: asset.asset_tag,
+                    name: asset.name,
+                    user_id: asset.user_id ?? null,
+                    user_name: asset.user_name ?? null,
+                    location_id: asset.location_id ?? null,
+                    location_name: asset.location_name ?? null,
+                    location_building: asset.location_building ?? null,
+                };
+            },
+            buildAssetFilterQueryString() {
+                const params = new URLSearchParams();
+
+                Object.entries(this.assetFilters || {}).forEach(([name, value]) => {
+                    const trimmed = String(value || '').trim();
+
+                    if (trimmed !== '') {
+                        params.append(`filter[${name}]`, trimmed);
+                    }
+                });
+
+                return params.toString();
+            },
+            syncInventoryAssetOptions() {
+                this.assetOptions = (this.inventoryAssets || []).map((asset) => ({
+                    id: asset.id,
+                    asset_tag: asset.asset_tag,
+                    name: asset.name,
+                }));
+            },
+            async applyAssetFilters() {
+                if (!this.canManageAssets || this.assetFiltersLoading) {
+                    return;
+                }
+
+                this.assetFiltersLoading = true;
+                this.assetFiltersError = '';
+
+                const query = this.buildAssetFilterQueryString();
+                const url = query ? `/api/assets?${query}` : '/api/assets';
+
+                try {
+                    const response = await fetch(url, {
+                        headers: {
+                            Accept: 'application/json',
+                        },
+                    });
+                    const result = await response.json().catch(() => ({}));
+
+                    if (!response.ok) {
+                        this.assetFiltersError = this.apiErrorMessage(result, window.__i18n.inventory_filter_error);
+                        return;
+                    }
+
+                    this.inventoryAssets = Array.isArray(result.data) ? result.data : [];
+                    this.syncInventoryAssetOptions();
+
+                    const nextUrl = new URL(window.location.href);
+                    nextUrl.search = query ? `?${query}` : '';
+                    window.history.replaceState({}, '', nextUrl.toString());
+                } catch (error) {
+                    this.assetFiltersError = window.__i18n.inventory_filter_error;
+                } finally {
+                    this.assetFiltersLoading = false;
+                }
+            },
+            resetAssetFilters() {
+                const cleared = {};
+
+                (this.assetFilterFields || []).forEach((field) => {
+                    cleared[field.name] = '';
+                });
+
+                this.assetFilters = cleared;
+                this.applyAssetFilters();
             },
             formatImportError(item) {
                 const row = Number(item?.row ?? 0);

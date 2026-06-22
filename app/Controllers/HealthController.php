@@ -6,10 +6,12 @@ namespace App\Controllers;
 
 use App\Models\Asset;
 use App\Models\Category;
+use App\Models\Location;
 use App\Models\Setting;
 use App\Models\Personnel;
 use App\Models\User;
 use App\Services\AnalyticsService;
+use App\Services\AssetFilterSchemaService;
 use App\Services\Auth\SessionAuthService;
 use App\Services\EndUserContextService;
 use App\Services\QrCodeService;
@@ -34,7 +36,9 @@ class HealthController
         private readonly User $userModel,
         private readonly Personnel $personnelModel,
         private readonly SessionAuthService $sessionAuthService,
-        private readonly EndUserContextService $endUserContextService
+        private readonly EndUserContextService $endUserContextService,
+        private readonly Location $locationModel,
+        private readonly AssetFilterSchemaService $assetFilterSchemaService,
     ) {
     }
 
@@ -57,14 +61,28 @@ class HealthController
 
         if ($canManageAssets) {
             $categories = $this->categoryModel->findAll();
-            $assets = $this->assetModel->findAllForDashboard();
+            $locations = $this->locationModel->findAll();
             $analytics = $this->analyticsService->getDashboardStats();
             $settings = $this->settingModel->getAdminBundle();
+            $globalCustomFields = is_array($settings['custom_fields'] ?? null) ? $settings['custom_fields'] : [];
+
+            $assetFilterDefinitions = $this->assetFilterSchemaService->buildDefinitions($categories, $globalCustomFields);
+            $assetFilterDefinitions = $this->assetFilterSchemaService->resolveOptions(
+                $assetFilterDefinitions,
+                $this->assetModel,
+                $categories,
+                $locations
+            );
+            $assetActiveFilters = $this->assetFilterSchemaService->parseRequestFilters($request->getQueryParams());
+            $assets = $this->assetModel->findAllForDashboard($assetActiveFilters, $assetFilterDefinitions);
         } else {
             $categories = [];
+            $locations = [];
             $assets = [];
             $analytics = $this->emptyAnalytics();
             $settings = [];
+            $assetFilterDefinitions = [];
+            $assetActiveFilters = [];
         }
 
         $personnelRows = [];
@@ -96,6 +114,8 @@ class HealthController
             'userName' => $userName,
             'userEmail' => $userEmail,
             'assets' => $assets,
+            'assetFilterDefinitions' => $assetFilterDefinitions ?? [],
+            'assetActiveFilters' => $assetActiveFilters ?? [],
             'assetQrCodesJson' => json_encode($assetQrCodes, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE),
             'analytics' => $analytics,
             'analyticsJson' => json_encode($analytics, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE),

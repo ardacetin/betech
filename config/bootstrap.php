@@ -52,6 +52,7 @@ use App\Models\User;
 use App\Services\AnalyticsService;
 use App\Services\AppLogger;
 use App\Services\AssetCsvImportService;
+use App\Services\AssetFilterSchemaService;
 use App\Services\AuditChangeFormatter;
 use App\Services\AuditLogger;
 use App\Services\Auth\LdapAuthenticator;
@@ -153,6 +154,7 @@ $qrCodeService = new QrCodeService($appConfig['url']);
 $analyticsService = new AnalyticsService($databaseService);
 $zimmetTutanakService = new ZimmetTutanakService();
 $assetCsvImportService = new AssetCsvImportService($assetModel, $categoryModel, $locationModel);
+$assetFilterSchemaService = new AssetFilterSchemaService();
 $inventoryImportService = new InventoryImportService($assetModel, $categoryModel, $locationModel, $personnelModel);
 $ldapAuthenticator = new LdapAuthenticator($settingModel);
 $auditLogModel = new AuditLog($databaseService);
@@ -176,8 +178,8 @@ $inventoryImportController = new InventoryImportController(
         $auditLogger,
         $appLogger
     );
-$healthController = new HealthController($appConfig, $assetModel, $categoryModel, $viewRenderer, $qrCodeService, $analyticsService, $settingModel, $userModel, $personnelModel, $sessionAuthService, $endUserContextService);
-$assetController = new AssetController($assetModel, $assetHistoryModel, $userIntegrationFactory, $personnelModel, $userModel, $locationModel, $categoryModel, $assetCsvImportService, $sessionAuthService, $clientIpResolver, $endUserContextService, $auditLogger);
+$healthController = new HealthController($appConfig, $assetModel, $categoryModel, $viewRenderer, $qrCodeService, $analyticsService, $settingModel, $userModel, $personnelModel, $sessionAuthService, $endUserContextService, $locationModel, $assetFilterSchemaService);
+$assetController = new AssetController($assetModel, $assetHistoryModel, $userIntegrationFactory, $personnelModel, $userModel, $locationModel, $categoryModel, $assetCsvImportService, $sessionAuthService, $clientIpResolver, $endUserContextService, $auditLogger, $assetFilterSchemaService, $settingModel);
 $assetViewController = new AssetViewController($appConfig, $assetModel, $categoryModel, $viewRenderer);
 $assetTutanakController = new AssetTutanakController($assetModel, $settingModel, $personnelModel, $userModel, $userIntegrationFactory, $zimmetTutanakService, $viewRenderer, $sessionAuthService, $endUserContextService);
 $userController = new UserController($userIntegrationFactory, $personnelModel, $assetModel, $assetHistoryModel, $settingModel, $sessionAuthService, $clientIpResolver);
@@ -340,6 +342,7 @@ $app->group('', function ($group) use (
     $group->post('/api/personnel/{id}/offboard', [$userController, 'offboard']);
     $group->put('/api/personnel/{id}/role', [$userController, 'updatePersonnelRole']);
     $group->post('/api/assets', [$assetController, 'store']);
+    $group->get('/api/assets', [$assetController, 'index']);
     $group->get('/api/assets/import/template', [$assetController, 'importTemplate']);
     $group->get('/api/assets/export', [$assetController, 'exportCsv']);
     $group->post('/api/assets/import', [$assetController, 'importCsv']);

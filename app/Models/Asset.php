@@ -40,10 +40,16 @@ class Asset
     /**
      * Fetch assets with category names for dashboard display.
      *
+     * @param array<string, string> $filters
+     * @param list<array<string, mixed>> $filterDefinitions
+     *
      * @return list<array<string, mixed>>
      */
-    public function findAllForDashboard(): array
+    public function findAllForDashboard(array $filters = [], array $filterDefinitions = []): array
     {
+        $where = $this->buildDashboardFilterWhere($filters, $filterDefinitions);
+        $where['ORDER'] = ['assets.id' => 'DESC'];
+
         $rows = $this->db()->select('assets', [
             '[>]categories' => ['category_id' => 'id'],
             '[>]personnel' => ['personnel_id' => 'id'],
@@ -64,14 +70,138 @@ class Asset
             'personnel.name(personnel_name)',
             'locations.name(location_name)',
             'locations.building(location_building)',
-        ], [
-            'ORDER' => ['assets.id' => 'DESC'],
-        ]);
+        ], $where);
 
         return array_map(
             fn (array $row): array => $this->normalizeRow($row),
             $rows
         );
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function getDistinctPropertyValues(string $propertyKey): array
+    {
+        if (!preg_match('/^[A-Za-z0-9_]+$/', $propertyKey)) {
+            return [];
+        }
+
+        $jsonPath = '$.' . $propertyKey;
+        $statement = $this->db()->query(
+            'SELECT DISTINCT JSON_UNQUOTE(JSON_EXTRACT(properties, ?)) AS value
+             FROM assets
+             WHERE properties IS NOT NULL
+               AND JSON_EXTRACT(properties, ?) IS NOT NULL
+               AND JSON_UNQUOTE(JSON_EXTRACT(properties, ?)) <> \'\'
+             ORDER BY value ASC',
+            [$jsonPath, $jsonPath, $jsonPath]
+        );
+
+        if ($statement === false) {
+            return [];
+        }
+
+        $values = [];
+
+        foreach ($statement->fetchAll() as $row) {
+            $value = trim((string) ($row['value'] ?? ''));
+
+            if ($value !== '') {
+                $values[] = $value;
+            }
+        }
+
+        return $values;
+    }
+
+    /**
+     * @param array<string, string> $filters
+     * @param list<array<string, mixed>> $filterDefinitions
+     *
+     * @return array<string, mixed>
+     */
+    private function buildDashboardFilterWhere(array $filters, array $filterDefinitions): array
+    {
+        if ($filters === [] || $filterDefinitions === []) {
+            return [];
+        }
+
+        $definitionMap = [];
+
+        foreach ($filterDefinitions as $definition) {
+            $name = (string) ($definition['name'] ?? '');
+
+            if ($name !== '') {
+                $definitionMap[$name] = $definition;
+            }
+        }
+
+        $conditions = [];
+
+        foreach ($filters as $name => $value) {
+            $trimmedValue = trim($value);
+
+            if ($trimmedValue === '') {
+                continue;
+            }
+
+            $definition = $definitionMap[$name] ?? null;
+
+            if ($definition === null) {
+                continue;
+            }
+
+            $match = (string) ($definition['match'] ?? 'partial');
+            $column = isset($definition['column']) ? (string) $definition['column'] : '';
+            $property = isset($definition['property']) ? (string) $definition['property'] : '';
+
+            if ($column !== '') {
+                if ($match === 'exact') {
+                    if (in_array($column, ['assets.category_id', 'assets.location_id'], true)) {
+                        $conditions[$column] = (int) $trimmedValue;
+                    } else {
+                        $conditions[$column] = $trimmedValue;
+                    }
+
+                    continue;
+                }
+
+                $conditions[$column . '[~]'] = '%' . $trimmedValue . '%';
+                continue;
+            }
+
+            if ($property !== '') {
+                $conditions[] = $this->buildPropertyFilterCondition($property, $trimmedValue, $match);
+            }
+        }
+
+        if ($conditions === []) {
+            return [];
+        }
+
+        return ['AND' => $conditions];
+    }
+
+    private function buildPropertyFilterCondition(string $propertyKey, string $value, string $match): mixed
+    {
+        if (!preg_match('/^[A-Za-z0-9_]+$/', $propertyKey)) {
+            return Medoo::raw('1 = 0');
+        }
+
+        $jsonPath = '$.' . $propertyKey;
+        $extractExpression = "JSON_UNQUOTE(JSON_EXTRACT(<assets.properties>, '" . $jsonPath . "'))";
+
+        if ($match === 'exact') {
+            return Medoo::raw($extractExpression . ' = ' . $this->quoteSqlValue($value));
+        }
+
+        return Medoo::raw($extractExpression . ' LIKE ' . $this->quoteSqlValue('%' . $value . '%'));
+    }
+
+    private function quoteSqlValue(string $value): string
+    {
+        return "'" . str_replace("'", "''", $value) . "'";
     }
 
     public function findById(int $assetId): ?array

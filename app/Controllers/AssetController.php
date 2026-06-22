@@ -10,8 +10,10 @@ use App\Models\AuditLog;
 use App\Models\Category;
 use App\Models\Location;
 use App\Models\Personnel;
+use App\Models\Setting;
 use App\Models\User;
 use App\Services\AssetCsvImportService;
+use App\Services\AssetFilterSchemaService;
 use App\Services\AuditLogger;
 use App\Services\Auth\SessionAuthService;
 use App\Services\Auth\UserIntegrationFactory;
@@ -44,8 +46,38 @@ class AssetController
         private readonly SessionAuthService $sessionAuthService,
         private readonly ClientIpResolver $clientIpResolver,
         private readonly EndUserContextService $endUserContextService,
-        private readonly AuditLogger $auditLogger
+        private readonly AuditLogger $auditLogger,
+        private readonly AssetFilterSchemaService $assetFilterSchemaService,
+        private readonly Setting $settingModel,
     ) {
+    }
+
+    public function index(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
+    {
+        $categories = $this->categoryModel->findAll();
+        $locations = $this->locationModel->findAll();
+        $settings = $this->settingModel->getAdminBundle();
+        $globalCustomFields = is_array($settings['custom_fields'] ?? null) ? $settings['custom_fields'] : [];
+
+        $filterDefinitions = $this->assetFilterSchemaService->buildDefinitions($categories, $globalCustomFields);
+        $filterDefinitions = $this->assetFilterSchemaService->resolveOptions(
+            $filterDefinitions,
+            $this->assetModel,
+            $categories,
+            $locations
+        );
+
+        $activeFilters = $this->assetFilterSchemaService->parseRequestFilters($request->getQueryParams());
+        $assets = $this->assetModel->findAllForDashboard($activeFilters, $filterDefinitions);
+
+        return $this->jsonResponse($response, 200, [
+            'status' => 'success',
+            'data' => $assets,
+            'meta' => [
+                'total' => count($assets),
+                'filters' => $activeFilters,
+            ],
+        ]);
     }
 
     public function store(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
