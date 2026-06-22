@@ -11,6 +11,8 @@ class DeferredTaskRunner
 
     private static bool $shutdownRegistered = false;
 
+    private static bool $hasRun = false;
+
     public static function defer(callable $task): void
     {
         self::$tasks[] = $task;
@@ -23,22 +25,33 @@ class DeferredTaskRunner
 
     public static function run(): void
     {
-        if (self::$tasks === []) {
+        if (self::$hasRun || self::$tasks === []) {
             return;
         }
 
-        if (function_exists('fastcgi_finish_request')) {
-            @fastcgi_finish_request();
-        }
+        self::$hasRun = true;
+        self::flushResponseToClient();
 
-        foreach (self::$tasks as $task) {
+        $tasks = self::$tasks;
+        self::$tasks = [];
+
+        foreach ($tasks as $task) {
             try {
                 $task();
             } catch (\Throwable) {
                 // Individual task failures must not break other deferred work.
             }
         }
+    }
 
-        self::$tasks = [];
+    private static function flushResponseToClient(): void
+    {
+        while (ob_get_level() > 0) {
+            @ob_end_flush();
+        }
+
+        if (function_exists('fastcgi_finish_request')) {
+            @fastcgi_finish_request();
+        }
     }
 }

@@ -5,6 +5,7 @@ declare(strict_types=1);
 require __DIR__ . '/../vendor/autoload.php';
 
 use App\Services\DatabaseInitializer;
+use App\Services\DeferredTaskRunner;
 use Dotenv\Dotenv;
 
 $rootPath = dirname(__DIR__);
@@ -59,3 +60,4 @@ foreach ($initializationResult->getWarnings() as $warning) {
 }
 
 $bootstrap['app']->run();
+DeferredTaskRunner::run();

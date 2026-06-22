@@ -57,37 +57,44 @@ class TicketNotificationService
      */
     private function sendNewTicketAlert(array $ticket): void
     {
-        $recipients = $this->resolveSupportRecipients();
+        try {
+            $recipients = $this->resolveSupportRecipients();
 
-        if ($recipients === []) {
-            $this->appLogger->log('mail.ticket_new.skipped', [
-                'ticket_id' => $ticket['id'] ?? null,
-                'reason' => 'no_support_recipients',
+            if ($recipients === []) {
+                $this->appLogger->log('mail.ticket_new.skipped', [
+                    'ticket_id' => $ticket['id'] ?? null,
+                    'reason' => 'no_support_recipients',
+                ]);
+
+                return;
+            }
+
+            $subject = __('mail_ticket_new_subject', [
+                'ticket_number' => (string) ($ticket['ticket_number'] ?? ''),
             ]);
 
-            return;
+            $html = $this->viewRenderer->render('emails/ticket_new_support', [
+                'ticket' => $ticket,
+                'ticketUrl' => $this->ticketUrl((int) ($ticket['id'] ?? 0)),
+                'heading' => __('mail_ticket_new_heading'),
+                'intro' => __('mail_ticket_new_intro'),
+                'ticketIdLabel' => __('mail_ticket_id_label'),
+                'subjectLabel' => __('ticket_subject_label'),
+                'requesterLabel' => __('col_ticket_requester'),
+                'priorityLabel' => __('ticket_priority_label'),
+                'statusLabel' => __('ticket_status_label'),
+                'descriptionLabel' => __('ticket_description_label'),
+                'ctaLabel' => __('mail_ticket_view_cta'),
+                'footer' => __('mail_ticket_footer'),
+            ], 'emails/layout');
+
+            $this->mailService->sendHtml($recipients, $subject, $html);
+        } catch (\Throwable $exception) {
+            $this->appLogger->log('mail.ticket_new.failed', [
+                'ticket_id' => $ticket['id'] ?? null,
+                'error' => $exception->getMessage(),
+            ]);
         }
-
-        $subject = __('mail_ticket_new_subject', [
-            'ticket_number' => (string) ($ticket['ticket_number'] ?? ''),
-        ]);
-
-        $html = $this->viewRenderer->render('emails/ticket_new_support', [
-            'ticket' => $ticket,
-            'ticketUrl' => $this->ticketUrl((int) ($ticket['id'] ?? 0)),
-            'heading' => __('mail_ticket_new_heading'),
-            'intro' => __('mail_ticket_new_intro'),
-            'ticketIdLabel' => __('mail_ticket_id_label'),
-            'subjectLabel' => __('ticket_subject_label'),
-            'requesterLabel' => __('col_ticket_requester'),
-            'priorityLabel' => __('ticket_priority_label'),
-            'statusLabel' => __('ticket_status_label'),
-            'descriptionLabel' => __('ticket_description_label'),
-            'ctaLabel' => __('mail_ticket_view_cta'),
-            'footer' => __('mail_ticket_footer'),
-        ], 'emails/layout');
-
-        $this->mailService->sendHtml($recipients, $subject, $html);
     }
 
     /**
@@ -95,38 +102,45 @@ class TicketNotificationService
      */
     private function sendStatusChangeAlert(array $ticket, string $previousStatus): void
     {
-        $recipient = strtolower(trim((string) ($ticket['personnel_email'] ?? '')));
+        try {
+            $recipient = strtolower(trim((string) ($ticket['personnel_email'] ?? '')));
 
-        if ($recipient === '' || filter_var($recipient, FILTER_VALIDATE_EMAIL) === false) {
-            $this->appLogger->log('mail.ticket_status.skipped', [
-                'ticket_id' => $ticket['id'] ?? null,
-                'reason' => 'missing_requester_email',
+            if ($recipient === '' || filter_var($recipient, FILTER_VALIDATE_EMAIL) === false) {
+                $this->appLogger->log('mail.ticket_status.skipped', [
+                    'ticket_id' => $ticket['id'] ?? null,
+                    'reason' => 'missing_requester_email',
+                ]);
+
+                return;
+            }
+
+            $subject = __('mail_ticket_status_subject', [
+                'ticket_number' => (string) ($ticket['ticket_number'] ?? ''),
             ]);
 
-            return;
+            $html = $this->viewRenderer->render('emails/ticket_update_requester', [
+                'ticket' => $ticket,
+                'ticketUrl' => $this->ticketUrl((int) ($ticket['id'] ?? 0)),
+                'heading' => __('mail_ticket_status_heading'),
+                'intro' => __('mail_ticket_status_intro', [
+                    'previous_status' => $this->statusLabel($previousStatus),
+                    'new_status' => $this->statusLabel((string) ($ticket['status'] ?? '')),
+                ]),
+                'ticketIdLabel' => __('mail_ticket_id_label'),
+                'subjectLabel' => __('ticket_subject_label'),
+                'statusLabel' => __('ticket_status_label'),
+                'ctaLabel' => __('mail_ticket_view_cta'),
+                'footer' => __('mail_ticket_footer'),
+                'detailHtml' => '',
+            ], 'emails/layout');
+
+            $this->mailService->sendHtml([$recipient], $subject, $html);
+        } catch (\Throwable $exception) {
+            $this->appLogger->log('mail.ticket_status.failed', [
+                'ticket_id' => $ticket['id'] ?? null,
+                'error' => $exception->getMessage(),
+            ]);
         }
-
-        $subject = __('mail_ticket_status_subject', [
-            'ticket_number' => (string) ($ticket['ticket_number'] ?? ''),
-        ]);
-
-        $html = $this->viewRenderer->render('emails/ticket_update_requester', [
-            'ticket' => $ticket,
-            'ticketUrl' => $this->ticketUrl((int) ($ticket['id'] ?? 0)),
-            'heading' => __('mail_ticket_status_heading'),
-            'intro' => __('mail_ticket_status_intro', [
-                'previous_status' => $this->statusLabel($previousStatus),
-                'new_status' => $this->statusLabel((string) ($ticket['status'] ?? '')),
-            ]),
-            'ticketIdLabel' => __('mail_ticket_id_label'),
-            'subjectLabel' => __('ticket_subject_label'),
-            'statusLabel' => __('ticket_status_label'),
-            'ctaLabel' => __('mail_ticket_view_cta'),
-            'footer' => __('mail_ticket_footer'),
-            'detailHtml' => '',
-        ], 'emails/layout');
-
-        $this->mailService->sendHtml([$recipient], $subject, $html);
     }
 
     /**
@@ -135,44 +149,51 @@ class TicketNotificationService
      */
     private function sendStaffReplyAlert(array $ticket, array $comment): void
     {
-        $recipient = strtolower(trim((string) ($ticket['personnel_email'] ?? '')));
+        try {
+            $recipient = strtolower(trim((string) ($ticket['personnel_email'] ?? '')));
 
-        if ($recipient === '' || filter_var($recipient, FILTER_VALIDATE_EMAIL) === false) {
-            $this->appLogger->log('mail.ticket_reply.skipped', [
-                'ticket_id' => $ticket['id'] ?? null,
-                'reason' => 'missing_requester_email',
+            if ($recipient === '' || filter_var($recipient, FILTER_VALIDATE_EMAIL) === false) {
+                $this->appLogger->log('mail.ticket_reply.skipped', [
+                    'ticket_id' => $ticket['id'] ?? null,
+                    'reason' => 'missing_requester_email',
+                ]);
+
+                return;
+            }
+
+            $subject = __('mail_ticket_reply_subject', [
+                'ticket_number' => (string) ($ticket['ticket_number'] ?? ''),
             ]);
 
-            return;
+            $authorName = trim((string) ($comment['author_name'] ?? __('ticket_comment_system_author')));
+            $commentBody = trim((string) ($comment['body'] ?? ''));
+
+            $html = $this->viewRenderer->render('emails/ticket_update_requester', [
+                'ticket' => $ticket,
+                'ticketUrl' => $this->ticketUrl((int) ($ticket['id'] ?? 0)),
+                'heading' => __('mail_ticket_reply_heading'),
+                'intro' => __('mail_ticket_reply_intro', [
+                    'author' => $authorName,
+                ]),
+                'ticketIdLabel' => __('mail_ticket_id_label'),
+                'subjectLabel' => __('ticket_subject_label'),
+                'statusLabel' => __('ticket_status_label'),
+                'ctaLabel' => __('mail_ticket_view_cta'),
+                'footer' => __('mail_ticket_footer'),
+                'detailHtml' => $this->viewRenderer->render('emails/partials/comment_block', [
+                    'replyLabel' => __('mail_ticket_reply_label'),
+                    'authorName' => $authorName,
+                    'commentBody' => $commentBody,
+                ], null),
+            ], 'emails/layout');
+
+            $this->mailService->sendHtml([$recipient], $subject, $html);
+        } catch (\Throwable $exception) {
+            $this->appLogger->log('mail.ticket_reply.failed', [
+                'ticket_id' => $ticket['id'] ?? null,
+                'error' => $exception->getMessage(),
+            ]);
         }
-
-        $subject = __('mail_ticket_reply_subject', [
-            'ticket_number' => (string) ($ticket['ticket_number'] ?? ''),
-        ]);
-
-        $authorName = trim((string) ($comment['author_name'] ?? __('ticket_comment_system_author')));
-        $commentBody = trim((string) ($comment['body'] ?? ''));
-
-        $html = $this->viewRenderer->render('emails/ticket_update_requester', [
-            'ticket' => $ticket,
-            'ticketUrl' => $this->ticketUrl((int) ($ticket['id'] ?? 0)),
-            'heading' => __('mail_ticket_reply_heading'),
-            'intro' => __('mail_ticket_reply_intro', [
-                'author' => $authorName,
-            ]),
-            'ticketIdLabel' => __('mail_ticket_id_label'),
-            'subjectLabel' => __('ticket_subject_label'),
-            'statusLabel' => __('ticket_status_label'),
-            'ctaLabel' => __('mail_ticket_view_cta'),
-            'footer' => __('mail_ticket_footer'),
-            'detailHtml' => $this->viewRenderer->render('emails/partials/comment_block', [
-                'replyLabel' => __('mail_ticket_reply_label'),
-                'authorName' => $authorName,
-                'commentBody' => $commentBody,
-            ], null),
-        ], 'emails/layout');
-
-        $this->mailService->sendHtml([$recipient], $subject, $html);
     }
 
     /**

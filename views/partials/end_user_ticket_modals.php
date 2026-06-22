@@ -97,7 +97,10 @@ $adminLabelClass = 'mb-1.5 block text-sm font-medium text-zinc-700';
                         <textarea x-model="portalTicketCommentBody" rows="3" class="<?= $adminFieldClass ?>"></textarea>
                     </label>
                     <p x-show="portalTicketCommentError" x-cloak class="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700" x-text="portalTicketCommentError"></p>
-                    <button type="submit" :disabled="isPortalTicketCommentSubmitting" class="rounded-xl bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60"><?= htmlspecialchars(__('action_add_ticket_reply'), ENT_QUOTES, 'UTF-8') ?></button>
+                    <button type="submit" :disabled="isPortalTicketCommentSubmitting" class="inline-flex items-center gap-2 rounded-xl bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60">
+                        <span x-show="isPortalTicketCommentSubmitting"><?= htmlspecialchars(__('saving'), ENT_QUOTES, 'UTF-8') ?></span>
+                        <span x-show="!isPortalTicketCommentSubmitting"><?= htmlspecialchars(__('action_add_ticket_reply'), ENT_QUOTES, 'UTF-8') ?></span>
+                    </button>
                 </form>
             </div>
         </div>

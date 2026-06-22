@@ -2127,7 +2127,10 @@ $i18nScript = json_encode([
                             <textarea x-model="ticketCommentBody" rows="3" class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4"></textarea>
                         </label>
                         <p x-show="ticketCommentError" x-cloak class="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700" x-text="ticketCommentError"></p>
-                        <button type="submit" :disabled="isTicketCommentSubmitting" class="rounded-xl bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60"><?= htmlspecialchars(__('action_add_ticket_reply'), ENT_QUOTES, 'UTF-8') ?></button>
+                        <button type="submit" :disabled="isTicketCommentSubmitting" class="inline-flex items-center gap-2 rounded-xl bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60">
+                            <span x-show="isTicketCommentSubmitting"><?= htmlspecialchars(__('saving'), ENT_QUOTES, 'UTF-8') ?></span>
+                            <span x-show="!isTicketCommentSubmitting"><?= htmlspecialchars(__('action_add_ticket_reply'), ENT_QUOTES, 'UTF-8') ?></span>
+                        </button>
                     </form>
                 </div>
             </div>
@@ -2829,10 +2832,10 @@ $i18nScript = json_encode([
 
                 try {
                     const response = await fetch('/api/tickets', { headers: { Accept: 'application/json' } });
-                    const result = await response.json();
+                    const result = await this.parseApiResponse(response);
 
                     if (!response.ok) {
-                        this.portalTicketsError = result.message || window.__i18n.portal_tickets_error;
+                        this.portalTicketsError = this.apiErrorMessage(result, window.__i18n.portal_tickets_error);
                         this.portalTickets = [];
                         return;
                     }
@@ -2928,10 +2931,7 @@ $i18nScript = json_encode([
                     .replace(':tag', this.portalTicketLinkedAsset.asset_tag || '—');
             },
             closePortalTicketModal() {
-                if (this.isPortalTicketSubmitting) {
-                    return;
-                }
-
+                this.isPortalTicketSubmitting = false;
                 this.isPortalTicketModalOpen = false;
                 this.portalTicketLinkedAsset = null;
             },
@@ -2950,6 +2950,10 @@ $i18nScript = json_encode([
                 }, 4000);
             },
             async submitPortalTicket() {
+                if (this.isPortalTicketSubmitting) {
+                    return;
+                }
+
                 this.isPortalTicketSubmitting = true;
                 this.portalTicketFormError = '';
 
@@ -2969,10 +2973,10 @@ $i18nScript = json_encode([
                         headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
                         body: JSON.stringify(payload),
                     });
-                    const result = await response.json();
+                    const result = await this.parseApiResponse(response);
 
                     if (!response.ok) {
-                        this.portalTicketFormError = result.message || window.__i18n.ticket_create_error;
+                        this.portalTicketFormError = this.apiErrorMessage(result, window.__i18n.ticket_create_error);
                         return;
                     }
 
@@ -2985,7 +2989,7 @@ $i18nScript = json_encode([
                         this.portalTickets = [result.data, ...this.portalTickets.filter((ticket) => ticket.id !== result.data.id)];
                     }
 
-                    this.showPortalToast(result.message || window.__i18n.ticket_create_success);
+                    this.showPortalToast(this.apiErrorMessage(result, window.__i18n.ticket_create_success));
                     await this.fetchPortalTickets();
                 } catch (error) {
                     this.portalTicketFormError = window.__i18n.ticket_create_error;
@@ -3003,15 +3007,15 @@ $i18nScript = json_encode([
 
                 try {
                     const response = await fetch(`/api/tickets/${ticket.id}`, { headers: { Accept: 'application/json' } });
-                    const result = await response.json();
+                    const result = await this.parseApiResponse(response);
 
                     if (!response.ok) {
-                        this.portalTicketsError = result.message || window.__i18n.ticket_not_found;
+                        this.portalTicketsError = this.apiErrorMessage(result, window.__i18n.ticket_not_found);
                         return;
                     }
 
                     this.portalTicketDetail = result.data;
-                    this.portalTicketComments = Array.isArray(result.data.comments) ? result.data.comments : [];
+                    this.portalTicketComments = Array.isArray(result.data?.comments) ? result.data.comments : [];
                 } catch (error) {
                     this.portalTicketsError = window.__i18n.portal_tickets_error;
                 } finally {
@@ -3019,15 +3023,12 @@ $i18nScript = json_encode([
                 }
             },
             closePortalTicketDetail() {
-                if (this.isPortalTicketCommentSubmitting) {
-                    return;
-                }
-
+                this.isPortalTicketCommentSubmitting = false;
                 this.isPortalTicketDetailOpen = false;
                 this.portalTicketDetail = null;
             },
             async submitPortalTicketComment() {
-                if (!this.portalTicketDetail?.id) {
+                if (!this.portalTicketDetail?.id || this.isPortalTicketCommentSubmitting) {
                     return;
                 }
 
@@ -3047,15 +3048,16 @@ $i18nScript = json_encode([
                         headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
                         body: JSON.stringify({ body }),
                     });
-                    const result = await response.json();
+                    const result = await this.parseApiResponse(response);
 
                     if (!response.ok) {
-                        this.portalTicketCommentError = result.message || window.__i18n.ticket_comment_create_error;
+                        this.portalTicketCommentError = this.apiErrorMessage(result, window.__i18n.ticket_comment_create_error);
                         return;
                     }
 
                     this.portalTicketCommentBody = '';
-                    this.portalTicketComments.push(result.data);
+                    this.portalTicketComments = this.appendTicketComment(this.portalTicketComments, result.data);
+                    this.showPortalToast(this.apiErrorMessage(result, window.__i18n.ticket_comment_create_success));
                 } catch (error) {
                     this.portalTicketCommentError = window.__i18n.ticket_comment_create_error;
                 } finally {
@@ -3076,6 +3078,42 @@ $i18nScript = json_encode([
                 }
 
                 return fallback;
+            },
+            async parseApiResponse(response) {
+                const text = await response.text();
+
+                if (!text || text.trim() === '') {
+                    return response.ok
+                        ? { status: 'success', success: true }
+                        : { status: 'error', success: false, message: window.__i18n.helpdesk_network_error };
+                }
+
+                try {
+                    const parsed = JSON.parse(text);
+
+                    return parsed && typeof parsed === 'object'
+                        ? parsed
+                        : { status: 'error', success: false, message: text };
+                } catch (error) {
+                    return {
+                        status: 'error',
+                        success: false,
+                        message: response.ok ? text : window.__i18n.helpdesk_network_error,
+                    };
+                }
+            },
+            appendTicketComment(comments, comment) {
+                if (!comment || typeof comment !== 'object' || !comment.id) {
+                    return Array.isArray(comments) ? comments : [];
+                }
+
+                const existing = Array.isArray(comments) ? comments : [];
+
+                if (existing.some((item) => Number(item.id) === Number(comment.id))) {
+                    return existing;
+                }
+
+                return [...existing, comment];
             },
             async fetchPersonnelSearchOptions(query) {
                 const trimmedQuery = String(query ?? '').trim();
@@ -5609,10 +5647,10 @@ $i18nScript = json_encode([
                     const response = await fetch('/api/tickets', {
                         headers: { Accept: 'application/json' },
                     });
-                    const result = await response.json();
+                    const result = await this.parseApiResponse(response);
 
                     if (!response.ok) {
-                        this.ticketsError = result.message || window.__i18n.helpdesk_fetch_error;
+                        this.ticketsError = this.apiErrorMessage(result, window.__i18n.helpdesk_fetch_error);
                         this.tickets = [];
                         return;
                     }
@@ -5781,10 +5819,7 @@ $i18nScript = json_encode([
                 this.isTicketModalOpen = true;
             },
             closeTicketModal() {
-                if (this.isTicketSubmitting) {
-                    return;
-                }
-
+                this.isTicketSubmitting = false;
                 this.isTicketModalOpen = false;
             },
             clearTicketSelectedPersonnel() {
@@ -5813,6 +5848,10 @@ $i18nScript = json_encode([
                     return;
                 }
 
+                if (this.isTicketSubmitting) {
+                    return;
+                }
+
                 this.isTicketSubmitting = true;
                 this.ticketFormError = '';
                 this.ticketsSuccessMessage = '';
@@ -5834,14 +5873,14 @@ $i18nScript = json_encode([
                         },
                         body: JSON.stringify(payload),
                     });
-                    const result = await response.json();
+                    const result = await this.parseApiResponse(response);
 
                     if (!response.ok) {
                         this.ticketFormError = this.apiErrorMessage(result, window.__i18n.ticket_create_error);
                         return;
                     }
 
-                    this.ticketsSuccessMessage = result.message || window.__i18n.ticket_create_success;
+                    this.ticketsSuccessMessage = this.apiErrorMessage(result, window.__i18n.ticket_create_success);
                     this.isTicketModalOpen = false;
                     await this.fetchTickets();
                 } catch (error) {
@@ -5866,10 +5905,10 @@ $i18nScript = json_encode([
                     const response = await fetch(`/api/tickets/${ticket.id}`, {
                         headers: { Accept: 'application/json' },
                     });
-                    const result = await response.json();
+                    const result = await this.parseApiResponse(response);
 
                     if (!response.ok) {
-                        this.ticketsError = result.message || window.__i18n.helpdesk_fetch_error;
+                        this.ticketsError = this.apiErrorMessage(result, window.__i18n.helpdesk_fetch_error);
                         return;
                     }
 
@@ -5878,7 +5917,7 @@ $i18nScript = json_encode([
                         status: result.data.status,
                         priority: result.data.priority,
                     };
-                    this.ticketComments = Array.isArray(result.data.comments) ? result.data.comments : [];
+                    this.ticketComments = Array.isArray(result.data?.comments) ? result.data.comments : [];
                 } catch (error) {
                     this.ticketsError = window.__i18n.helpdesk_network_error;
                 } finally {
@@ -5886,10 +5925,8 @@ $i18nScript = json_encode([
                 }
             },
             closeTicketDetail() {
-                if (this.isTicketDetailSubmitting || this.isTicketCommentSubmitting) {
-                    return;
-                }
-
+                this.isTicketDetailSubmitting = false;
+                this.isTicketCommentSubmitting = false;
                 this.isTicketDetailOpen = false;
                 this.ticketDetail = null;
             },
@@ -5915,7 +5952,7 @@ $i18nScript = json_encode([
                 });
             },
             async updateTicketDetail() {
-                if (!this.ticketDetail?.id) {
+                if (!this.ticketDetail?.id || this.isTicketDetailSubmitting) {
                     return;
                 }
 
@@ -5933,14 +5970,14 @@ $i18nScript = json_encode([
                             priority: this.ticketDetailForm.priority,
                         }),
                     });
-                    const result = await response.json();
+                    const result = await this.parseApiResponse(response);
 
                     if (!response.ok) {
                         this.ticketsError = this.apiErrorMessage(result, window.__i18n.ticket_update_error);
                         return;
                     }
 
-                    this.ticketsSuccessMessage = result.message || window.__i18n.ticket_update_success;
+                    this.ticketsSuccessMessage = this.apiErrorMessage(result, window.__i18n.ticket_update_success);
                     this.ticketDetail = result.data;
                     await this.fetchTickets();
                 } catch (error) {
@@ -5950,7 +5987,7 @@ $i18nScript = json_encode([
                 }
             },
             async submitTicketComment() {
-                if (!this.ticketDetail?.id) {
+                if (!this.ticketDetail?.id || this.isTicketCommentSubmitting) {
                     return;
                 }
 
@@ -5973,7 +6010,7 @@ $i18nScript = json_encode([
                         },
                         body: JSON.stringify({ body }),
                     });
-                    const result = await response.json();
+                    const result = await this.parseApiResponse(response);
 
                     if (!response.ok) {
                         this.ticketCommentError = this.apiErrorMessage(result, window.__i18n.ticket_comment_create_error);
@@ -5981,7 +6018,8 @@ $i18nScript = json_encode([
                     }
 
                     this.ticketCommentBody = '';
-                    this.ticketComments.push(result.data);
+                    this.ticketComments = this.appendTicketComment(this.ticketComments, result.data);
+                    this.ticketsSuccessMessage = this.apiErrorMessage(result, window.__i18n.ticket_comment_create_success);
                 } catch (error) {
                     this.ticketCommentError = window.__i18n.helpdesk_network_error;
                 } finally {
@@ -6002,14 +6040,14 @@ $i18nScript = json_encode([
                         method: 'DELETE',
                         headers: { Accept: 'application/json' },
                     });
-                    const result = await response.json();
+                    const result = await this.parseApiResponse(response);
 
                     if (!response.ok) {
                         this.ticketsError = this.apiErrorMessage(result, window.__i18n.ticket_delete_error);
                         return;
                     }
 
-                    this.ticketsSuccessMessage = result.message || window.__i18n.ticket_delete_success;
+                    this.ticketsSuccessMessage = this.apiErrorMessage(result, window.__i18n.ticket_delete_success);
                     this.isTicketDetailOpen = false;
                     this.ticketDetail = null;
                     await this.fetchTickets();

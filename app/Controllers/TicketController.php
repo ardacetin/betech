@@ -173,7 +173,7 @@ class TicketController
             ]);
         }
 
-        $this->ticketNotificationService->deferNewTicketAlert($ticket);
+        $this->safeDeferNewTicketAlert($ticket);
 
         $this->auditLogger->logFromRequest(
             $request,
@@ -254,7 +254,7 @@ class TicketController
             $newStatus = (string) ($ticket['status'] ?? '');
 
             if ($previousStatus !== $newStatus) {
-                $this->ticketNotificationService->deferStatusChangeAlert($ticket, $previousStatus);
+                $this->safeDeferStatusChangeAlert($ticket, $previousStatus);
             }
         }
 
@@ -390,15 +390,53 @@ class TicketController
             $ticket = $this->ticketModel->findById($ticketId);
 
             if ($ticket !== null) {
-                $this->ticketNotificationService->deferStaffReplyAlert($ticket, $comment);
+                $this->safeDeferStaffReplyAlert($ticket, $comment);
             }
         }
 
         return $this->jsonResponse($response, 201, [
             'status' => 'success',
+            'success' => true,
             'message' => __('ticket_comment_create_success'),
             'data' => $comment,
         ]);
+    }
+
+    /**
+     * @param array<string, mixed> $ticket
+     */
+    private function safeDeferNewTicketAlert(array $ticket): void
+    {
+        try {
+            $this->ticketNotificationService->deferNewTicketAlert($ticket);
+        } catch (\Throwable) {
+            // Notification scheduling must never block ticket creation.
+        }
+    }
+
+    /**
+     * @param array<string, mixed> $ticket
+     */
+    private function safeDeferStatusChangeAlert(array $ticket, string $previousStatus): void
+    {
+        try {
+            $this->ticketNotificationService->deferStatusChangeAlert($ticket, $previousStatus);
+        } catch (\Throwable) {
+            // Notification scheduling must never block ticket updates.
+        }
+    }
+
+    /**
+     * @param array<string, mixed> $ticket
+     * @param array<string, mixed> $comment
+     */
+    private function safeDeferStaffReplyAlert(array $ticket, array $comment): void
+    {
+        try {
+            $this->ticketNotificationService->deferStaffReplyAlert($ticket, $comment);
+        } catch (\Throwable) {
+            // Notification scheduling must never block ticket replies.
+        }
     }
 
     private function resolveAuthorName(?int $userId): string
@@ -547,7 +585,11 @@ class TicketController
      */
     private function jsonResponse(ResponseInterface $response, int $status, array $payload): ResponseInterface
     {
-        $response->getBody()->write(json_encode($payload, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE));
+        $encoded = json_encode(
+            $payload,
+            JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE
+        );
+        $response->getBody()->write($encoded);
 
         return $response
             ->withStatus($status)
