@@ -343,6 +343,8 @@ return [
     'inventory_import_mixed_success' => '%d assets created and %d updated successfully.',
     'inventory_import_update_success' => '%d assets updated successfully.',
     'inventory_import_partial_success' => '%d created, %d updated, %d rows failed.',
+    'inventory_import_failed' => 'Inventory import failed. Please try again or contact an administrator.',
+    'import_template_error' => 'Unable to generate the import template.',
     'asset_history_imported_inventory' => 'Created via inventory import.',
     'asset_history_updated_inventory_import' => 'Updated via inventory import.',
     'export_assets' => 'Export',

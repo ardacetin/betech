@@ -3213,6 +3213,25 @@ $i18nScript = json_encode([
 
                 return fallback;
             },
+            formatApiDebugDetails(result) {
+                const debug = result?.debug;
+                if (!debug || typeof debug !== 'object') {
+                    return '';
+                }
+
+                const parts = [];
+                if (typeof debug.type === 'string' && debug.type !== '') {
+                    parts.push(debug.type);
+                }
+                if (typeof debug.file === 'string' && debug.file !== '') {
+                    parts.push(`${debug.file}:${debug.line ?? '?'}`);
+                }
+                if (typeof debug.trace === 'string' && debug.trace !== '') {
+                    parts.push(debug.trace);
+                }
+
+                return parts.join('\n');
+            },
             async parseApiResponse(response) {
                 const text = await response.text();
 
@@ -4076,11 +4095,15 @@ $i18nScript = json_encode([
                     const updated = Number(data.updated ?? 0);
                     const failed = Number(data.failed ?? 0);
                     const message = this.apiErrorMessage(result, '');
+                    const debugDetails = this.formatApiDebugDetails(result);
 
                     if (!response.ok) {
                         this.importErrorMessage = message || window.__i18n.import_all_failed;
                         this.importResultErrors = errors;
-                        this.setImportSummary(this.importErrorMessage, true, errors);
+                        if (debugDetails) {
+                            this.importResultErrors = [debugDetails, ...errors];
+                        }
+                        this.setImportSummary(this.importErrorMessage, true, this.importResultErrors);
                         return;
                     }
 

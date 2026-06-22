@@ -119,7 +119,8 @@ $app->add(new CsrfMiddleware($sessionAuthService, ['/login', '/api/login']));
 $app->add(new RateLimitMiddleware($loginAttemptService, $clientIpResolver));
 $app->add(new SecurityHeadersMiddleware($isHttps));
 
-$displayErrorDetails = $appConfig['display_error_details'] && !$appConfig['is_production'];
+$displayErrorDetails = !$appConfig['is_production']
+    && ($appConfig['debug'] || $appConfig['display_error_details']);
 $appLogger = new AppLogger($rootPath . '/logs', 'app.log', $clientIpResolver);
 $appLogger->registerGlobalHandlers();
 $errorMiddleware = $app->addErrorMiddleware($displayErrorDetails, true, true);
@@ -161,7 +162,8 @@ $inventoryImportController = new InventoryImportController(
     $inventoryImportService,
     $assetHistoryModel,
     $sessionAuthService,
-    $auditLogger
+    $auditLogger,
+    $displayErrorDetails
 );
     $authController = new AuthController(
         $appConfig,

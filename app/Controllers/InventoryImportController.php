@@ -12,6 +12,7 @@ use App\Services\InventoryImportService;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Message\UploadedFileInterface;
+use Throwable;
 
 class InventoryImportController
 {
@@ -19,19 +20,24 @@ class InventoryImportController
         private readonly InventoryImportService $inventoryImportService,
         private readonly AssetHistory $assetHistoryModel,
         private readonly SessionAuthService $sessionAuthService,
-        private readonly AuditLogger $auditLogger
+        private readonly AuditLogger $auditLogger,
+        private readonly bool $exposeDebugDetails = false,
     ) {
     }
 
     public function template(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
     {
-        $csv = InventoryImportService::templateCsvContent();
+        try {
+            $csv = InventoryImportService::templateCsvContent();
 
-        $response->getBody()->write("\xEF\xBB\xBF" . $csv);
+            $response->getBody()->write("\xEF\xBB\xBF" . $csv);
 
-        return $response
-            ->withHeader('Content-Type', 'text/csv; charset=utf-8')
-            ->withHeader('Content-Disposition', 'attachment; filename="glpi_asset_import_template.csv"');
+            return $response
+                ->withHeader('Content-Type', 'text/csv; charset=utf-8')
+                ->withHeader('Content-Disposition', 'attachment; filename="glpi_asset_import_template.csv"');
+        } catch (Throwable $exception) {
+            return $this->errorResponse($response, 500, __('import_template_error'), $exception);
+        }
     }
 
     public function import(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
@@ -41,76 +47,80 @@ class InventoryImportController
 
     public function importFromExcel(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
     {
-        $file = $this->resolveUploadedFile($request);
+        try {
+            $file = $this->resolveUploadedFile($request);
 
-        if ($file === null) {
-            return $this->jsonResponse($response, 400, [
-                'status' => 'error',
-                'message' => __('import_file_missing'),
-            ]);
-        }
+            if ($file === null) {
+                return $this->jsonResponse($response, 400, [
+                    'status' => 'error',
+                    'message' => __('import_file_missing'),
+                ]);
+            }
 
-        if ($file->getError() !== UPLOAD_ERR_OK) {
-            return $this->jsonResponse($response, 400, [
-                'status' => 'error',
-                'message' => __('import_file_upload_error'),
-            ]);
-        }
+            if ($file->getError() !== UPLOAD_ERR_OK) {
+                return $this->jsonResponse($response, 400, [
+                    'status' => 'error',
+                    'message' => __('import_file_upload_error'),
+                ]);
+            }
 
-        $originalFilename = $file->getClientFilename() ?? 'import.csv';
-        $contents = (string) $file->getStream()->getContents();
-        $result = $this->inventoryImportService->importFromUploadedFile($contents, $originalFilename);
+            $originalFilename = $file->getClientFilename() ?? 'import.csv';
+            $contents = (string) $file->getStream()->getContents();
+            $result = $this->inventoryImportService->importFromUploadedFile($contents, $originalFilename);
 
-        $actorUserId = $this->sessionAuthService->userId();
+            $actorUserId = $this->sessionAuthService->userId();
 
-        foreach ($result['created_assets'] as $assetId) {
-            $this->logAssetHistory(
-                $request,
-                $assetId,
-                'created',
-                $actorUserId,
-                __('asset_history_imported_inventory')
-            );
-        }
+            foreach ($result['created_assets'] as $assetId) {
+                $this->logAssetHistory(
+                    $request,
+                    $assetId,
+                    'created',
+                    $actorUserId,
+                    __('asset_history_imported_inventory')
+                );
+            }
 
-        foreach ($result['updated_assets'] as $assetId) {
-            $this->logAssetHistory(
-                $request,
-                $assetId,
-                'updated',
-                $actorUserId,
-                __('asset_history_updated_inventory_import')
-            );
-        }
+            foreach ($result['updated_assets'] as $assetId) {
+                $this->logAssetHistory(
+                    $request,
+                    $assetId,
+                    'updated',
+                    $actorUserId,
+                    __('asset_history_updated_inventory_import')
+                );
+            }
 
-        $imported = (int) $result['imported'];
-        $updated = (int) $result['updated'];
-        $failed = (int) $result['failed'];
-        $processed = $imported + $updated;
+            $imported = (int) $result['imported'];
+            $updated = (int) $result['updated'];
+            $failed = (int) $result['failed'];
+            $processed = $imported + $updated;
 
-        if ($processed === 0 && $failed > 0) {
-            return $this->jsonResponse($response, 422, [
-                'status' => 'error',
-                'message' => __('import_all_failed'),
+            if ($processed === 0 && $failed > 0) {
+                return $this->jsonResponse($response, 422, [
+                    'status' => 'error',
+                    'message' => __('import_all_failed'),
+                    'data' => $result,
+                ]);
+            }
+
+            if ($failed > 0) {
+                $message = sprintf(__('inventory_import_partial_success'), $imported, $updated, $failed);
+            } elseif ($updated > 0 && $imported > 0) {
+                $message = sprintf(__('inventory_import_mixed_success'), $imported, $updated);
+            } elseif ($updated > 0) {
+                $message = sprintf(__('inventory_import_update_success'), $updated);
+            } else {
+                $message = sprintf(__('import_success'), $imported);
+            }
+
+            return $this->jsonResponse($response, 200, [
+                'status' => 'success',
+                'message' => $message,
                 'data' => $result,
             ]);
+        } catch (Throwable $exception) {
+            return $this->errorResponse($response, 500, __('inventory_import_failed'), $exception);
         }
-
-        if ($failed > 0) {
-            $message = sprintf(__('inventory_import_partial_success'), $imported, $updated, $failed);
-        } elseif ($updated > 0 && $imported > 0) {
-            $message = sprintf(__('inventory_import_mixed_success'), $imported, $updated);
-        } elseif ($updated > 0) {
-            $message = sprintf(__('inventory_import_update_success'), $updated);
-        } else {
-            $message = sprintf(__('import_success'), $imported);
-        }
-
-        return $this->jsonResponse($response, 200, [
-            'status' => 'success',
-            'message' => $message,
-            'data' => $result,
-        ]);
     }
 
     private function resolveUploadedFile(ServerRequestInterface $request): ?UploadedFileInterface
@@ -152,6 +162,29 @@ class InventoryImportController
             null,
             ['note' => $note]
         );
+    }
+
+    private function errorResponse(
+        ResponseInterface $response,
+        int $statusCode,
+        string $fallbackMessage,
+        Throwable $exception
+    ): ResponseInterface {
+        $payload = [
+            'status' => 'error',
+            'message' => $this->exposeDebugDetails ? $exception->getMessage() : $fallbackMessage,
+        ];
+
+        if ($this->exposeDebugDetails) {
+            $payload['debug'] = [
+                'type' => $exception::class,
+                'file' => $exception->getFile(),
+                'line' => $exception->getLine(),
+                'trace' => $exception->getTraceAsString(),
+            ];
+        }
+
+        return $this->jsonResponse($response, $statusCode, $payload);
     }
 
     /**

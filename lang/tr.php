@@ -343,6 +343,8 @@ return [
     'inventory_import_mixed_success' => '%d envanter oluşturuldu, %d envanter güncellendi.',
     'inventory_import_update_success' => '%d envanter başarıyla güncellendi.',
     'inventory_import_partial_success' => '%d oluşturuldu, %d güncellendi, %d satır başarısız.',
+    'inventory_import_failed' => 'Envanter içe aktarma başarısız oldu. Lütfen tekrar deneyin veya yöneticinize başvurun.',
+    'import_template_error' => 'İçe aktarma şablonu oluşturulamadı.',
     'asset_history_imported_inventory' => 'Envanter içe aktarma ile oluşturuldu.',
     'asset_history_updated_inventory_import' => 'Envanter içe aktarma ile güncellendi.',
     'export_assets' => 'Dışa Aktar',

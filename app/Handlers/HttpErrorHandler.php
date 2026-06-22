@@ -56,21 +56,31 @@ class HttpErrorHandler extends ErrorHandler
             );
         }
 
-        if ($this->displayErrorDetails && $statusCode >= 500) {
-            return SecurityHeaders::apply(parent::respond(), $this->isHttps);
-        }
-
         $response = $this->responseFactory->createResponse($statusCode >= 400 ? $statusCode : 500);
 
         if ($this->httpErrorResponses->wantsJson($this->request)) {
-            $response->getBody()->write(json_encode([
+            $payload = [
+                'status' => 'error',
+                'message' => self::GENERIC_ERROR_MESSAGE,
                 'error' => self::GENERIC_ERROR_MESSAGE,
-            ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE));
+            ];
+
+            if ($this->displayErrorDetails) {
+                $payload['message'] = $this->exception->getMessage();
+                $payload['error'] = $this->exception->getMessage();
+                $payload['debug'] = $this->exceptionDebugPayload();
+            }
+
+            $response->getBody()->write(json_encode($payload, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE));
 
             return SecurityHeaders::apply(
                 $response->withHeader('Content-Type', 'application/json; charset=utf-8'),
                 $this->isHttps
             );
+        }
+
+        if ($this->displayErrorDetails && $statusCode >= 500) {
+            return SecurityHeaders::apply(parent::respond(), $this->isHttps);
         }
 
         $response->getBody()->write(
@@ -98,5 +108,18 @@ class HttpErrorHandler extends ErrorHandler
         }
 
         return 500;
+    }
+
+    /**
+     * @return array{type: string, file: string, line: int, trace: string}
+     */
+    private function exceptionDebugPayload(): array
+    {
+        return [
+            'type' => $this->exception::class,
+            'file' => $this->exception->getFile(),
+            'line' => $this->exception->getLine(),
+            'trace' => $this->exception->getTraceAsString(),
+        ];
     }
 }
