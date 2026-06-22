@@ -17,6 +17,8 @@ use App\Controllers\ConsumableController;
 use App\Controllers\KnowledgeBaseController;
 use App\Controllers\DashboardController;
 use App\Controllers\EndUserController;
+use App\Controllers\ReportsController;
+use App\Controllers\TicketCategoryController;
 use App\Controllers\TicketController;
 use App\Controllers\HealthController;
 use App\Controllers\InventoryImportController;
@@ -41,6 +43,7 @@ use App\Models\KnowledgeBaseArticle;
 use App\Models\IpAddress;
 use App\Models\IpNetwork;
 use App\Models\License;
+use App\Models\TicketCategory;
 use App\Models\Ticket;
 use App\Models\Location;
 use App\Models\Setting;
@@ -142,6 +145,7 @@ $ipAddressModel = new IpAddress($databaseService);
 $ipamCsvImportService = new IpamCsvImportService($ipNetworkModel, $ipAddressModel, $assetModel, $ipAddressGenerator);
 $consumableModel = new Consumable($databaseService);
 $knowledgeBaseArticleModel = new KnowledgeBaseArticle($databaseService);
+$ticketCategoryModel = new TicketCategory($databaseService);
 $settingModel = new Setting($databaseService);
 $userIntegrationFactory = new UserIntegrationFactory($databaseService, $settingModel);
 $qrCodeService = new QrCodeService($appConfig['url']);
@@ -176,6 +180,7 @@ $assetViewController = new AssetViewController($appConfig, $assetModel, $categor
 $assetTutanakController = new AssetTutanakController($assetModel, $settingModel, $personnelModel, $userModel, $userIntegrationFactory, $zimmetTutanakService, $viewRenderer, $sessionAuthService, $endUserContextService);
 $userController = new UserController($userIntegrationFactory, $personnelModel, $assetModel, $assetHistoryModel, $settingModel, $sessionAuthService, $clientIpResolver);
 $analyticsController = new AnalyticsController($analyticsService);
+$reportsController = new ReportsController($analyticsService);
 $dashboardController = new DashboardController($analyticsService, $assetHistoryModel, $ipNetworkModel, $auditLogModel);
 $mailConfigResolver = new MailConfigResolver($settingModel);
 $mailService = new MailService($mailConfigResolver, $appLogger);
@@ -191,6 +196,7 @@ $settingsController = new SettingsController(
 );
 $categoryController = new CategoryController($categoryModel, $sessionAuthService, $auditLogger);
 $locationController = new LocationController($locationModel);
+$ticketCategoryController = new TicketCategoryController($ticketCategoryModel);
 $licenseController = new LicenseController($licenseModel);
 $ipNetworkController = new IpNetworkController($ipNetworkModel, $ipAddressModel, $assetModel, $ipamCsvImportService);
 $consumableController = new ConsumableController($consumableModel);
@@ -249,12 +255,14 @@ $app->group('', function ($group) use ($ticketController, $assetTutanakControlle
 
 $app->group('', function ($group) use (
     $analyticsController,
+    $reportsController,
     $dashboardController,
     $settingsController,
     $backupController,
     $auditLogController,
     $categoryController,
     $locationController,
+    $ticketCategoryController,
     $licenseController,
     $ipNetworkController,
     $consumableController,
@@ -265,6 +273,7 @@ $app->group('', function ($group) use (
     $inventoryImportController
 ): void {
     $group->get('/api/analytics/summary', [$analyticsController, 'summary']);
+    $group->get('/api/reports/helpdesk', [$reportsController, 'helpDesk']);
     $group->get('/api/dashboard/stats', [$dashboardController, 'stats']);
     $group->get('/api/settings', [$settingsController, 'show']);
     $group->put('/api/settings', [$settingsController, 'update']);
@@ -281,6 +290,10 @@ $app->group('', function ($group) use (
     $group->post('/api/locations', [$locationController, 'store']);
     $group->put('/api/locations/{id}', [$locationController, 'update']);
     $group->delete('/api/locations/{id}', [$locationController, 'destroy']);
+    $group->get('/api/ticket-categories', [$ticketCategoryController, 'index']);
+    $group->post('/api/ticket-categories', [$ticketCategoryController, 'store']);
+    $group->put('/api/ticket-categories/{id}', [$ticketCategoryController, 'update']);
+    $group->delete('/api/ticket-categories/{id}', [$ticketCategoryController, 'destroy']);
     $group->get('/api/licenses', [$licenseController, 'index']);
     $group->post('/api/licenses', [$licenseController, 'store']);
     $group->get('/api/licenses/{id}', [$licenseController, 'show']);

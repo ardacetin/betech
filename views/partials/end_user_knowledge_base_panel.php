@@ -23,13 +23,43 @@ declare(strict_types=1);
     <div
         x-show="!publishedKnowledgeBaseLoading && publishedKnowledgeBase.length > 0"
         x-cloak
-        class="grid grid-cols-1 gap-4 md:grid-cols-3"
+        class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3"
     >
         <template x-for="article in publishedKnowledgeBase" :key="article.id">
-            <div class="break-inside-avoid rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md">
-                <h3 class="mb-2 text-lg font-semibold text-gray-900" x-text="article.title"></h3>
-                <p class="whitespace-pre-wrap text-sm leading-relaxed text-gray-700" x-text="article.content"></p>
-            </div>
+            <article
+                x-data="{ open: false }"
+                class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm transition-shadow hover:shadow-md"
+            >
+                <button
+                    type="button"
+                    @click="open = !open"
+                    class="flex w-full items-start justify-between gap-3 px-5 py-4 text-left transition-colors hover:bg-gray-50/80"
+                    :aria-expanded="open"
+                >
+                    <h3 class="text-base font-semibold leading-snug text-gray-900" x-text="article.title"></h3>
+                    <svg
+                        class="mt-0.5 h-5 w-5 shrink-0 text-gray-400 transition-transform duration-300"
+                        :class="open ? 'rotate-180' : ''"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke-width="1.5"
+                        stroke="currentColor"
+                        aria-hidden="true"
+                    >
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5"></path>
+                    </svg>
+                </button>
+                <div
+                    class="grid transition-[grid-template-rows] duration-300 ease-in-out"
+                    :class="open ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'"
+                >
+                    <div class="overflow-hidden">
+                        <div class="border-t border-gray-100 px-5 pb-5 pt-3">
+                            <p class="whitespace-pre-wrap text-sm leading-relaxed text-gray-700" x-text="article.content"></p>
+                        </div>
+                    </div>
+                </div>
+            </article>
         </template>
     </div>
 </section>

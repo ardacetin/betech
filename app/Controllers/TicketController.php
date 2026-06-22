@@ -557,7 +557,7 @@ class TicketController
      */
     private function snapshotTicketChanges(array $before, array $after, array $payload): array
     {
-        $fields = ['subject', 'description', 'status', 'priority', 'assigned_user_id', 'personnel_id', 'asset_id'];
+        $fields = ['subject', 'description', 'status', 'priority', 'assigned_user_id', 'personnel_id', 'asset_id', 'category_id'];
         $old = ['ticket_number' => (string) ($before['ticket_number'] ?? '')];
         $new = ['ticket_number' => (string) ($after['ticket_number'] ?? '')];
 

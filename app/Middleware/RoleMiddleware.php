@@ -144,6 +144,31 @@ class RoleMiddleware implements MiddlewareInterface
             ],
             [
                 'methods' => ['GET'],
+                'pattern' => '/api/ticket-categories',
+                'roles' => $operational,
+            ],
+            [
+                'methods' => ['POST'],
+                'pattern' => '/api/ticket-categories',
+                'roles' => [User::ROLE_ADMIN],
+            ],
+            [
+                'methods' => ['PUT'],
+                'pattern' => '/api/ticket-categories/{id}',
+                'roles' => [User::ROLE_ADMIN],
+            ],
+            [
+                'methods' => ['DELETE'],
+                'pattern' => '/api/ticket-categories/{id}',
+                'roles' => [User::ROLE_ADMIN],
+            ],
+            [
+                'methods' => ['GET'],
+                'pattern' => '/api/reports/helpdesk',
+                'roles' => $operational,
+            ],
+            [
+                'methods' => ['GET'],
                 'pattern' => '/api/licenses',
                 'roles' => $operational,
             ],

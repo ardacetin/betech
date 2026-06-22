@@ -182,7 +182,8 @@ class Ticket
      *     asset_id?: int|null,
      *     status?: string,
      *     priority?: string,
-     *     assigned_user_id?: int|null
+     *     assigned_user_id?: int|null,
+     *     category_id?: int|null
      * } $fields
      *
      * @return array<string, mixed>|null
@@ -236,6 +237,12 @@ class Ticket
             $assignedUserId = $this->normalizeOptionalUserId($fields['assigned_user_id']);
             $this->assertUserExists($assignedUserId);
             $update['assigned_user_id'] = $assignedUserId;
+        }
+
+        if (array_key_exists('category_id', $fields)) {
+            $categoryId = $this->normalizeOptionalCategoryId($fields['category_id']);
+            $this->assertCategoryExists($categoryId);
+            $update['category_id'] = $categoryId;
         }
 
         if ($update === []) {
@@ -382,6 +389,7 @@ class Ticket
         return $this->db()->select('tickets', [
             '[>]personnel' => ['personnel_id' => 'id'],
             '[>]assets' => ['asset_id' => 'id'],
+            '[>]ticket_categories' => ['category_id' => 'id'],
             '[>]users(assigned)' => ['assigned_user_id' => 'id'],
             '[>]users(creator)' => ['created_by_user_id' => 'id'],
         ], [
@@ -393,6 +401,7 @@ class Ticket
             'tickets.asset_id',
             'tickets.status',
             'tickets.priority',
+            'tickets.category_id',
             'tickets.assigned_user_id',
             'tickets.created_by_user_id',
             'tickets.resolved_at',
@@ -403,6 +412,8 @@ class Ticket
             'personnel.department(personnel_department)',
             'assets.asset_tag',
             'assets.name(asset_name)',
+            'ticket_categories.name(category_name)',
+            'ticket_categories.color_code(category_color)',
             'assigned.name(assigned_user_name)',
             'creator.name(created_by_user_name)',
         ], $options);
@@ -433,6 +444,7 @@ class Ticket
         $row['asset_id'] = $row['asset_id'] !== null ? (int) $row['asset_id'] : null;
         $row['assigned_user_id'] = $row['assigned_user_id'] !== null ? (int) $row['assigned_user_id'] : null;
         $row['created_by_user_id'] = $row['created_by_user_id'] !== null ? (int) $row['created_by_user_id'] : null;
+        $row['category_id'] = $row['category_id'] !== null ? (int) $row['category_id'] : null;
         $row['status'] = (string) $row['status'];
         $row['priority'] = (string) $row['priority'];
         $row['is_open'] = !in_array($row['status'], [self::STATUS_RESOLVED, self::STATUS_CLOSED], true);
@@ -446,6 +458,9 @@ class Ticket
                 ? $tag . ' — ' . $name
                 : ($tag !== '' ? $tag : $name);
         }
+
+        $row['category_name'] = trim((string) ($row['category_name'] ?? '')) ?: null;
+        $row['category_color'] = trim((string) ($row['category_color'] ?? '')) ?: null;
 
         return $row;
     }
@@ -579,6 +594,31 @@ class Ticket
         if (!$this->db()->has('users', ['id' => $userId])) {
             throw new \InvalidArgumentException(__('ticket_assignee_not_found'));
         }
+    }
+
+    private function assertCategoryExists(?int $categoryId): void
+    {
+        if ($categoryId === null) {
+            return;
+        }
+
+        if (!$this->db()->has('ticket_categories', ['id' => $categoryId])) {
+            throw new \InvalidArgumentException(__('ticket_category_not_found'));
+        }
+    }
+
+    /**
+     * @param mixed $value
+     */
+    private function normalizeOptionalCategoryId(mixed $value): ?int
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        $categoryId = (int) $value;
+
+        return $categoryId > 0 ? $categoryId : null;
     }
 
     private function db(): Medoo

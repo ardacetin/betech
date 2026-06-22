@@ -400,6 +400,234 @@ class AnalyticsService
         return round(($part / $total) * 100, 1);
     }
 
+    /**
+     * @return array{
+     *     volume: array{
+     *         total: int,
+     *         open: int,
+     *         closed: int,
+     *         pending: int
+     *     },
+     *     performance: array{
+     *         avg_first_response_minutes: float|null,
+     *         avg_resolution_minutes: float|null,
+     *         avg_first_response_label: string,
+     *         avg_resolution_label: string
+     *     },
+     *     by_category: list<array{
+     *         category_id: int|null,
+     *         category_name: string,
+     *         color_code: string,
+     *         count: int,
+     *         percentage: float
+     *     }>,
+     *     staff_performance: list<array{
+     *         user_id: int,
+     *         user_name: string,
+     *         assigned_count: int,
+     *         resolved_count: int,
+     *         active_load: int
+     *     }>
+     * }
+     */
+    public function getHelpDeskReports(): array
+    {
+        $total = (int) $this->db()->count('tickets');
+        $open = (int) $this->db()->count('tickets', ['status' => 'open']);
+        $pending = (int) $this->db()->count('tickets', ['status' => 'in_progress']);
+        $closed = (int) $this->db()->count('tickets', [
+            'status' => ['resolved', 'closed'],
+        ]);
+
+        return [
+            'volume' => [
+                'total' => $total,
+                'open' => $open,
+                'closed' => $closed,
+                'pending' => $pending,
+            ],
+            'performance' => $this->fetchTicketPerformanceMetrics(),
+            'by_category' => $this->fetchTicketCategoryBreakdown($total),
+            'staff_performance' => $this->fetchStaffPerformance(),
+        ];
+    }
+
+    /**
+     * @return array{
+     *     avg_first_response_minutes: float|null,
+     *     avg_resolution_minutes: float|null,
+     *     avg_first_response_label: string,
+     *     avg_resolution_label: string
+     * }
+     */
+    private function fetchTicketPerformanceMetrics(): array
+    {
+        $firstResponseMinutes = null;
+        $resolutionMinutes = null;
+
+        $firstResponseStatement = $this->db()->query(
+            'SELECT AVG(response_minutes) AS avg_minutes
+            FROM (
+                SELECT TIMESTAMPDIFF(MINUTE, t.created_at, MIN(tc.created_at)) AS response_minutes
+                FROM tickets t
+                INNER JOIN ticket_comments tc ON tc.ticket_id = t.id
+                INNER JOIN users u ON u.id = tc.user_id
+                    AND u.role IN (\'admin\', \'super_admin\', \'technician\')
+                GROUP BY t.id
+            ) responses
+            WHERE response_minutes IS NOT NULL AND response_minutes >= 0'
+        );
+
+        if ($firstResponseStatement !== false) {
+            $row = $firstResponseStatement->fetch();
+            $avg = $row['avg_minutes'] ?? null;
+
+            if ($avg !== null) {
+                $firstResponseMinutes = round((float) $avg, 1);
+            }
+        }
+
+        $resolutionStatement = $this->db()->query(
+            'SELECT AVG(TIMESTAMPDIFF(MINUTE, created_at, resolved_at)) AS avg_minutes
+            FROM tickets
+            WHERE resolved_at IS NOT NULL
+              AND status IN (\'resolved\', \'closed\')'
+        );
+
+        if ($resolutionStatement !== false) {
+            $row = $resolutionStatement->fetch();
+            $avg = $row['avg_minutes'] ?? null;
+
+            if ($avg !== null) {
+                $resolutionMinutes = round((float) $avg, 1);
+            }
+        }
+
+        return [
+            'avg_first_response_minutes' => $firstResponseMinutes,
+            'avg_resolution_minutes' => $resolutionMinutes,
+            'avg_first_response_label' => $this->formatDurationLabel($firstResponseMinutes),
+            'avg_resolution_label' => $this->formatDurationLabel($resolutionMinutes),
+        ];
+    }
+
+    /**
+     * @return list<array{
+     *     category_id: int|null,
+     *     category_name: string,
+     *     color_code: string,
+     *     count: int,
+     *     percentage: float
+     * }>
+     */
+    private function fetchTicketCategoryBreakdown(int $total): array
+    {
+        $rows = $this->db()->select('tickets', [
+            '[>]ticket_categories' => ['category_id' => 'id'],
+        ], [
+            'tickets.category_id',
+            'ticket_categories.name(category_name)',
+            'ticket_categories.color_code(color_code)',
+            'count' => Medoo::raw('COUNT(<tickets.id>)'),
+        ], [
+            'GROUP' => [
+                'tickets.category_id',
+                'ticket_categories.name',
+                'ticket_categories.color_code',
+            ],
+        ]);
+
+        $breakdown = [];
+
+        foreach ($rows as $row) {
+            $count = (int) $row['count'];
+            $categoryId = $row['category_id'] !== null ? (int) $row['category_id'] : null;
+            $categoryName = trim((string) ($row['category_name'] ?? ''));
+
+            $breakdown[] = [
+                'category_id' => $categoryId,
+                'category_name' => $categoryName !== '' ? $categoryName : __('reports_uncategorized'),
+                'color_code' => (string) ($row['color_code'] ?? '#94a3b8') ?: '#94a3b8',
+                'count' => $count,
+                'percentage' => $this->percentage($count, $total),
+            ];
+        }
+
+        usort(
+            $breakdown,
+            static fn (array $left, array $right): int => $right['count'] <=> $left['count']
+        );
+
+        return $breakdown;
+    }
+
+    /**
+     * @return list<array{
+     *     user_id: int,
+     *     user_name: string,
+     *     assigned_count: int,
+     *     resolved_count: int,
+     *     active_load: int
+     * }>
+     */
+    private function fetchStaffPerformance(): array
+    {
+        $statement = $this->db()->query(
+            'SELECT
+                u.id AS user_id,
+                u.name AS user_name,
+                COUNT(t.id) AS assigned_count,
+                SUM(CASE WHEN t.status IN (\'resolved\', \'closed\') THEN 1 ELSE 0 END) AS resolved_count,
+                SUM(CASE WHEN t.status IN (\'open\', \'in_progress\') THEN 1 ELSE 0 END) AS active_load
+            FROM users u
+            LEFT JOIN tickets t ON t.assigned_user_id = u.id
+            WHERE u.role IN (\'admin\', \'super_admin\', \'technician\')
+            GROUP BY u.id, u.name
+            ORDER BY assigned_count DESC, u.name ASC'
+        );
+
+        $rows = [];
+
+        if ($statement !== false) {
+            foreach ($statement->fetchAll() as $row) {
+                if (!is_array($row)) {
+                    continue;
+                }
+
+                $rows[] = [
+                    'user_id' => (int) ($row['user_id'] ?? 0),
+                    'user_name' => trim((string) ($row['user_name'] ?? '')) ?: __('reports_unknown_staff'),
+                    'assigned_count' => (int) ($row['assigned_count'] ?? 0),
+                    'resolved_count' => (int) ($row['resolved_count'] ?? 0),
+                    'active_load' => (int) ($row['active_load'] ?? 0),
+                ];
+            }
+        }
+
+        return $rows;
+    }
+
+    private function formatDurationLabel(?float $minutes): string
+    {
+        if ($minutes === null) {
+            return __('reports_no_data');
+        }
+
+        if ($minutes < 60) {
+            return (string) (int) round($minutes) . ' ' . __('reports_minutes_short');
+        }
+
+        $hours = $minutes / 60;
+
+        if ($hours < 48) {
+            return number_format($hours, 1, '.', '') . ' ' . __('reports_hours_short');
+        }
+
+        $days = $hours / 24;
+
+        return number_format($days, 1, '.', '') . ' ' . __('reports_days_short');
+    }
+
     private function db(): Medoo
     {
         return $this->databaseService->getConnection();

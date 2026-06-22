@@ -33,6 +33,14 @@ declare(strict_types=1);
         >
             <?= htmlspecialchars(__('settings_tab_locations'), ENT_QUOTES, 'UTF-8') ?>
         </button>
+        <button
+            type="button"
+            @click="settingsTab = 'ticket_categories'; fetchTicketCategories()"
+            class="rounded-lg px-3 py-2 text-sm font-medium transition"
+            :class="settingsTab === 'ticket_categories' ? 'bg-zinc-900 text-white' : 'text-zinc-600 hover:bg-zinc-100'"
+        >
+            <?= htmlspecialchars(__('settings_tab_ticket_categories'), ENT_QUOTES, 'UTF-8') ?>
+        </button>
         <?php if ($canAccessSettings): ?>
         <button
             type="button"

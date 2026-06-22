@@ -66,6 +66,7 @@ declare(strict_types=1);
                 <tr>
                     <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500"><?= htmlspecialchars(__('col_ticket_number'), ENT_QUOTES, 'UTF-8') ?></th>
                     <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500"><?= htmlspecialchars(__('col_ticket_subject'), ENT_QUOTES, 'UTF-8') ?></th>
+                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500"><?= htmlspecialchars(__('col_ticket_category'), ENT_QUOTES, 'UTF-8') ?></th>
                     <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500"><?= htmlspecialchars(__('col_ticket_requester'), ENT_QUOTES, 'UTF-8') ?></th>
                     <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500"><?= htmlspecialchars(__('col_ticket_asset'), ENT_QUOTES, 'UTF-8') ?></th>
                     <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500"><?= htmlspecialchars(__('col_ticket_priority'), ENT_QUOTES, 'UTF-8') ?></th>
@@ -81,6 +82,15 @@ declare(strict_types=1);
                         <td class="px-6 py-4">
                             <p class="text-sm font-medium text-zinc-900" x-text="ticket.subject"></p>
                             <p class="mt-1 line-clamp-1 text-xs text-zinc-500" x-text="ticket.description"></p>
+                        </td>
+                        <td class="px-6 py-4">
+                            <span
+                                x-show="ticket.category_name"
+                                class="inline-flex rounded-full px-2.5 py-1 text-xs font-medium text-white"
+                                :style="ticket.category_color ? `background-color: ${ticket.category_color}` : ''"
+                                x-text="ticket.category_name"
+                            ></span>
+                            <span x-show="!ticket.category_name" class="text-sm text-zinc-400">—</span>
                         </td>
                         <td class="px-6 py-4">
                             <p class="text-sm text-zinc-700" x-text="ticket.personnel_name"></p>

@@ -238,6 +238,13 @@ $i18nScript = json_encode([
     'ticket_delete_success' => __('ticket_delete_success'),
     'ticket_delete_error' => __('ticket_delete_error'),
     'ticket_delete_confirm' => __('ticket_delete_confirm'),
+    'ticket_category_create_success' => __('ticket_category_create_success'),
+    'ticket_category_create_error' => __('ticket_category_create_error'),
+    'ticket_category_update_success' => __('ticket_category_update_success'),
+    'ticket_category_update_error' => __('ticket_category_update_error'),
+    'ticket_category_delete_success' => __('ticket_category_delete_success'),
+    'ticket_category_delete_confirm' => __('ticket_category_delete_confirm'),
+    'reports_fetch_error' => __('reports_fetch_error'),
     'ticket_comment_create_success' => __('ticket_comment_create_success'),
     'ticket_comment_create_error' => __('ticket_comment_create_error'),
     'helpdesk_filter_all' => __('helpdesk_filter_all'),
@@ -357,7 +364,7 @@ $i18nScript = json_encode([
     'status_under_repair' => __('status_under_repair'),
 ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
 ?>
-<div class="min-h-screen bg-gray-50" x-data="assetDashboard()" x-init="restoreDashboardView(); if (isEndUser) { initEndUserPortal(); } else if (canManageAssets) { fetchCategories(); fetchLocations(); fetchLicenses(); fetchConsumables(); fetchTickets(); if (activeView === 'dashboard') { fetchDashboardStats(); } } this.isAssignLicenseModalOpen = false;">
+<div class="min-h-screen bg-gray-50" x-data="assetDashboard()" x-init="restoreDashboardView(); if (isEndUser) { initEndUserPortal(); } else if (canManageAssets) { fetchCategories(); fetchLocations(); fetchTicketCategories(); fetchLicenses(); fetchConsumables(); fetchTickets(); if (activeView === 'dashboard') { fetchDashboardStats(); } if (activeView === 'reports') { fetchReports(); } } this.isAssignLicenseModalOpen = false;">
     <div class="flex h-screen overflow-hidden bg-gray-50">
         <aside class="hidden h-full w-64 min-h-0 flex-shrink-0 flex-col border-r border-gray-200 bg-white lg:flex">
             <div class="flex h-16 shrink-0 items-center gap-3 border-b border-gray-200 px-5">
@@ -471,6 +478,15 @@ $i18nScript = json_encode([
                         >
                             <span class="text-lg leading-none">+</span>
                             <?= htmlspecialchars(__('add_location'), ENT_QUOTES, 'UTF-8') ?>
+                        </button>
+                        <button
+                            type="button"
+                            x-show="activeView === 'settings' && settingsTab === 'ticket_categories' && canAccessSettings"
+                            @click="openTicketCategoryModal()"
+                            class="inline-flex items-center gap-2 rounded-xl bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white shadow-soft transition hover:bg-zinc-800"
+                        >
+                            <span class="text-lg leading-none">+</span>
+                            <?= htmlspecialchars(__('add_ticket_category'), ENT_QUOTES, 'UTF-8') ?>
                         </button>
                         <button
                             type="button"
@@ -757,6 +773,7 @@ $i18nScript = json_encode([
                 <?php require __DIR__ . '/partials/consumables_panel.php'; ?>
                 <?php require __DIR__ . '/partials/knowledge_base_panel.php'; ?>
                 <?php require __DIR__ . '/partials/helpdesk_panel.php'; ?>
+                <?php require __DIR__ . '/partials/reports_panel.php'; ?>
                 <?php require __DIR__ . '/partials/ipam_panel.php'; ?>
                 <?php endif; ?>
                 <?php if ($canAccessSettings): ?>
@@ -764,6 +781,7 @@ $i18nScript = json_encode([
                 <?php require __DIR__ . '/partials/settings_panel.php'; ?>
                 <?php require __DIR__ . '/partials/categories_panel.php'; ?>
                 <?php require __DIR__ . '/partials/locations_panel.php'; ?>
+                <?php require __DIR__ . '/partials/ticket_categories_panel.php'; ?>
                 <?php endif; ?>
                 <?php if ($canAccessPersonnel): ?>
                 <?php require __DIR__ . '/partials/personnel_panel.php'; ?>
@@ -1675,6 +1693,51 @@ $i18nScript = json_encode([
     </div>
 
     <div
+        x-show="isTicketCategoryModalOpen"
+        x-cloak
+        class="fixed inset-0 z-[60] flex items-center justify-center px-4"
+        @keydown.escape.window="closeTicketCategoryModal()"
+    >
+        <div class="absolute inset-0 bg-zinc-900/40 backdrop-blur-sm" @click="closeTicketCategoryModal()"></div>
+
+        <div class="relative w-full max-w-xl rounded-2xl border border-zinc-200 bg-white shadow-soft">
+            <div class="flex items-center justify-between border-b border-zinc-200 px-6 py-4">
+                <div>
+                    <h3 class="text-lg font-semibold text-zinc-900" x-text="ticketCategoryForm.id ? '<?= htmlspecialchars(__('edit_ticket_category'), ENT_QUOTES, 'UTF-8') ?>' : '<?= htmlspecialchars(__('add_ticket_category'), ENT_QUOTES, 'UTF-8') ?>'"></h3>
+                    <p class="mt-1 text-sm text-zinc-500"><?= htmlspecialchars(__('ticket_categories_page_subtitle'), ENT_QUOTES, 'UTF-8') ?></p>
+                </div>
+                <button type="button" @click="closeTicketCategoryModal()" class="rounded-lg p-2 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600">&times;</button>
+            </div>
+
+            <form @submit.prevent="submitTicketCategoryForm" class="px-6 py-5">
+                <div class="grid gap-4">
+                    <label class="block">
+                        <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('ticket_category_name_label'), ENT_QUOTES, 'UTF-8') ?></span>
+                        <input type="text" x-model="ticketCategoryForm.name" required class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4">
+                    </label>
+                    <label class="block">
+                        <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('ticket_category_color_label'), ENT_QUOTES, 'UTF-8') ?></span>
+                        <div class="flex items-center gap-3">
+                            <input type="color" x-model="ticketCategoryForm.color_code" class="h-11 w-16 cursor-pointer rounded-lg border border-zinc-300 bg-white p-1">
+                            <input type="text" x-model="ticketCategoryForm.color_code" pattern="^#[0-9A-Fa-f]{6}$" class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4">
+                        </div>
+                    </label>
+                </div>
+
+                <p x-show="ticketCategoryFormError" x-cloak class="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700" x-text="ticketCategoryFormError"></p>
+
+                <div class="mt-6 flex items-center justify-end gap-3 border-t border-zinc-200 pt-5">
+                    <button type="button" @click="closeTicketCategoryModal()" :disabled="isTicketCategorySubmitting" class="rounded-xl border border-zinc-200 px-4 py-2.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60"><?= htmlspecialchars(__('cancel'), ENT_QUOTES, 'UTF-8') ?></button>
+                    <button type="submit" :disabled="isTicketCategorySubmitting" class="inline-flex items-center gap-2 rounded-xl bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60">
+                        <span x-show="isTicketCategorySubmitting"><?= htmlspecialchars(__('saving'), ENT_QUOTES, 'UTF-8') ?></span>
+                        <span x-show="!isTicketCategorySubmitting"><?= htmlspecialchars(__('ticket_category_save'), ENT_QUOTES, 'UTF-8') ?></span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div
         x-show="isLicenseModalOpen"
         x-cloak
         class="fixed inset-0 z-[60] flex items-center justify-center px-4"
@@ -2091,6 +2154,15 @@ $i18nScript = json_encode([
                 <p class="mt-4 rounded-xl border border-zinc-200 bg-white px-4 py-3 text-sm text-zinc-700" x-text="ticketDetail?.description"></p>
                 <div class="mt-4 grid gap-4 sm:grid-cols-2">
                     <label class="block">
+                        <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('ticket_category_label'), ENT_QUOTES, 'UTF-8') ?></span>
+                        <select x-model="ticketDetailForm.category_id" class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4">
+                            <option value=""><?= htmlspecialchars(__('ticket_category_none'), ENT_QUOTES, 'UTF-8') ?></option>
+                            <template x-for="category in ticketCategories" :key="category.id">
+                                <option :value="String(category.id)" x-text="category.name"></option>
+                            </template>
+                        </select>
+                    </label>
+                    <label class="block">
                         <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('ticket_status_label'), ENT_QUOTES, 'UTF-8') ?></span>
                         <select x-model="ticketDetailForm.status" class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4">
                             <option value="open"><?= htmlspecialchars(__('ticket_status_open'), ENT_QUOTES, 'UTF-8') ?></option>
@@ -2206,10 +2278,12 @@ $i18nScript = json_encode([
                 consumables: <?= json_encode(__('consumables_page_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 knowledge_base: <?= json_encode(__('portal_knowledge_base_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 helpdesk: <?= json_encode(__('helpdesk_page_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
+                reports: <?= json_encode(__('reports_page_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 ipam: <?= json_encode(__('ipam_page_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 settings: <?= json_encode(__('settings_page_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 categories: <?= json_encode(__('categories_page_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 locations: <?= json_encode(__('locations_page_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
+                ticket_categories: <?= json_encode(__('ticket_categories_page_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 personnel: <?= json_encode(__('personnel_page_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 smtp: <?= json_encode(__('settings_tab_smtp'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 backup: <?= json_encode(__('settings_tab_backup'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
@@ -2224,10 +2298,12 @@ $i18nScript = json_encode([
                 consumables: <?= json_encode(__('consumables_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 knowledge_base: <?= json_encode(__('kb_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 helpdesk: <?= json_encode(__('helpdesk_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
+                reports: <?= json_encode(__('reports_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 ipam: <?= json_encode(__('ipam_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 settings: <?= json_encode(__('settings_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 categories: <?= json_encode(__('categories_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 locations: <?= json_encode(__('locations_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
+                ticket_categories: <?= json_encode(__('ticket_categories_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 personnel: <?= json_encode(__('personnel_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 smtp: <?= json_encode(__('settings_smtp_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 backup: <?= json_encode(__('settings_backup_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
@@ -2297,6 +2373,21 @@ $i18nScript = json_encode([
                 description: '',
             },
             locationFormError: '',
+            ticketCategories: [],
+            ticketCategoriesLoading: false,
+            ticketCategoriesError: '',
+            ticketCategoriesSuccessMessage: '',
+            isTicketCategoryModalOpen: false,
+            isTicketCategorySubmitting: false,
+            ticketCategoryForm: {
+                id: null,
+                name: '',
+                color_code: '#6366f1',
+            },
+            ticketCategoryFormError: '',
+            reportsStats: null,
+            reportsLoading: false,
+            reportsError: '',
             licenses: [],
             licensesLoading: false,
             licensesError: '',
@@ -2405,6 +2496,7 @@ $i18nScript = json_encode([
             ticketDetailForm: {
                 status: 'open',
                 priority: 'medium',
+                category_id: '',
             },
             isTicketDetailSubmitting: false,
             ticketComments: [],
@@ -2658,6 +2750,7 @@ $i18nScript = json_encode([
                         general: this.pageTitles.settings,
                         categories: this.pageTitles.categories,
                         locations: this.pageTitles.locations,
+                        ticket_categories: this.pageTitles.ticket_categories,
                         smtp: this.pageTitles.smtp,
                         backup: this.pageTitles.backup,
                     };
@@ -2673,6 +2766,7 @@ $i18nScript = json_encode([
                         general: this.pageSubtitles.settings,
                         categories: this.pageSubtitles.categories,
                         locations: this.pageSubtitles.locations,
+                        ticket_categories: this.pageSubtitles.ticket_categories,
                         smtp: this.pageSubtitles.smtp,
                         backup: this.pageSubtitles.backup,
                     };
@@ -2740,6 +2834,10 @@ $i18nScript = json_encode([
                         this.fetchLocations();
                     }
 
+                    if (this.activeView === 'settings' && this.settingsTab === 'ticket_categories') {
+                        this.fetchTicketCategories();
+                    }
+
                     if (this.activeView === 'settings' && this.settingsTab === 'backup') {
                         this.fetchBackups();
                     }
@@ -2758,6 +2856,11 @@ $i18nScript = json_encode([
 
                     if (this.activeView === 'helpdesk') {
                         this.fetchTickets();
+                        this.fetchTicketCategories();
+                    }
+
+                    if (this.activeView === 'reports') {
+                        this.fetchReports();
                     }
 
                     if (this.activeView === 'ipam') {
@@ -4858,6 +4961,152 @@ $i18nScript = json_encode([
                     this.locationsError = window.__i18n.locations_network_error;
                 }
             },
+            async fetchTicketCategories() {
+                if (!this.canManageAssets) {
+                    return;
+                }
+
+                this.ticketCategoriesLoading = true;
+                this.ticketCategoriesError = '';
+
+                try {
+                    const response = await fetch('/api/ticket-categories', {
+                        headers: { Accept: 'application/json' },
+                    });
+                    const result = await this.parseApiResponse(response);
+
+                    if (!response.ok) {
+                        this.ticketCategoriesError = this.apiErrorMessage(result, window.__i18n.ticket_category_create_error);
+                        return;
+                    }
+
+                    this.ticketCategories = Array.isArray(result.data) ? result.data : [];
+                } catch (error) {
+                    this.ticketCategoriesError = window.__i18n.helpdesk_network_error;
+                } finally {
+                    this.ticketCategoriesLoading = false;
+                }
+            },
+            openTicketCategoryModal(category = null) {
+                this.ticketCategoryForm = category
+                    ? {
+                        id: category.id,
+                        name: category.name || '',
+                        color_code: category.color_code || '#6366f1',
+                    }
+                    : {
+                        id: null,
+                        name: '',
+                        color_code: '#6366f1',
+                    };
+                this.ticketCategoryFormError = '';
+                this.ticketCategoriesSuccessMessage = '';
+                this.isTicketCategoryModalOpen = true;
+            },
+            closeTicketCategoryModal() {
+                if (this.isTicketCategorySubmitting) {
+                    return;
+                }
+
+                this.isTicketCategoryModalOpen = false;
+            },
+            async submitTicketCategoryForm() {
+                this.isTicketCategorySubmitting = true;
+                this.ticketCategoryFormError = '';
+                this.ticketCategoriesSuccessMessage = '';
+
+                const isEdit = Boolean(this.ticketCategoryForm.id);
+                const url = isEdit
+                    ? `/api/ticket-categories/${this.ticketCategoryForm.id}`
+                    : '/api/ticket-categories';
+                const method = isEdit ? 'PUT' : 'POST';
+
+                try {
+                    const response = await fetch(url, {
+                        method,
+                        headers: {
+                            'Content-Type': 'application/json',
+                            Accept: 'application/json',
+                        },
+                        body: JSON.stringify({
+                            name: this.ticketCategoryForm.name,
+                            color_code: this.ticketCategoryForm.color_code,
+                        }),
+                    });
+                    const result = await this.parseApiResponse(response);
+
+                    if (!response.ok) {
+                        this.ticketCategoryFormError = this.apiErrorMessage(
+                            result,
+                            isEdit ? window.__i18n.ticket_category_update_error : window.__i18n.ticket_category_create_error
+                        );
+                        return;
+                    }
+
+                    this.isTicketCategoryModalOpen = false;
+                    this.ticketCategoriesSuccessMessage = this.apiErrorMessage(
+                        result,
+                        isEdit ? window.__i18n.ticket_category_update_success : window.__i18n.ticket_category_create_success
+                    );
+                    await this.fetchTicketCategories();
+                } catch (error) {
+                    this.ticketCategoryFormError = window.__i18n.helpdesk_network_error;
+                } finally {
+                    this.isTicketCategorySubmitting = false;
+                }
+            },
+            async deleteTicketCategory(category) {
+                if (!category?.id || !window.confirm(window.__i18n.ticket_category_delete_confirm)) {
+                    return;
+                }
+
+                this.ticketCategoriesSuccessMessage = '';
+                this.ticketCategoriesError = '';
+
+                try {
+                    const response = await fetch(`/api/ticket-categories/${category.id}`, {
+                        method: 'DELETE',
+                        headers: { Accept: 'application/json' },
+                    });
+                    const result = await this.parseApiResponse(response);
+
+                    if (!response.ok) {
+                        this.ticketCategoriesError = this.apiErrorMessage(result, window.__i18n.ticket_category_update_error);
+                        return;
+                    }
+
+                    this.ticketCategoriesSuccessMessage = this.apiErrorMessage(result, window.__i18n.ticket_category_delete_success);
+                    await this.fetchTicketCategories();
+                } catch (error) {
+                    this.ticketCategoriesError = window.__i18n.helpdesk_network_error;
+                }
+            },
+            async fetchReports() {
+                if (!this.canManageAssets) {
+                    return;
+                }
+
+                this.reportsLoading = true;
+                this.reportsError = '';
+
+                try {
+                    const response = await fetch('/api/reports/helpdesk', {
+                        headers: { Accept: 'application/json' },
+                    });
+                    const result = await this.parseApiResponse(response);
+
+                    if (!response.ok) {
+                        this.reportsError = this.apiErrorMessage(result, window.__i18n.reports_fetch_error);
+                        return;
+                    }
+
+                    this.reportsStats = result.data || null;
+                } catch (error) {
+                    this.reportsError = window.__i18n.helpdesk_network_error;
+                } finally {
+                    this.reportsLoading = false;
+                }
+            },
             async fetchLicenses() {
                 if (!this.canManageAssets) {
                     return;
@@ -5913,6 +6162,7 @@ $i18nScript = json_encode([
                 this.ticketDetailForm = {
                     status: ticket.status,
                     priority: ticket.priority,
+                    category_id: ticket.category_id ? String(ticket.category_id) : '',
                 };
                 this.ticketComments = [];
                 this.ticketCommentBody = '';
@@ -5933,6 +6183,7 @@ $i18nScript = json_encode([
                     this.ticketDetailForm = {
                         status: result.data.status,
                         priority: result.data.priority,
+                        category_id: result.data.category_id ? String(result.data.category_id) : '',
                     };
                     this.ticketComments = Array.isArray(result.data?.comments) ? result.data.comments : [];
                 } catch (error) {
@@ -5985,6 +6236,7 @@ $i18nScript = json_encode([
                         body: JSON.stringify({
                             status: this.ticketDetailForm.status,
                             priority: this.ticketDetailForm.priority,
+                            category_id: this.ticketDetailForm.category_id ? Number(this.ticketDetailForm.category_id) : null,
                         }),
                     });
                     const result = await this.parseApiResponse(response);

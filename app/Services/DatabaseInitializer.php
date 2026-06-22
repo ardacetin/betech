@@ -89,6 +89,10 @@ class DatabaseInitializer
                     $warnings[] = $warning;
                 }
 
+                foreach ($this->patchTicketCategories($connection) as $warning) {
+                    $warnings[] = $warning;
+                }
+
                 foreach ($this->patchKnowledgeBase($connection) as $warning) {
                     $warnings[] = $warning;
                 }
@@ -866,6 +870,67 @@ class DatabaseInitializer
         }
 
         return $warnings;
+    }
+
+    /**
+     * Self-heal ticket categories and tickets.category_id column.
+     *
+     * @param object $connection Medoo instance
+     *
+     * @return list<string>
+     */
+    private function patchTicketCategories(object $connection): array
+    {
+        $warnings = [];
+
+        if (!$this->tableExists($connection, 'tickets')) {
+            return $warnings;
+        }
+
+        if (!$this->tableExists($connection, 'ticket_categories')) {
+            $this->applySqlFile($connection, $this->getTicketCategoriesMigrationPath());
+            $warnings[] = 'Self-healed database: created ticket_categories table.';
+        }
+
+        if (!$this->columnExists($connection, 'tickets', 'category_id')) {
+            $connection->query(
+                'ALTER TABLE tickets ADD COLUMN category_id INT UNSIGNED NULL DEFAULT NULL AFTER priority'
+            );
+            $warnings[] = 'Self-healed database: added tickets.category_id column.';
+        }
+
+        if ($this->columnExists($connection, 'tickets', 'category_id')
+            && $this->tableExists($connection, 'ticket_categories')) {
+            $statement = $connection->query(
+                "SELECT COUNT(*) AS total
+                FROM information_schema.TABLE_CONSTRAINTS
+                WHERE TABLE_SCHEMA = DATABASE()
+                  AND TABLE_NAME = 'tickets'
+                  AND CONSTRAINT_NAME = 'fk_tickets_category'"
+            );
+
+            if ($statement !== false) {
+                $row = $statement->fetch();
+                $hasConstraint = (int) ($row['total'] ?? 0) > 0;
+
+                if (!$hasConstraint) {
+                    $connection->query(
+                        'ALTER TABLE tickets
+                        ADD CONSTRAINT fk_tickets_category
+                        FOREIGN KEY (category_id) REFERENCES ticket_categories(id)
+                        ON DELETE SET NULL ON UPDATE CASCADE'
+                    );
+                    $warnings[] = 'Self-healed database: added tickets.category_id foreign key.';
+                }
+            }
+        }
+
+        return $warnings;
+    }
+
+    private function getTicketCategoriesMigrationPath(): string
+    {
+        return dirname($this->schemaPath) . '/migrations/019_create_ticket_categories.sql';
     }
 
     /**
