@@ -523,6 +523,10 @@ $i18nScript = json_encode([
             </header>
 
             <div class="mx-auto max-w-7xl space-y-8 px-6 py-8">
+                <?php if ($isEndUser): ?>
+                <?php require __DIR__ . '/partials/end_user_knowledge_base_panel.php'; ?>
+                <?php endif; ?>
+
                 <?php if ($canManageAssets): ?>
                     <?php require __DIR__ . '/partials/dashboard_home_panel.php'; ?>
                 <?php endif; ?>
