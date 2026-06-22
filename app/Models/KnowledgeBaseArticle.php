@@ -9,6 +9,8 @@ use Medoo\Medoo;
 
 class KnowledgeBaseArticle
 {
+    private const TABLE = 'knowledge_base_articles';
+
     public function __construct(
         private readonly DatabaseService $databaseService
     ) {
@@ -19,20 +21,20 @@ class KnowledgeBaseArticle
      */
     public function findAll(): array
     {
-        $rows = $this->db()->select('knowledge_base_articles', [
+        $rows = $this->db()->select(self::TABLE, [
             '[>]personnel' => ['author_id' => 'id'],
         ], [
-            'knowledge_base_articles.id',
-            'knowledge_base_articles.title',
-            'knowledge_base_articles.content',
-            'knowledge_base_articles.is_published',
-            'knowledge_base_articles.author_id',
-            'knowledge_base_articles.created_at',
-            'knowledge_base_articles.updated_at',
-            'personnel.full_name(author_name)',
+            self::TABLE . '.id',
+            self::TABLE . '.title',
+            self::TABLE . '.content',
+            self::TABLE . '.is_published',
+            self::TABLE . '.author_id',
+            self::TABLE . '.created_at',
+            self::TABLE . '.updated_at',
+            'personnel.name(author_name)',
         ], [
             'ORDER' => [
-                'knowledge_base_articles.updated_at' => 'DESC',
+                self::TABLE . '.updated_at' => 'DESC',
             ],
         ]);
 
@@ -47,7 +49,7 @@ class KnowledgeBaseArticle
      */
     public function findPublished(): array
     {
-        $rows = $this->db()->select('knowledge_base_articles', [
+        $rows = $this->db()->select(self::TABLE, [
             'id',
             'title',
             'content',
@@ -73,19 +75,19 @@ class KnowledgeBaseArticle
      */
     public function findById(int $id): ?array
     {
-        $row = $this->db()->get('knowledge_base_articles', [
+        $row = $this->db()->get(self::TABLE, [
             '[>]personnel' => ['author_id' => 'id'],
         ], [
-            'knowledge_base_articles.id',
-            'knowledge_base_articles.title',
-            'knowledge_base_articles.content',
-            'knowledge_base_articles.is_published',
-            'knowledge_base_articles.author_id',
-            'knowledge_base_articles.created_at',
-            'knowledge_base_articles.updated_at',
-            'personnel.full_name(author_name)',
+            self::TABLE . '.id',
+            self::TABLE . '.title',
+            self::TABLE . '.content',
+            self::TABLE . '.is_published',
+            self::TABLE . '.author_id',
+            self::TABLE . '.created_at',
+            self::TABLE . '.updated_at',
+            'personnel.name(author_name)',
         ], [
-            'knowledge_base_articles.id' => $id,
+            self::TABLE . '.id' => $id,
         ]);
 
         if (!is_array($row) || $row === []) {
@@ -111,7 +113,7 @@ class KnowledgeBaseArticle
             throw new \InvalidArgumentException(__('kb_content_required'));
         }
 
-        $this->db()->insert('knowledge_base_articles', [
+        $this->db()->insert(self::TABLE, [
             'title' => $trimmedTitle,
             'content' => $trimmedContent,
             'is_published' => $isPublished ? 1 : 0,
@@ -165,7 +167,7 @@ class KnowledgeBaseArticle
         }
 
         if ($update !== []) {
-            $this->db()->update('knowledge_base_articles', $update, ['id' => $id]);
+            $this->db()->update(self::TABLE, $update, ['id' => $id]);
         }
 
         return $this->findById($id);
@@ -177,9 +179,9 @@ class KnowledgeBaseArticle
             return false;
         }
 
-        $this->db()->delete('knowledge_base_articles', ['id' => $id]);
+        $this->db()->delete(self::TABLE, ['id' => $id]);
 
-        return !$this->db()->has('knowledge_base_articles', ['id' => $id]);
+        return !$this->db()->has(self::TABLE, ['id' => $id]);
     }
 
     /**

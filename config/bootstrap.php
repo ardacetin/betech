@@ -194,7 +194,7 @@ $locationController = new LocationController($locationModel);
 $licenseController = new LicenseController($licenseModel);
 $ipNetworkController = new IpNetworkController($ipNetworkModel, $ipAddressModel, $assetModel, $ipamCsvImportService);
 $consumableController = new ConsumableController($consumableModel);
-$knowledgeBaseController = new KnowledgeBaseController($knowledgeBaseArticleModel, $sessionAuthService);
+$knowledgeBaseController = new KnowledgeBaseController($knowledgeBaseArticleModel, $sessionAuthService, $appLogger);
 $ticketModel = new Ticket($databaseService);
 $ticketNotificationService = new TicketNotificationService(
     $mailService,

@@ -167,6 +167,14 @@ class AppLogger
     }
 
     /**
+     * @param array<string, mixed> $context
+     */
+    public function error(string $message, array $context = []): void
+    {
+        $this->logger->error($message, $context);
+    }
+
+    /**
      * @return array<string, mixed>|string|null
      */
     private function extractRequestPayload(ServerRequestInterface $request): array|string|null
