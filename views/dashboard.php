@@ -348,8 +348,8 @@ $i18nScript = json_encode([
 ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
 ?>
 <div class="min-h-screen bg-gray-50" x-data="assetDashboard()" x-init="restoreDashboardView(); if (isEndUser) { initEndUserPortal(); } else if (canManageAssets) { fetchCategories(); fetchLocations(); fetchLicenses(); fetchConsumables(); fetchTickets(); if (activeView === 'dashboard') { fetchDashboardStats(); } } this.isAssignLicenseModalOpen = false;">
-    <div class="app-shell">
-        <aside class="app-sidebar hidden lg:flex">
+    <div class="flex h-screen overflow-hidden bg-gray-50">
+        <aside class="hidden h-full w-64 flex-shrink-0 flex-col border-r border-gray-200 bg-white lg:flex">
             <div class="flex h-16 shrink-0 items-center gap-3 border-b border-gray-200 px-5">
                 <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gray-900 text-sm font-semibold text-white">B</div>
                 <div class="flex min-w-0 items-center">
@@ -384,8 +384,7 @@ $i18nScript = json_encode([
             </div>
         </aside>
 
-        <div class="app-main">
-        <main class="min-w-0 flex-1 overflow-y-auto bg-gray-50">
+        <main class="flex-1 overflow-y-auto">
             <header class="sticky top-0 z-10 border-b border-zinc-200 bg-white/90 backdrop-blur">
                 <div class="mx-auto flex max-w-7xl items-center justify-between gap-4 px-6 py-4">
                     <div>
@@ -750,7 +749,6 @@ $i18nScript = json_encode([
                 <?php endif; ?>
             </div>
         </main>
-        </div>
     </div>
 
     <div
@@ -3212,7 +3210,20 @@ $i18nScript = json_encode([
                     .replace(':entity', this.escapeHtml(entityPhrase));
             },
             formatAuditFeedTime(value) {
-                return this.formatActivityTimestamp(value, { includeTime: true });
+                if (!value) {
+                    return '';
+                }
+
+                const date = new Date(String(value).replace(' ', 'T'));
+
+                if (Number.isNaN(date.getTime())) {
+                    return String(value);
+                }
+
+                return new Intl.DateTimeFormat('en-US', {
+                    month: 'short',
+                    day: 'numeric',
+                }).format(date);
             },
             auditFeedDotClass(action) {
                 const classes = {
