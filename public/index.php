@@ -1,6 +1,12 @@
 <?php
 
-declare(strict_types=1);
+ini_set('display_errors', '1');
+ini_set('display_startup_errors', '1');
+error_reporting(E_ALL);
+
+while (ob_get_level() > 0) {
+    ob_end_clean();
+}
 
 require __DIR__ . '/../vendor/autoload.php';
 
