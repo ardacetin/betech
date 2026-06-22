@@ -9,11 +9,9 @@ declare(strict_types=1);
  * @var bool $canAccessSettings
  */
 
-$sectionHeaderClass = 'mb-3 mt-8 px-3 text-[11px] font-bold uppercase tracking-wider text-gray-400';
+$sectionHeaderClass = 'mt-6 mb-2 px-3 text-[11px] font-bold uppercase tracking-wider text-gray-400';
 
 /**
- * Render a premium sidebar nav item with active/inactive states.
- *
  * @param string $condition Alpine expression that is truthy when the item is active
  * @param string $click     Alpine @click handler expression
  * @param string $label     Already-translated, raw label text
@@ -24,12 +22,12 @@ $renderNavItem = static function (string $condition, string $click, string $labe
     <button
         type="button"
         @click="<?= $click ?>"
-        class="group flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm transition-all duration-200"
-        :class="<?= $condition ?> ? 'bg-gray-900 text-white shadow-sm font-semibold' : 'text-gray-500 font-medium hover:bg-gray-50 hover:text-gray-900'"
+        class="group flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-gray-600 transition-all hover:bg-gray-100 hover:text-gray-900"
+        :class="<?= $condition ?> ? 'bg-gray-900 font-semibold text-white shadow-sm hover:bg-gray-900 hover:text-white' : ''"
     >
         <svg
-            class="h-5 w-5 shrink-0 transition-colors"
-            :class="<?= $condition ?> ? 'text-white' : 'text-gray-400 group-hover:text-gray-500'"
+            class="h-5 w-5 shrink-0 text-gray-400 transition-colors group-hover:text-gray-500"
+            :class="<?= $condition ?> ? 'text-white group-hover:text-white' : ''"
             fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true"
         >
             <?= $iconPaths ?>
@@ -52,26 +50,23 @@ $icons = [
 ];
 
 ?>
-<nav class="sidebar-scroll min-h-0 flex-1 overflow-y-auto p-4">
+<nav class="sidebar-scroll flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto px-3 py-4">
     <?php if ($isEndUser): ?>
-    <div class="space-y-1">
         <?php
         $renderNavItem("activeView === 'my_assets'", "activeView = 'my_assets'; fetchPortalAssets()", __('portal_tab_assets'), $icons['cube']);
         $renderNavItem("activeView === 'my_tickets'", "activeView = 'my_tickets'; fetchPortalTickets()", __('portal_tab_tickets'), $icons['ticket']);
         ?>
-    </div>
     <?php else: ?>
-    <div class="space-y-1">
         <?php if ($canManageAssets): ?>
         <?php $renderNavItem("activeView === 'dashboard'", "activeView = 'dashboard'; fetchDashboardStats()", __('nav_dashboard'), $icons['chart']); ?>
         <?php endif; ?>
 
         <?php if ($canManageAssets): ?>
-        <p class="<?= $sectionHeaderClass ?>"><?= htmlspecialchars(__('nav_section_operations'), ENT_QUOTES, 'UTF-8') ?></p>
+        <div class="<?= $sectionHeaderClass ?>"><?= htmlspecialchars(__('nav_section_operations'), ENT_QUOTES, 'UTF-8') ?></div>
         <?php $renderNavItem("activeView === 'helpdesk'", "activeView = 'helpdesk'; fetchTickets()", __('nav_helpdesk'), $icons['ticket']); ?>
         <?php endif; ?>
 
-        <p class="<?= $sectionHeaderClass ?>"><?= htmlspecialchars(__('nav_section_asset_management'), ENT_QUOTES, 'UTF-8') ?></p>
+        <div class="<?= $sectionHeaderClass ?>"><?= htmlspecialchars(__('nav_section_asset_management'), ENT_QUOTES, 'UTF-8') ?></div>
         <?php $renderNavItem("activeView === 'assets'", "activeView = 'assets'", __('nav_assets'), $icons['cube']); ?>
         <?php if ($canManageAssets): ?>
         <?php
@@ -81,12 +76,12 @@ $icons = [
         <?php endif; ?>
 
         <?php if ($canManageAssets): ?>
-        <p class="<?= $sectionHeaderClass ?>"><?= htmlspecialchars(__('nav_section_infrastructure'), ENT_QUOTES, 'UTF-8') ?></p>
+        <div class="<?= $sectionHeaderClass ?>"><?= htmlspecialchars(__('nav_section_infrastructure'), ENT_QUOTES, 'UTF-8') ?></div>
         <?php $renderNavItem("activeView === 'ipam'", "activeView = 'ipam'; ipamSubView = 'networks'; fetchIpNetworks()", __('nav_ipam'), $icons['globe']); ?>
         <?php endif; ?>
 
         <?php if ($canAccessPersonnel || $canAccessSettings): ?>
-        <p class="<?= $sectionHeaderClass ?>"><?= htmlspecialchars(__('nav_section_system'), ENT_QUOTES, 'UTF-8') ?></p>
+        <div class="<?= $sectionHeaderClass ?>"><?= htmlspecialchars(__('nav_section_system'), ENT_QUOTES, 'UTF-8') ?></div>
         <?php if ($canAccessPersonnel): ?>
         <?php $renderNavItem("activeView === 'personnel'", "activeView = 'personnel'; fetchPersonnel()", __('nav_personnel'), $icons['users']); ?>
         <?php endif; ?>
@@ -97,6 +92,5 @@ $icons = [
         ?>
         <?php endif; ?>
         <?php endif; ?>
-    </div>
     <?php endif; ?>
 </nav>

@@ -364,23 +364,21 @@ $i18nScript = json_encode([
                 $sidebarPrimaryLabel = $userName !== '' ? $userName : ($userEmail !== '' ? $userEmail : __('app_name'));
                 $sidebarRoleLabel = $isEndUser ? __('personnel_role_user') : __('personnel_role_admin');
             ?>
-            <div class="mt-auto shrink-0 border-t border-gray-200 bg-gray-50 p-4">
-                <div class="flex items-center justify-between gap-3">
-                    <div class="min-w-0">
-                        <p class="truncate text-sm font-medium text-gray-900"><?= htmlspecialchars($sidebarPrimaryLabel, ENT_QUOTES, 'UTF-8') ?></p>
-                        <p class="truncate text-xs text-gray-500"><?= htmlspecialchars($sidebarRoleLabel, ENT_QUOTES, 'UTF-8') ?></p>
-                    </div>
-                    <a
-                        href="/logout"
-                        title="<?= htmlspecialchars(__('nav_logout'), ENT_QUOTES, 'UTF-8') ?>"
-                        aria-label="<?= htmlspecialchars(__('nav_logout'), ENT_QUOTES, 'UTF-8') ?>"
-                        class="shrink-0 rounded-lg p-2 text-gray-400 transition-colors hover:bg-white hover:text-red-600"
-                    >
-                        <svg class="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75" />
-                        </svg>
-                    </a>
+            <div class="mt-auto flex shrink-0 items-center justify-between border-t border-gray-200 bg-gray-50/50 p-4">
+                <div class="min-w-0">
+                    <p class="truncate text-sm font-medium text-gray-900"><?= htmlspecialchars($sidebarPrimaryLabel, ENT_QUOTES, 'UTF-8') ?></p>
+                    <p class="truncate text-xs text-gray-500"><?= htmlspecialchars($sidebarRoleLabel, ENT_QUOTES, 'UTF-8') ?></p>
                 </div>
+                <a
+                    href="/logout"
+                    title="<?= htmlspecialchars(__('nav_logout'), ENT_QUOTES, 'UTF-8') ?>"
+                    aria-label="<?= htmlspecialchars(__('nav_logout'), ENT_QUOTES, 'UTF-8') ?>"
+                    class="shrink-0 rounded-lg p-2 text-gray-400 transition-colors hover:bg-white hover:text-red-600"
+                >
+                    <svg class="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75" />
+                    </svg>
+                </a>
             </div>
         </aside>
 
