@@ -60,6 +60,10 @@ class RoleMiddleware implements MiddlewareInterface
             return $this->forbiddenResponse($request);
         }
 
+        if (str_starts_with($path, '/api/')) {
+            return $this->forbiddenResponse($request);
+        }
+
         return $handler->handle($request);
     }
 
@@ -462,22 +466,17 @@ class RoleMiddleware implements MiddlewareInterface
 
     private function forbiddenResponse(ServerRequestInterface $request): ResponseInterface
     {
-        $message = 'Bu işlem için yetkiniz bulunmuyor.';
-
         if ($this->wantsJson($request)) {
             $response = new Response(403);
             $response->getBody()->write(json_encode([
                 'status' => 'error',
-                'message' => $message,
+                'message' => 'Bu işlem için yetkiniz bulunmuyor.',
             ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE));
 
             return $response->withHeader('Content-Type', 'application/json');
         }
 
-        $response = new Response(403);
-        $response->getBody()->write($message);
-
-        return $response->withHeader('Content-Type', 'text/plain; charset=utf-8');
+        return (new Response(302))->withHeader('Location', '/unauthorized');
     }
 
     private function wantsJson(ServerRequestInterface $request): bool

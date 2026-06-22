@@ -22,8 +22,10 @@ use App\Controllers\InventoryImportController;
 use App\Controllers\SettingsController;
 use App\Controllers\UserController;
 use App\Handlers\HttpErrorHandler;
+use App\Middleware\AdminMiddleware;
 use App\Middleware\AuthMiddleware;
 use App\Middleware\CsrfMiddleware;
+use App\Middleware\EndUserMiddleware;
 use App\Middleware\LanguageMiddleware;
 use App\Middleware\RateLimitMiddleware;
 use App\Middleware\RoleMiddleware;
@@ -207,85 +209,111 @@ $r2BackupStorage = new R2BackupStorage($r2Config, $appLogger);
 $databaseBackupService = new DatabaseBackupService($databaseConfig, $r2BackupStorage, $appLogger);
 $backupController = new BackupController($databaseBackupService, $sessionAuthService, $auditLogger);
 
+$adminMiddleware = new AdminMiddleware($sessionAuthService, $userModel);
+$endUserMiddleware = new EndUserMiddleware($sessionAuthService, $userModel);
+
 $app->get('/login', [$authController, 'showLoginForm']);
 $app->post('/login', [$authController, 'login']);
 $app->post('/api/login', [$authController, 'apiLogin']);
 $app->get('/logout', [$authController, 'logout']);
+$app->get('/unauthorized', [$authController, 'showUnauthorized']);
 $app->get('/', [$healthController, 'index']);
-$app->get('/api/my/assets', [$endUserController, 'assets']);
 $app->get('/assets/view/{id}', [$assetViewController, 'show']);
-$app->get('/api/analytics/summary', [$analyticsController, 'summary']);
-$app->get('/api/dashboard/stats', [$dashboardController, 'stats']);
-$app->get('/api/settings', [$settingsController, 'show']);
-$app->put('/api/settings', [$settingsController, 'update']);
-$app->post('/api/settings/smtp/test', [$settingsController, 'sendTestSmtp']);
-$app->get('/api/backups', [$backupController, 'index']);
-$app->post('/api/backups', [$backupController, 'store']);
-$app->get('/api/backups/{filename}/download', [$backupController, 'download']);
-$app->get('/api/audit-logs', [$auditLogController, 'index']);
-$app->get('/api/categories', [$categoryController, 'index']);
-$app->post('/api/categories', [$categoryController, 'store']);
-$app->put('/api/categories/{id}', [$categoryController, 'update']);
-$app->delete('/api/categories/{id}', [$categoryController, 'destroy']);
-$app->get('/api/locations', [$locationController, 'index']);
-$app->post('/api/locations', [$locationController, 'store']);
-$app->put('/api/locations/{id}', [$locationController, 'update']);
-$app->delete('/api/locations/{id}', [$locationController, 'destroy']);
-$app->get('/api/licenses', [$licenseController, 'index']);
-$app->post('/api/licenses', [$licenseController, 'store']);
-$app->get('/api/licenses/{id}', [$licenseController, 'show']);
-$app->put('/api/licenses/{id}', [$licenseController, 'update']);
-$app->delete('/api/licenses/{id}', [$licenseController, 'destroy']);
-$app->post('/api/licenses/{id}/assign', [$licenseController, 'assign']);
-$app->post('/api/licenses/{id}/unassign', [$licenseController, 'unassign']);
-$app->get('/api/licenses/{id}/assignments', [$licenseController, 'assignments']);
-$app->get('/api/ip-networks', [$ipNetworkController, 'index']);
-$app->post('/api/ip-networks', [$ipNetworkController, 'store']);
-$app->get('/api/ip-networks/import/template', [$ipNetworkController, 'networkImportTemplate']);
-$app->post('/api/ip-networks/import', [$ipNetworkController, 'importNetworks']);
-$app->get('/api/ip-addresses/import/template', [$ipNetworkController, 'addressImportTemplate']);
-$app->post('/api/ip-addresses/import', [$ipNetworkController, 'importAddresses']);
-$app->get('/api/ip-networks/{id}', [$ipNetworkController, 'show']);
-$app->put('/api/ip-networks/{id}', [$ipNetworkController, 'update']);
-$app->delete('/api/ip-networks/{id}', [$ipNetworkController, 'destroy']);
-$app->get('/api/ip-networks/{id}/addresses', [$ipNetworkController, 'addresses']);
-$app->get('/api/ip-networks/{id}/export', [$ipNetworkController, 'exportNetworkAddresses']);
-$app->post('/api/ip-networks/{id}/generate', [$ipNetworkController, 'generateAddresses']);
-$app->put('/api/ip-addresses/{id}', [$ipNetworkController, 'updateAddress']);
-$app->get('/api/consumables', [$consumableController, 'index']);
-$app->post('/api/consumables', [$consumableController, 'store']);
-$app->get('/api/consumables/{id}', [$consumableController, 'show']);
-$app->put('/api/consumables/{id}', [$consumableController, 'update']);
-$app->delete('/api/consumables/{id}', [$consumableController, 'destroy']);
-$app->post('/api/consumables/{id}/checkout', [$consumableController, 'checkout']);
-$app->post('/api/consumables/{id}/restock', [$consumableController, 'restock']);
+
+$app->group('', function ($group) use ($endUserController): void {
+    $group->get('/api/my/assets', [$endUserController, 'assets']);
+})->add($endUserMiddleware);
+
 $app->get('/api/tickets', [$ticketController, 'index']);
 $app->post('/api/tickets', [$ticketController, 'store']);
 $app->get('/api/tickets/{id}', [$ticketController, 'show']);
-$app->put('/api/tickets/{id}', [$ticketController, 'update']);
-$app->delete('/api/tickets/{id}', [$ticketController, 'destroy']);
 $app->post('/api/tickets/{id}/comments', [$ticketController, 'addComment']);
-$app->get('/api/assets/{id}/licenses', [$licenseController, 'forAsset']);
-$app->get('/api/personnel', [$userController, 'personnelIndex']);
-$app->post('/api/personnel', [$userController, 'storePersonnel']);
-$app->post('/api/personnel/sync', [$userController, 'personnelSync']);
-$app->post('/api/personnel/sync-ldap', [$userController, 'personnelSyncLdap']);
-$app->get('/api/personnel/search', [$userController, 'searchPersonnel']);
-$app->post('/api/personnel/{id}/offboard', [$userController, 'offboard']);
-$app->put('/api/personnel/{id}/role', [$userController, 'updatePersonnelRole']);
 $app->get('/api/assets/{id}/tutanak', [$assetTutanakController, 'show']);
-$app->post('/api/assets', [$assetController, 'store']);
-$app->get('/api/assets/import/template', [$assetController, 'importTemplate']);
-$app->get('/api/assets/export', [$assetController, 'exportCsv']);
-$app->post('/api/assets/import', [$assetController, 'importCsv']);
-$app->get('/api/inventory/import/template', [$inventoryImportController, 'template']);
-$app->post('/api/inventory/import', [$inventoryImportController, 'import']);
-$app->put('/api/assets/{id}', [$assetController, 'update']);
-$app->post('/api/assets/{id}/assign', [$assetController, 'assign']);
-$app->post('/api/assets/{id}/return', [$assetController, 'returnToStorage']);
-$app->post('/api/assets/{id}/transfer', [$assetController, 'transfer']);
-$app->delete('/api/assets/{id}', [$assetController, 'destroy']);
 $app->get('/api/assets/{id}/history', [$assetController, 'history']);
+
+$app->group('', function ($group) use (
+    $analyticsController,
+    $dashboardController,
+    $settingsController,
+    $backupController,
+    $auditLogController,
+    $categoryController,
+    $locationController,
+    $licenseController,
+    $ipNetworkController,
+    $consumableController,
+    $ticketController,
+    $userController,
+    $assetController,
+    $inventoryImportController
+): void {
+    $group->get('/api/analytics/summary', [$analyticsController, 'summary']);
+    $group->get('/api/dashboard/stats', [$dashboardController, 'stats']);
+    $group->get('/api/settings', [$settingsController, 'show']);
+    $group->put('/api/settings', [$settingsController, 'update']);
+    $group->post('/api/settings/smtp/test', [$settingsController, 'sendTestSmtp']);
+    $group->get('/api/backups', [$backupController, 'index']);
+    $group->post('/api/backups', [$backupController, 'store']);
+    $group->get('/api/backups/{filename}/download', [$backupController, 'download']);
+    $group->get('/api/audit-logs', [$auditLogController, 'index']);
+    $group->get('/api/categories', [$categoryController, 'index']);
+    $group->post('/api/categories', [$categoryController, 'store']);
+    $group->put('/api/categories/{id}', [$categoryController, 'update']);
+    $group->delete('/api/categories/{id}', [$categoryController, 'destroy']);
+    $group->get('/api/locations', [$locationController, 'index']);
+    $group->post('/api/locations', [$locationController, 'store']);
+    $group->put('/api/locations/{id}', [$locationController, 'update']);
+    $group->delete('/api/locations/{id}', [$locationController, 'destroy']);
+    $group->get('/api/licenses', [$licenseController, 'index']);
+    $group->post('/api/licenses', [$licenseController, 'store']);
+    $group->get('/api/licenses/{id}', [$licenseController, 'show']);
+    $group->put('/api/licenses/{id}', [$licenseController, 'update']);
+    $group->delete('/api/licenses/{id}', [$licenseController, 'destroy']);
+    $group->post('/api/licenses/{id}/assign', [$licenseController, 'assign']);
+    $group->post('/api/licenses/{id}/unassign', [$licenseController, 'unassign']);
+    $group->get('/api/licenses/{id}/assignments', [$licenseController, 'assignments']);
+    $group->get('/api/ip-networks', [$ipNetworkController, 'index']);
+    $group->post('/api/ip-networks', [$ipNetworkController, 'store']);
+    $group->get('/api/ip-networks/import/template', [$ipNetworkController, 'networkImportTemplate']);
+    $group->post('/api/ip-networks/import', [$ipNetworkController, 'importNetworks']);
+    $group->get('/api/ip-addresses/import/template', [$ipNetworkController, 'addressImportTemplate']);
+    $group->post('/api/ip-addresses/import', [$ipNetworkController, 'importAddresses']);
+    $group->get('/api/ip-networks/{id}', [$ipNetworkController, 'show']);
+    $group->put('/api/ip-networks/{id}', [$ipNetworkController, 'update']);
+    $group->delete('/api/ip-networks/{id}', [$ipNetworkController, 'destroy']);
+    $group->get('/api/ip-networks/{id}/addresses', [$ipNetworkController, 'addresses']);
+    $group->get('/api/ip-networks/{id}/export', [$ipNetworkController, 'exportNetworkAddresses']);
+    $group->post('/api/ip-networks/{id}/generate', [$ipNetworkController, 'generateAddresses']);
+    $group->put('/api/ip-addresses/{id}', [$ipNetworkController, 'updateAddress']);
+    $group->get('/api/consumables', [$consumableController, 'index']);
+    $group->post('/api/consumables', [$consumableController, 'store']);
+    $group->get('/api/consumables/{id}', [$consumableController, 'show']);
+    $group->put('/api/consumables/{id}', [$consumableController, 'update']);
+    $group->delete('/api/consumables/{id}', [$consumableController, 'destroy']);
+    $group->post('/api/consumables/{id}/checkout', [$consumableController, 'checkout']);
+    $group->post('/api/consumables/{id}/restock', [$consumableController, 'restock']);
+    $group->put('/api/tickets/{id}', [$ticketController, 'update']);
+    $group->delete('/api/tickets/{id}', [$ticketController, 'destroy']);
+    $group->get('/api/assets/{id}/licenses', [$licenseController, 'forAsset']);
+    $group->get('/api/personnel', [$userController, 'personnelIndex']);
+    $group->post('/api/personnel', [$userController, 'storePersonnel']);
+    $group->post('/api/personnel/sync', [$userController, 'personnelSync']);
+    $group->post('/api/personnel/sync-ldap', [$userController, 'personnelSyncLdap']);
+    $group->get('/api/personnel/search', [$userController, 'searchPersonnel']);
+    $group->post('/api/personnel/{id}/offboard', [$userController, 'offboard']);
+    $group->put('/api/personnel/{id}/role', [$userController, 'updatePersonnelRole']);
+    $group->post('/api/assets', [$assetController, 'store']);
+    $group->get('/api/assets/import/template', [$assetController, 'importTemplate']);
+    $group->get('/api/assets/export', [$assetController, 'exportCsv']);
+    $group->post('/api/assets/import', [$assetController, 'importCsv']);
+    $group->get('/api/inventory/import/template', [$inventoryImportController, 'template']);
+    $group->post('/api/inventory/import', [$inventoryImportController, 'import']);
+    $group->put('/api/assets/{id}', [$assetController, 'update']);
+    $group->post('/api/assets/{id}/assign', [$assetController, 'assign']);
+    $group->post('/api/assets/{id}/return', [$assetController, 'returnToStorage']);
+    $group->post('/api/assets/{id}/transfer', [$assetController, 'transfer']);
+    $group->delete('/api/assets/{id}', [$assetController, 'destroy']);
+})->add($adminMiddleware);
 
 return [
     'app' => $app,

@@ -63,6 +63,21 @@ class AuthController
         return $response->withHeader('Content-Type', 'text/html; charset=utf-8');
     }
 
+    public function showUnauthorized(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
+    {
+        Translator::instance()->setLocale('tr');
+
+        $html = $this->viewRenderer->render('unauthorized', [
+            'pageTitle' => __('unauthorized_page_title'),
+            'appName' => __('app_name'),
+            'locale' => 'tr',
+        ], null);
+
+        $response->getBody()->write($html);
+
+        return $response->withStatus(403)->withHeader('Content-Type', 'text/html; charset=utf-8');
+    }
+
     public function login(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
     {
         Translator::instance()->setLocale('tr');
