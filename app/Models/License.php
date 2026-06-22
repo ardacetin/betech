@@ -48,16 +48,27 @@ class License
     }
 
     /**
+     * @param array<string, string> $filters
+     * @param list<array<string, mixed>> $filterDefinitions
+     *
      * @return array{
      *     data: list<array<string, mixed>>,
      *     pagination: array{page: int, per_page: int, total: int, total_pages: int}
      * }
      */
-    public function findPaginated(int $page = 1): array
+    public function findPaginated(int $page = 1, array $filters = [], array $filterDefinitions = []): array
     {
         $page = max(1, $page);
         $perPage = ListPagination::PAGE_SIZE;
-        $total = (int) $this->db()->count('licenses');
+        $where = $this->buildFilterWhere($filters, $filterDefinitions);
+        $total = (int) $this->db()->count('licenses', $where);
+        $selectWhere = $where;
+        $selectWhere['ORDER'] = [
+            'vendor' => 'ASC',
+            'name' => 'ASC',
+        ];
+        $selectWhere['LIMIT'] = [ListPagination::offset($page, $perPage), $perPage];
+
         $rows = $this->db()->select('licenses', [
             'id',
             'name',
@@ -67,13 +78,7 @@ class License
             'expiration_date',
             'notes',
             'created_at',
-        ], [
-            'ORDER' => [
-                'vendor' => 'ASC',
-                'name' => 'ASC',
-            ],
-            'LIMIT' => [ListPagination::offset($page, $perPage), $perPage],
-        ]);
+        ], $selectWhere);
 
         return [
             'data' => array_map(
@@ -82,6 +87,128 @@ class License
             ),
             'pagination' => ListPagination::meta($page, $total, $perPage),
         ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function getDistinctVendors(): array
+    {
+        $statement = $this->db()->query(
+            "SELECT DISTINCT vendor AS value
+             FROM licenses
+             WHERE vendor IS NOT NULL
+               AND TRIM(vendor) <> ''
+             ORDER BY vendor ASC"
+        );
+
+        if ($statement === false) {
+            return [];
+        }
+
+        $values = [];
+
+        foreach ($statement->fetchAll() as $row) {
+            $value = trim((string) ($row['value'] ?? ''));
+
+            if ($value !== '') {
+                $values[] = $value;
+            }
+        }
+
+        return $values;
+    }
+
+    /**
+     * @param array<string, string> $filters
+     * @param list<array<string, mixed>> $filterDefinitions
+     *
+     * @return array<string, mixed>
+     */
+    private function buildFilterWhere(array $filters, array $filterDefinitions): array
+    {
+        if ($filters === [] || $filterDefinitions === []) {
+            return [];
+        }
+
+        $definitionMap = [];
+
+        foreach ($filterDefinitions as $definition) {
+            $name = (string) ($definition['name'] ?? '');
+
+            if ($name !== '') {
+                $definitionMap[$name] = $definition;
+            }
+        }
+
+        $conditions = [];
+
+        foreach ($filters as $name => $value) {
+            $trimmedValue = trim($value);
+
+            if ($trimmedValue === '') {
+                continue;
+            }
+
+            $definition = $definitionMap[$name] ?? null;
+
+            if ($definition === null) {
+                continue;
+            }
+
+            $virtual = (string) ($definition['virtual'] ?? '');
+            $column = isset($definition['column']) ? (string) $definition['column'] : '';
+            $match = (string) ($definition['match'] ?? 'partial');
+
+            if ($virtual === 'expiration_status') {
+                $conditions[] = $this->buildExpirationStatusCondition($trimmedValue);
+                continue;
+            }
+
+            if ($virtual === 'seat_availability') {
+                $conditions[] = $this->buildSeatAvailabilityCondition($trimmedValue);
+                continue;
+            }
+
+            if ($column === '') {
+                continue;
+            }
+
+            if ($match === 'exact') {
+                $conditions[$column] = $trimmedValue;
+                continue;
+            }
+
+            $conditions[$column . '[~]'] = '%' . $trimmedValue . '%';
+        }
+
+        if ($conditions === []) {
+            return [];
+        }
+
+        return ['AND' => $conditions];
+    }
+
+    private function buildExpirationStatusCondition(string $value): mixed
+    {
+        return match ($value) {
+            'expired' => Medoo::raw('(licenses.expiration_date IS NOT NULL AND licenses.expiration_date <> \'\' AND licenses.expiration_date < CURDATE())'),
+            'expiring_soon' => Medoo::raw('(licenses.expiration_date >= CURDATE() AND licenses.expiration_date <= DATE_ADD(CURDATE(), INTERVAL 30 DAY))'),
+            'active' => Medoo::raw('(licenses.expiration_date > DATE_ADD(CURDATE(), INTERVAL 30 DAY))'),
+            'no_date' => Medoo::raw('(licenses.expiration_date IS NULL OR licenses.expiration_date = \'\')'),
+            default => Medoo::raw('1 = 1'),
+        };
+    }
+
+    private function buildSeatAvailabilityCondition(string $value): mixed
+    {
+        $assignmentCountSql = '(SELECT COUNT(*) FROM license_assignments WHERE license_assignments.license_id = licenses.id)';
+
+        return match ($value) {
+            'full' => Medoo::raw($assignmentCountSql . ' >= licenses.seats'),
+            'available' => Medoo::raw($assignmentCountSql . ' < licenses.seats'),
+            default => Medoo::raw('1 = 1'),
+        };
     }
 
     /**

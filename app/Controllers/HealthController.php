@@ -6,12 +6,16 @@ namespace App\Controllers;
 
 use App\Models\Asset;
 use App\Models\Category;
+use App\Models\Consumable;
+use App\Models\License;
 use App\Models\Location;
 use App\Models\Setting;
 use App\Models\Personnel;
 use App\Models\User;
 use App\Services\AnalyticsService;
 use App\Services\AssetFilterSchemaService;
+use App\Services\ConsumableFilterSchemaService;
+use App\Services\LicenseFilterSchemaService;
 use App\Services\ListPagination;
 use App\Services\Auth\SessionAuthService;
 use App\Services\EndUserContextService;
@@ -40,6 +44,10 @@ class HealthController
         private readonly EndUserContextService $endUserContextService,
         private readonly Location $locationModel,
         private readonly AssetFilterSchemaService $assetFilterSchemaService,
+        private readonly License $licenseModel,
+        private readonly LicenseFilterSchemaService $licenseFilterSchemaService,
+        private readonly Consumable $consumableModel,
+        private readonly ConsumableFilterSchemaService $consumableFilterSchemaService,
     ) {
     }
 
@@ -83,6 +91,21 @@ class HealthController
             );
             $assets = $assetListResult['data'];
             $assetPagination = $assetListResult['pagination'];
+
+            $licenseFilterDefinitions = $this->licenseFilterSchemaService->buildDefinitions();
+            $licenseFilterDefinitions = $this->licenseFilterSchemaService->resolveOptions(
+                $licenseFilterDefinitions,
+                $this->licenseModel
+            );
+            $licenseActiveFilters = $this->licenseFilterSchemaService->parseRequestFilters($request->getQueryParams());
+
+            $consumableFilterDefinitions = $this->consumableFilterSchemaService->buildDefinitions($locations);
+            $consumableFilterDefinitions = $this->consumableFilterSchemaService->resolveOptions(
+                $consumableFilterDefinitions,
+                $this->consumableModel,
+                $locations
+            );
+            $consumableActiveFilters = $this->consumableFilterSchemaService->parseRequestFilters($request->getQueryParams());
         } else {
             $categories = [];
             $locations = [];
@@ -92,6 +115,10 @@ class HealthController
             $assetFilterDefinitions = [];
             $assetActiveFilters = [];
             $assetPagination = ListPagination::meta(1, 0);
+            $licenseFilterDefinitions = [];
+            $licenseActiveFilters = [];
+            $consumableFilterDefinitions = [];
+            $consumableActiveFilters = [];
         }
 
         $personnelRows = [];
@@ -126,6 +153,10 @@ class HealthController
             'assetFilterDefinitions' => $assetFilterDefinitions ?? [],
             'assetActiveFilters' => $assetActiveFilters ?? [],
             'assetPagination' => $assetPagination ?? ListPagination::meta(1, 0),
+            'licenseFilterDefinitions' => $licenseFilterDefinitions ?? [],
+            'licenseActiveFilters' => $licenseActiveFilters ?? [],
+            'consumableFilterDefinitions' => $consumableFilterDefinitions ?? [],
+            'consumableActiveFilters' => $consumableActiveFilters ?? [],
             'assetQrCodesJson' => json_encode($assetQrCodes, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE),
             'analytics' => $analytics,
             'analyticsJson' => json_encode($analytics, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE),

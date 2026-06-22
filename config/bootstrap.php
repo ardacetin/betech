@@ -155,6 +155,8 @@ $analyticsService = new AnalyticsService($databaseService);
 $zimmetTutanakService = new ZimmetTutanakService();
 $assetCsvImportService = new AssetCsvImportService($assetModel, $categoryModel, $locationModel);
 $assetFilterSchemaService = new AssetFilterSchemaService();
+$licenseFilterSchemaService = new LicenseFilterSchemaService();
+$consumableFilterSchemaService = new ConsumableFilterSchemaService();
 $inventoryImportService = new InventoryImportService($assetModel, $categoryModel, $locationModel, $personnelModel);
 $ldapAuthenticator = new LdapAuthenticator($settingModel);
 $auditLogModel = new AuditLog($databaseService);
@@ -178,7 +180,7 @@ $inventoryImportController = new InventoryImportController(
         $auditLogger,
         $appLogger
     );
-$healthController = new HealthController($appConfig, $assetModel, $categoryModel, $viewRenderer, $qrCodeService, $analyticsService, $settingModel, $userModel, $personnelModel, $sessionAuthService, $endUserContextService, $locationModel, $assetFilterSchemaService);
+$healthController = new HealthController($appConfig, $assetModel, $categoryModel, $viewRenderer, $qrCodeService, $analyticsService, $settingModel, $userModel, $personnelModel, $sessionAuthService, $endUserContextService, $locationModel, $assetFilterSchemaService, $licenseModel, $licenseFilterSchemaService, $consumableModel, $consumableFilterSchemaService);
 $assetController = new AssetController($assetModel, $assetHistoryModel, $userIntegrationFactory, $personnelModel, $userModel, $locationModel, $categoryModel, $assetCsvImportService, $sessionAuthService, $clientIpResolver, $endUserContextService, $auditLogger, $assetFilterSchemaService, $settingModel);
 $assetViewController = new AssetViewController($appConfig, $assetModel, $categoryModel, $viewRenderer);
 $assetTutanakController = new AssetTutanakController($assetModel, $settingModel, $personnelModel, $userModel, $userIntegrationFactory, $zimmetTutanakService, $viewRenderer, $sessionAuthService, $endUserContextService);
@@ -201,9 +203,9 @@ $settingsController = new SettingsController(
 $categoryController = new CategoryController($categoryModel, $sessionAuthService, $auditLogger);
 $locationController = new LocationController($locationModel);
 $ticketCategoryController = new TicketCategoryController($ticketCategoryModel);
-$licenseController = new LicenseController($licenseModel);
+$licenseController = new LicenseController($licenseModel, $licenseFilterSchemaService);
 $ipNetworkController = new IpNetworkController($ipNetworkModel, $ipAddressModel, $assetModel, $ipamCsvImportService);
-$consumableController = new ConsumableController($consumableModel);
+$consumableController = new ConsumableController($consumableModel, $locationModel, $consumableFilterSchemaService);
 $knowledgeBaseController = new KnowledgeBaseController($knowledgeBaseArticleModel, $sessionAuthService, $appLogger);
 $ticketModel = new Ticket($databaseService);
 $ticketNotificationService = new TicketNotificationService(

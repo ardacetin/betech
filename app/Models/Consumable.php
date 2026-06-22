@@ -44,16 +44,26 @@ class Consumable
     }
 
     /**
+     * @param array<string, string> $filters
+     * @param list<array<string, mixed>> $filterDefinitions
+     *
      * @return array{
      *     data: list<array<string, mixed>>,
      *     pagination: array{page: int, per_page: int, total: int, total_pages: int}
      * }
      */
-    public function findPaginated(int $page = 1): array
+    public function findPaginated(int $page = 1, array $filters = [], array $filterDefinitions = []): array
     {
         $page = max(1, $page);
         $perPage = ListPagination::PAGE_SIZE;
-        $total = (int) $this->db()->count('consumables');
+        $where = $this->buildFilterWhere($filters, $filterDefinitions);
+        $total = (int) $this->db()->count('consumables', $where);
+        $selectWhere = $where;
+        $selectWhere['ORDER'] = [
+            'consumables.name' => 'ASC',
+        ];
+        $selectWhere['LIMIT'] = [ListPagination::offset($page, $perPage), $perPage];
+
         $rows = $this->db()->select('consumables', [
             '[>]locations' => ['location_id' => 'id'],
         ], [
@@ -65,12 +75,7 @@ class Consumable
             'consumables.created_at',
             'locations.name(location_name)',
             'locations.building(location_building)',
-        ], [
-            'ORDER' => [
-                'consumables.name' => 'ASC',
-            ],
-            'LIMIT' => [ListPagination::offset($page, $perPage), $perPage],
-        ]);
+        ], $selectWhere);
 
         return [
             'data' => array_map(
@@ -79,6 +84,91 @@ class Consumable
             ),
             'pagination' => ListPagination::meta($page, $total, $perPage),
         ];
+    }
+
+    /**
+     * @param array<string, string> $filters
+     * @param list<array<string, mixed>> $filterDefinitions
+     *
+     * @return array<string, mixed>
+     */
+    private function buildFilterWhere(array $filters, array $filterDefinitions): array
+    {
+        if ($filters === [] || $filterDefinitions === []) {
+            return [];
+        }
+
+        $definitionMap = [];
+
+        foreach ($filterDefinitions as $definition) {
+            $name = (string) ($definition['name'] ?? '');
+
+            if ($name !== '') {
+                $definitionMap[$name] = $definition;
+            }
+        }
+
+        $conditions = [];
+
+        foreach ($filters as $name => $value) {
+            $trimmedValue = trim($value);
+
+            if ($trimmedValue === '') {
+                continue;
+            }
+
+            $definition = $definitionMap[$name] ?? null;
+
+            if ($definition === null) {
+                continue;
+            }
+
+            $virtual = (string) ($definition['virtual'] ?? '');
+            $column = isset($definition['column']) ? (string) $definition['column'] : '';
+            $match = (string) ($definition['match'] ?? 'partial');
+
+            if ($virtual === 'stock_status') {
+                $conditions[] = $this->buildStockStatusCondition($trimmedValue);
+                continue;
+            }
+
+            if ($column === '') {
+                continue;
+            }
+
+            if ($match === 'exact') {
+                if ($column === 'consumables.location_id') {
+                    $locationId = (int) $trimmedValue;
+
+                    if ($locationId <= 0) {
+                        continue;
+                    }
+
+                    $conditions[$column] = $locationId;
+                    continue;
+                }
+
+                $conditions[$column] = $trimmedValue;
+                continue;
+            }
+
+            $conditions[$column . '[~]'] = '%' . $trimmedValue . '%';
+        }
+
+        if ($conditions === []) {
+            return [];
+        }
+
+        return ['AND' => $conditions];
+    }
+
+    private function buildStockStatusCondition(string $value): mixed
+    {
+        return match ($value) {
+            'low_stock' => Medoo::raw('(consumables.quantity <= consumables.min_stock_level)'),
+            'in_stock' => Medoo::raw('(consumables.quantity > consumables.min_stock_level)'),
+            default => Medoo::raw('1 = 1'),
+        };
     }
 
     /**

@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Controllers;
 
 use App\Models\Consumable;
+use App\Models\Location;
+use App\Services\ConsumableFilterSchemaService;
 use App\Services\ListPagination;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
@@ -12,19 +14,33 @@ use Psr\Http\Message\ServerRequestInterface;
 class ConsumableController
 {
     public function __construct(
-        private readonly Consumable $consumableModel
+        private readonly Consumable $consumableModel,
+        private readonly Location $locationModel,
+        private readonly ConsumableFilterSchemaService $consumableFilterSchemaService,
     ) {
     }
 
     public function index(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
     {
+        $locations = $this->locationModel->findAll();
+        $filterDefinitions = $this->consumableFilterSchemaService->buildDefinitions($locations);
+        $filterDefinitions = $this->consumableFilterSchemaService->resolveOptions(
+            $filterDefinitions,
+            $this->consumableModel,
+            $locations
+        );
+        $activeFilters = $this->consumableFilterSchemaService->parseRequestFilters($request->getQueryParams());
         $page = ListPagination::parsePage($request->getQueryParams());
-        $result = $this->consumableModel->findPaginated($page);
+        $result = $this->consumableModel->findPaginated($page, $activeFilters, $filterDefinitions);
 
         return $this->jsonResponse($response, 200, [
             'status' => 'success',
             'data' => $result['data'],
             'pagination' => $result['pagination'],
+            'meta' => [
+                'total' => $result['pagination']['total'],
+                'filters' => $activeFilters,
+            ],
         ]);
     }
 

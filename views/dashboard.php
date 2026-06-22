@@ -99,6 +99,40 @@ $inventoryAssetsJson = json_encode($canManageAssets ? $assets : [], JSON_THROW_O
 $assetPagination = $assetPagination ?? ['page' => 1, 'per_page' => 50, 'total' => 0, 'total_pages' => 1];
 $assetPaginationJson = json_encode($assetPagination, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
 
+$licenseFilterDefinitions = $licenseFilterDefinitions ?? [];
+$licenseActiveFilters = $licenseActiveFilters ?? [];
+$initialLicenseFilters = [];
+
+foreach ($licenseFilterDefinitions as $filterDefinition) {
+    $filterName = (string) ($filterDefinition['name'] ?? '');
+
+    if ($filterName === '') {
+        continue;
+    }
+
+    $initialLicenseFilters[$filterName] = $licenseActiveFilters[$filterName] ?? '';
+}
+
+$licenseFilterFieldsJson = json_encode($licenseFilterDefinitions, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
+$initialLicenseFiltersJson = json_encode($initialLicenseFilters, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
+
+$consumableFilterDefinitions = $consumableFilterDefinitions ?? [];
+$consumableActiveFilters = $consumableActiveFilters ?? [];
+$initialConsumableFilters = [];
+
+foreach ($consumableFilterDefinitions as $filterDefinition) {
+    $filterName = (string) ($filterDefinition['name'] ?? '');
+
+    if ($filterName === '') {
+        continue;
+    }
+
+    $initialConsumableFilters[$filterName] = $consumableActiveFilters[$filterName] ?? '';
+}
+
+$consumableFilterFieldsJson = json_encode($consumableFilterDefinitions, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
+$initialConsumableFiltersJson = json_encode($initialConsumableFilters, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
+
 $i18nScript = json_encode([
     'create_error' => __('create_error'),
     'update_error' => __('update_error'),
@@ -391,6 +425,8 @@ $i18nScript = json_encode([
     'label_serial_number' => __('label_serial_number'),
     'unknown_category' => __('unknown_category'),
     'inventory_filter_error' => __('inventory_filter_error'),
+    'licenses_filter_error' => __('licenses_filter_error'),
+    'consumables_filter_error' => __('consumables_filter_error'),
     'list_pagination_prev' => __('list_pagination_prev'),
     'list_pagination_next' => __('list_pagination_next'),
     'list_pagination_info' => __('list_pagination_info'),
@@ -2233,6 +2269,8 @@ $i18nScript = json_encode([
             licensesLoading: false,
             licensesError: '',
             licensesSuccessMessage: '',
+            licenseFilterFields: <?= $licenseFilterFieldsJson ?>,
+            licenseFilters: <?= $initialLicenseFiltersJson ?>,
             licensesPage: 1,
             licensesPagination: { page: 1, per_page: 50, total: 0, total_pages: 1 },
             isLicenseModalOpen: false,
@@ -2267,6 +2305,8 @@ $i18nScript = json_encode([
             consumablesLoading: false,
             consumablesError: '',
             consumablesSuccessMessage: '',
+            consumableFilterFields: <?= $consumableFilterFieldsJson ?>,
+            consumableFilters: <?= $initialConsumableFiltersJson ?>,
             consumablesPage: 1,
             consumablesPagination: { page: 1, per_page: 50, total: 0, total_pages: 1 },
             isConsumableModalOpen: false,
@@ -5259,25 +5299,29 @@ $i18nScript = json_encode([
                     this.reportsLoading = false;
                 }
             },
-            async fetchLicenses() {
-                if (!this.canManageAssets) {
+            async fetchLicenses(resetPage = false) {
+                if (!this.canManageAssets || this.licensesLoading) {
                     return;
+                }
+
+                if (resetPage) {
+                    this.licensesPage = 1;
                 }
 
                 this.licensesLoading = true;
                 this.licensesError = '';
 
+                const query = this.buildLicenseFilterQueryString(this.licensesPage);
+                const url = query ? `/api/licenses?${query}` : '/api/licenses';
+
                 try {
-                    const params = new URLSearchParams({
-                        page: String(this.licensesPage),
-                    });
-                    const response = await fetch(`/api/licenses?${params.toString()}`, {
-                        headers: { 'Accept': 'application/json' },
+                    const response = await fetch(url, {
+                        headers: { Accept: 'application/json' },
                     });
                     const result = await response.json();
 
                     if (!response.ok) {
-                        const msg = result.message || window.__i18n.licenses_fetch_error;
+                        const msg = result.message || window.__i18n.licenses_filter_error;
                         this.licensesError = msg;
                         this.licenses = [];
                         if (response.status === 500) {
@@ -5296,6 +5340,50 @@ $i18nScript = json_encode([
                 } finally {
                     this.licensesLoading = false;
                 }
+            },
+            resolveLicenseFilterLabel(field) {
+                if (field?.label_key && window.__i18n[field.label_key]) {
+                    return window.__i18n[field.label_key];
+                }
+
+                return field?.label || field?.name || '';
+            },
+            resolveLicenseFilterOptionLabel(option) {
+                if (option?.label_key && window.__i18n[option.label_key]) {
+                    return window.__i18n[option.label_key];
+                }
+
+                return option?.label || option?.value || '';
+            },
+            hasActiveLicenseFilters() {
+                return Object.values(this.licenseFilters || {}).some((value) => String(value || '').trim() !== '');
+            },
+            buildLicenseFilterQueryString(page = null) {
+                const params = new URLSearchParams();
+                params.set('page', String(page ?? this.licensesPage ?? 1));
+
+                Object.entries(this.licenseFilters || {}).forEach(([name, value]) => {
+                    const trimmed = String(value || '').trim();
+
+                    if (trimmed !== '') {
+                        params.append(`filter[${name}]`, trimmed);
+                    }
+                });
+
+                return params.toString();
+            },
+            async applyLicenseFilters() {
+                await this.fetchLicenses(true);
+            },
+            resetLicenseFilters() {
+                const cleared = {};
+
+                (this.licenseFilterFields || []).forEach((field) => {
+                    cleared[field.name] = '';
+                });
+
+                this.licenseFilters = cleared;
+                this.fetchLicenses(true);
             },
             licensesPageNumbers() {
                 return this.listPaginationWindow(this.licensesPagination);
@@ -5668,25 +5756,29 @@ $i18nScript = json_encode([
                     this.isIpamImportSubmitting = false;
                 }
             },
-            async fetchConsumables() {
-                if (!this.canManageAssets) {
+            async fetchConsumables(resetPage = false) {
+                if (!this.canManageAssets || this.consumablesLoading) {
                     return;
+                }
+
+                if (resetPage) {
+                    this.consumablesPage = 1;
                 }
 
                 this.consumablesLoading = true;
                 this.consumablesError = '';
 
+                const query = this.buildConsumableFilterQueryString(this.consumablesPage);
+                const url = query ? `/api/consumables?${query}` : '/api/consumables';
+
                 try {
-                    const params = new URLSearchParams({
-                        page: String(this.consumablesPage),
-                    });
-                    const response = await fetch(`/api/consumables?${params.toString()}`, {
+                    const response = await fetch(url, {
                         headers: { Accept: 'application/json' },
                     });
                     const result = await response.json();
 
                     if (!response.ok) {
-                        this.consumablesError = result.message || window.__i18n.consumables_fetch_error;
+                        this.consumablesError = result.message || window.__i18n.consumables_filter_error;
                         this.consumables = [];
                         return;
                     }
@@ -5700,6 +5792,50 @@ $i18nScript = json_encode([
                 } finally {
                     this.consumablesLoading = false;
                 }
+            },
+            resolveConsumableFilterLabel(field) {
+                if (field?.label_key && window.__i18n[field.label_key]) {
+                    return window.__i18n[field.label_key];
+                }
+
+                return field?.label || field?.name || '';
+            },
+            resolveConsumableFilterOptionLabel(option) {
+                if (option?.label_key && window.__i18n[option.label_key]) {
+                    return window.__i18n[option.label_key];
+                }
+
+                return option?.label || option?.value || '';
+            },
+            hasActiveConsumableFilters() {
+                return Object.values(this.consumableFilters || {}).some((value) => String(value || '').trim() !== '');
+            },
+            buildConsumableFilterQueryString(page = null) {
+                const params = new URLSearchParams();
+                params.set('page', String(page ?? this.consumablesPage ?? 1));
+
+                Object.entries(this.consumableFilters || {}).forEach(([name, value]) => {
+                    const trimmed = String(value || '').trim();
+
+                    if (trimmed !== '') {
+                        params.append(`filter[${name}]`, trimmed);
+                    }
+                });
+
+                return params.toString();
+            },
+            async applyConsumableFilters() {
+                await this.fetchConsumables(true);
+            },
+            resetConsumableFilters() {
+                const cleared = {};
+
+                (this.consumableFilterFields || []).forEach((field) => {
+                    cleared[field.name] = '';
+                });
+
+                this.consumableFilters = cleared;
+                this.fetchConsumables(true);
             },
             consumablesPageNumbers() {
                 return this.listPaginationWindow(this.consumablesPagination);

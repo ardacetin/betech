@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Controllers;
 
 use App\Models\License;
+use App\Services\LicenseFilterSchemaService;
 use App\Services\ListPagination;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
@@ -12,19 +13,30 @@ use Psr\Http\Message\ServerRequestInterface;
 class LicenseController
 {
     public function __construct(
-        private readonly License $licenseModel
+        private readonly License $licenseModel,
+        private readonly LicenseFilterSchemaService $licenseFilterSchemaService,
     ) {
     }
 
     public function index(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
     {
+        $filterDefinitions = $this->licenseFilterSchemaService->buildDefinitions();
+        $filterDefinitions = $this->licenseFilterSchemaService->resolveOptions(
+            $filterDefinitions,
+            $this->licenseModel
+        );
+        $activeFilters = $this->licenseFilterSchemaService->parseRequestFilters($request->getQueryParams());
         $page = ListPagination::parsePage($request->getQueryParams());
-        $result = $this->licenseModel->findPaginated($page);
+        $result = $this->licenseModel->findPaginated($page, $activeFilters, $filterDefinitions);
 
         return $this->jsonResponse($response, 200, [
             'status' => 'success',
             'data' => $result['data'],
             'pagination' => $result['pagination'],
+            'meta' => [
+                'total' => $result['pagination']['total'],
+                'filters' => $activeFilters,
+            ],
         ]);
     }
 
