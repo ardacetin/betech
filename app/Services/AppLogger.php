@@ -169,6 +169,22 @@ class AppLogger
     /**
      * @param array<string, mixed> $context
      */
+    public function debug(string $message, array $context = []): void
+    {
+        $this->logger->debug($message, $context);
+    }
+
+    /**
+     * @param array<string, mixed> $context
+     */
+    public function warning(string $message, array $context = []): void
+    {
+        $this->logger->warning($message, $context);
+    }
+
+    /**
+     * @param array<string, mixed> $context
+     */
     public function error(string $message, array $context = []): void
     {
         $this->logger->error($message, $context);

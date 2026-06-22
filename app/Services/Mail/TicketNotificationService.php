@@ -92,9 +92,17 @@ class TicketNotificationService
                 'footer' => __('mail_ticket_footer'),
             ], 'emails/layout');
 
-            $this->mailService->sendHtml($recipients, $subject, $html);
+            $sent = $this->mailService->sendHtml($recipients, $subject, $html);
+
+            if (!$sent) {
+                $this->appLogger->error('mail.ticket_new.failed', [
+                    'ticket_id' => $ticket['id'] ?? null,
+                    'reason' => 'smtp_send_returned_false',
+                    'recipients' => $recipients,
+                ]);
+            }
         } catch (\Throwable $exception) {
-            $this->appLogger->log('mail.ticket_new.failed', [
+            $this->appLogger->error('mail.ticket_new.failed', [
                 'ticket_id' => $ticket['id'] ?? null,
                 'error' => $exception->getMessage(),
             ]);
@@ -138,9 +146,17 @@ class TicketNotificationService
                 'detailHtml' => '',
             ], 'emails/layout');
 
-            $this->mailService->sendHtml([$recipient], $subject, $html);
+            $sent = $this->mailService->sendHtml([$recipient], $subject, $html);
+
+            if (!$sent) {
+                $this->appLogger->error('mail.ticket_status.failed', [
+                    'ticket_id' => $ticket['id'] ?? null,
+                    'reason' => 'smtp_send_returned_false',
+                    'recipient' => $recipient,
+                ]);
+            }
         } catch (\Throwable $exception) {
-            $this->appLogger->log('mail.ticket_status.failed', [
+            $this->appLogger->error('mail.ticket_status.failed', [
                 'ticket_id' => $ticket['id'] ?? null,
                 'error' => $exception->getMessage(),
             ]);
@@ -191,9 +207,17 @@ class TicketNotificationService
                 ], null),
             ], 'emails/layout');
 
-            $this->mailService->sendHtml([$recipient], $subject, $html);
+            $sent = $this->mailService->sendHtml([$recipient], $subject, $html);
+
+            if (!$sent) {
+                $this->appLogger->error('mail.ticket_reply.failed', [
+                    'ticket_id' => $ticket['id'] ?? null,
+                    'reason' => 'smtp_send_returned_false',
+                    'recipient' => $recipient,
+                ]);
+            }
         } catch (\Throwable $exception) {
-            $this->appLogger->log('mail.ticket_reply.failed', [
+            $this->appLogger->error('mail.ticket_reply.failed', [
                 'ticket_id' => $ticket['id'] ?? null,
                 'error' => $exception->getMessage(),
             ]);

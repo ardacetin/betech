@@ -13,6 +13,13 @@ class DeferredTaskRunner
 
     private static bool $hasRun = false;
 
+    private static ?AppLogger $logger = null;
+
+    public static function setLogger(AppLogger $logger): void
+    {
+        self::$logger = $logger;
+    }
+
     public static function defer(callable $task): void
     {
         self::$tasks[] = $task;
@@ -35,11 +42,18 @@ class DeferredTaskRunner
         $tasks = self::$tasks;
         self::$tasks = [];
 
-        foreach ($tasks as $task) {
+        foreach ($tasks as $index => $task) {
             try {
                 $task();
-            } catch (\Throwable) {
-                // Individual task failures must not break other deferred work.
+            } catch (\Throwable $exception) {
+                if (self::$logger !== null) {
+                    self::$logger->error('deferred_task.failed', [
+                        'task_index' => $index,
+                        'error' => $exception->getMessage(),
+                        'exception_class' => $exception::class,
+                        'trace' => $exception->getTraceAsString(),
+                    ]);
+                }
             }
         }
     }

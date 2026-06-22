@@ -201,6 +201,49 @@ class MailConfigResolver
             $config['from_name'] = trim((string) $_ENV['MAIL_FROM_NAME']);
         }
 
+        return $this->applySupportInboxFromFallback($config);
+    }
+
+    /**
+     * When no explicit sender is configured, use the first support inbox address
+     * ("Destek Gelen Kutusu") as MAIL_FROM / smtp_sender_email fallback.
+     *
+     * @param array{
+     *     enabled: bool,
+     *     host: string,
+     *     port: int,
+     *     username: string,
+     *     password: string,
+     *     encryption: string,
+     *     from_address: string,
+     *     from_name: string,
+     *     support_addresses: list<string>
+     * } $config
+     *
+     * @return array{
+     *     enabled: bool,
+     *     host: string,
+     *     port: int,
+     *     username: string,
+     *     password: string,
+     *     encryption: string,
+     *     from_address: string,
+     *     from_name: string,
+     *     support_addresses: list<string>
+     * }
+     */
+    private function applySupportInboxFromFallback(array $config): array
+    {
+        if ($config['from_address'] !== '' && filter_var($config['from_address'], FILTER_VALIDATE_EMAIL) !== false) {
+            return $config;
+        }
+
+        if ($config['support_addresses'] === []) {
+            return $config;
+        }
+
+        $config['from_address'] = $config['support_addresses'][0];
+
         return $config;
     }
 }

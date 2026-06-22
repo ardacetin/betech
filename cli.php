@@ -10,6 +10,7 @@ if (PHP_SAPI !== 'cli') {
 
 require __DIR__ . '/vendor/autoload.php';
 
+use App\Commands\FetchEmailsCommand;
 use App\Models\Consumable;
 use App\Models\IpNetwork;
 use App\Models\License;
@@ -23,6 +24,9 @@ use App\Services\DatabaseService;
 use App\Services\IpAddressGenerator;
 use App\Services\R2BackupStorage;
 use App\Services\Mail\DailySummaryNotificationService;
+use App\Services\Mail\ImapConfigResolver;
+use App\Services\Mail\ImapInboxFetcher;
+use App\Services\Mail\InboundEmailTicketService;
 use App\Services\Mail\MailConfigResolver;
 use App\Services\Mail\MailService;
 use App\Services\Notifications\HealthScannerNotificationService;
@@ -73,6 +77,21 @@ if ($command === 'make:admin') {
     );
 
     exit(0);
+}
+
+if ($command === 'mail:fetch_inbox') {
+    $settingModel = new Setting($databaseService);
+    $mailConfigResolver = new MailConfigResolver($settingModel);
+    $imapConfigResolver = new ImapConfigResolver($settingModel, $mailConfigResolver);
+    $imapInboxFetcher = new ImapInboxFetcher($imapConfigResolver, $appLogger);
+    $service = new InboundEmailTicketService(
+        $imapInboxFetcher,
+        new Personnel($databaseService),
+        new Ticket($databaseService),
+        $appLogger
+    );
+    $commandRunner = new FetchEmailsCommand($service);
+    exit($commandRunner->run());
 }
 
 if ($command === 'notify:daily_summary') {
@@ -167,6 +186,7 @@ if ($command === 'backup:database') {
 
 fwrite(STDERR, "Usage:\n");
 fwrite(STDERR, "  php cli.php make:admin <username>\n");
+fwrite(STDERR, "  php cli.php mail:fetch_inbox\n");
 fwrite(STDERR, "  php cli.php notify:daily_summary\n");
 fwrite(STDERR, "  php cli.php notify:health_scan\n");
 fwrite(STDERR, "  php cli.php backup:database\n");

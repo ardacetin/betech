@@ -7,9 +7,13 @@ namespace App\Services\Mail;
 use App\Services\AppLogger;
 use PHPMailer\PHPMailer\Exception as MailerException;
 use PHPMailer\PHPMailer\PHPMailer;
+use PHPMailer\PHPMailer\SMTP;
 
 class MailService
 {
+    /** @var list<string> */
+    private array $smtpTrace = [];
+
     public function __construct(
         private readonly MailConfigResolver $configResolver,
         private readonly AppLogger $appLogger
@@ -40,12 +44,31 @@ class MailService
      */
     public function sendHtml(array $recipients, string $subject, string $htmlBody, ?array $configOverride = null): bool
     {
+        $this->smtpTrace = [];
         $config = $this->configResolver->resolve($configOverride);
 
+        $this->appLogger->log('mail.dispatch.start', [
+            'subject' => $subject,
+            'stage' => 'config_resolved',
+            'enabled' => $config['enabled'],
+            'host' => $config['host'],
+            'port' => $config['port'],
+            'encryption' => $config['encryption'],
+            'from_address' => $config['from_address'],
+            'from_name' => $config['from_name'],
+            'username' => $config['username'],
+            'password_configured' => $config['password'] !== '',
+            'support_inbox_addresses' => $config['support_addresses'],
+        ]);
+
         if (!$this->isConfigured($configOverride)) {
-            $this->appLogger->log('mail.skipped', [
+            $this->appLogger->error('mail.skipped', [
                 'reason' => 'mail_not_configured',
                 'subject' => $subject,
+                'stage' => 'pre_send_validation',
+                'enabled' => $config['enabled'],
+                'host' => $config['host'],
+                'from_address' => $config['from_address'],
             ]);
 
             return false;
@@ -53,10 +76,17 @@ class MailService
 
         $normalizedRecipients = $this->normalizeRecipients($recipients);
 
+        $this->appLogger->log('mail.dispatch.recipients', [
+            'subject' => $subject,
+            'stage' => 'recipients_normalized',
+            'recipients' => $normalizedRecipients,
+        ]);
+
         if ($normalizedRecipients === []) {
-            $this->appLogger->log('mail.skipped', [
+            $this->appLogger->error('mail.skipped', [
                 'reason' => 'no_recipients',
                 'subject' => $subject,
+                'stage' => 'pre_send_validation',
             ]);
 
             return false;
@@ -64,6 +94,12 @@ class MailService
 
         try {
             $mailer = $this->createMailer($config);
+
+            $this->appLogger->log('mail.dispatch.mailer_ready', [
+                'subject' => $subject,
+                'stage' => 'smtp_client_initialized',
+                'smtp_auth' => $config['username'] !== '',
+            ]);
 
             foreach ($normalizedRecipients as $recipient) {
                 $mailer->addAddress($recipient);
@@ -73,14 +109,39 @@ class MailService
             $mailer->Body = $htmlBody;
             $mailer->AltBody = trim(strip_tags(str_replace(['<br>', '<br/>', '<br />'], "\n", $htmlBody)));
 
+            $this->appLogger->log('mail.dispatch.sending', [
+                'subject' => $subject,
+                'stage' => 'smtp_send',
+            ]);
+
             $mailer->send();
+
+            $this->appLogger->log('mail.sent', [
+                'subject' => $subject,
+                'recipients' => $normalizedRecipients,
+                'stage' => 'completed',
+            ]);
 
             return true;
         } catch (MailerException $exception) {
-            $this->appLogger->log('mail.failed', [
+            $this->appLogger->error('mail.failed', [
                 'subject' => $subject,
                 'recipients' => $normalizedRecipients,
+                'stage' => 'smtp_send_failed',
                 'error' => $exception->getMessage(),
+                'phpmailer_error' => isset($mailer) ? $mailer->ErrorInfo : null,
+                'smtp_trace' => $this->smtpTrace,
+            ]);
+
+            return false;
+        } catch (\Throwable $exception) {
+            $this->appLogger->error('mail.failed', [
+                'subject' => $subject,
+                'recipients' => $normalizedRecipients,
+                'stage' => 'unexpected_failure',
+                'error' => $exception->getMessage(),
+                'exception_class' => $exception::class,
+                'smtp_trace' => $this->smtpTrace,
             ]);
 
             return false;
@@ -110,8 +171,22 @@ class MailService
         $mailer->SMTPAuth = $config['username'] !== '';
         $mailer->Username = $config['username'];
         $mailer->Password = $config['password'];
-        $mailer->Timeout = 8;
+        $mailer->Timeout = 15;
         $mailer->SMTPKeepAlive = false;
+        $mailer->SMTPDebug = SMTP::DEBUG_SERVER;
+        $mailer->Debugoutput = function (string $line, int $level): void {
+            $trimmed = trim($line);
+
+            if ($trimmed === '') {
+                return;
+            }
+
+            $this->smtpTrace[] = $trimmed;
+            $this->appLogger->log('mail.smtp.trace', [
+                'line' => $trimmed,
+                'level' => $level,
+            ]);
+        };
 
         $encryption = $config['encryption'];
 

@@ -929,6 +929,7 @@ return [
     'ticket_update_success' => 'Talep başarıyla güncellendi.',
     'ticket_delete_success' => 'Talep silindi.',
     'ticket_create_error' => 'Talep oluşturulamadı.',
+    'ticket_email_default_subject' => 'E-posta ile iletilen destek talebi',
     'ticket_update_error' => 'Talep güncellenemedi.',
     'ticket_delete_error' => 'Talep silinemedi.',
     'ticket_invalid_id' => 'Geçersiz talep kimliği.',

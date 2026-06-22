@@ -894,6 +894,7 @@ return [
     'ticket_update_success' => 'Ticket updated successfully.',
     'ticket_delete_success' => 'Ticket deleted successfully.',
     'ticket_create_error' => 'Ticket could not be created.',
+    'ticket_email_default_subject' => 'Support request received by email',
     'ticket_update_error' => 'Ticket could not be updated.',
     'ticket_delete_error' => 'Ticket could not be deleted.',
     'ticket_invalid_id' => 'Invalid ticket identifier.',

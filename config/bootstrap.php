@@ -123,6 +123,7 @@ $app->add(new SecurityHeadersMiddleware($isHttps));
 $displayErrorDetails = !$appConfig['is_production']
     && ($appConfig['debug'] || $appConfig['display_error_details']);
 $appLogger = new AppLogger($rootPath . '/logs', 'app.log', $clientIpResolver);
+\App\Services\DeferredTaskRunner::setLogger($appLogger);
 $appLogger->registerGlobalHandlers();
 $errorMiddleware = $app->addErrorMiddleware($displayErrorDetails, true, true);
 $errorHandler = new HttpErrorHandler(
