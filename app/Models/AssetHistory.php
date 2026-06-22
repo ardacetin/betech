@@ -24,8 +24,8 @@ class AssetHistory
         $this->db()->insert('asset_histories', [
             'asset_id' => $assetId,
             'action' => $action,
-            'user_id' => $userId,
-            'target_personnel_id' => $targetPersonnelId,
+            'user_id' => $this->normalizeOptionalUserId($userId),
+            'target_personnel_id' => $this->normalizeOptionalPersonnelId($targetPersonnelId),
             'notes' => $notes,
         ]);
     }
@@ -121,6 +121,32 @@ class AssetHistory
         }
 
         return $row;
+    }
+
+    private function normalizeOptionalUserId(?int $userId): ?int
+    {
+        if ($userId === null || $userId <= 0) {
+            return null;
+        }
+
+        if (!$this->db()->has('users', ['id' => $userId])) {
+            return null;
+        }
+
+        return $userId;
+    }
+
+    private function normalizeOptionalPersonnelId(?int $personnelId): ?int
+    {
+        if ($personnelId === null || $personnelId <= 0) {
+            return null;
+        }
+
+        if (!$this->db()->has('personnel', ['id' => $personnelId])) {
+            return null;
+        }
+
+        return $personnelId;
     }
 
     private function db(): Medoo

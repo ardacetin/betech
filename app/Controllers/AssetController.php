@@ -1415,7 +1415,7 @@ class AssetController
 
     private function actorUserId(): ?int
     {
-        return $this->sessionAuthService->userId();
+        return $this->endUserContextService->resolveLegacyUserId();
     }
 
     private function appendClientIpToNotes(?string $notes, ServerRequestInterface $request): ?string
