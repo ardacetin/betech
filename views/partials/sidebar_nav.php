@@ -64,6 +64,17 @@ $sectionHeaderClass = 'mt-6 mb-2 px-3 text-[11px] font-bold uppercase tracking-w
             </svg>
             <span><?= htmlspecialchars(__('nav_helpdesk'), ENT_QUOTES, 'UTF-8') ?></span>
         </button>
+        <button
+            type="button"
+            @click="activeView = 'knowledge_base'; fetchKnowledgeBaseArticles()"
+            class="group flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900"
+            :class="activeView === 'knowledge_base' ? 'bg-gray-900 font-semibold text-white shadow-sm hover:bg-gray-900 hover:text-white' : ''"
+        >
+            <svg class="h-5 w-5 flex-shrink-0 text-gray-400 transition-colors group-hover:text-gray-500" :class="activeView === 'knowledge_base' ? 'text-white group-hover:text-white' : ''" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25"></path>
+            </svg>
+            <span><?= htmlspecialchars(__('nav_knowledge_base'), ENT_QUOTES, 'UTF-8') ?></span>
+        </button>
         <?php endif; ?>
 
         <div class="<?= $sectionHeaderClass ?>"><?= htmlspecialchars(__('nav_section_asset_management'), ENT_QUOTES, 'UTF-8') ?></div>
@@ -118,21 +129,8 @@ $sectionHeaderClass = 'mt-6 mb-2 px-3 text-[11px] font-bold uppercase tracking-w
         </button>
         <?php endif; ?>
 
-        <?php if ($canAccessPersonnel || $canAccessSettings || $canManageAssets): ?>
+        <?php if ($canAccessPersonnel || $canAccessSettings): ?>
         <div class="<?= $sectionHeaderClass ?>"><?= htmlspecialchars(__('nav_section_system'), ENT_QUOTES, 'UTF-8') ?></div>
-        <?php if ($canManageAssets): ?>
-        <button
-            type="button"
-            @click="activeView = 'knowledge_base'; fetchKnowledgeBaseArticles()"
-            class="group flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900"
-            :class="activeView === 'knowledge_base' ? 'bg-gray-900 font-semibold text-white shadow-sm hover:bg-gray-900 hover:text-white' : ''"
-        >
-            <svg class="h-5 w-5 flex-shrink-0 text-gray-400 transition-colors group-hover:text-gray-500" :class="activeView === 'knowledge_base' ? 'text-white group-hover:text-white' : ''" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25"></path>
-            </svg>
-            <span><?= htmlspecialchars(__('nav_knowledge_base'), ENT_QUOTES, 'UTF-8') ?></span>
-        </button>
-        <?php endif; ?>
         <?php if ($canAccessPersonnel): ?>
         <button
             type="button"
