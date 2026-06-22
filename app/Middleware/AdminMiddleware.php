@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Middleware;
 
+use App\Http\HttpErrorResponses;
 use App\Models\User;
 use App\Services\Auth\SessionAuthService;
 use Psr\Http\Message\ResponseInterface;
@@ -16,7 +17,8 @@ class AdminMiddleware implements MiddlewareInterface
 {
     public function __construct(
         private readonly SessionAuthService $sessionAuthService,
-        private readonly User $userModel
+        private readonly User $userModel,
+        private readonly HttpErrorResponses $httpErrorResponses
     ) {
     }
 
@@ -31,7 +33,7 @@ class AdminMiddleware implements MiddlewareInterface
         $role = $this->sessionAuthService->role();
 
         if (!$this->userModel->isOperationalRole($role)) {
-            return $this->forbiddenResponse($request);
+            return $this->httpErrorResponses->forbidden($request);
         }
 
         return $handler->handle($request);
@@ -39,42 +41,15 @@ class AdminMiddleware implements MiddlewareInterface
 
     private function unauthenticatedResponse(ServerRequestInterface $request): ResponseInterface
     {
-        if ($this->wantsJson($request)) {
+        if ($this->httpErrorResponses->wantsJson($request)) {
             $response = new Response(401);
             $response->getBody()->write(json_encode([
-                'status' => 'error',
-                'message' => 'Oturum açmanız gerekiyor.',
+                'error' => 'Oturum açmanız gerekiyor.',
             ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE));
 
-            return $response->withHeader('Content-Type', 'application/json');
+            return $response->withHeader('Content-Type', 'application/json; charset=utf-8');
         }
 
         return (new Response(302))->withHeader('Location', '/login');
-    }
-
-    private function forbiddenResponse(ServerRequestInterface $request): ResponseInterface
-    {
-        if ($this->wantsJson($request)) {
-            $response = new Response(403);
-            $response->getBody()->write(json_encode([
-                'status' => 'error',
-                'message' => 'Bu işlem için yetkiniz bulunmuyor.',
-            ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE));
-
-            return $response->withHeader('Content-Type', 'application/json');
-        }
-
-        return (new Response(302))->withHeader('Location', '/unauthorized');
-    }
-
-    private function wantsJson(ServerRequestInterface $request): bool
-    {
-        if (str_starts_with($request->getUri()->getPath(), '/api/')) {
-            return true;
-        }
-
-        $accept = $request->getHeaderLine('Accept');
-
-        return str_contains($accept, 'application/json');
     }
 }

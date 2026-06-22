@@ -22,6 +22,7 @@ use App\Controllers\InventoryImportController;
 use App\Controllers\SettingsController;
 use App\Controllers\UserController;
 use App\Handlers\HttpErrorHandler;
+use App\Http\HttpErrorResponses;
 use App\Middleware\AdminMiddleware;
 use App\Middleware\AuthMiddleware;
 use App\Middleware\CsrfMiddleware;
@@ -68,6 +69,8 @@ use App\Services\Translator;
 use App\Services\ViewRenderer;
 use App\Services\ZimmetTutanakService;
 use Dotenv\Dotenv;
+use Slim\Exception\HttpForbiddenException;
+use Slim\Exception\HttpNotFoundException;
 use Slim\Factory\AppFactory;
 
 $rootPath = dirname(__DIR__);
@@ -89,6 +92,9 @@ $app = AppFactory::create();
 $translator = new Translator($rootPath . '/lang');
 Translator::initialize($translator);
 
+$viewRenderer = new ViewRenderer($rootPath . '/views');
+$httpErrorResponses = new HttpErrorResponses($viewRenderer);
+
 $app->add(new LanguageMiddleware($translator));
 $app->addBodyParsingMiddleware();
 
@@ -102,7 +108,7 @@ $publicPaths = [
     '/logout',
     '/assets/view/{id}',
 ];
-$app->add(new RoleMiddleware($sessionAuthService, $publicPaths, RoleMiddleware::defaultRules()));
+$app->add(new RoleMiddleware($sessionAuthService, $httpErrorResponses, $publicPaths, RoleMiddleware::defaultRules()));
 $app->add(new AuthMiddleware($sessionAuthService, $publicPaths, $personnelModel));
 $app->add(new CsrfMiddleware($sessionAuthService, ['/login', '/api/login']));
 $app->add(new RateLimitMiddleware($loginAttemptService, $clientIpResolver));
@@ -116,9 +122,12 @@ $errorHandler = new HttpErrorHandler(
     $app->getCallableResolver(),
     $app->getResponseFactory(),
     $appLogger,
+    $httpErrorResponses,
     $isHttps
 );
 $errorMiddleware->setDefaultErrorHandler($errorHandler);
+$errorMiddleware->setErrorHandler(HttpNotFoundException::class, $errorHandler);
+$errorMiddleware->setErrorHandler(HttpForbiddenException::class, $errorHandler);
 
 $assetModel = new Asset($databaseService);
 $assetHistoryModel = new AssetHistory($databaseService);
@@ -132,7 +141,6 @@ $ipamCsvImportService = new IpamCsvImportService($ipNetworkModel, $ipAddressMode
 $consumableModel = new Consumable($databaseService);
 $settingModel = new Setting($databaseService);
 $userIntegrationFactory = new UserIntegrationFactory($databaseService, $settingModel);
-$viewRenderer = new ViewRenderer($rootPath . '/views');
 $qrCodeService = new QrCodeService($appConfig['url']);
 $analyticsService = new AnalyticsService($databaseService);
 $zimmetTutanakService = new ZimmetTutanakService();
@@ -209,8 +217,8 @@ $r2BackupStorage = new R2BackupStorage($r2Config, $appLogger);
 $databaseBackupService = new DatabaseBackupService($databaseConfig, $r2BackupStorage, $appLogger);
 $backupController = new BackupController($databaseBackupService, $sessionAuthService, $auditLogger);
 
-$adminMiddleware = new AdminMiddleware($sessionAuthService, $userModel);
-$endUserMiddleware = new EndUserMiddleware($sessionAuthService, $userModel);
+$adminMiddleware = new AdminMiddleware($sessionAuthService, $userModel, $httpErrorResponses);
+$endUserMiddleware = new EndUserMiddleware($sessionAuthService, $userModel, $httpErrorResponses);
 
 $app->get('/login', [$authController, 'showLoginForm']);
 $app->post('/login', [$authController, 'login']);

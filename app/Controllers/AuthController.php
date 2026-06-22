@@ -67,10 +67,12 @@ class AuthController
     {
         Translator::instance()->setLocale('tr');
 
-        $html = $this->viewRenderer->render('unauthorized', [
-            'pageTitle' => __('unauthorized_page_title'),
+        $html = $this->viewRenderer->render('errors/403', [
+            'pageTitle' => __('error_403_title'),
+            'heading' => __('error_403_title'),
+            'message' => __('error_403_message'),
             'appName' => __('app_name'),
-            'locale' => 'tr',
+            'locale' => Translator::instance()->getLocale(),
         ], null);
 
         $response->getBody()->write($html);

@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace App\Middleware;
 
+use App\Http\HttpErrorResponses;
 use App\Models\User;
 use App\Services\Auth\SessionAuthService;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;
 use Psr\Http\Server\RequestHandlerInterface;
-use Slim\Psr7\Response;
 
 class RoleMiddleware implements MiddlewareInterface
 {
@@ -20,6 +20,7 @@ class RoleMiddleware implements MiddlewareInterface
      */
     public function __construct(
         private readonly SessionAuthService $sessionAuthService,
+        private readonly HttpErrorResponses $httpErrorResponses,
         private readonly array $publicPaths = [],
         private readonly array $rules = []
     ) {
@@ -57,11 +58,11 @@ class RoleMiddleware implements MiddlewareInterface
                 return $handler->handle($request);
             }
 
-            return $this->forbiddenResponse($request);
+            return $this->httpErrorResponses->forbidden($request);
         }
 
         if (str_starts_with($path, '/api/')) {
-            return $this->forbiddenResponse($request);
+            return $this->httpErrorResponses->forbidden($request);
         }
 
         return $handler->handle($request);
@@ -462,31 +463,5 @@ class RoleMiddleware implements MiddlewareInterface
         $regex = '#^' . preg_replace('#\{[^/]+\}#', '[^/]+', $pattern) . '$#';
 
         return preg_match($regex, $path) === 1;
-    }
-
-    private function forbiddenResponse(ServerRequestInterface $request): ResponseInterface
-    {
-        if ($this->wantsJson($request)) {
-            $response = new Response(403);
-            $response->getBody()->write(json_encode([
-                'status' => 'error',
-                'message' => 'Bu işlem için yetkiniz bulunmuyor.',
-            ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE));
-
-            return $response->withHeader('Content-Type', 'application/json');
-        }
-
-        return (new Response(302))->withHeader('Location', '/unauthorized');
-    }
-
-    private function wantsJson(ServerRequestInterface $request): bool
-    {
-        if (str_starts_with($request->getUri()->getPath(), '/api/')) {
-            return true;
-        }
-
-        $accept = $request->getHeaderLine('Accept');
-
-        return str_contains($accept, 'application/json');
     }
 }

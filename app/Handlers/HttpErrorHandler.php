@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace App\Handlers;
 
+use App\Http\HttpErrorResponses;
 use App\Services\AppLogger;
 use App\Services\SecurityHeaders;
 use Psr\Http\Message\ResponseFactoryInterface;
 use Psr\Http\Message\ResponseInterface;
+use Slim\Exception\HttpException;
 use Slim\Handlers\ErrorHandler;
 use Slim\Interfaces\CallableResolverInterface;
 
@@ -19,6 +21,7 @@ class HttpErrorHandler extends ErrorHandler
         CallableResolverInterface $callableResolver,
         ResponseFactoryInterface $responseFactory,
         private readonly AppLogger $appLogger,
+        private readonly HttpErrorResponses $httpErrorResponses,
         private readonly bool $isHttps = false,
     ) {
         parent::__construct($callableResolver, $responseFactory);
@@ -35,14 +38,31 @@ class HttpErrorHandler extends ErrorHandler
 
     protected function respond(): ResponseInterface
     {
-        if ($this->displayErrorDetails) {
+        $this->writeToErrorLog();
+
+        $statusCode = $this->resolveStatusCode();
+
+        if ($statusCode === 403) {
+            return SecurityHeaders::apply(
+                $this->httpErrorResponses->forbidden($this->request),
+                $this->isHttps
+            );
+        }
+
+        if ($statusCode === 404) {
+            return SecurityHeaders::apply(
+                $this->httpErrorResponses->notFound($this->request),
+                $this->isHttps
+            );
+        }
+
+        if ($this->displayErrorDetails && $statusCode >= 500) {
             return SecurityHeaders::apply(parent::respond(), $this->isHttps);
         }
 
-        $statusCode = $this->statusCode >= 400 ? $this->statusCode : 500;
-        $response = $this->responseFactory->createResponse($statusCode);
+        $response = $this->responseFactory->createResponse($statusCode >= 400 ? $statusCode : 500);
 
-        if ($this->shouldReturnJson()) {
+        if ($this->httpErrorResponses->wantsJson($this->request)) {
             $response->getBody()->write(json_encode([
                 'error' => self::GENERIC_ERROR_MESSAGE,
             ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE));
@@ -67,16 +87,16 @@ class HttpErrorHandler extends ErrorHandler
         );
     }
 
-    private function shouldReturnJson(): bool
+    private function resolveStatusCode(): int
     {
-        $path = $this->request->getUri()->getPath();
-
-        if (str_starts_with($path, '/api/')) {
-            return true;
+        if ($this->exception instanceof HttpException) {
+            return $this->exception->getCode();
         }
 
-        $accept = $this->request->getHeaderLine('Accept');
+        if ($this->statusCode >= 400) {
+            return $this->statusCode;
+        }
 
-        return str_contains($accept, 'application/json');
+        return 500;
     }
 }
