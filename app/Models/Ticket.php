@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Models;
 
 use App\Services\DatabaseService;
+use App\Services\ListPagination;
 use Medoo\Medoo;
 
 class Ticket
@@ -40,6 +41,32 @@ class Ticket
         }
 
         return $this->mapRows($this->selectRows($conditions));
+    }
+
+    /**
+     * @return array{
+     *     data: list<array<string, mixed>>,
+     *     pagination: array{page: int, per_page: int, total: int, total_pages: int}
+     * }
+     */
+    public function findPaginated(?string $status = null, ?string $priority = null, int $page = 1): array
+    {
+        return $this->paginateList(null, $status, $priority, $page);
+    }
+
+    /**
+     * @return array{
+     *     data: list<array<string, mixed>>,
+     *     pagination: array{page: int, per_page: int, total: int, total_pages: int}
+     * }
+     */
+    public function findPaginatedByPersonnelId(
+        int $personnelId,
+        ?string $status = null,
+        ?string $priority = null,
+        int $page = 1
+    ): array {
+        return $this->paginateList($personnelId, $status, $priority, $page);
     }
 
     /**
@@ -307,19 +334,7 @@ class Ticket
      */
     public function findAllByPersonnelId(int $personnelId, ?string $status = null, ?string $priority = null): array
     {
-        $conditions = [
-            'tickets.personnel_id' => $personnelId,
-        ];
-
-        if ($status !== null && $status !== '') {
-            $conditions['tickets.status'] = $this->normalizeStatus($status);
-        }
-
-        if ($priority !== null && $priority !== '') {
-            $conditions['tickets.priority'] = $this->normalizePriority($priority);
-        }
-
-        return $this->mapRows($this->selectRows($conditions));
+        return $this->findPaginatedByPersonnelId($personnelId, $status, $priority)['data'];
     }
 
     public function belongsToPersonnel(int $ticketId, int $personnelId): bool
@@ -369,7 +384,7 @@ class Ticket
      *
      * @return list<array<string, mixed>>
      */
-    private function selectRows(array $conditions = [], ?int $limit = null): array
+    private function selectRows(array $conditions = [], ?int $limit = null, ?int $offset = null): array
     {
         $options = [
             'ORDER' => [
@@ -383,7 +398,7 @@ class Ticket
         }
 
         if ($limit !== null) {
-            $options['LIMIT'] = $limit;
+            $options['LIMIT'] = $offset !== null ? [$offset, $limit] : $limit;
         }
 
         return $this->db()->select('tickets', [
@@ -619,6 +634,79 @@ class Ticket
         $categoryId = (int) $value;
 
         return $categoryId > 0 ? $categoryId : null;
+    }
+
+    /**
+     * @return array{
+     *     data: list<array<string, mixed>>,
+     *     pagination: array{page: int, per_page: int, total: int, total_pages: int}
+     * }
+     */
+    private function paginateList(
+        ?int $personnelId,
+        ?string $status,
+        ?string $priority,
+        int $page
+    ): array {
+        $selectConditions = $this->buildSelectConditions($personnelId, $status, $priority);
+        $countConditions = $this->buildCountConditions($personnelId, $status, $priority);
+        $page = max(1, $page);
+        $perPage = ListPagination::PAGE_SIZE;
+        $total = (int) $this->db()->count('tickets', $countConditions);
+        $rows = $this->selectRows(
+            $selectConditions,
+            $perPage,
+            ListPagination::offset($page, $perPage)
+        );
+
+        return [
+            'data' => $this->mapRows($rows),
+            'pagination' => ListPagination::meta($page, $total, $perPage),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function buildCountConditions(?int $personnelId, ?string $status, ?string $priority): array
+    {
+        $conditions = [];
+
+        if ($personnelId !== null) {
+            $conditions['personnel_id'] = $personnelId;
+        }
+
+        if ($status !== null && $status !== '') {
+            $conditions['status'] = $this->normalizeStatus($status);
+        }
+
+        if ($priority !== null && $priority !== '') {
+            $conditions['priority'] = $this->normalizePriority($priority);
+        }
+
+        return $conditions;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function buildSelectConditions(?int $personnelId, ?string $status, ?string $priority): array
+    {
+        $conditions = [];
+
+        if ($personnelId !== null) {
+            $conditions['tickets.personnel_id'] = $personnelId;
+        }
+
+        if ($status !== null && $status !== '') {
+            $conditions['tickets.status'] = $this->normalizeStatus($status);
+        }
+
+        if ($priority !== null && $priority !== '') {
+            $conditions['tickets.priority'] = $this->normalizePriority($priority);
+        }
+
+        return $conditions;
     }
 
     private function db(): Medoo

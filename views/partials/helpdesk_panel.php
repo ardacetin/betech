@@ -150,4 +150,15 @@ declare(strict_types=1);
             </div>
         </template>
     </div>
+
+    <?php
+    $listPagination = [
+        'pagination' => 'ticketsPagination',
+        'loading' => 'ticketsLoading',
+        'goToPage' => 'goToTicketsPage',
+        'pageNumbers' => 'ticketsPageNumbers',
+        'label' => 'resolveTicketsPaginationLabel',
+    ];
+    require __DIR__ . '/list_pagination.php';
+    ?>
 </section>

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Controllers;
 
 use App\Models\Consumable;
+use App\Services\ListPagination;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 
@@ -17,9 +18,13 @@ class ConsumableController
 
     public function index(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
     {
+        $page = ListPagination::parsePage($request->getQueryParams());
+        $result = $this->consumableModel->findPaginated($page);
+
         return $this->jsonResponse($response, 200, [
             'status' => 'success',
-            'data' => $this->consumableModel->findAll(),
+            'data' => $result['data'],
+            'pagination' => $result['pagination'],
         ]);
     }
 

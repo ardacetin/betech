@@ -120,40 +120,15 @@ declare(strict_types=1);
             </table>
         </div>
 
-        <div
-            x-show="!personnelLoading && personnelPagination.total_pages > 1"
-            x-cloak
-            class="flex flex-col gap-3 border-t border-zinc-200 px-6 py-4 sm:flex-row sm:items-center sm:justify-between"
-        >
-            <p class="text-xs text-zinc-500" x-text="resolvePersonnelPaginationLabel()"></p>
-            <div class="flex flex-wrap items-center gap-1">
-                <button
-                    type="button"
-                    @click="goToPersonnelPage(personnelPagination.page - 1)"
-                    :disabled="personnelPagination.page <= 1 || personnelLoading"
-                    class="rounded-lg border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-700 transition hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                    <?= htmlspecialchars(__('personnel_pagination_prev'), ENT_QUOTES, 'UTF-8') ?>
-                </button>
-                <template x-for="pageNumber in personnelPageNumbers()" :key="'personnel-page-' + pageNumber">
-                    <button
-                        type="button"
-                        @click="goToPersonnelPage(pageNumber)"
-                        :disabled="personnelLoading"
-                        class="min-w-[2rem] rounded-lg border px-3 py-1.5 text-xs font-medium transition disabled:cursor-not-allowed disabled:opacity-50"
-                        :class="pageNumber === personnelPagination.page ? 'border-zinc-900 bg-zinc-900 text-white' : 'border-zinc-200 text-zinc-700 hover:bg-zinc-50'"
-                        x-text="pageNumber"
-                    ></button>
-                </template>
-                <button
-                    type="button"
-                    @click="goToPersonnelPage(personnelPagination.page + 1)"
-                    :disabled="personnelPagination.page >= personnelPagination.total_pages || personnelLoading"
-                    class="rounded-lg border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-700 transition hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                    <?= htmlspecialchars(__('personnel_pagination_next'), ENT_QUOTES, 'UTF-8') ?>
-                </button>
-            </div>
-        </div>
+        <?php
+        $listPagination = [
+            'pagination' => 'personnelPagination',
+            'loading' => 'personnelLoading',
+            'goToPage' => 'goToPersonnelPage',
+            'pageNumbers' => 'personnelPageNumbers',
+            'label' => 'resolvePersonnelPaginationLabel',
+        ];
+        require __DIR__ . '/list_pagination.php';
+        ?>
     </section>
 </section>

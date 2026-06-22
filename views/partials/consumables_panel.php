@@ -87,5 +87,15 @@ declare(strict_types=1);
                 </template>
             </tbody>
         </table>
+        <?php
+        $listPagination = [
+            'pagination' => 'consumablesPagination',
+            'loading' => 'consumablesLoading',
+            'goToPage' => 'goToConsumablesPage',
+            'pageNumbers' => 'consumablesPageNumbers',
+            'label' => 'resolveConsumablesPaginationLabel',
+        ];
+        require __DIR__ . '/list_pagination.php';
+        ?>
     </div>
 </section>

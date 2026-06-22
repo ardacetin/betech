@@ -14,6 +14,7 @@ use App\Models\Setting;
 use App\Models\User;
 use App\Services\AssetCsvImportService;
 use App\Services\AssetFilterSchemaService;
+use App\Services\ListPagination;
 use App\Services\AuditLogger;
 use App\Services\Auth\SessionAuthService;
 use App\Services\Auth\UserIntegrationFactory;
@@ -68,13 +69,15 @@ class AssetController
         );
 
         $activeFilters = $this->assetFilterSchemaService->parseRequestFilters($request->getQueryParams());
-        $assets = $this->assetModel->findAllForDashboard($activeFilters, $filterDefinitions);
+        $page = ListPagination::parsePage($request->getQueryParams());
+        $result = $this->assetModel->findPaginatedForDashboard($activeFilters, $filterDefinitions, $page);
 
         return $this->jsonResponse($response, 200, [
             'status' => 'success',
-            'data' => $assets,
+            'data' => $result['data'],
+            'pagination' => $result['pagination'],
             'meta' => [
-                'total' => count($assets),
+                'total' => $result['pagination']['total'],
                 'filters' => $activeFilters,
             ],
         ]);

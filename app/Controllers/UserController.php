@@ -12,7 +12,7 @@ use App\Models\Setting;
 use App\Models\User;
 use App\Services\Auth\Drivers\LdapDriver;
 use App\Services\Auth\SessionAuthService;
-use App\Services\Auth\UserIntegrationFactory;
+use App\Services\ListPagination;
 use App\Services\ClientIpResolver;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
@@ -86,13 +86,12 @@ class UserController
     public function personnelIndex(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
     {
         $queryParams = $request->getQueryParams();
-        $page = max(1, (int) ($queryParams['page'] ?? 1));
-        $perPage = max(1, min(100, (int) ($queryParams['per_page'] ?? Personnel::PAGE_SIZE)));
+        $page = ListPagination::parsePage($queryParams);
         $search = trim((string) ($queryParams['q'] ?? ''));
 
         $result = $this->personnelModel->findPaginated(
             $page,
-            $perPage,
+            ListPagination::PAGE_SIZE,
             $search !== '' ? $search : null
         );
         $assetCounts = $this->personnelModel->assignedAssetCountsForIds(

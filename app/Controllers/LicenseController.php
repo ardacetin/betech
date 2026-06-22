@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Controllers;
 
 use App\Models\License;
+use App\Services\ListPagination;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 
@@ -17,11 +18,13 @@ class LicenseController
 
     public function index(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
     {
-        // GET /api/licenses returns only license metadata (no assignments here).
-        // Assignment queries (in model) and POST /assign strictly use personnel_id + JOIN personnel (never users or user_id).
+        $page = ListPagination::parsePage($request->getQueryParams());
+        $result = $this->licenseModel->findPaginated($page);
+
         return $this->jsonResponse($response, 200, [
             'status' => 'success',
-            'data' => $this->licenseModel->findAll(),
+            'data' => $result['data'],
+            'pagination' => $result['pagination'],
         ]);
     }
 

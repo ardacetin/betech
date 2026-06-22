@@ -106,5 +106,15 @@ declare(strict_types=1);
                 </template>
             </tbody>
         </table>
+        <?php
+        $listPagination = [
+            'pagination' => 'licensesPagination',
+            'loading' => 'licensesLoading',
+            'goToPage' => 'goToLicensesPage',
+            'pageNumbers' => 'licensesPageNumbers',
+            'label' => 'resolveLicensesPaginationLabel',
+        ];
+        require __DIR__ . '/list_pagination.php';
+        ?>
     </div>
 </section>

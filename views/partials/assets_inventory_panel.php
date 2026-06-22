@@ -25,8 +25,8 @@ $assetActiveFilters = $assetActiveFilters ?? [];
                     <h2 class="text-lg font-semibold text-zinc-900"><?= htmlspecialchars(__('inventory_title'), ENT_QUOTES, 'UTF-8') ?></h2>
                     <p class="mt-1 text-sm text-zinc-500"><?= htmlspecialchars(__('inventory_subtitle'), ENT_QUOTES, 'UTF-8') ?></p>
                 </div>
-                <p x-show="inventoryAssets.length > 0" x-cloak class="text-sm text-zinc-500">
-                    <span x-text="inventoryAssets.length"></span>
+                <p x-show="inventoryPagination.total > 0" x-cloak class="text-sm text-zinc-500">
+                    <span x-text="inventoryPagination.total"></span>
                     <?= htmlspecialchars(__('inventory_filter_result_count_suffix'), ENT_QUOTES, 'UTF-8') ?>
                 </p>
             </div>
@@ -221,5 +221,15 @@ $assetActiveFilters = $assetActiveFilters ?? [];
                 </tbody>
             </table>
         </div>
+        <?php
+        $listPagination = [
+            'pagination' => 'inventoryPagination',
+            'loading' => 'assetFiltersLoading',
+            'goToPage' => 'goToInventoryPage',
+            'pageNumbers' => 'inventoryPageNumbers',
+            'label' => 'resolveInventoryPaginationLabel',
+        ];
+        require __DIR__ . '/list_pagination.php';
+        ?>
     </section>
 </div>

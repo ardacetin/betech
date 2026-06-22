@@ -12,6 +12,7 @@ use App\Models\Personnel;
 use App\Models\User;
 use App\Services\AnalyticsService;
 use App\Services\AssetFilterSchemaService;
+use App\Services\ListPagination;
 use App\Services\Auth\SessionAuthService;
 use App\Services\EndUserContextService;
 use App\Services\QrCodeService;
@@ -74,7 +75,14 @@ class HealthController
                 $locations
             );
             $assetActiveFilters = $this->assetFilterSchemaService->parseRequestFilters($request->getQueryParams());
-            $assets = $this->assetModel->findAllForDashboard($assetActiveFilters, $assetFilterDefinitions);
+            $assetPage = ListPagination::parsePage($request->getQueryParams());
+            $assetListResult = $this->assetModel->findPaginatedForDashboard(
+                $assetActiveFilters,
+                $assetFilterDefinitions,
+                $assetPage
+            );
+            $assets = $assetListResult['data'];
+            $assetPagination = $assetListResult['pagination'];
         } else {
             $categories = [];
             $locations = [];
@@ -83,6 +91,7 @@ class HealthController
             $settings = [];
             $assetFilterDefinitions = [];
             $assetActiveFilters = [];
+            $assetPagination = ListPagination::meta(1, 0);
         }
 
         $personnelRows = [];
@@ -116,6 +125,7 @@ class HealthController
             'assets' => $assets,
             'assetFilterDefinitions' => $assetFilterDefinitions ?? [],
             'assetActiveFilters' => $assetActiveFilters ?? [],
+            'assetPagination' => $assetPagination ?? ListPagination::meta(1, 0),
             'assetQrCodesJson' => json_encode($assetQrCodes, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE),
             'analytics' => $analytics,
             'analyticsJson' => json_encode($analytics, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE),

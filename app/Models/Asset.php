@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Models;
 
 use App\Services\DatabaseService;
+use App\Services\ListPagination;
 use JsonException;
 use Medoo\Medoo;
 
@@ -76,6 +77,63 @@ class Asset
             fn (array $row): array => $this->normalizeRow($row),
             $rows
         );
+    }
+
+    /**
+     * @param array<string, string> $filters
+     * @param list<array<string, mixed>> $filterDefinitions
+     *
+     * @return array{
+     *     data: list<array<string, mixed>>,
+     *     pagination: array{page: int, per_page: int, total: int, total_pages: int}
+     * }
+     */
+    public function findPaginatedForDashboard(
+        array $filters = [],
+        array $filterDefinitions = [],
+        int $page = 1,
+        int $perPage = ListPagination::PAGE_SIZE
+    ): array {
+        $join = [
+            '[>]categories' => ['category_id' => 'id'],
+            '[>]personnel' => ['personnel_id' => 'id'],
+            '[>]locations' => ['location_id' => 'id'],
+        ];
+        $columns = [
+            'assets.id',
+            'assets.asset_tag',
+            'assets.serial_number',
+            'assets.name',
+            'assets.category_id',
+            'assets.status',
+            'assets.personnel_id',
+            'assets.location_id',
+            'assets.properties',
+            'assets.created_at',
+            'assets.updated_at',
+            'categories.name(category_name)',
+            'personnel.name(personnel_name)',
+            'locations.name(location_name)',
+            'locations.building(location_building)',
+        ];
+
+        $where = $this->buildDashboardFilterWhere($filters, $filterDefinitions);
+        $page = max(1, $page);
+        $perPage = ListPagination::PAGE_SIZE;
+        $total = (int) $this->db()->count('assets', $join, $where);
+        $selectWhere = $where;
+        $selectWhere['ORDER'] = ['assets.id' => 'DESC'];
+        $selectWhere['LIMIT'] = [ListPagination::offset($page, $perPage), $perPage];
+
+        $rows = $this->db()->select('assets', $join, $columns, $selectWhere);
+
+        return [
+            'data' => array_map(
+                fn (array $row): array => $this->normalizeRow($row),
+                $rows
+            ),
+            'pagination' => ListPagination::meta($page, $total, $perPage),
+        ];
     }
 
     /**

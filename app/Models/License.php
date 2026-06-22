@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Models;
 
 use App\Services\DatabaseService;
+use App\Services\ListPagination;
 use Medoo\Medoo;
 
 class License
@@ -44,6 +45,43 @@ class License
             fn (array $row): array => $this->withSeatMetrics($this->normalizeLicenseRow($row)),
             $rows
         );
+    }
+
+    /**
+     * @return array{
+     *     data: list<array<string, mixed>>,
+     *     pagination: array{page: int, per_page: int, total: int, total_pages: int}
+     * }
+     */
+    public function findPaginated(int $page = 1): array
+    {
+        $page = max(1, $page);
+        $perPage = ListPagination::PAGE_SIZE;
+        $total = (int) $this->db()->count('licenses');
+        $rows = $this->db()->select('licenses', [
+            'id',
+            'name',
+            'vendor',
+            'license_key',
+            'seats',
+            'expiration_date',
+            'notes',
+            'created_at',
+        ], [
+            'ORDER' => [
+                'vendor' => 'ASC',
+                'name' => 'ASC',
+            ],
+            'LIMIT' => [ListPagination::offset($page, $perPage), $perPage],
+        ]);
+
+        return [
+            'data' => array_map(
+                fn (array $row): array => $this->withSeatMetrics($this->normalizeLicenseRow($row)),
+                $rows
+            ),
+            'pagination' => ListPagination::meta($page, $total, $perPage),
+        ];
     }
 
     /**

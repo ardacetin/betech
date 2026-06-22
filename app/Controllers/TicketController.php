@@ -11,6 +11,7 @@ use App\Models\User;
 use App\Services\AuditLogger;
 use App\Services\Auth\SessionAuthService;
 use App\Services\EndUserContextService;
+use App\Services\ListPagination;
 use App\Services\Mail\TicketNotificationService;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
@@ -42,6 +43,8 @@ class TicketController
             $priority = null;
         }
 
+        $page = ListPagination::parsePage($query);
+
         if ($this->endUserContextService->isEndUser()) {
             $personnelId = $this->endUserContextService->resolvePersonnelId();
 
@@ -49,18 +52,25 @@ class TicketController
                 return $this->jsonResponse($response, 200, [
                     'status' => 'success',
                     'data' => [],
+                    'pagination' => ListPagination::meta(1, 0),
                 ]);
             }
 
+            $result = $this->ticketModel->findPaginatedByPersonnelId($personnelId, $status, $priority, $page);
+
             return $this->jsonResponse($response, 200, [
                 'status' => 'success',
-                'data' => $this->ticketModel->findAllByPersonnelId($personnelId, $status, $priority),
+                'data' => $result['data'],
+                'pagination' => $result['pagination'],
             ]);
         }
 
+        $result = $this->ticketModel->findPaginated($status, $priority, $page);
+
         return $this->jsonResponse($response, 200, [
             'status' => 'success',
-            'data' => $this->ticketModel->findAll($status, $priority),
+            'data' => $result['data'],
+            'pagination' => $result['pagination'],
         ]);
     }
 

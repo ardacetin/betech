@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Models;
 
 use App\Services\DatabaseService;
+use App\Services\ListPagination;
 use Medoo\Medoo;
 
 class Consumable
@@ -40,6 +41,44 @@ class Consumable
             fn (array $row): array => $this->normalizeRow($row),
             $rows
         );
+    }
+
+    /**
+     * @return array{
+     *     data: list<array<string, mixed>>,
+     *     pagination: array{page: int, per_page: int, total: int, total_pages: int}
+     * }
+     */
+    public function findPaginated(int $page = 1): array
+    {
+        $page = max(1, $page);
+        $perPage = ListPagination::PAGE_SIZE;
+        $total = (int) $this->db()->count('consumables');
+        $rows = $this->db()->select('consumables', [
+            '[>]locations' => ['location_id' => 'id'],
+        ], [
+            'consumables.id',
+            'consumables.name',
+            'consumables.quantity',
+            'consumables.min_stock_level',
+            'consumables.location_id',
+            'consumables.created_at',
+            'locations.name(location_name)',
+            'locations.building(location_building)',
+        ], [
+            'ORDER' => [
+                'consumables.name' => 'ASC',
+            ],
+            'LIMIT' => [ListPagination::offset($page, $perPage), $perPage],
+        ]);
+
+        return [
+            'data' => array_map(
+                fn (array $row): array => $this->normalizeRow($row),
+                $rows
+            ),
+            'pagination' => ListPagination::meta($page, $total, $perPage),
+        ];
     }
 
     /**

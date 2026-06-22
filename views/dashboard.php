@@ -96,6 +96,8 @@ foreach ($assetFilterDefinitions as $filterDefinition) {
 $assetFilterFieldsJson = json_encode($assetFilterDefinitions, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
 $initialAssetFiltersJson = json_encode($initialAssetFilters, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
 $inventoryAssetsJson = json_encode($canManageAssets ? $assets : [], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
+$assetPagination = $assetPagination ?? ['page' => 1, 'per_page' => 50, 'total' => 0, 'total_pages' => 1];
+$assetPaginationJson = json_encode($assetPagination, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
 
 $i18nScript = json_encode([
     'create_error' => __('create_error'),
@@ -389,6 +391,9 @@ $i18nScript = json_encode([
     'label_serial_number' => __('label_serial_number'),
     'unknown_category' => __('unknown_category'),
     'inventory_filter_error' => __('inventory_filter_error'),
+    'list_pagination_prev' => __('list_pagination_prev'),
+    'list_pagination_next' => __('list_pagination_next'),
+    'list_pagination_info' => __('list_pagination_info'),
 ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
 ?>
 <div class="min-h-screen bg-gray-50" x-data="assetDashboard()" x-init="restoreDashboardView(); if (isEndUser) { initEndUserPortal(); } else if (canManageAssets) { fetchCategories(); fetchLocations(); fetchTicketCategories(); fetchLicenses(); fetchConsumables(); fetchTickets(); if (activeView === 'dashboard') { fetchDashboardStats(); } if (activeView === 'reports') { fetchReports(); } } this.isAssignLicenseModalOpen = false;">
@@ -2154,6 +2159,8 @@ $i18nScript = json_encode([
             assetFilters: <?= $initialAssetFiltersJson ?>,
             assetFiltersLoading: false,
             assetFiltersError: '',
+            inventoryPage: <?= (int) ($assetPagination['page'] ?? 1) ?>,
+            inventoryPagination: <?= $assetPaginationJson ?>,
             isEditOpen: false,
             isDetailOpen: false,
             isTransferOpen: false,
@@ -2226,6 +2233,8 @@ $i18nScript = json_encode([
             licensesLoading: false,
             licensesError: '',
             licensesSuccessMessage: '',
+            licensesPage: 1,
+            licensesPagination: { page: 1, per_page: 50, total: 0, total_pages: 1 },
             isLicenseModalOpen: false,
             isLicenseSubmitting: false,
             licenseForm: {
@@ -2258,6 +2267,8 @@ $i18nScript = json_encode([
             consumablesLoading: false,
             consumablesError: '',
             consumablesSuccessMessage: '',
+            consumablesPage: 1,
+            consumablesPagination: { page: 1, per_page: 50, total: 0, total_pages: 1 },
             isConsumableModalOpen: false,
             isConsumableSubmitting: false,
             consumableForm: {
@@ -2294,6 +2305,8 @@ $i18nScript = json_encode([
             ticketsLoading: false,
             ticketsError: '',
             ticketsSuccessMessage: '',
+            ticketsPage: 1,
+            ticketsPagination: { page: 1, per_page: 50, total: 0, total_pages: 1 },
             ticketLayout: 'table',
             ticketStatusFilter: 'all',
             ticketStatusFilters: [
@@ -2563,6 +2576,8 @@ $i18nScript = json_encode([
             portalTickets: [],
             portalTicketsLoading: false,
             portalTicketsError: '',
+            portalTicketsPage: 1,
+            portalTicketsPagination: { page: 1, per_page: 50, total: 0, total_pages: 1 },
             portalToastMessage: '',
             portalToastVisible: false,
             portalToastTimer: null,
@@ -2785,7 +2800,10 @@ $i18nScript = json_encode([
                 this.portalTicketsError = '';
 
                 try {
-                    const response = await fetch('/api/tickets', { headers: { Accept: 'application/json' } });
+                    const params = new URLSearchParams({
+                        page: String(this.portalTicketsPage),
+                    });
+                    const response = await fetch(`/api/tickets?${params.toString()}`, { headers: { Accept: 'application/json' } });
                     const result = await this.parseApiResponse(response);
 
                     if (!response.ok) {
@@ -2795,12 +2813,35 @@ $i18nScript = json_encode([
                     }
 
                     this.portalTickets = Array.isArray(result.data) ? result.data : [];
+                    this.portalTicketsPagination = result.pagination || this.defaultListPagination();
+                    this.portalTicketsPage = Number(this.portalTicketsPagination.page || 1);
                 } catch (error) {
                     this.portalTicketsError = window.__i18n.portal_tickets_error;
                     this.portalTickets = [];
                 } finally {
                     this.portalTicketsLoading = false;
                 }
+            },
+            portalTicketsPageNumbers() {
+                return this.listPaginationWindow(this.portalTicketsPagination);
+            },
+            resolvePortalTicketsPaginationLabel() {
+                return this.resolveListPaginationLabel(this.portalTicketsPagination);
+            },
+            goToPortalTicketsPage(page) {
+                const targetPage = Number(page);
+
+                if (
+                    Number.isNaN(targetPage)
+                    || targetPage < 1
+                    || targetPage > Number(this.portalTicketsPagination.total_pages || 1)
+                    || targetPage === this.portalTicketsPagination.page
+                ) {
+                    return;
+                }
+
+                this.portalTicketsPage = targetPage;
+                this.fetchPortalTickets();
             },
             maybeOpenPortalTicketFromUrl(ticketId) {
                 if (!ticketId) {
@@ -3032,6 +3073,34 @@ $i18nScript = json_encode([
                 }
 
                 return fallback;
+            },
+            defaultListPagination() {
+                return { page: 1, per_page: 50, total: 0, total_pages: 1 };
+            },
+            listPaginationWindow(pagination) {
+                const totalPages = Number(pagination?.total_pages || 1);
+                const currentPage = Number(pagination?.page || 1);
+                const windowSize = 5;
+                let start = Math.max(1, currentPage - Math.floor(windowSize / 2));
+                let end = Math.min(totalPages, start + windowSize - 1);
+
+                if (end - start + 1 < windowSize) {
+                    start = Math.max(1, end - windowSize + 1);
+                }
+
+                const pages = [];
+
+                for (let page = start; page <= end; page += 1) {
+                    pages.push(page);
+                }
+
+                return pages;
+            },
+            resolveListPaginationLabel(pagination) {
+                return window.__i18n.list_pagination_info
+                    .replace(':total', String(pagination?.total || 0))
+                    .replace(':page', String(pagination?.page || 1))
+                    .replace(':total_pages', String(pagination?.total_pages || 1));
             },
             formatApiDebugDetails(result) {
                 const debug = result?.debug;
@@ -3375,29 +3444,10 @@ $i18nScript = json_encode([
                 }
             },
             resolvePersonnelPaginationLabel() {
-                return window.__i18n.personnel_pagination_info
-                    .replace(':total', String(this.personnelPagination.total || 0))
-                    .replace(':page', String(this.personnelPagination.page || 1))
-                    .replace(':total_pages', String(this.personnelPagination.total_pages || 1));
+                return this.resolveListPaginationLabel(this.personnelPagination);
             },
             personnelPageNumbers() {
-                const totalPages = Number(this.personnelPagination.total_pages || 1);
-                const currentPage = Number(this.personnelPagination.page || 1);
-                const windowSize = 5;
-                let start = Math.max(1, currentPage - Math.floor(windowSize / 2));
-                let end = Math.min(totalPages, start + windowSize - 1);
-
-                if (end - start + 1 < windowSize) {
-                    start = Math.max(1, end - windowSize + 1);
-                }
-
-                const pages = [];
-
-                for (let page = start; page <= end; page += 1) {
-                    pages.push(page);
-                }
-
-                return pages;
+                return this.listPaginationWindow(this.personnelPagination);
             },
             onPersonnelSearchInput() {
                 this.personnelPage = 1;
@@ -3428,7 +3478,6 @@ $i18nScript = json_encode([
 
                 const params = new URLSearchParams({
                     page: String(this.personnelPage),
-                    per_page: String(this.personnelPerPage),
                 });
 
                 if (this.personnelSearch.trim() !== '') {
@@ -3450,7 +3499,7 @@ $i18nScript = json_encode([
                     this.personnel = Array.isArray(result.data) ? result.data : [];
                     this.personnelPagination = {
                         page: Number(result.pagination?.page || this.personnelPage),
-                        per_page: Number(result.pagination?.per_page || this.personnelPerPage),
+                        per_page: Number(result.pagination?.per_page || 50),
                         total: Number(result.pagination?.total || 0),
                         total_pages: Number(result.pagination?.total_pages || 1),
                     };
@@ -4004,8 +4053,16 @@ $i18nScript = json_encode([
                     location_building: asset.location_building ?? null,
                 };
             },
-            buildAssetFilterQueryString() {
+            syncInventoryAssetOptions() {
+                this.assetOptions = (this.inventoryAssets || []).map((asset) => ({
+                    id: asset.id,
+                    asset_tag: asset.asset_tag,
+                    name: asset.name,
+                }));
+            },
+            buildAssetFilterQueryString(page = null) {
                 const params = new URLSearchParams();
+                params.set('page', String(page ?? this.inventoryPage ?? 1));
 
                 Object.entries(this.assetFilters || {}).forEach(([name, value]) => {
                     const trimmed = String(value || '').trim();
@@ -4017,22 +4074,40 @@ $i18nScript = json_encode([
 
                 return params.toString();
             },
-            syncInventoryAssetOptions() {
-                this.assetOptions = (this.inventoryAssets || []).map((asset) => ({
-                    id: asset.id,
-                    asset_tag: asset.asset_tag,
-                    name: asset.name,
-                }));
+            inventoryPageNumbers() {
+                return this.listPaginationWindow(this.inventoryPagination);
             },
-            async applyAssetFilters() {
+            resolveInventoryPaginationLabel() {
+                return this.resolveListPaginationLabel(this.inventoryPagination);
+            },
+            goToInventoryPage(page) {
+                const targetPage = Number(page);
+
+                if (
+                    Number.isNaN(targetPage)
+                    || targetPage < 1
+                    || targetPage > Number(this.inventoryPagination.total_pages || 1)
+                    || targetPage === this.inventoryPagination.page
+                ) {
+                    return;
+                }
+
+                this.inventoryPage = targetPage;
+                this.fetchInventoryList(false);
+            },
+            async fetchInventoryList(resetPage = false) {
                 if (!this.canManageAssets || this.assetFiltersLoading) {
                     return;
+                }
+
+                if (resetPage) {
+                    this.inventoryPage = 1;
                 }
 
                 this.assetFiltersLoading = true;
                 this.assetFiltersError = '';
 
-                const query = this.buildAssetFilterQueryString();
+                const query = this.buildAssetFilterQueryString(this.inventoryPage);
                 const url = query ? `/api/assets?${query}` : '/api/assets';
 
                 try {
@@ -4049,6 +4124,8 @@ $i18nScript = json_encode([
                     }
 
                     this.inventoryAssets = Array.isArray(result.data) ? result.data : [];
+                    this.inventoryPagination = result.pagination || this.defaultListPagination();
+                    this.inventoryPage = Number(this.inventoryPagination.page || 1);
                     this.syncInventoryAssetOptions();
 
                     const nextUrl = new URL(window.location.href);
@@ -4060,6 +4137,9 @@ $i18nScript = json_encode([
                     this.assetFiltersLoading = false;
                 }
             },
+            async applyAssetFilters() {
+                await this.fetchInventoryList(true);
+            },
             resetAssetFilters() {
                 const cleared = {};
 
@@ -4068,7 +4148,7 @@ $i18nScript = json_encode([
                 });
 
                 this.assetFilters = cleared;
-                this.applyAssetFilters();
+                this.fetchInventoryList(true);
             },
             formatImportError(item) {
                 const row = Number(item?.row ?? 0);
@@ -5188,7 +5268,10 @@ $i18nScript = json_encode([
                 this.licensesError = '';
 
                 try {
-                    const response = await fetch('/api/licenses', {
+                    const params = new URLSearchParams({
+                        page: String(this.licensesPage),
+                    });
+                    const response = await fetch(`/api/licenses?${params.toString()}`, {
                         headers: { 'Accept': 'application/json' },
                     });
                     const result = await response.json();
@@ -5204,6 +5287,8 @@ $i18nScript = json_encode([
                     }
 
                     this.licenses = Array.isArray(result.data) ? result.data : [];
+                    this.licensesPagination = result.pagination || this.defaultListPagination();
+                    this.licensesPage = Number(this.licensesPagination.page || 1);
                 } catch (error) {
                     this.licensesError = window.__i18n.licenses_network_error;
                     this.licenses = [];
@@ -5211,6 +5296,27 @@ $i18nScript = json_encode([
                 } finally {
                     this.licensesLoading = false;
                 }
+            },
+            licensesPageNumbers() {
+                return this.listPaginationWindow(this.licensesPagination);
+            },
+            resolveLicensesPaginationLabel() {
+                return this.resolveListPaginationLabel(this.licensesPagination);
+            },
+            goToLicensesPage(page) {
+                const targetPage = Number(page);
+
+                if (
+                    Number.isNaN(targetPage)
+                    || targetPage < 1
+                    || targetPage > Number(this.licensesPagination.total_pages || 1)
+                    || targetPage === this.licensesPagination.page
+                ) {
+                    return;
+                }
+
+                this.licensesPage = targetPage;
+                this.fetchLicenses();
             },
             async fetchIpNetworks() {
                 if (!this.canManageAssets) {
@@ -5571,7 +5677,10 @@ $i18nScript = json_encode([
                 this.consumablesError = '';
 
                 try {
-                    const response = await fetch('/api/consumables', {
+                    const params = new URLSearchParams({
+                        page: String(this.consumablesPage),
+                    });
+                    const response = await fetch(`/api/consumables?${params.toString()}`, {
                         headers: { Accept: 'application/json' },
                     });
                     const result = await response.json();
@@ -5583,12 +5692,35 @@ $i18nScript = json_encode([
                     }
 
                     this.consumables = Array.isArray(result.data) ? result.data : [];
+                    this.consumablesPagination = result.pagination || this.defaultListPagination();
+                    this.consumablesPage = Number(this.consumablesPagination.page || 1);
                 } catch (error) {
                     this.consumablesError = window.__i18n.consumables_network_error;
                     this.consumables = [];
                 } finally {
                     this.consumablesLoading = false;
                 }
+            },
+            consumablesPageNumbers() {
+                return this.listPaginationWindow(this.consumablesPagination);
+            },
+            resolveConsumablesPaginationLabel() {
+                return this.resolveListPaginationLabel(this.consumablesPagination);
+            },
+            goToConsumablesPage(page) {
+                const targetPage = Number(page);
+
+                if (
+                    Number.isNaN(targetPage)
+                    || targetPage < 1
+                    || targetPage > Number(this.consumablesPagination.total_pages || 1)
+                    || targetPage === this.consumablesPagination.page
+                ) {
+                    return;
+                }
+
+                this.consumablesPage = targetPage;
+                this.fetchConsumables();
             },
             consumableIsLowStock(item) {
                 if (!item) {
@@ -5916,6 +6048,29 @@ $i18nScript = json_encode([
             },
             setTicketStatusFilter(value) {
                 this.ticketStatusFilter = value;
+                this.ticketsPage = 1;
+                this.fetchTickets();
+            },
+            ticketsPageNumbers() {
+                return this.listPaginationWindow(this.ticketsPagination);
+            },
+            resolveTicketsPaginationLabel() {
+                return this.resolveListPaginationLabel(this.ticketsPagination);
+            },
+            goToTicketsPage(page) {
+                const targetPage = Number(page);
+
+                if (
+                    Number.isNaN(targetPage)
+                    || targetPage < 1
+                    || targetPage > Number(this.ticketsPagination.total_pages || 1)
+                    || targetPage === this.ticketsPagination.page
+                ) {
+                    return;
+                }
+
+                this.ticketsPage = targetPage;
+                this.fetchTickets();
             },
             ticketsForStatus(status) {
                 return this.filteredTickets.filter((ticket) => ticket.status === status);
@@ -5986,7 +6141,15 @@ $i18nScript = json_encode([
                 this.ticketsError = '';
 
                 try {
-                    const response = await fetch('/api/tickets', {
+                    const params = new URLSearchParams({
+                        page: String(this.ticketsPage),
+                    });
+
+                    if (this.ticketStatusFilter !== 'all') {
+                        params.set('status', this.ticketStatusFilter);
+                    }
+
+                    const response = await fetch(`/api/tickets?${params.toString()}`, {
                         headers: { Accept: 'application/json' },
                     });
                     const result = await this.parseApiResponse(response);
@@ -5998,6 +6161,8 @@ $i18nScript = json_encode([
                     }
 
                     this.tickets = Array.isArray(result.data) ? result.data : [];
+                    this.ticketsPagination = result.pagination || this.defaultListPagination();
+                    this.ticketsPage = Number(this.ticketsPagination.page || 1);
                     this.maybeOpenTicketFromUrl();
                 } catch (error) {
                     this.ticketsError = window.__i18n.helpdesk_network_error;

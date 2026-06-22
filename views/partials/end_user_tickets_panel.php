@@ -53,5 +53,15 @@ declare(strict_types=1);
                 </button>
             </template>
         </div>
+        <?php
+        $listPagination = [
+            'pagination' => 'portalTicketsPagination',
+            'loading' => 'portalTicketsLoading',
+            'goToPage' => 'goToPortalTicketsPage',
+            'pageNumbers' => 'portalTicketsPageNumbers',
+            'label' => 'resolvePortalTicketsPaginationLabel',
+        ];
+        require __DIR__ . '/list_pagination.php';
+        ?>
     </section>
 </section>

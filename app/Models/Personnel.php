@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Models;
 
 use App\Services\DatabaseService;
+use App\Services\ListPagination;
 use Medoo\Medoo;
 
 class Personnel
@@ -20,7 +21,7 @@ class Personnel
     public const PROVIDER_GOOGLE = 'google';
     public const PROVIDER_MICROSOFT = 'microsoft';
 
-    public const PAGE_SIZE = 50;
+    public const PAGE_SIZE = ListPagination::PAGE_SIZE;
 
     private const DIRECTORY_SYNC_INSERT_CHUNK = 500;
 
@@ -40,10 +41,10 @@ class Personnel
     public function findPaginated(int $page, int $perPage, ?string $search = null): array
     {
         $page = max(1, $page);
-        $perPage = max(1, min(100, $perPage));
+        $perPage = ListPagination::PAGE_SIZE;
         $conditions = $this->buildFilter($search);
-        $total = $this->db()->count('personnel', $conditions);
-        $offset = ($page - 1) * $perPage;
+        $total = (int) $this->db()->count('personnel', $conditions);
+        $offset = ListPagination::offset($page, $perPage);
 
         $rows = $this->db()->select('personnel', [
             'id',
@@ -67,12 +68,7 @@ class Personnel
                 fn (array $row): array => $this->normalizeRow($row),
                 $rows
             ),
-            'pagination' => [
-                'page' => $page,
-                'per_page' => $perPage,
-                'total' => $total,
-                'total_pages' => max(1, (int) ceil($total / $perPage)),
-            ],
+            'pagination' => ListPagination::meta($page, $total, $perPage),
         ];
     }
 
