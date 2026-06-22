@@ -8,6 +8,28 @@ while (ob_get_level() > 0) {
     ob_end_clean();
 }
 
+register_shutdown_function(static function (): void {
+    $error = error_get_last();
+
+    if ($error === null) {
+        return;
+    }
+
+    if (!in_array($error['type'], [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR], true)) {
+        return;
+    }
+
+    if (!headers_sent()) {
+        header('Content-Type: text/html; charset=utf-8');
+        http_response_code(500);
+    }
+
+    echo '<pre style="margin:1rem;padding:1rem;background:#fee;border:1px solid #f99;color:#900;white-space:pre-wrap;">';
+    echo 'FATAL: ' . htmlspecialchars((string) $error['message'], ENT_QUOTES, 'UTF-8') . "\n";
+    echo 'in ' . htmlspecialchars((string) $error['file'], ENT_QUOTES, 'UTF-8') . ':' . (int) $error['line'];
+    echo '</pre>';
+});
+
 require __DIR__ . '/../vendor/autoload.php';
 
 use App\Services\DatabaseInitializer;

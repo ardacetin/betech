@@ -12,6 +12,7 @@ use App\Models\Setting;
 use App\Models\User;
 use App\Services\Auth\Drivers\LdapDriver;
 use App\Services\Auth\SessionAuthService;
+use App\Services\Auth\UserIntegrationFactory;
 use App\Services\ListPagination;
 use App\Services\ClientIpResolver;
 use Psr\Http\Message\ResponseInterface;
