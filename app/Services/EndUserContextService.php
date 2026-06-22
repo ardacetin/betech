@@ -52,6 +52,37 @@ class EndUserContextService
     }
 
     /**
+     * Resolve a legacy users.id for FK columns that still reference the users table.
+     * Session auth stores personnel.id; returns null when no matching users row exists.
+     */
+    public function resolveLegacyUserId(): ?int
+    {
+        $sessionUserId = $this->sessionAuthService->userId();
+
+        if ($sessionUserId === null || $sessionUserId <= 0) {
+            return null;
+        }
+
+        if ($this->userModel->findById($sessionUserId) !== null) {
+            return $sessionUserId;
+        }
+
+        $person = $this->personnelModel->findById($sessionUserId);
+
+        if ($person === null) {
+            return null;
+        }
+
+        $user = $this->userModel->findByEmail((string) ($person['email'] ?? ''));
+
+        if ($user === null) {
+            return null;
+        }
+
+        return (int) $user['id'];
+    }
+
+    /**
      * @return array<string, mixed>|null
      */
     public function resolvePersonnel(): ?array

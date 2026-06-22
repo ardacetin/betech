@@ -159,7 +159,7 @@ class TicketController
                 (int) $payload['personnel_id'],
                 $assetId,
                 (string) ($payload['priority'] ?? Ticket::PRIORITY_MEDIUM),
-                $this->sessionAuthService->userId()
+                $this->endUserContextService->resolveLegacyUserId()
             );
         } catch (\InvalidArgumentException $exception) {
             return $this->jsonResponse($response, 422, [
@@ -177,7 +177,7 @@ class TicketController
 
         $this->auditLogger->logFromRequest(
             $request,
-            $this->sessionAuthService->userId(),
+            $this->endUserContextService->resolveLegacyUserId(),
             AuditLog::ACTION_CREATED,
             AuditLog::ENTITY_TICKET,
             (int) ($ticket['id'] ?? 0),
@@ -369,7 +369,7 @@ class TicketController
             ]);
         }
 
-        $userId = $this->sessionAuthService->userId();
+        $userId = $this->endUserContextService->resolveLegacyUserId();
         $authorName = $this->resolveAuthorName($userId);
 
         try {
