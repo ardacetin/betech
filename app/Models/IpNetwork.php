@@ -43,6 +43,21 @@ class IpNetwork
     }
 
     /**
+     * @return list<array<string, mixed>>
+     */
+    public function findHighUtilization(int $thresholdPercent = 90): array
+    {
+        if ($thresholdPercent < 1) {
+            return [];
+        }
+
+        return array_values(array_filter(
+            $this->findAll(),
+            static fn (array $network): bool => (int) ($network['utilization_percent'] ?? 0) >= $thresholdPercent
+        ));
+    }
+
+    /**
      * @return array<string, mixed>|null
      */
     public function findById(int $id): ?array

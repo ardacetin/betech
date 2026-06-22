@@ -11,6 +11,7 @@ if (PHP_SAPI !== 'cli') {
 require __DIR__ . '/vendor/autoload.php';
 
 use App\Models\Consumable;
+use App\Models\IpNetwork;
 use App\Models\License;
 use App\Models\Personnel;
 use App\Models\Setting;
@@ -19,10 +20,13 @@ use App\Services\AppLogger;
 use App\Services\ClientIpResolver;
 use App\Services\DatabaseBackupService;
 use App\Services\DatabaseService;
+use App\Services\IpAddressGenerator;
 use App\Services\R2BackupStorage;
 use App\Services\Mail\DailySummaryNotificationService;
 use App\Services\Mail\MailConfigResolver;
 use App\Services\Mail\MailService;
+use App\Services\Notifications\HealthScannerNotificationService;
+use App\Services\Notifications\TelegramNotifier;
 use App\Services\Translator;
 use App\Services\ViewRenderer;
 use Dotenv\Dotenv;
@@ -105,6 +109,42 @@ if ($command === 'notify:daily_summary') {
     exit(1);
 }
 
+if ($command === 'notify:health_scan') {
+    $settingModel = new Setting($databaseService);
+    $mailConfigResolver = new MailConfigResolver($settingModel);
+    $mailService = new MailService($mailConfigResolver, $appLogger);
+    $viewRenderer = new ViewRenderer($rootPath . '/views');
+    $ipAddressGenerator = new IpAddressGenerator();
+
+    $service = new HealthScannerNotificationService(
+        new IpNetwork($databaseService, $ipAddressGenerator),
+        new License($databaseService),
+        new Consumable($databaseService),
+        $settingModel,
+        new Personnel($databaseService),
+        $mailService,
+        new TelegramNotifier($appLogger),
+        $viewRenderer,
+        $appLogger,
+        $appConfig['url']
+    );
+
+    $result = $service->run();
+
+    if ($result['skipped']) {
+        echo $result['message'] . "\n";
+        exit(0);
+    }
+
+    if ($result['success']) {
+        echo $result['message'] . "\n";
+        exit(0);
+    }
+
+    fwrite(STDERR, $result['message'] . "\n");
+    exit(1);
+}
+
 if ($command === 'backup:database') {
     /** @var array<string, string> $r2Config */
     $r2Config = require $rootPath . '/config/r2.php';
@@ -128,5 +168,6 @@ if ($command === 'backup:database') {
 fwrite(STDERR, "Usage:\n");
 fwrite(STDERR, "  php cli.php make:admin <username>\n");
 fwrite(STDERR, "  php cli.php notify:daily_summary\n");
+fwrite(STDERR, "  php cli.php notify:health_scan\n");
 fwrite(STDERR, "  php cli.php backup:database\n");
 exit(1);

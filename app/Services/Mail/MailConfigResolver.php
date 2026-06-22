@@ -31,10 +31,10 @@ class MailConfigResolver
         $stored = $this->settingModel->getSmtpConfig();
 
         if ($override === null) {
-            return $stored;
+            return $this->applyEnvOverrides($stored);
         }
 
-        return $this->mergeWithOverride($stored, $override);
+        return $this->applyEnvOverrides($this->mergeWithOverride($stored, $override));
     }
 
     /**
@@ -141,5 +141,66 @@ class MailConfigResolver
         }
 
         return in_array(strtolower(trim((string) $value)), ['1', 'true', 'yes', 'on'], true);
+    }
+
+    /**
+     * @param array{
+     *     enabled: bool,
+     *     host: string,
+     *     port: int,
+     *     username: string,
+     *     password: string,
+     *     encryption: string,
+     *     from_address: string,
+     *     from_name: string,
+     *     support_addresses: list<string>
+     * } $config
+     *
+     * @return array{
+     *     enabled: bool,
+     *     host: string,
+     *     port: int,
+     *     username: string,
+     *     password: string,
+     *     encryption: string,
+     *     from_address: string,
+     *     from_name: string,
+     *     support_addresses: list<string>
+     * }
+     */
+    private function applyEnvOverrides(array $config): array
+    {
+        $host = trim((string) ($_ENV['MAIL_HOST'] ?? ''));
+
+        if ($host !== '') {
+            $config['enabled'] = true;
+            $config['host'] = $host;
+        }
+
+        if (isset($_ENV['MAIL_PORT']) && trim((string) $_ENV['MAIL_PORT']) !== '') {
+            $config['port'] = max(1, (int) $_ENV['MAIL_PORT']);
+        }
+
+        if (isset($_ENV['MAIL_USERNAME']) && trim((string) $_ENV['MAIL_USERNAME']) !== '') {
+            $config['username'] = trim((string) $_ENV['MAIL_USERNAME']);
+        }
+
+        if (isset($_ENV['MAIL_PASSWORD']) && trim((string) $_ENV['MAIL_PASSWORD']) !== '') {
+            $config['password'] = (string) $_ENV['MAIL_PASSWORD'];
+        }
+
+        if (isset($_ENV['MAIL_ENCRYPTION']) && trim((string) $_ENV['MAIL_ENCRYPTION']) !== '') {
+            $config['encryption'] = $this->normalizeEncryption((string) $_ENV['MAIL_ENCRYPTION']);
+        }
+
+        if (isset($_ENV['MAIL_FROM_ADDRESS']) && trim((string) $_ENV['MAIL_FROM_ADDRESS']) !== '') {
+            $config['from_address'] = strtolower(trim((string) $_ENV['MAIL_FROM_ADDRESS']));
+        }
+
+        if (isset($_ENV['MAIL_FROM_NAME']) && trim((string) $_ENV['MAIL_FROM_NAME']) !== '') {
+            $config['from_name'] = trim((string) $_ENV['MAIL_FROM_NAME']);
+        }
+
+        return $config;
     }
 }
