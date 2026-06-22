@@ -14,6 +14,7 @@ use App\Controllers\AssetTutanakController;
 use App\Controllers\AssetViewController;
 use App\Controllers\AuthController;
 use App\Controllers\ConsumableController;
+use App\Controllers\KnowledgeBaseController;
 use App\Controllers\DashboardController;
 use App\Controllers\EndUserController;
 use App\Controllers\TicketController;
@@ -36,6 +37,7 @@ use App\Models\AssetHistory;
 use App\Models\AuditLog;
 use App\Models\Category;
 use App\Models\Consumable;
+use App\Models\KnowledgeBaseArticle;
 use App\Models\IpAddress;
 use App\Models\IpNetwork;
 use App\Models\License;
@@ -139,6 +141,7 @@ $ipNetworkModel = new IpNetwork($databaseService, $ipAddressGenerator);
 $ipAddressModel = new IpAddress($databaseService);
 $ipamCsvImportService = new IpamCsvImportService($ipNetworkModel, $ipAddressModel, $assetModel, $ipAddressGenerator);
 $consumableModel = new Consumable($databaseService);
+$knowledgeBaseArticleModel = new KnowledgeBaseArticle($databaseService);
 $settingModel = new Setting($databaseService);
 $userIntegrationFactory = new UserIntegrationFactory($databaseService, $settingModel);
 $qrCodeService = new QrCodeService($appConfig['url']);
@@ -191,6 +194,7 @@ $locationController = new LocationController($locationModel);
 $licenseController = new LicenseController($licenseModel);
 $ipNetworkController = new IpNetworkController($ipNetworkModel, $ipAddressModel, $assetModel, $ipamCsvImportService);
 $consumableController = new ConsumableController($consumableModel);
+$knowledgeBaseController = new KnowledgeBaseController($knowledgeBaseArticleModel, $sessionAuthService);
 $ticketModel = new Ticket($databaseService);
 $ticketNotificationService = new TicketNotificationService(
     $mailService,
@@ -232,8 +236,9 @@ $app->group('', function ($group) use ($endUserController): void {
     $group->get('/api/my/assets', [$endUserController, 'assets']);
 })->add($endUserMiddleware);
 
-// Helpdesk tickets: Auth + RoleMiddleware only (no AdminMiddleware). Controllers scope data by role.
-$app->group('', function ($group) use ($ticketController, $assetTutanakController, $assetController): void {
+// Helpdesk tickets + published knowledge base: Auth + RoleMiddleware only (no AdminMiddleware).
+$app->group('', function ($group) use ($ticketController, $assetTutanakController, $assetController, $knowledgeBaseController): void {
+    $group->get('/api/knowledge-base/published', [$knowledgeBaseController, 'published']);
     $group->get('/api/tickets', [$ticketController, 'index']);
     $group->post('/api/tickets', [$ticketController, 'store']);
     $group->get('/api/tickets/{id}', [$ticketController, 'show']);
@@ -253,6 +258,7 @@ $app->group('', function ($group) use (
     $licenseController,
     $ipNetworkController,
     $consumableController,
+    $knowledgeBaseController,
     $ticketController,
     $userController,
     $assetController,
@@ -303,6 +309,11 @@ $app->group('', function ($group) use (
     $group->delete('/api/consumables/{id}', [$consumableController, 'destroy']);
     $group->post('/api/consumables/{id}/checkout', [$consumableController, 'checkout']);
     $group->post('/api/consumables/{id}/restock', [$consumableController, 'restock']);
+    $group->get('/api/knowledge-base', [$knowledgeBaseController, 'index']);
+    $group->post('/api/knowledge-base', [$knowledgeBaseController, 'store']);
+    $group->get('/api/knowledge-base/{id}', [$knowledgeBaseController, 'show']);
+    $group->put('/api/knowledge-base/{id}', [$knowledgeBaseController, 'update']);
+    $group->delete('/api/knowledge-base/{id}', [$knowledgeBaseController, 'destroy']);
     $group->put('/api/tickets/{id}', [$ticketController, 'update']);
     $group->delete('/api/tickets/{id}', [$ticketController, 'destroy']);
     $group->get('/api/assets/{id}/licenses', [$licenseController, 'forAsset']);

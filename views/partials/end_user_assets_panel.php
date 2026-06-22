@@ -9,7 +9,40 @@ declare(strict_types=1);
 $adminFieldClass = 'w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4';
 $adminLabelClass = 'mb-1.5 block text-sm font-medium text-zinc-700';
 ?>
-<section x-show="activeView === 'my_assets'" x-cloak class="space-y-6">
+<section x-show="activeView === 'my_assets'" x-cloak class="space-y-8">
+    <section class="space-y-4">
+        <div>
+            <h2 class="text-lg font-semibold text-zinc-900"><?= htmlspecialchars(__('portal_knowledge_base_title'), ENT_QUOTES, 'UTF-8') ?></h2>
+            <p class="mt-1 text-sm text-zinc-500"><?= htmlspecialchars(__('portal_knowledge_base_subtitle'), ENT_QUOTES, 'UTF-8') ?></p>
+        </div>
+
+        <p x-show="publishedKnowledgeBaseLoading" x-cloak class="rounded-xl border border-zinc-200 bg-white px-4 py-6 text-sm text-zinc-500">
+            <?= htmlspecialchars(__('portal_knowledge_base_loading'), ENT_QUOTES, 'UTF-8') ?>
+        </p>
+        <p x-show="publishedKnowledgeBaseError" x-cloak class="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700" x-text="publishedKnowledgeBaseError"></p>
+        <p
+            x-show="!publishedKnowledgeBaseLoading && !publishedKnowledgeBaseError && publishedKnowledgeBase.length === 0"
+            x-cloak
+            class="rounded-xl border border-dashed border-zinc-200 bg-zinc-50 px-4 py-8 text-sm text-zinc-500"
+        >
+            <?= htmlspecialchars(__('portal_knowledge_base_empty'), ENT_QUOTES, 'UTF-8') ?>
+        </p>
+
+        <div
+            x-show="!publishedKnowledgeBaseLoading && publishedKnowledgeBase.length > 0"
+            x-cloak
+            class="columns-1 gap-4 md:columns-2 lg:columns-3"
+        >
+            <template x-for="article in publishedKnowledgeBase" :key="article.id">
+                <div class="mb-4 break-inside-avoid rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md">
+                    <h3 class="mb-2 text-lg font-semibold text-gray-900" x-text="article.title"></h3>
+                    <p class="whitespace-pre-wrap text-sm leading-relaxed text-gray-700" x-text="article.content"></p>
+                </div>
+            </template>
+        </div>
+    </section>
+
+    <section class="space-y-4 border-t border-zinc-200 pt-8">
     <?php if (!$hasPersonnelProfile): ?>
     <div class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-900">
         <?= htmlspecialchars(__('portal_profile_not_linked'), ENT_QUOTES, 'UTF-8') ?>
@@ -70,5 +103,6 @@ $adminLabelClass = 'mb-1.5 block text-sm font-medium text-zinc-700';
                 </article>
             </template>
         </div>
+    </section>
     </section>
 </section>

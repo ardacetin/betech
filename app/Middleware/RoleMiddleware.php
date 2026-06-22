@@ -294,6 +294,36 @@ class RoleMiddleware implements MiddlewareInterface
             ],
             [
                 'methods' => ['GET'],
+                'pattern' => '/api/knowledge-base/published',
+                'roles' => $withEndUser,
+            ],
+            [
+                'methods' => ['GET'],
+                'pattern' => '/api/knowledge-base',
+                'roles' => $operational,
+            ],
+            [
+                'methods' => ['POST'],
+                'pattern' => '/api/knowledge-base',
+                'roles' => $operational,
+            ],
+            [
+                'methods' => ['GET'],
+                'pattern' => '/api/knowledge-base/{id}',
+                'roles' => $operational,
+            ],
+            [
+                'methods' => ['PUT'],
+                'pattern' => '/api/knowledge-base/{id}',
+                'roles' => $operational,
+            ],
+            [
+                'methods' => ['DELETE'],
+                'pattern' => '/api/knowledge-base/{id}',
+                'roles' => $operational,
+            ],
+            [
+                'methods' => ['GET'],
                 'pattern' => '/api/tickets',
                 'roles' => $withEndUser,
             ],

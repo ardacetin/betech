@@ -89,6 +89,10 @@ class DatabaseInitializer
                     $warnings[] = $warning;
                 }
 
+                foreach ($this->patchKnowledgeBase($connection) as $warning) {
+                    $warnings[] = $warning;
+                }
+
                 foreach ($this->patchAuditLogs($connection) as $warning) {
                     $warnings[] = $warning;
                 }
@@ -811,6 +815,34 @@ class DatabaseInitializer
     private function getConsumablesTableMigrationPath(): string
     {
         return dirname($this->schemaPath) . '/migrations/012_create_consumables_table.sql';
+    }
+
+    /**
+     * Self-heal knowledge base articles table.
+     *
+     * @param object $connection Medoo instance
+     *
+     * @return list<string>
+     */
+    private function patchKnowledgeBase(object $connection): array
+    {
+        $warnings = [];
+
+        if (!$this->tableExists($connection, 'personnel')) {
+            return $warnings;
+        }
+
+        if (!$this->tableExists($connection, 'knowledge_base_articles')) {
+            $this->applySqlFile($connection, $this->getKnowledgeBaseTableMigrationPath());
+            $warnings[] = 'Self-healed database: created knowledge_base_articles table.';
+        }
+
+        return $warnings;
+    }
+
+    private function getKnowledgeBaseTableMigrationPath(): string
+    {
+        return dirname($this->schemaPath) . '/migrations/018_create_knowledge_base_articles.sql';
     }
 
     /**

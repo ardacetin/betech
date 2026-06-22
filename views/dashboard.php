@@ -219,6 +219,16 @@ $i18nScript = json_encode([
     'consumable_checkout_error' => __('consumable_checkout_error'),
     'consumable_restock_error' => __('consumable_restock_error'),
     'consumable_delete_confirm' => __('consumable_delete_confirm'),
+    'kb_fetch_error' => __('kb_fetch_error'),
+    'kb_network_error' => __('kb_network_error'),
+    'kb_create_success' => __('kb_create_success'),
+    'kb_create_error' => __('kb_create_error'),
+    'kb_update_success' => __('kb_update_success'),
+    'kb_update_error' => __('kb_update_error'),
+    'kb_delete_success' => __('kb_delete_success'),
+    'kb_delete_error' => __('kb_delete_error'),
+    'kb_delete_confirm' => __('kb_delete_confirm'),
+    'portal_knowledge_base_error' => __('portal_knowledge_base_error'),
     'helpdesk_fetch_error' => __('helpdesk_fetch_error'),
     'helpdesk_network_error' => __('helpdesk_network_error'),
     'ticket_create_success' => __('ticket_create_success'),
@@ -483,6 +493,15 @@ $i18nScript = json_encode([
                         </button>
                         <button
                             type="button"
+                            x-show="activeView === 'knowledge_base' && canManageAssets"
+                            @click="openKnowledgeBaseModal()"
+                            class="inline-flex items-center gap-2 rounded-xl bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white shadow-soft transition hover:bg-zinc-800"
+                        >
+                            <span class="text-lg leading-none">+</span>
+                            <?= htmlspecialchars(__('kb_add_article'), ENT_QUOTES, 'UTF-8') ?>
+                        </button>
+                        <button
+                            type="button"
                             x-show="activeView === 'my_tickets' && isEndUser"
                             @click="openPortalTicketModal()"
                             class="inline-flex items-center gap-2 rounded-xl bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white shadow-soft transition hover:bg-zinc-800"
@@ -733,6 +752,7 @@ $i18nScript = json_encode([
                 <?php if ($canManageAssets): ?>
                 <?php require __DIR__ . '/partials/licenses_panel.php'; ?>
                 <?php require __DIR__ . '/partials/consumables_panel.php'; ?>
+                <?php require __DIR__ . '/partials/knowledge_base_panel.php'; ?>
                 <?php require __DIR__ . '/partials/helpdesk_panel.php'; ?>
                 <?php require __DIR__ . '/partials/ipam_panel.php'; ?>
                 <?php endif; ?>
@@ -1871,6 +1891,42 @@ $i18nScript = json_encode([
     </div>
 
     <div
+        x-show="isKnowledgeBaseModalOpen"
+        x-cloak
+        class="fixed inset-0 z-50 flex items-center justify-center px-4"
+    >
+        <div class="absolute inset-0 bg-zinc-900/40 backdrop-blur-sm" @click="closeKnowledgeBaseModal()"></div>
+        <div class="relative w-full max-w-2xl rounded-2xl border border-zinc-200 bg-white p-6 shadow-soft">
+            <h3 class="text-lg font-semibold text-zinc-900" x-text="knowledgeBaseForm.id ? '<?= htmlspecialchars(__('kb_edit_article'), ENT_QUOTES, 'UTF-8') ?>' : '<?= htmlspecialchars(__('kb_add_article'), ENT_QUOTES, 'UTF-8') ?>'"></h3>
+            <form class="mt-5 space-y-4" @submit.prevent="submitKnowledgeBaseForm()">
+                <label class="block">
+                    <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('kb_title_label'), ENT_QUOTES, 'UTF-8') ?></span>
+                    <input type="text" x-model="knowledgeBaseForm.title" required class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4">
+                </label>
+                <label class="block">
+                    <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('kb_content_label'), ENT_QUOTES, 'UTF-8') ?></span>
+                    <textarea x-model="knowledgeBaseForm.content" required rows="8" class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4"></textarea>
+                </label>
+                <label class="flex items-start gap-3 rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3">
+                    <input type="checkbox" x-model="knowledgeBaseForm.is_published" class="mt-1 rounded border-zinc-300 text-zinc-900 focus:ring-zinc-900">
+                    <span>
+                        <span class="block text-sm font-medium text-zinc-900"><?= htmlspecialchars(__('kb_published_label'), ENT_QUOTES, 'UTF-8') ?></span>
+                        <span class="mt-1 block text-xs text-zinc-500"><?= htmlspecialchars(__('kb_published_hint'), ENT_QUOTES, 'UTF-8') ?></span>
+                    </span>
+                </label>
+                <p x-show="knowledgeBaseFormError" x-cloak class="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700" x-text="knowledgeBaseFormError"></p>
+                <div class="flex items-center justify-end gap-3 border-t border-zinc-200 pt-5">
+                    <button type="button" @click="closeKnowledgeBaseModal()" :disabled="isKnowledgeBaseSubmitting" class="rounded-xl border border-zinc-200 px-4 py-2.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60"><?= htmlspecialchars(__('cancel'), ENT_QUOTES, 'UTF-8') ?></button>
+                    <button type="submit" :disabled="isKnowledgeBaseSubmitting" class="inline-flex items-center gap-2 rounded-xl bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60">
+                        <span x-show="isKnowledgeBaseSubmitting"><?= htmlspecialchars(__('saving'), ENT_QUOTES, 'UTF-8') ?></span>
+                        <span x-show="!isKnowledgeBaseSubmitting"><?= htmlspecialchars(__('save'), ENT_QUOTES, 'UTF-8') ?></span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div
         x-show="isConsumableAdjustModalOpen"
         x-cloak
         class="fixed inset-0 z-50 flex items-center justify-center px-4"
@@ -2142,6 +2198,7 @@ $i18nScript = json_encode([
                 my_tickets: <?= json_encode(__('portal_my_tickets_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 licenses: <?= json_encode(__('licenses_page_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 consumables: <?= json_encode(__('consumables_page_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
+                knowledge_base: <?= json_encode(__('kb_page_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 helpdesk: <?= json_encode(__('helpdesk_page_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 ipam: <?= json_encode(__('ipam_page_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 settings: <?= json_encode(__('settings_page_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
@@ -2159,6 +2216,7 @@ $i18nScript = json_encode([
                 my_tickets: <?= json_encode(__('portal_my_tickets_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 licenses: <?= json_encode(__('licenses_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 consumables: <?= json_encode(__('consumables_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
+                knowledge_base: <?= json_encode(__('kb_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 helpdesk: <?= json_encode(__('helpdesk_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 ipam: <?= json_encode(__('ipam_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 settings: <?= json_encode(__('settings_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
@@ -2285,6 +2343,22 @@ $i18nScript = json_encode([
             consumableAdjustTarget: null,
             consumableAdjustQuantity: 1,
             consumableAdjustError: '',
+            knowledgeBaseArticles: [],
+            knowledgeBaseLoading: false,
+            knowledgeBaseError: '',
+            knowledgeBaseSuccessMessage: '',
+            isKnowledgeBaseModalOpen: false,
+            isKnowledgeBaseSubmitting: false,
+            knowledgeBaseForm: {
+                id: null,
+                title: '',
+                content: '',
+                is_published: false,
+            },
+            knowledgeBaseFormError: '',
+            publishedKnowledgeBase: [],
+            publishedKnowledgeBaseLoading: false,
+            publishedKnowledgeBaseError: '',
             tickets: [],
             ticketsLoading: false,
             ticketsError: '',
@@ -2631,6 +2705,7 @@ $i18nScript = json_encode([
                     if (this.isEndUser) {
                         if (this.activeView === 'my_assets') {
                             this.fetchPortalAssets();
+                            this.fetchPublishedKnowledgeBase();
                         }
 
                         if (this.activeView === 'my_tickets') {
@@ -2662,6 +2737,10 @@ $i18nScript = json_encode([
 
                     if (this.activeView === 'consumables') {
                         this.fetchConsumables();
+                    }
+
+                    if (this.activeView === 'knowledge_base') {
+                        this.fetchKnowledgeBaseArticles();
                     }
 
                     if (this.activeView === 'helpdesk') {
@@ -2702,6 +2781,7 @@ $i18nScript = json_encode([
             initEndUserPortal() {
                 this.activeView = this.normalizeEndUserView(this.activeView);
                 this.fetchPortalAssets();
+                this.fetchPublishedKnowledgeBase();
 
                 const params = new URLSearchParams(window.location.search);
                 const ticketId = params.get('ticket');
@@ -5288,6 +5368,160 @@ $i18nScript = json_encode([
                     await this.fetchConsumables();
                 } catch (error) {
                     this.consumablesError = window.__i18n.consumables_network_error;
+                }
+            },
+            async fetchKnowledgeBaseArticles() {
+                if (!this.canManageAssets) {
+                    return;
+                }
+
+                this.knowledgeBaseLoading = true;
+                this.knowledgeBaseError = '';
+
+                try {
+                    const response = await fetch('/api/knowledge-base', {
+                        headers: { Accept: 'application/json' },
+                    });
+                    const result = await response.json();
+
+                    if (!response.ok) {
+                        this.knowledgeBaseError = result.message || window.__i18n.kb_fetch_error;
+                        this.knowledgeBaseArticles = [];
+                        return;
+                    }
+
+                    this.knowledgeBaseArticles = Array.isArray(result.data) ? result.data : [];
+                } catch (error) {
+                    this.knowledgeBaseError = window.__i18n.kb_network_error;
+                    this.knowledgeBaseArticles = [];
+                } finally {
+                    this.knowledgeBaseLoading = false;
+                }
+            },
+            async fetchPublishedKnowledgeBase() {
+                if (!this.isEndUser) {
+                    return;
+                }
+
+                this.publishedKnowledgeBaseLoading = true;
+                this.publishedKnowledgeBaseError = '';
+
+                try {
+                    const response = await fetch('/api/knowledge-base/published', {
+                        headers: { Accept: 'application/json' },
+                    });
+                    const result = await response.json();
+
+                    if (!response.ok) {
+                        this.publishedKnowledgeBaseError = result.message || window.__i18n.portal_knowledge_base_error;
+                        this.publishedKnowledgeBase = [];
+                        return;
+                    }
+
+                    this.publishedKnowledgeBase = Array.isArray(result.data) ? result.data : [];
+                } catch (error) {
+                    this.publishedKnowledgeBaseError = window.__i18n.portal_knowledge_base_error;
+                    this.publishedKnowledgeBase = [];
+                } finally {
+                    this.publishedKnowledgeBaseLoading = false;
+                }
+            },
+            formatKnowledgeBaseDate(value) {
+                if (!value) {
+                    return '—';
+                }
+
+                const date = new Date(String(value).replace(' ', 'T'));
+
+                if (Number.isNaN(date.getTime())) {
+                    return value;
+                }
+
+                return date.toLocaleString();
+            },
+            openKnowledgeBaseModal(article = null) {
+                this.knowledgeBaseForm = {
+                    id: article?.id ? Number(article.id) : null,
+                    title: article?.title || '',
+                    content: article?.content || '',
+                    is_published: Boolean(article?.is_published),
+                };
+                this.knowledgeBaseFormError = '';
+                this.knowledgeBaseSuccessMessage = '';
+                this.isKnowledgeBaseModalOpen = true;
+            },
+            closeKnowledgeBaseModal() {
+                if (this.isKnowledgeBaseSubmitting) {
+                    return;
+                }
+
+                this.isKnowledgeBaseModalOpen = false;
+            },
+            async submitKnowledgeBaseForm() {
+                this.isKnowledgeBaseSubmitting = true;
+                this.knowledgeBaseFormError = '';
+                this.knowledgeBaseSuccessMessage = '';
+
+                const payload = {
+                    title: this.knowledgeBaseForm.title,
+                    content: this.knowledgeBaseForm.content,
+                    is_published: Boolean(this.knowledgeBaseForm.is_published),
+                };
+
+                const isEdit = Number(this.knowledgeBaseForm.id) > 0;
+                const url = isEdit ? `/api/knowledge-base/${this.knowledgeBaseForm.id}` : '/api/knowledge-base';
+                const method = isEdit ? 'PUT' : 'POST';
+
+                try {
+                    const response = await fetch(url, {
+                        method,
+                        headers: {
+                            'Content-Type': 'application/json',
+                            Accept: 'application/json',
+                        },
+                        body: JSON.stringify(payload),
+                    });
+                    const result = await response.json();
+
+                    if (!response.ok) {
+                        this.knowledgeBaseFormError = result.message || (isEdit
+                            ? window.__i18n.kb_update_error
+                            : window.__i18n.kb_create_error);
+                        return;
+                    }
+
+                    this.knowledgeBaseSuccessMessage = result.message || (isEdit
+                        ? window.__i18n.kb_update_success
+                        : window.__i18n.kb_create_success);
+                    this.isKnowledgeBaseModalOpen = false;
+                    await this.fetchKnowledgeBaseArticles();
+                } catch (error) {
+                    this.knowledgeBaseFormError = window.__i18n.kb_network_error;
+                } finally {
+                    this.isKnowledgeBaseSubmitting = false;
+                }
+            },
+            async deleteKnowledgeBaseArticle(article) {
+                if (!article?.id || !window.confirm(window.__i18n.kb_delete_confirm)) {
+                    return;
+                }
+
+                try {
+                    const response = await fetch(`/api/knowledge-base/${article.id}`, {
+                        method: 'DELETE',
+                        headers: { Accept: 'application/json' },
+                    });
+                    const result = await response.json();
+
+                    if (!response.ok) {
+                        this.knowledgeBaseError = result.message || window.__i18n.kb_delete_error;
+                        return;
+                    }
+
+                    this.knowledgeBaseSuccessMessage = result.message || window.__i18n.kb_delete_success;
+                    await this.fetchKnowledgeBaseArticles();
+                } catch (error) {
+                    this.knowledgeBaseError = window.__i18n.kb_network_error;
                 }
             },
             get filteredTickets() {
