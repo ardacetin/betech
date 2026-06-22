@@ -2190,6 +2190,7 @@ $i18nScript = json_encode([
             importSummaryMessage: '',
             importSummaryIsError: false,
             importSummaryErrors: [],
+            csrfToken: <?= json_encode($csrfToken ?? '', JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
             inventoryAssets: <?= $inventoryAssetsJson ?>,
             assetFilterFields: <?= $assetFilterFieldsJson ?>,
             assetFilters: <?= $initialAssetFiltersJson ?>,
@@ -3113,6 +3114,53 @@ $i18nScript = json_encode([
                 }
 
                 return fallback;
+            },
+            resolveCsrfToken() {
+                const token = String(this.csrfToken || '').trim();
+
+                if (token !== '') {
+                    return token;
+                }
+
+                return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')?.trim() ?? '';
+            },
+            apiFetchInit(method = 'GET', init = {}) {
+                const normalizedMethod = String(method || 'GET').toUpperCase();
+                const headers = new Headers(init.headers ?? {});
+
+                if (!headers.has('Accept')) {
+                    headers.set('Accept', 'application/json');
+                }
+
+                if (['POST', 'PUT', 'DELETE', 'PATCH'].includes(normalizedMethod)) {
+                    const token = this.resolveCsrfToken();
+
+                    if (token !== '' && !headers.has('X-CSRF-TOKEN')) {
+                        headers.set('X-CSRF-TOKEN', token);
+                    }
+                }
+
+                return {
+                    ...init,
+                    method: normalizedMethod,
+                    headers,
+                };
+            },
+            apiFetchJsonInit(method = 'GET', body = null, init = {}) {
+                const requestInit = this.apiFetchInit(method, init);
+                const headers = new Headers(requestInit.headers ?? {});
+
+                if (body !== null && body !== undefined && !headers.has('Content-Type')) {
+                    headers.set('Content-Type', 'application/json');
+                }
+
+                requestInit.headers = headers;
+
+                if (body !== null && body !== undefined) {
+                    requestInit.body = typeof body === 'string' ? body : JSON.stringify(body);
+                }
+
+                return requestInit;
             },
             defaultListPagination() {
                 return { page: 1, per_page: 50, total: 0, total_pages: 1 };
@@ -4151,11 +4199,7 @@ $i18nScript = json_encode([
                 const url = query ? `/api/assets?${query}` : '/api/assets';
 
                 try {
-                    const response = await fetch(url, {
-                        headers: {
-                            Accept: 'application/json',
-                        },
-                    });
+                    const response = await fetch(url, this.apiFetchInit('GET'));
                     const result = await response.json().catch(() => ({}));
 
                     if (!response.ok) {
@@ -5315,9 +5359,7 @@ $i18nScript = json_encode([
                 const url = query ? `/api/licenses?${query}` : '/api/licenses';
 
                 try {
-                    const response = await fetch(url, {
-                        headers: { Accept: 'application/json' },
-                    });
+                    const response = await fetch(url, this.apiFetchInit('GET'));
                     const result = await response.json();
 
                     if (!response.ok) {
@@ -5772,9 +5814,7 @@ $i18nScript = json_encode([
                 const url = query ? `/api/consumables?${query}` : '/api/consumables';
 
                 try {
-                    const response = await fetch(url, {
-                        headers: { Accept: 'application/json' },
-                    });
+                    const response = await fetch(url, this.apiFetchInit('GET'));
                     const result = await response.json();
 
                     if (!response.ok) {

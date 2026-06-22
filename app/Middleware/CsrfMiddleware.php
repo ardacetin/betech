@@ -30,6 +30,8 @@ class CsrfMiddleware implements MiddlewareInterface
             return $handler->handle($request);
         }
 
+        // Inventory/license/consumable filter requests use GET query strings and are not CSRF-checked.
+
         $path = $request->getUri()->getPath();
 
         if ($this->isExemptPath($path)) {
@@ -44,7 +46,25 @@ class CsrfMiddleware implements MiddlewareInterface
             $parsedBody = $request->getParsedBody();
 
             if (is_array($parsedBody)) {
-                $token = trim((string) ($parsedBody['_csrf'] ?? $parsedBody['csrf_token'] ?? ''));
+                $token = trim((string) (
+                    $parsedBody['_csrf']
+                    ?? $parsedBody['csrf_token']
+                    ?? $parsedBody['csrf_value']
+                    ?? ''
+                ));
+            }
+        }
+
+        if ($token === '') {
+            $queryParams = $request->getQueryParams();
+
+            if (is_array($queryParams)) {
+                $token = trim((string) (
+                    $queryParams['_csrf']
+                    ?? $queryParams['csrf_token']
+                    ?? $queryParams['csrf_value']
+                    ?? ''
+                ));
             }
         }
 
