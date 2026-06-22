@@ -9,11 +9,12 @@ use App\Models\Category;
 use App\Models\Location;
 use App\Models\Personnel;
 use PhpOffice\PhpSpreadsheet\IOFactory;
+use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 use RuntimeException;
 
 class InventoryImportService
 {
-    private const MAX_FILE_BYTES = 5 * 1024 * 1024;
+    private const MAX_FILE_BYTES = 10 * 1024 * 1024;
 
     private const KNOWN_STATUSES = ['ready', 'deployed', 'storage', 'broken'];
 
@@ -29,17 +30,32 @@ class InventoryImportService
         'arızalı' => 'broken',
         'arizali' => 'broken',
         'broken' => 'broken',
+        'in stock' => 'storage',
+        'instock' => 'storage',
+        'stokta' => 'storage',
+        'in use' => 'deployed',
+        'inuse' => 'deployed',
+        'in production' => 'deployed',
+        'production' => 'deployed',
+        'kullanımda' => 'deployed',
+        'kullanimda' => 'deployed',
+        'ordered' => 'ready',
+        'out of order' => 'broken',
+        'outoforder' => 'broken',
     ];
 
     /**
      * @var array<string, string>
      */
     private const HEADER_ALIASES = [
-        'name' => 'name',
-        'ad' => 'name',
-        'model' => 'name',
-        'envanter_adi' => 'name',
-        'asset_name' => 'name',
+        'name' => 'device_name',
+        'ad' => 'device_name',
+        'cihaz_adi' => 'device_name',
+        'device_name' => 'device_name',
+        'envanter_adi' => 'device_name',
+        'asset_name' => 'device_name',
+        'model' => 'device_model',
+        'device_model' => 'device_model',
         'serial_number' => 'serial_number',
         'serial' => 'serial_number',
         'seri_numarasi' => 'serial_number',
@@ -48,27 +64,45 @@ class InventoryImportService
         'category' => 'category',
         'kategori' => 'category',
         'category_name' => 'category',
+        'type' => 'category',
+        'tur' => 'category',
+        'tip' => 'category',
+        'itemtype' => 'category',
         'status' => 'status',
         'durum' => 'status',
+        'state' => 'status',
         'location' => 'location',
         'lokasyon' => 'location',
         'location_name' => 'location',
+        'oda' => 'location',
+        'room' => 'location',
         'building' => 'building',
         'bina' => 'building',
         'campus' => 'building',
         'asset_tag' => 'asset_tag',
         'envanter_etiketi' => 'asset_tag',
+        'demirbas_no' => 'asset_tag',
+        'demirbas_numarasi' => 'asset_tag',
+        'inventory_number' => 'asset_tag',
         'tag' => 'asset_tag',
         'personnel' => 'personnel',
         'personel' => 'personnel',
         'kullanici' => 'personnel',
         'kullanıcı' => 'personnel',
+        'kullanici_adi' => 'personnel',
         'zimmetli_kisi' => 'personnel',
         'zimmetli_kişi' => 'personnel',
         'zimmetli' => 'personnel',
         'assignee' => 'personnel',
+        'assigned_to' => 'personnel',
         'user' => 'personnel',
+        'user_name' => 'personnel',
         'email' => 'personnel',
+        'brand' => 'brand',
+        'marka' => 'brand',
+        'manufacturer' => 'brand',
+        'uretici' => 'brand',
+        'üretici' => 'brand',
     ];
 
     public function __construct(
@@ -81,15 +115,29 @@ class InventoryImportService
 
     public static function templateCsvContent(): string
     {
-        $headers = ['Seri No', 'Model', 'Kategori', 'Zimmetli Kişi', 'Durum', 'Lokasyon', 'Envanter Etiketi'];
+        $headers = [
+            'Demirbaş No',
+            'Cihaz Adı',
+            'Model',
+            'Marka',
+            'Seri No',
+            'Tür',
+            'Durum',
+            'Lokasyon',
+            'Bina',
+            'Zimmetli Kişi',
+        ];
         $example = [
+            'ENV-GLPI-001',
+            'BT Departman Laptop',
+            'Latitude 5540',
+            'Dell',
             'SN-GLPI-001',
-            'Dell Latitude 5540',
-            'Laptop',
-            'ahmet.yilmaz@sirket.com',
+            'Bilgisayar',
             'deployed',
             'IT Depo',
-            '',
+            'Merkez Kampüs',
+            'ahmet.yilmaz@sirket.com',
         ];
 
         return self::buildCsvLine($headers) . self::buildCsvLine($example);
@@ -100,6 +148,7 @@ class InventoryImportService
      *     imported: int,
      *     updated: int,
      *     assigned: int,
+     *     skipped: int,
      *     failed: int,
      *     errors: list<array{row: int, message: string}>,
      *     warnings: list<array{row: int, message: string}>,
@@ -122,26 +171,32 @@ class InventoryImportService
         $extension = strtolower(pathinfo($originalFilename, PATHINFO_EXTENSION));
 
         try {
-            $rows = match ($extension) {
-                'csv' => $this->parseCsvRows($contents),
-                'xlsx', 'xls' => $this->parseSpreadsheetRows($contents, $extension),
-                default => throw new RuntimeException(__('inventory_import_invalid_file_type')),
+            return match ($extension) {
+                'csv' => $this->importCsvContents($contents),
+                'xlsx', 'xls' => $this->importSpreadsheetContents($contents, $extension),
+                default => $this->emptyResultWithError(0, __('inventory_import_invalid_file_type')),
             };
         } catch (RuntimeException $exception) {
             return $this->emptyResultWithError(0, $exception->getMessage());
         }
-
-        if ($rows === []) {
-            return $this->emptyResultWithError(0, __('import_csv_no_data_rows'));
-        }
-
-        return $this->processRows($rows);
     }
 
     /**
-     * @return list<array{row: int, values: array<string, string>}>
+     * @return array{
+     *     imported: int,
+     *     updated: int,
+     *     assigned: int,
+     *     skipped: int,
+     *     failed: int,
+     *     errors: list<array{row: int, message: string}>,
+     *     warnings: list<array{row: int, message: string}>,
+     *     created_assets: list<int>,
+     *     updated_assets: list<int>,
+     *     created_categories: list<string>,
+     *     created_locations: list<string>
+     * }
      */
-    private function parseCsvRows(string $csvContent): array
+    private function importCsvContents(string $csvContent): array
     {
         $csvContent = $this->stripBom($csvContent);
         $lines = preg_split('/\R/', $csvContent) ?? [];
@@ -150,7 +205,7 @@ class InventoryImportService
             throw new RuntimeException(__('import_csv_empty'));
         }
 
-        $rows = [];
+        $state = $this->newImportState();
         $headerMap = null;
 
         foreach ($lines as $index => $line) {
@@ -177,23 +232,36 @@ class InventoryImportService
                 continue;
             }
 
-            $rows[] = [
-                'row' => $lineNumber,
-                'values' => $this->normalizeRowValues($columns, $headerMap),
-            ];
+            $this->processRow(
+                $lineNumber,
+                $this->normalizeRowValues($columns, $headerMap),
+                $state
+            );
         }
 
         if ($headerMap === null) {
             throw new RuntimeException(__('import_csv_missing_headers'));
         }
 
-        return $rows;
+        return $this->finalizeImportState($state);
     }
 
     /**
-     * @return list<array{row: int, values: array<string, string>}>
+     * @return array{
+     *     imported: int,
+     *     updated: int,
+     *     assigned: int,
+     *     skipped: int,
+     *     failed: int,
+     *     errors: list<array{row: int, message: string}>,
+     *     warnings: list<array{row: int, message: string}>,
+     *     created_assets: list<int>,
+     *     updated_assets: list<int>,
+     *     created_categories: list<string>,
+     *     created_locations: list<string>
+     * }
      */
-    private function parseSpreadsheetRows(string $contents, string $extension): array
+    private function importSpreadsheetContents(string $contents, string $extension): array
     {
         $tempPath = tempnam(sys_get_temp_dir(), 'betech_inventory_import_');
 
@@ -209,53 +277,12 @@ class InventoryImportService
             }
 
             $readerType = $extension === 'xls' ? 'Xls' : 'Xlsx';
-            $spreadsheet = IOFactory::createReader($readerType)->load($storedPath);
-            $sheetRows = $spreadsheet->getActiveSheet()->toArray(null, true, true, false);
+            $reader = IOFactory::createReader($readerType);
+            $reader->setReadDataOnly(true);
+            $spreadsheet = $reader->load($storedPath);
+            $worksheet = $spreadsheet->getActiveSheet();
 
-            if ($sheetRows === []) {
-                throw new RuntimeException(__('import_csv_empty'));
-            }
-
-            $headerMap = null;
-            $rows = [];
-
-            foreach ($sheetRows as $index => $columns) {
-                $lineNumber = $index + 1;
-
-                if (!is_array($columns)) {
-                    continue;
-                }
-
-                $normalizedColumns = array_map(
-                    static fn (mixed $value): string => trim((string) $value),
-                    $columns
-                );
-
-                if ($this->isEmptyRow($normalizedColumns)) {
-                    continue;
-                }
-
-                if ($headerMap === null) {
-                    $headerMap = $this->mapHeaders($normalizedColumns);
-
-                    if ($headerMap === []) {
-                        throw new RuntimeException(__('import_csv_invalid_headers'));
-                    }
-
-                    continue;
-                }
-
-                $rows[] = [
-                    'row' => $lineNumber,
-                    'values' => $this->normalizeRowValues($normalizedColumns, $headerMap),
-                ];
-            }
-
-            if ($headerMap === null) {
-                throw new RuntimeException(__('import_csv_missing_headers'));
-            }
-
-            return $rows;
+            return $this->importWorksheetRows($worksheet);
         } finally {
             @unlink($tempPath);
             @unlink($storedPath);
@@ -263,12 +290,11 @@ class InventoryImportService
     }
 
     /**
-     * @param list<array{row: int, values: array<string, string>}> $rows
-     *
      * @return array{
      *     imported: int,
      *     updated: int,
      *     assigned: int,
+     *     skipped: int,
      *     failed: int,
      *     errors: list<array{row: int, message: string}>,
      *     warnings: list<array{row: int, message: string}>,
@@ -278,189 +304,322 @@ class InventoryImportService
      *     created_locations: list<string>
      * }
      */
-    private function processRows(array $rows): array
+    private function importWorksheetRows(Worksheet $worksheet): array
     {
-        $imported = 0;
-        $updated = 0;
-        $assigned = 0;
-        $failed = 0;
-        $errors = [];
-        $warnings = [];
-        $createdAssets = [];
-        $updatedAssets = [];
-        $createdCategories = [];
-        $createdLocations = [];
-        $seenSerials = [];
+        $state = $this->newImportState();
+        $headerMap = null;
 
-        /** @var array<string, int> $categoryCache */
-        $categoryCache = [];
+        foreach ($worksheet->getRowIterator() as $row) {
+            $lineNumber = $row->getRowIndex();
+            $columns = [];
 
-        /** @var array<string, int> $locationCache */
-        $locationCache = [];
+            foreach ($row->getCellIterator() as $cell) {
+                $columns[] = trim((string) $cell->getValue());
+            }
 
-        foreach ($rows as $entry) {
-            $rowNumber = $entry['row'];
-            $values = $entry['values'];
-
-            $name = trim($values['name'] ?? '');
-
-            if ($name === '') {
-                $failed++;
-                $errors[] = ['row' => $rowNumber, 'message' => __('import_error_name_required')];
+            if ($this->isEmptyRow($columns)) {
                 continue;
             }
 
-            $categoryName = trim($values['category'] ?? '');
+            if ($headerMap === null) {
+                $headerMap = $this->mapHeaders($columns);
 
-            if ($categoryName === '') {
-                $failed++;
-                $errors[] = ['row' => $rowNumber, 'message' => __('import_error_category_required')];
-                continue;
-            }
-
-            $serialNumber = trim($values['serial_number'] ?? '');
-            $serialKey = $serialNumber !== '' ? mb_strtolower($serialNumber, 'UTF-8') : '';
-
-            if ($serialKey !== '' && isset($seenSerials[$serialKey])) {
-                $failed++;
-                $errors[] = [
-                    'row' => $rowNumber,
-                    'message' => sprintf(__('import_error_duplicate_serial_in_file'), $serialNumber),
-                ];
-                continue;
-            }
-
-            $existingAsset = $serialKey !== '' ? $this->assetModel->findBySerialNumber($serialNumber) : null;
-            $assetTag = trim($values['asset_tag'] ?? '');
-
-            if ($existingAsset === null && $assetTag !== '') {
-                if ($this->assetModel->assetTagExists($assetTag)) {
-                    $failed++;
-                    $errors[] = [
-                        'row' => $rowNumber,
-                        'message' => sprintf(__('import_error_duplicate_tag'), $assetTag),
-                    ];
-                    continue;
+                if ($headerMap === []) {
+                    throw new RuntimeException(__('import_csv_invalid_headers'));
                 }
-            } elseif ($existingAsset !== null && $assetTag !== '') {
-                if ($this->assetModel->assetTagExists($assetTag, (int) $existingAsset['id'])) {
-                    $failed++;
-                    $errors[] = [
-                        'row' => $rowNumber,
-                        'message' => sprintf(__('import_error_duplicate_tag'), $assetTag),
-                    ];
-                    continue;
-                }
-            }
 
-            if ($existingAsset === null && $assetTag === '') {
-                $assetTag = $this->assetModel->generateNextAssetTag();
-            }
-
-            $status = $this->normalizeStatus($values['status'] ?? '');
-
-            if ($status === null) {
-                $failed++;
-                $errors[] = [
-                    'row' => $rowNumber,
-                    'message' => sprintf(
-                        __('import_error_invalid_status'),
-                        trim($values['status'] ?? '')
-                    ),
-                ];
                 continue;
             }
 
-            try {
-                $categoryId = $this->resolveCategoryId($categoryName, $categoryCache, $createdCategories);
-                $locationId = $this->resolveLocationId(
-                    trim($values['location'] ?? ''),
-                    trim($values['building'] ?? ''),
-                    $locationCache,
-                    $createdLocations
-                );
-            } catch (\Throwable $exception) {
-                $failed++;
-                $errors[] = ['row' => $rowNumber, 'message' => $exception->getMessage()];
-                continue;
-            }
-
-            $personnelRaw = trim($values['personnel'] ?? '');
-            $personnelId = $this->resolvePersonnelId($personnelRaw);
-
-            if ($personnelRaw !== '' && $personnelId === null) {
-                $warnings[] = [
-                    'row' => $rowNumber,
-                    'message' => sprintf(__('inventory_import_personnel_not_found'), $personnelRaw),
-                ];
-            }
-
-            if ($personnelId !== null) {
-                $status = 'deployed';
-            }
-
-            $coreFields = [
-                'name' => $name,
-                'category_id' => $categoryId,
-                'status' => $status,
-                'location_id' => $locationId,
-            ];
-
-            if ($serialNumber !== '') {
-                $coreFields['serial_number'] = $serialNumber;
-            }
-
-            if ($personnelId !== null) {
-                $coreFields['personnel_id'] = $personnelId;
-            }
-
-            try {
-                if ($existingAsset !== null) {
-                    if ($assetTag !== '') {
-                        $coreFields['asset_tag'] = $assetTag;
-                    }
-
-                    $asset = $this->assetModel->update((int) $existingAsset['id'], $coreFields);
-
-                    if ($asset === null) {
-                        throw new RuntimeException(__('inventory_import_update_failed'));
-                    }
-
-                    $updatedAssets[] = (int) $asset['id'];
-                    $updated++;
-                } else {
-                    $coreFields['asset_tag'] = $assetTag;
-                    $asset = $this->assetModel->create($coreFields, []);
-                    $createdAssets[] = (int) $asset['id'];
-                    $imported++;
-                }
-            } catch (\Throwable $exception) {
-                $failed++;
-                $errors[] = ['row' => $rowNumber, 'message' => $exception->getMessage()];
-                continue;
-            }
-
-            if ($personnelId !== null) {
-                $assigned++;
-            }
-
-            if ($serialKey !== '') {
-                $seenSerials[$serialKey] = true;
-            }
+            $this->processRow(
+                $lineNumber,
+                $this->normalizeRowValues($columns, $headerMap),
+                $state
+            );
         }
 
+        if ($headerMap === null) {
+            throw new RuntimeException(__('import_csv_missing_headers'));
+        }
+
+        return $this->finalizeImportState($state);
+    }
+
+    /**
+     * @return array{
+     *     imported: int,
+     *     updated: int,
+     *     assigned: int,
+     *     skipped: int,
+     *     failed: int,
+     *     errors: list<array{row: int, message: string}>,
+     *     warnings: list<array{row: int, message: string}>,
+     *     created_assets: list<int>,
+     *     updated_assets: list<int>,
+     *     categoryCache: array<string, int>,
+     *     locationCache: array<string, int>,
+     *     createdCategories: list<string>,
+     *     createdLocations: list<string>,
+     *     seenSerials: array<string, true>,
+     *     seenTags: array<string, true>
+     * }
+     */
+    private function newImportState(): array
+    {
         return [
-            'imported' => $imported,
-            'updated' => $updated,
-            'assigned' => $assigned,
-            'failed' => $failed,
-            'errors' => $errors,
-            'warnings' => $warnings,
-            'created_assets' => $createdAssets,
-            'updated_assets' => $updatedAssets,
-            'created_categories' => $createdCategories,
-            'created_locations' => $createdLocations,
+            'imported' => 0,
+            'updated' => 0,
+            'assigned' => 0,
+            'skipped' => 0,
+            'failed' => 0,
+            'errors' => [],
+            'warnings' => [],
+            'created_assets' => [],
+            'updated_assets' => [],
+            'categoryCache' => [],
+            'locationCache' => [],
+            'createdCategories' => [],
+            'createdLocations' => [],
+            'seenSerials' => [],
+            'seenTags' => [],
         ];
+    }
+
+    /**
+     * @param array<string, string> $values
+     * @param array{
+     *     imported: int,
+     *     updated: int,
+     *     assigned: int,
+     *     skipped: int,
+     *     failed: int,
+     *     errors: list<array{row: int, message: string}>,
+     *     warnings: list<array{row: int, message: string}>,
+     *     created_assets: list<int>,
+     *     updated_assets: list<int>,
+     *     categoryCache: array<string, int>,
+     *     locationCache: array<string, int>,
+     *     createdCategories: list<string>,
+     *     createdLocations: list<string>,
+     *     seenSerials: array<string, true>,
+     *     seenTags: array<string, true>
+     * } $state
+     */
+    private function processRow(int $rowNumber, array $values, array &$state): void
+    {
+        if ($this->isImportRowEmpty($values)) {
+            $state['skipped']++;
+
+            return;
+        }
+
+        $deviceName = trim($values['device_name'] ?? '');
+        $deviceModel = trim($values['device_model'] ?? '');
+        $name = $deviceName !== '' ? $deviceName : $deviceModel;
+
+        if ($name === '') {
+            $state['failed']++;
+            $state['errors'][] = ['row' => $rowNumber, 'message' => __('import_error_name_required')];
+
+            return;
+        }
+
+        $categoryName = trim($values['category'] ?? '');
+
+        if ($categoryName === '') {
+            $state['failed']++;
+            $state['errors'][] = ['row' => $rowNumber, 'message' => __('import_error_category_required')];
+
+            return;
+        }
+
+        $serialNumber = trim($values['serial_number'] ?? '');
+        $assetTag = trim($values['asset_tag'] ?? '');
+        $serialKey = $serialNumber !== '' ? mb_strtolower($serialNumber, 'UTF-8') : '';
+        $tagKey = $assetTag !== '' ? mb_strtolower($assetTag, 'UTF-8') : '';
+
+        if ($serialKey !== '' && isset($state['seenSerials'][$serialKey])) {
+            $state['failed']++;
+            $state['errors'][] = [
+                'row' => $rowNumber,
+                'message' => sprintf(__('import_error_duplicate_serial_in_file'), $serialNumber),
+            ];
+
+            return;
+        }
+
+        if ($tagKey !== '' && isset($state['seenTags'][$tagKey])) {
+            $state['failed']++;
+            $state['errors'][] = [
+                'row' => $rowNumber,
+                'message' => sprintf(__('import_error_duplicate_tag'), $assetTag),
+            ];
+
+            return;
+        }
+
+        try {
+            $existingAsset = $this->resolveExistingAsset($serialNumber, $assetTag);
+        } catch (RuntimeException $exception) {
+            $state['failed']++;
+            $state['errors'][] = ['row' => $rowNumber, 'message' => $exception->getMessage()];
+
+            return;
+        }
+
+        if ($existingAsset === null && $assetTag === '') {
+            $assetTag = $this->assetModel->generateNextAssetTag();
+        }
+
+        $status = $this->normalizeStatus($values['status'] ?? '');
+
+        if ($status === null) {
+            $state['failed']++;
+            $state['errors'][] = [
+                'row' => $rowNumber,
+                'message' => sprintf(
+                    __('import_error_invalid_status'),
+                    trim($values['status'] ?? '')
+                ),
+            ];
+
+            return;
+        }
+
+        try {
+            $categoryId = $this->resolveCategoryId(
+                $categoryName,
+                $state['categoryCache'],
+                $state['createdCategories']
+            );
+            $locationId = $this->resolveLocationId(
+                trim($values['location'] ?? ''),
+                trim($values['building'] ?? ''),
+                $state['locationCache'],
+                $state['createdLocations']
+            );
+        } catch (\Throwable $exception) {
+            $state['failed']++;
+            $state['errors'][] = ['row' => $rowNumber, 'message' => $exception->getMessage()];
+
+            return;
+        }
+
+        $personnelRaw = trim($values['personnel'] ?? '');
+        $personnelId = $this->resolvePersonnelId($personnelRaw);
+
+        if ($personnelRaw !== '' && $personnelId === null) {
+            $state['warnings'][] = [
+                'row' => $rowNumber,
+                'message' => sprintf(__('inventory_import_personnel_not_found'), $personnelRaw),
+            ];
+        }
+
+        if ($personnelId !== null) {
+            $status = 'deployed';
+        }
+
+        $properties = $this->buildImportProperties($values, $deviceModel, $existingAsset);
+
+        $coreFields = [
+            'name' => $name,
+            'category_id' => $categoryId,
+            'status' => $status,
+            'location_id' => $locationId,
+        ];
+
+        if ($serialNumber !== '') {
+            $coreFields['serial_number'] = $serialNumber;
+        }
+
+        if ($personnelId !== null) {
+            $coreFields['personnel_id'] = $personnelId;
+        }
+
+        try {
+            if ($existingAsset !== null) {
+                if ($assetTag !== '') {
+                    if ($this->assetModel->assetTagExists($assetTag, (int) $existingAsset['id'])) {
+                        throw new RuntimeException(sprintf(__('import_error_duplicate_tag'), $assetTag));
+                    }
+
+                    $coreFields['asset_tag'] = $assetTag;
+                }
+
+                $asset = $this->assetModel->update((int) $existingAsset['id'], $coreFields, $properties);
+
+                if ($asset === null) {
+                    throw new RuntimeException(__('inventory_import_update_failed'));
+                }
+
+                $state['updated_assets'][] = (int) $asset['id'];
+                $state['updated']++;
+            } else {
+                $coreFields['asset_tag'] = $assetTag;
+                $asset = $this->assetModel->create($coreFields, $properties);
+                $state['created_assets'][] = (int) $asset['id'];
+                $state['imported']++;
+            }
+        } catch (\Throwable $exception) {
+            $state['failed']++;
+            $state['errors'][] = ['row' => $rowNumber, 'message' => $exception->getMessage()];
+
+            return;
+        }
+
+        if ($personnelId !== null) {
+            $state['assigned']++;
+        }
+
+        if ($serialKey !== '') {
+            $state['seenSerials'][$serialKey] = true;
+        }
+
+        if ($tagKey !== '') {
+            $state['seenTags'][$tagKey] = true;
+        }
+    }
+
+    /**
+     * @param array<string, string> $values
+     * @param array<string, mixed>|null $existingAsset
+     *
+     * @return array<string, mixed>
+     */
+    private function buildImportProperties(array $values, string $deviceModel, ?array $existingAsset): array
+    {
+        $properties = is_array($existingAsset['properties'] ?? null)
+            ? $existingAsset['properties']
+            : [];
+
+        $brand = trim($values['brand'] ?? '');
+
+        if ($brand !== '') {
+            $properties['brand'] = $brand;
+        }
+
+        $model = $deviceModel !== '' ? $deviceModel : trim($values['device_model'] ?? '');
+
+        if ($model !== '') {
+            $properties['model'] = $model;
+        }
+
+        return $properties;
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function resolveExistingAsset(string $serialNumber, string $assetTag): ?array
+    {
+        $bySerial = $serialNumber !== '' ? $this->assetModel->findBySerialNumber($serialNumber) : null;
+        $byTag = $assetTag !== '' ? $this->assetModel->findByAssetTag($assetTag) : null;
+
+        if ($bySerial !== null && $byTag !== null && (int) $bySerial['id'] !== (int) $byTag['id']) {
+            throw new RuntimeException(__('inventory_import_identity_conflict'));
+        }
+
+        return $bySerial ?? $byTag;
     }
 
     private function resolvePersonnelId(string $raw): ?int
@@ -610,6 +769,20 @@ class InventoryImportService
     }
 
     /**
+     * @param array<string, string> $values
+     */
+    private function isImportRowEmpty(array $values): bool
+    {
+        foreach ($values as $value) {
+            if (trim($value) !== '') {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
      * @param list<string> $columns
      */
     private function isEmptyRow(array $columns): bool
@@ -648,9 +821,16 @@ class InventoryImportService
         }
 
         $key = mb_strtolower($trimmed, 'UTF-8');
+        $key = str_replace('_', ' ', $key);
 
         if (isset(self::STATUS_ALIASES[$key])) {
             return self::STATUS_ALIASES[$key];
+        }
+
+        $compactKey = str_replace(' ', '', $key);
+
+        if (isset(self::STATUS_ALIASES[$compactKey])) {
+            return self::STATUS_ALIASES[$compactKey];
         }
 
         if (in_array($key, self::KNOWN_STATUSES, true)) {
@@ -689,10 +869,61 @@ class InventoryImportService
     }
 
     /**
+     * @param array{
+     *     imported: int,
+     *     updated: int,
+     *     assigned: int,
+     *     skipped: int,
+     *     failed: int,
+     *     errors: list<array{row: int, message: string}>,
+     *     warnings: list<array{row: int, message: string}>,
+     *     created_assets: list<int>,
+     *     updated_assets: list<int>,
+     *     categoryCache: array<string, int>,
+     *     locationCache: array<string, int>,
+     *     createdCategories: list<string>,
+     *     createdLocations: list<string>,
+     *     seenSerials: array<string, true>,
+     *     seenTags: array<string, true>
+     * } $state
+     *
      * @return array{
      *     imported: int,
      *     updated: int,
      *     assigned: int,
+     *     skipped: int,
+     *     failed: int,
+     *     errors: list<array{row: int, message: string}>,
+     *     warnings: list<array{row: int, message: string}>,
+     *     created_assets: list<int>,
+     *     updated_assets: list<int>,
+     *     created_categories: list<string>,
+     *     created_locations: list<string>
+     * }
+     */
+    private function finalizeImportState(array $state): array
+    {
+        return [
+            'imported' => $state['imported'],
+            'updated' => $state['updated'],
+            'assigned' => $state['assigned'],
+            'skipped' => $state['skipped'],
+            'failed' => $state['failed'],
+            'errors' => $state['errors'],
+            'warnings' => $state['warnings'],
+            'created_assets' => $state['created_assets'],
+            'updated_assets' => $state['updated_assets'],
+            'created_categories' => $state['createdCategories'],
+            'created_locations' => $state['createdLocations'],
+        ];
+    }
+
+    /**
+     * @return array{
+     *     imported: int,
+     *     updated: int,
+     *     assigned: int,
+     *     skipped: int,
      *     failed: int,
      *     errors: list<array{row: int, message: string}>,
      *     warnings: list<array{row: int, message: string}>,
@@ -708,6 +939,7 @@ class InventoryImportService
             'imported' => 0,
             'updated' => 0,
             'assigned' => 0,
+            'skipped' => 0,
             'failed' => $row > 0 ? 1 : 0,
             'errors' => $row > 0
                 ? [['row' => $row, 'message' => $message]]

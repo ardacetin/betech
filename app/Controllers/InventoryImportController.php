@@ -31,10 +31,15 @@ class InventoryImportController
 
         return $response
             ->withHeader('Content-Type', 'text/csv; charset=utf-8')
-            ->withHeader('Content-Disposition', 'attachment; filename="inventory_import_template.csv"');
+            ->withHeader('Content-Disposition', 'attachment; filename="glpi_asset_import_template.csv"');
     }
 
     public function import(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
+    {
+        return $this->importFromExcel($request, $response);
+    }
+
+    public function importFromExcel(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
     {
         $file = $this->resolveUploadedFile($request);
 

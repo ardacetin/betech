@@ -1048,7 +1048,7 @@ $i18nScript = json_encode([
                 <a
                     href="/api/inventory/import/template"
                     class="inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-2.5 text-sm font-medium text-zinc-700 transition hover:bg-zinc-100"
-                    download="inventory_import_template.csv"
+                    download="glpi_asset_import_template.csv"
                 >
                     <?= htmlspecialchars(__('import_download_template'), ENT_QUOTES, 'UTF-8') ?>
                 </a>
@@ -1057,17 +1057,30 @@ $i18nScript = json_encode([
                     <?= htmlspecialchars(__('inventory_import_required_columns'), ENT_QUOTES, 'UTF-8') ?>
                 </p>
 
-                <label class="mt-5 block">
-                    <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('inventory_import_select_file'), ENT_QUOTES, 'UTF-8') ?></span>
-                    <input
-                        type="file"
-                        accept=".csv,.xlsx,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
-                        @change="onImportFileSelected($event)"
-                        class="block w-full text-sm text-zinc-600 file:mr-4 file:rounded-lg file:border-0 file:bg-zinc-900 file:px-4 file:py-2 file:text-sm file:font-medium file:text-white hover:file:bg-zinc-800"
-                    >
-                </label>
+                <div
+                    class="mt-5 rounded-xl border-2 border-dashed px-6 py-8 text-center transition-colors"
+                    :class="importDragOver ? 'border-zinc-900 bg-zinc-50' : 'border-zinc-200 bg-white'"
+                    @dragover.prevent="importDragOver = true"
+                    @dragleave.prevent="importDragOver = false"
+                    @drop.prevent="onImportFileDropped($event)"
+                >
+                    <svg class="mx-auto h-10 w-10 text-zinc-300" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"></path>
+                    </svg>
+                    <p class="mt-3 text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('inventory_import_drag_hint'), ENT_QUOTES, 'UTF-8') ?></p>
+                    <p class="mt-1 text-xs text-zinc-500"><?= htmlspecialchars(__('inventory_import_select_file'), ENT_QUOTES, 'UTF-8') ?></p>
+                    <label class="mt-4 inline-flex cursor-pointer items-center gap-2 rounded-xl bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-zinc-800">
+                        <?= htmlspecialchars(__('inventory_import_select_file'), ENT_QUOTES, 'UTF-8') ?>
+                        <input
+                            type="file"
+                            accept=".csv,.xlsx,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
+                            @change="onImportFileSelected($event)"
+                            class="sr-only"
+                        >
+                    </label>
+                </div>
 
-                <p x-show="importFileName" x-cloak class="mt-2 text-xs text-zinc-500" x-text="importFileName"></p>
+                <p x-show="importFileName" x-cloak class="mt-3 text-xs font-medium text-zinc-600" x-text="importFileName"></p>
 
                 <p x-show="importErrorMessage" x-cloak class="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700" x-text="importErrorMessage"></p>
                 <p x-show="importSuccessMessage" x-cloak class="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700" x-text="importSuccessMessage"></p>
@@ -2312,6 +2325,7 @@ $i18nScript = json_encode([
             isAddOpen: false,
             isImportOpen: false,
             isImportSubmitting: false,
+            importDragOver: false,
             importFile: null,
             importFileName: '',
             importErrorMessage: '',
@@ -3980,6 +3994,7 @@ $i18nScript = json_encode([
             openImportModal() {
                 this.importFile = null;
                 this.importFileName = '';
+                this.importDragOver = false;
                 this.importErrorMessage = '';
                 this.importSuccessMessage = '';
                 this.importResultErrors = [];
@@ -3991,16 +4006,30 @@ $i18nScript = json_encode([
                 }
 
                 this.isImportOpen = false;
+                this.importDragOver = false;
                 this.importFile = null;
                 this.importFileName = '';
             },
-            onImportFileSelected(event) {
-                const file = event.target.files?.[0] ?? null;
+            setImportFile(file) {
                 this.importFile = file;
                 this.importFileName = file ? file.name : '';
                 this.importErrorMessage = '';
                 this.importSuccessMessage = '';
                 this.importResultErrors = [];
+            },
+            onImportFileSelected(event) {
+                const file = event.target.files?.[0] ?? null;
+                this.setImportFile(file);
+            },
+            onImportFileDropped(event) {
+                this.importDragOver = false;
+                const file = event.dataTransfer?.files?.[0] ?? null;
+
+                if (!file) {
+                    return;
+                }
+
+                this.setImportFile(file);
             },
             formatImportError(item) {
                 const row = Number(item?.row ?? 0);
