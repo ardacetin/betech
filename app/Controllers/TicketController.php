@@ -115,11 +115,12 @@ class TicketController
         }
 
         $isEndUser = $this->endUserContextService->isEndUser();
-        $personnelId = $isEndUser
-            ? $this->endUserContextService->resolvePersonnelId()
-            : (int) ($payload['personnel_id'] ?? 0);
 
         if ($isEndUser) {
+            unset($payload['personnel_id'], $payload['user_id'], $payload['assigned_user_id']);
+
+            $personnelId = $this->endUserContextService->resolvePersonnelId();
+
             if ($personnelId === null) {
                 return $this->jsonResponse($response, 403, [
                     'status' => 'error',
@@ -128,6 +129,8 @@ class TicketController
             }
 
             $payload['personnel_id'] = $personnelId;
+        } else {
+            $personnelId = (int) ($payload['personnel_id'] ?? 0);
         }
 
         $errors = $this->validatePayload($payload, true, $isEndUser);

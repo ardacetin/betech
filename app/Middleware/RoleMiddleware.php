@@ -28,7 +28,7 @@ class RoleMiddleware implements MiddlewareInterface
 
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
     {
-        $path = $request->getUri()->getPath();
+        $path = $this->normalizePath($request->getUri()->getPath());
 
         if ($this->isPublicPath($path)) {
             return $handler->handle($request);
@@ -463,5 +463,14 @@ class RoleMiddleware implements MiddlewareInterface
         $regex = '#^' . preg_replace('#\{[^/]+\}#', '[^/]+', $pattern) . '$#';
 
         return preg_match($regex, $path) === 1;
+    }
+
+    private function normalizePath(string $path): string
+    {
+        if ($path === '' || $path === '/') {
+            return '/';
+        }
+
+        return rtrim($path, '/') ?: '/';
     }
 }

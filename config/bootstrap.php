@@ -232,12 +232,15 @@ $app->group('', function ($group) use ($endUserController): void {
     $group->get('/api/my/assets', [$endUserController, 'assets']);
 })->add($endUserMiddleware);
 
-$app->get('/api/tickets', [$ticketController, 'index']);
-$app->post('/api/tickets', [$ticketController, 'store']);
-$app->get('/api/tickets/{id}', [$ticketController, 'show']);
-$app->post('/api/tickets/{id}/comments', [$ticketController, 'addComment']);
-$app->get('/api/assets/{id}/tutanak', [$assetTutanakController, 'show']);
-$app->get('/api/assets/{id}/history', [$assetController, 'history']);
+// Helpdesk tickets: Auth + RoleMiddleware only (no AdminMiddleware). Controllers scope data by role.
+$app->group('', function ($group) use ($ticketController, $assetTutanakController, $assetController): void {
+    $group->get('/api/tickets', [$ticketController, 'index']);
+    $group->post('/api/tickets', [$ticketController, 'store']);
+    $group->get('/api/tickets/{id}', [$ticketController, 'show']);
+    $group->post('/api/tickets/{id}/comments', [$ticketController, 'addComment']);
+    $group->get('/api/assets/{id}/tutanak', [$assetTutanakController, 'show']);
+    $group->get('/api/assets/{id}/history', [$assetController, 'history']);
+});
 
 $app->group('', function ($group) use (
     $analyticsController,
