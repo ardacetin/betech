@@ -841,6 +841,7 @@ return [
     'portal_my_assets_subtitle' => 'Hardware and equipment currently assigned to you.',
     'portal_my_tickets_title' => 'My Support Tickets',
     'portal_my_tickets_subtitle' => 'Create requests and follow replies from the IT team.',
+    'portal_tab_knowledge_base' => 'Knowledge Base',
     'portal_tab_assets' => 'My Assets',
     'portal_tab_tickets' => 'My Tickets',
     'portal_new_ticket' => 'New Ticket',

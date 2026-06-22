@@ -876,6 +876,7 @@ return [
     'portal_my_assets_subtitle' => 'Size atanmış donanım ve ekipmanları görüntüleyin.',
     'portal_my_tickets_title' => 'Destek Taleplerim',
     'portal_my_tickets_subtitle' => 'Yeni talep oluşturun ve BT ekibinden gelen yanıtları takip edin.',
+    'portal_tab_knowledge_base' => 'Bilgi Bankası',
     'portal_tab_assets' => 'Envanterlerim',
     'portal_tab_tickets' => 'Taleplerim',
     'portal_new_ticket' => 'Yeni Talep',

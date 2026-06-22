@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 ?>
-<section x-show="activeView === 'my_assets'" x-cloak class="space-y-4">
+<section x-show="activeView === 'knowledge_base'" x-cloak class="space-y-4">
     <div>
         <h2 class="text-lg font-semibold text-zinc-900"><?= htmlspecialchars(__('portal_knowledge_base_title'), ENT_QUOTES, 'UTF-8') ?></h2>
         <p class="mt-1 text-sm text-zinc-500"><?= htmlspecialchars(__('portal_knowledge_base_subtitle'), ENT_QUOTES, 'UTF-8') ?></p>

@@ -9,7 +9,7 @@ declare(strict_types=1);
 $adminFieldClass = 'w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4';
 $adminLabelClass = 'mb-1.5 block text-sm font-medium text-zinc-700';
 ?>
-<section x-show="activeView === 'my_assets'" x-cloak class="space-y-6 border-t border-zinc-200 pt-8">
+<section x-show="activeView === 'my_assets'" x-cloak class="space-y-6">
     <?php if (!$hasPersonnelProfile): ?>
     <div class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-900">
         <?= htmlspecialchars(__('portal_profile_not_linked'), ENT_QUOTES, 'UTF-8') ?>

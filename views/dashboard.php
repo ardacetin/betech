@@ -362,9 +362,8 @@ $i18nScript = json_encode([
         <aside class="hidden h-full w-64 min-h-0 flex-shrink-0 flex-col border-r border-gray-200 bg-white lg:flex">
             <div class="flex h-16 shrink-0 items-center gap-3 border-b border-gray-200 px-5">
                 <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gray-900 text-sm font-semibold text-white">B</div>
-                <div class="flex min-w-0 items-center">
-                    <span class="text-xl font-bold tracking-tight text-gray-900">ITMS</span>
-                    <span class="ml-2 rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500">Pro</span>
+                <div class="flex min-w-0 flex-col">
+                    <span class="text-xl font-bold tracking-tight text-gray-900">Betech</span>
                 </div>
             </div>
 
@@ -2184,7 +2183,7 @@ $i18nScript = json_encode([
 
     function assetDashboard() {
         return {
-            activeView: <?= $isEndUser ? "'my_assets'" : ($canManageAssets ? "'dashboard'" : "'assets'") ?>,
+            activeView: <?= $isEndUser ? "'knowledge_base'" : ($canManageAssets ? "'dashboard'" : "'assets'") ?>,
             dashboardStats: null,
             dashboardLoading: false,
             dashboardError: '',
@@ -2201,11 +2200,11 @@ $i18nScript = json_encode([
             pageTitles: {
                 dashboard: <?= json_encode(__('dashboard_page_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 assets: <?= json_encode(__('nav_assets'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
-                my_assets: <?= json_encode(__('portal_my_assets_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
-                my_tickets: <?= json_encode(__('portal_my_tickets_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
+                my_assets: <?= json_encode(__('portal_tab_assets'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
+                my_tickets: <?= json_encode(__('portal_tab_tickets'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 licenses: <?= json_encode(__('licenses_page_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 consumables: <?= json_encode(__('consumables_page_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
-                knowledge_base: <?= json_encode(__('kb_page_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
+                knowledge_base: <?= json_encode(__('portal_knowledge_base_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 helpdesk: <?= json_encode(__('helpdesk_page_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 ipam: <?= json_encode(__('ipam_page_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 settings: <?= json_encode(__('settings_page_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
@@ -2666,7 +2665,7 @@ $i18nScript = json_encode([
                     return tabTitles[this.settingsTab] || this.pageTitles.settings;
                 }
 
-                return this.pageTitles[this.activeView] || (this.isEndUser ? this.pageTitles.my_assets : this.pageTitles.assets);
+                return this.pageTitles[this.activeView] || (this.isEndUser ? this.pageTitles.knowledge_base : this.pageTitles.assets);
             },
             resolvePageSubtitle() {
                 if (this.activeView === 'settings') {
@@ -2681,7 +2680,11 @@ $i18nScript = json_encode([
                     return tabSubtitles[this.settingsTab] || this.pageSubtitles.settings;
                 }
 
-                return this.pageSubtitles[this.activeView] || (this.isEndUser ? this.pageSubtitles.my_assets : this.pageSubtitles.assets);
+                if (this.isEndUser) {
+                    return <?= json_encode(__('app_name'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>;
+                }
+
+                return this.pageSubtitles[this.activeView] || this.pageSubtitles.assets;
             },
             persistDashboardView() {
                 sessionStorage.setItem('betechDashboardView', JSON.stringify({
@@ -2710,9 +2713,12 @@ $i18nScript = json_encode([
                     }
 
                     if (this.isEndUser) {
+                        if (this.activeView === 'knowledge_base') {
+                            this.fetchPublishedKnowledgeBase();
+                        }
+
                         if (this.activeView === 'my_assets') {
                             this.fetchPortalAssets();
-                            this.fetchPublishedKnowledgeBase();
                         }
 
                         if (this.activeView === 'my_tickets') {
@@ -2779,16 +2785,23 @@ $i18nScript = json_encode([
                     return 'my_tickets';
                 }
 
-                if (view === 'my_assets' || view === 'my_tickets') {
+                if (view === 'knowledge_base' || view === 'kb') {
+                    return 'knowledge_base';
+                }
+
+                if (view === 'my_assets' || view === 'my_tickets' || view === 'knowledge_base') {
                     return view;
                 }
 
-                return 'my_assets';
+                return 'knowledge_base';
             },
             initEndUserPortal() {
                 this.activeView = this.normalizeEndUserView(this.activeView);
-                this.fetchPortalAssets();
                 this.fetchPublishedKnowledgeBase();
+
+                if (this.activeView === 'my_assets') {
+                    this.fetchPortalAssets();
+                }
 
                 const params = new URLSearchParams(window.location.search);
                 const ticketId = params.get('ticket');
