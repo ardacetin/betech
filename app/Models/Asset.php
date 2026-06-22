@@ -120,7 +120,8 @@ class Asset
         $where = $this->buildDashboardFilterWhere($filters, $filterDefinitions);
         $page = max(1, $page);
         $perPage = ListPagination::PAGE_SIZE;
-        $total = (int) $this->db()->count('assets', $join, $where);
+        $countWhere = $where === [] ? null : $where;
+        $total = (int) $this->db()->count('assets', $join, '*', $countWhere);
         $selectWhere = $where;
         $selectWhere['ORDER'] = ['assets.id' => 'DESC'];
         $selectWhere['LIMIT'] = [ListPagination::offset($page, $perPage), $perPage];
@@ -204,6 +205,7 @@ class Asset
                 continue;
             }
 
+            $name = $this->normalizeDashboardFilterName($name);
             $definition = $definitionMap[$name] ?? null;
 
             if ($definition === null) {
@@ -239,6 +241,14 @@ class Asset
         }
 
         return ['AND' => $conditions];
+    }
+
+    private function normalizeDashboardFilterName(string $name): string
+    {
+        return match ($name) {
+            'categories', 'category' => 'category_id',
+            default => $name,
+        };
     }
 
     private function buildPropertyFilterCondition(string $propertyKey, string $value, string $match): mixed
