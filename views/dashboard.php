@@ -211,6 +211,25 @@ $i18nScript = json_encode([
     'import_network_error' => __('import_network_error'),
     'import_file_missing' => __('import_file_missing'),
     'import_row_error' => __('import_row_error'),
+    'import_mapping_preview_error' => __('import_mapping_preview_error'),
+    'import_map_select' => __('import_map_select'),
+    'import_map_device_name' => __('import_map_device_name'),
+    'import_map_serial_number' => __('import_map_serial_number'),
+    'import_map_asset_tag' => __('import_map_asset_tag'),
+    'import_map_brand' => __('import_map_brand'),
+    'import_map_device_model' => __('import_map_device_model'),
+    'import_map_category' => __('import_map_category'),
+    'import_map_status' => __('import_map_status'),
+    'import_map_location' => __('import_map_location'),
+    'import_map_building' => __('import_map_building'),
+    'import_map_personnel' => __('import_map_personnel'),
+    'import_map_custom_birim' => __('import_map_custom_birim'),
+    'import_map_custom_grup' => __('import_map_custom_grup'),
+    'import_map_custom_konum' => __('import_map_custom_konum'),
+    'import_map_custom_son_guncelleme' => __('import_map_custom_son_guncelleme'),
+    'import_map_custom_mac_adresi_1' => __('import_map_custom_mac_adresi_1'),
+    'import_map_custom_mac_adresi_2' => __('import_map_custom_mac_adresi_2'),
+    'import_map_custom_eski_kullanici' => __('import_map_custom_eski_kullanici'),
     'return_confirm' => __('return_confirm'),
     'return_success' => __('return_success'),
     'return_error' => __('return_error'),
@@ -891,7 +910,7 @@ $i18nScript = json_encode([
     >
         <div class="absolute inset-0 bg-zinc-900/40 backdrop-blur-sm" @click="closeImportModal()"></div>
 
-        <div class="relative w-full max-w-lg rounded-2xl border border-zinc-200 bg-white shadow-soft">
+        <div class="relative w-full max-w-2xl rounded-2xl border border-zinc-200 bg-white shadow-soft">
             <div class="flex items-center justify-between border-b border-zinc-200 px-6 py-4">
                 <div>
                     <h3 class="text-lg font-semibold text-zinc-900"><?= htmlspecialchars(__('inventory_import_modal_title'), ENT_QUOTES, 'UTF-8') ?></h3>
@@ -938,6 +957,45 @@ $i18nScript = json_encode([
 
                 <p x-show="importFileName" x-cloak class="mt-3 text-xs font-medium text-zinc-600" x-text="importFileName"></p>
 
+                <p x-show="importMappingLoading" x-cloak class="mt-4 text-sm text-zinc-500">
+                    <?= htmlspecialchars(__('import_mapping_loading'), ENT_QUOTES, 'UTF-8') ?>
+                </p>
+
+                <div x-show="importMappingColumns.length > 0 && !importMappingLoading" x-cloak class="mt-5">
+                    <div class="mb-3">
+                        <h4 class="text-sm font-semibold text-zinc-900"><?= htmlspecialchars(__('import_mapping_title'), ENT_QUOTES, 'UTF-8') ?></h4>
+                        <p class="mt-1 text-xs text-zinc-500"><?= htmlspecialchars(__('import_mapping_subtitle'), ENT_QUOTES, 'UTF-8') ?></p>
+                    </div>
+
+                    <div class="max-h-64 overflow-y-auto rounded-xl border border-zinc-200">
+                        <table class="min-w-full divide-y divide-zinc-200 text-left text-xs">
+                            <thead class="sticky top-0 bg-zinc-50">
+                                <tr>
+                                    <th class="px-3 py-2 font-medium text-zinc-600"><?= htmlspecialchars(__('import_mapping_csv_column'), ENT_QUOTES, 'UTF-8') ?></th>
+                                    <th class="px-3 py-2 font-medium text-zinc-600"><?= htmlspecialchars(__('import_mapping_system_field'), ENT_QUOTES, 'UTF-8') ?></th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-zinc-100 bg-white">
+                                <template x-for="(column, columnIndex) in importMappingColumns" :key="column.index ?? columnIndex">
+                                    <tr>
+                                        <td class="px-3 py-2 align-top text-zinc-700" x-text="column.header"></td>
+                                        <td class="px-3 py-2 align-top">
+                                            <select
+                                                x-model="column.selected_field"
+                                                class="w-full rounded-lg border border-zinc-200 bg-white px-2 py-1.5 text-xs text-zinc-700 focus:border-zinc-400 focus:outline-none"
+                                            >
+                                                <template x-for="fieldKey in importFieldOptions" :key="fieldKey">
+                                                    <option :value="fieldKey" x-text="importFieldLabel(fieldKey)"></option>
+                                                </template>
+                                            </select>
+                                        </td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
                 <p x-show="importErrorMessage" x-cloak class="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700" x-text="importErrorMessage"></p>
                 <p x-show="importSuccessMessage" x-cloak class="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700" x-text="importSuccessMessage"></p>
 
@@ -960,7 +1018,7 @@ $i18nScript = json_encode([
                 <button
                     type="button"
                     @click="submitImport()"
-                    :disabled="isImportSubmitting || !importFile"
+                    :disabled="isImportSubmitting || !importFile || importMappingLoading"
                     class="inline-flex items-center gap-2 rounded-xl bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                     <span x-show="isImportSubmitting"><?= htmlspecialchars(__('saving'), ENT_QUOTES, 'UTF-8') ?></span>
@@ -2184,6 +2242,9 @@ $i18nScript = json_encode([
             importDragOver: false,
             importFile: null,
             importFileName: '',
+            importMappingColumns: [],
+            importMappingLoading: false,
+            importFieldOptions: [],
             importErrorMessage: '',
             importSuccessMessage: '',
             importResultErrors: [],
@@ -3974,6 +4035,9 @@ $i18nScript = json_encode([
                 this.importErrorMessage = '';
                 this.importSuccessMessage = '';
                 this.importResultErrors = [];
+                this.importMappingColumns = [];
+                this.importMappingLoading = false;
+                this.importFieldOptions = [];
                 this.isImportOpen = true;
             },
             closeImportModal() {
@@ -3985,13 +4049,86 @@ $i18nScript = json_encode([
                 this.importDragOver = false;
                 this.importFile = null;
                 this.importFileName = '';
+                this.importMappingColumns = [];
+                this.importMappingLoading = false;
+                this.importFieldOptions = [];
             },
-            setImportFile(file) {
+            importFieldLabel(fieldKey) {
+                if (!fieldKey) {
+                    return window.__i18n.import_map_select || 'Seçin';
+                }
+
+                const labelKey = `import_map_${fieldKey}`;
+
+                return window.__i18n[labelKey] || fieldKey;
+            },
+            buildImportColumnMapping() {
+                const mapping = {};
+
+                (this.importMappingColumns || []).forEach((column) => {
+                    if (column?.selected_field) {
+                        mapping[column.index] = column.selected_field;
+                    }
+                });
+
+                return mapping;
+            },
+            async previewImportMapping() {
+                if (!this.importFile) {
+                    return;
+                }
+
+                this.importMappingLoading = true;
+                this.importMappingColumns = [];
+                this.importFieldOptions = [];
+
+                const formData = new FormData();
+                formData.append('file', this.importFile);
+                const requestInit = this.apiFetchInit('POST');
+
+                try {
+                    const response = await fetch('/api/inventory/import/preview', {
+                        method: 'POST',
+                        headers: requestInit.headers,
+                        body: formData,
+                    });
+                    const result = await response.json().catch(() => ({}));
+
+                    if (!response.ok) {
+                        this.importErrorMessage = this.apiErrorMessage(
+                            result,
+                            window.__i18n.import_mapping_preview_error
+                        );
+                        return;
+                    }
+
+                    const data = result?.data ?? {};
+                    this.importFieldOptions = Array.isArray(data.available_fields) ? data.available_fields : [];
+                    this.importMappingColumns = (Array.isArray(data.columns) ? data.columns : []).map((column) => ({
+                        index: column.index,
+                        header: column.header,
+                        selected_field: column.mapped_field || '',
+                    }));
+                } catch (error) {
+                    this.importErrorMessage = window.__i18n.import_network_error;
+                } finally {
+                    this.importMappingLoading = false;
+                }
+            },
+            async setImportFile(file) {
                 this.importFile = file;
                 this.importFileName = file ? file.name : '';
                 this.importErrorMessage = '';
                 this.importSuccessMessage = '';
                 this.importResultErrors = [];
+                this.importMappingColumns = [];
+                this.importFieldOptions = [];
+
+                if (!file) {
+                    return;
+                }
+
+                await this.previewImportMapping();
             },
             onImportFileSelected(event) {
                 const file = event.target.files?.[0] ?? null;
@@ -4261,12 +4398,18 @@ $i18nScript = json_encode([
                 const formData = new FormData();
                 formData.append('file', this.importFile);
 
+                const columnMapping = this.buildImportColumnMapping();
+
+                if (Object.keys(columnMapping).length > 0) {
+                    formData.append('column_mapping', JSON.stringify(columnMapping));
+                }
+
+                const requestInit = this.apiFetchInit('POST');
+
                 try {
                     const response = await fetch('/api/inventory/import', {
                         method: 'POST',
-                        headers: {
-                            'Accept': 'application/json',
-                        },
+                        headers: requestInit.headers,
                         body: formData,
                     });
                     const result = await response.json().catch(() => ({}));

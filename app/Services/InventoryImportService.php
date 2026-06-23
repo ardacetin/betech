@@ -124,6 +124,53 @@ class InventoryImportService
 
     private const CUSTOM_FIELD_VALUE_PREFIX = 'custom_';
 
+    /**
+     * Case-insensitive smart aliases (space-normalized) for GLPI and legacy exports.
+     *
+     * @var array<string, list<string>>
+     */
+    private const SMART_FIELD_ALIASES = [
+        'serial_number' => ['seri numarası', 'seri numarasi', 'seri no', 'serial_number', 'serial', 'sn'],
+        'asset_tag' => ['stok numarası', 'stok numarasi', 'stok no', 'demirbaş no', 'demirbas no', 'asset_tag', 'stok_numarasi', 'demirbas_no', 'inventory_number'],
+        'custom_grup' => ['grup', 'group', 'birim grup'],
+        'device_name' => ['ad', 'name', 'cihaz adi', 'cihaz adı', 'device name', 'asset name'],
+        'brand' => ['üretici', 'uretici', 'marka', 'manufacturer', 'brand'],
+        'device_model' => ['model', 'device model'],
+        'category' => ['tür', 'tur', 'type', 'category', 'kategori', 'itemtype'],
+        'status' => ['durum', 'status', 'state'],
+        'location' => ['lokasyon', 'location', 'oda', 'room'],
+        'building' => ['bina', 'building', 'campus'],
+        'personnel' => ['zimmetli kişi', 'zimmetli kisi', 'personel', 'assignee', 'assigned to', 'kullanici', 'kullanıcı'],
+        'custom_birim' => ['birim'],
+        'custom_konum' => ['konum'],
+        'custom_son_guncelleme' => ['son güncelleme', 'son guncelleme'],
+        'custom_mac_adresi_1' => ['mac adresi 1', 'mac address 1'],
+        'custom_mac_adresi_2' => ['mac adresi 2', 'mac address 2'],
+        'custom_eski_kullanici' => ['eski kullanıcı', 'eski kullanici', 'former user'],
+    ];
+
+    /** @var list<string> */
+    public const MAPPING_FIELD_KEYS = [
+        '',
+        'device_name',
+        'serial_number',
+        'asset_tag',
+        'brand',
+        'device_model',
+        'category',
+        'status',
+        'location',
+        'building',
+        'personnel',
+        'custom_birim',
+        'custom_grup',
+        'custom_konum',
+        'custom_son_guncelleme',
+        'custom_mac_adresi_1',
+        'custom_mac_adresi_2',
+        'custom_eski_kullanici',
+    ];
+
     public function __construct(
         private readonly Asset $assetModel,
         private readonly Category $categoryModel,
@@ -183,7 +230,7 @@ class InventoryImportService
      *     created_locations: list<string>
      * }
      */
-    public function importFromUploadedFile(string $contents, string $originalFilename): array
+    public function importFromUploadedFile(string $contents, string $originalFilename, ?array $columnMapping = null): array
     {
         if (trim($contents) === '') {
             return $this->emptyResultWithError(0, __('import_csv_empty'));
@@ -197,13 +244,62 @@ class InventoryImportService
 
         try {
             return match ($extension) {
-                'csv' => $this->importCsvContents($contents),
-                'xlsx', 'xls' => $this->importSpreadsheetContents($contents, $extension),
+                'csv' => $this->importCsvContents($contents, $columnMapping),
+                'xlsx', 'xls' => $this->importSpreadsheetContents($contents, $extension, $columnMapping),
                 default => $this->emptyResultWithError(0, __('inventory_import_invalid_file_type')),
             };
         } catch (RuntimeException $exception) {
             return $this->emptyResultWithError(0, $exception->getMessage());
         }
+    }
+
+    /**
+     * @return array{
+     *     headers: list<string>,
+     *     columns: list<array{index: int, header: string, mapped_field: string|null, is_mapped: bool}>,
+     *     available_fields: list<string>
+     * }
+     */
+    public function buildImportMappingPreview(string $contents, string $originalFilename): array
+    {
+        $headers = $this->extractHeaderRow($contents, $originalFilename);
+
+        if ($headers === []) {
+            throw new RuntimeException(__('import_csv_missing_headers'));
+        }
+
+        $columns = [];
+
+        foreach ($headers as $index => $header) {
+            $mappedField = $this->resolveImportField((string) $header);
+
+            $columns[] = [
+                'index' => $index,
+                'header' => (string) $header,
+                'mapped_field' => $mappedField,
+                'is_mapped' => $mappedField !== null && $mappedField !== '',
+            ];
+        }
+
+        return [
+            'headers' => $headers,
+            'columns' => $columns,
+            'available_fields' => self::MAPPING_FIELD_KEYS,
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function extractHeaderRow(string $contents, string $originalFilename): array
+    {
+        $extension = strtolower(pathinfo($originalFilename, PATHINFO_EXTENSION));
+
+        if (in_array($extension, ['xlsx', 'xls'], true)) {
+            return $this->extractSpreadsheetHeaderRow($contents, $extension);
+        }
+
+        return $this->extractCsvHeaderRow($contents);
     }
 
     /**
@@ -221,7 +317,7 @@ class InventoryImportService
      *     created_locations: list<string>
      * }
      */
-    private function importCsvContents(string $csvContent): array
+    private function importCsvContents(string $csvContent, ?array $columnMapping = null): array
     {
         $csvContent = $this->stripBom($csvContent);
         $lines = preg_split('/\R/', $csvContent) ?? [];
@@ -248,7 +344,9 @@ class InventoryImportService
             }
 
             if ($headerMap === null) {
-                $headerMap = $this->mapHeaders($columns);
+                $headerMap = $columnMapping !== null
+                    ? $this->normalizeColumnMapping($columnMapping, count($columns))
+                    : $this->mapHeaders($columns);
 
                 if ($headerMap === []) {
                     throw new RuntimeException(__('import_csv_invalid_headers'));
@@ -286,7 +384,7 @@ class InventoryImportService
      *     created_locations: list<string>
      * }
      */
-    private function importSpreadsheetContents(string $contents, string $extension): array
+    private function importSpreadsheetContents(string $contents, string $extension, ?array $columnMapping = null): array
     {
         $tempPath = tempnam(sys_get_temp_dir(), 'betech_inventory_import_');
 
@@ -307,7 +405,7 @@ class InventoryImportService
             $spreadsheet = $reader->load($storedPath);
             $worksheet = $spreadsheet->getActiveSheet();
 
-            return $this->importWorksheetRows($worksheet);
+            return $this->importWorksheetRows($worksheet, $columnMapping);
         } finally {
             @unlink($tempPath);
             @unlink($storedPath);
@@ -329,7 +427,7 @@ class InventoryImportService
      *     created_locations: list<string>
      * }
      */
-    private function importWorksheetRows(Worksheet $worksheet): array
+    private function importWorksheetRows(Worksheet $worksheet, ?array $columnMapping = null): array
     {
         $state = $this->newImportState();
         $headerMap = null;
@@ -347,7 +445,9 @@ class InventoryImportService
             }
 
             if ($headerMap === null) {
-                $headerMap = $this->mapHeaders($columns);
+                $headerMap = $columnMapping !== null
+                    ? $this->normalizeColumnMapping($columnMapping, count($columns))
+                    : $this->mapHeaders($columns);
 
                 if ($headerMap === []) {
                     throw new RuntimeException(__('import_csv_invalid_headers'));
@@ -808,24 +908,203 @@ class InventoryImportService
         $map = [];
 
         foreach ($headers as $index => $header) {
-            $normalized = $this->normalizeHeader((string) $header);
+            $field = $this->resolveImportField((string) $header);
 
-            if ($normalized === '') {
+            if ($field === null || $field === '') {
                 continue;
             }
 
-            if (isset(self::HEADER_ALIASES[$normalized])) {
-                $map[$index] = self::HEADER_ALIASES[$normalized];
-
-                continue;
-            }
-
-            if (isset(self::GLPI_CUSTOM_FIELD_ALIASES[$normalized])) {
-                $map[$index] = self::CUSTOM_FIELD_VALUE_PREFIX . self::GLPI_CUSTOM_FIELD_ALIASES[$normalized];
-            }
+            $map[$index] = $field;
         }
 
         return $map;
+    }
+
+    private function resolveImportField(string $rawHeader): ?string
+    {
+        $normalized = $this->normalizeHeader($rawHeader);
+
+        if ($normalized !== '' && isset(self::HEADER_ALIASES[$normalized])) {
+            return self::HEADER_ALIASES[$normalized];
+        }
+
+        if ($normalized !== '' && isset(self::GLPI_CUSTOM_FIELD_ALIASES[$normalized])) {
+            return self::CUSTOM_FIELD_VALUE_PREFIX . self::GLPI_CUSTOM_FIELD_ALIASES[$normalized];
+        }
+
+        $compare = $this->headerComparisonKey($rawHeader);
+
+        if ($compare === '') {
+            return null;
+        }
+
+        $bestField = null;
+        $bestScore = 0;
+
+        foreach (self::SMART_FIELD_ALIASES as $field => $aliases) {
+            foreach ($aliases as $alias) {
+                $aliasKey = $this->headerComparisonKey($alias);
+                $aliasNormalized = $this->normalizeHeader($alias);
+
+                if ($aliasKey === '' && $aliasNormalized === '') {
+                    continue;
+                }
+
+                if ($compare === $aliasKey || ($normalized !== '' && $normalized === $aliasNormalized)) {
+                    return $field;
+                }
+
+                if ($aliasKey !== '' && str_contains($compare, $aliasKey)) {
+                    $score = strlen($aliasKey);
+
+                    if ($score > $bestScore) {
+                        $bestField = $field;
+                        $bestScore = $score;
+                    }
+                }
+            }
+        }
+
+        foreach (self::GLPI_CUSTOM_FIELD_ALIASES as $normalizedKey => $customKey) {
+            $aliasKey = str_replace('_', ' ', $normalizedKey);
+
+            if ($aliasKey !== '' && str_contains($compare, $aliasKey)) {
+                $score = strlen($aliasKey);
+
+                if ($score > $bestScore) {
+                    $bestField = self::CUSTOM_FIELD_VALUE_PREFIX . $customKey;
+                    $bestScore = $score;
+                }
+            }
+        }
+
+        return $bestField;
+    }
+
+    /**
+     * @param array<int|string, mixed> $columnMapping
+     *
+     * @return array<int, string>
+     */
+    private function normalizeColumnMapping(array $columnMapping, int $columnCount): array
+    {
+        $map = [];
+
+        foreach ($columnMapping as $index => $field) {
+            $columnIndex = is_numeric($index) ? (int) $index : null;
+
+            if ($columnIndex === null || $columnIndex < 0 || $columnIndex >= $columnCount) {
+                continue;
+            }
+
+            $fieldKey = trim((string) $field);
+
+            if ($fieldKey === '') {
+                continue;
+            }
+
+            if (!in_array($fieldKey, self::MAPPING_FIELD_KEYS, true)) {
+                continue;
+            }
+
+            $map[$columnIndex] = $fieldKey;
+        }
+
+        return $map;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function extractCsvHeaderRow(string $csvContent): array
+    {
+        $csvContent = $this->stripBom($csvContent);
+        $lines = preg_split('/\R/', $csvContent) ?? [];
+
+        foreach ($lines as $line) {
+            if (trim($line) === '') {
+                continue;
+            }
+
+            $columns = str_getcsv($line, ',', '"', '\\');
+
+            if ($columns === false || $columns === [null]) {
+                return [];
+            }
+
+            return array_map(
+                fn (mixed $column): string => $this->sanitizeHeaderString((string) $column),
+                $columns
+            );
+        }
+
+        return [];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function extractSpreadsheetHeaderRow(string $contents, string $extension): array
+    {
+        $tempPath = tempnam(sys_get_temp_dir(), 'betech_inventory_import_preview_');
+
+        if ($tempPath === false) {
+            throw new RuntimeException(__('inventory_import_temp_file_failed'));
+        }
+
+        $storedPath = $tempPath . '.' . $extension;
+
+        try {
+            if (file_put_contents($storedPath, $contents) === false) {
+                throw new RuntimeException(__('inventory_import_temp_file_failed'));
+            }
+
+            $readerType = $extension === 'xls' ? 'Xls' : 'Xlsx';
+            $reader = IOFactory::createReader($readerType);
+            $reader->setReadDataOnly(true);
+            $spreadsheet = $reader->load($storedPath);
+            $worksheet = $spreadsheet->getActiveSheet();
+
+            foreach ($worksheet->getRowIterator() as $row) {
+                $columns = [];
+
+                foreach ($row->getCellIterator() as $cell) {
+                    $columns[] = trim((string) $cell->getValue());
+                }
+
+                if ($this->isEmptyRow($columns)) {
+                    continue;
+                }
+
+                return array_map(
+                    fn (string $column): string => $this->sanitizeHeaderString($column),
+                    $columns
+                );
+            }
+        } finally {
+            @unlink($tempPath);
+            @unlink($storedPath);
+        }
+
+        return [];
+    }
+
+    private function headerComparisonKey(string $header): string
+    {
+        $key = mb_strtolower($this->sanitizeHeaderString($header), 'UTF-8');
+        $key = strtr($key, [
+            'ı' => 'i',
+            'ş' => 's',
+            'ğ' => 'g',
+            'ü' => 'u',
+            'ö' => 'o',
+            'ç' => 'c',
+            'İ' => 'i',
+        ]);
+        $key = preg_replace('/[\s\-–—]+/u', ' ', $key) ?? $key;
+        $key = preg_replace('/\s+/u', ' ', $key) ?? $key;
+
+        return trim($key);
     }
 
     /**

@@ -352,6 +352,7 @@ $app->group('', function ($group) use (
     $group->get('/api/assets/export', [$assetController, 'exportCsv']);
     $group->post('/api/assets/import', [$assetController, 'importCsv']);
     $group->get('/api/inventory/import/template', [$inventoryImportController, 'template']);
+    $group->post('/api/inventory/import/preview', [$inventoryImportController, 'preview']);
     $group->post('/api/inventory/import', [$inventoryImportController, 'import']);
     $group->put('/api/assets/{id}', [$assetController, 'update']);
     $group->post('/api/assets/{id}/assign', [$assetController, 'assign']);

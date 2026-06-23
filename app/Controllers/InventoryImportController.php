@@ -66,7 +66,8 @@ class InventoryImportController
 
             $originalFilename = $file->getClientFilename() ?? 'import.csv';
             $contents = (string) $file->getStream()->getContents();
-            $result = $this->inventoryImportService->importFromUploadedFile($contents, $originalFilename);
+            $columnMapping = $this->resolveColumnMapping($request);
+            $result = $this->inventoryImportService->importFromUploadedFile($contents, $originalFilename, $columnMapping);
 
             $actorUserId = $this->sessionAuthService->userId();
 
@@ -121,6 +122,63 @@ class InventoryImportController
         } catch (Throwable $exception) {
             return $this->errorResponse($response, 500, __('inventory_import_failed'), $exception);
         }
+    }
+
+    public function preview(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
+    {
+        try {
+            $file = $this->resolveUploadedFile($request);
+
+            if ($file === null) {
+                return $this->jsonResponse($response, 400, [
+                    'status' => 'error',
+                    'message' => __('import_file_missing'),
+                ]);
+            }
+
+            if ($file->getError() !== UPLOAD_ERR_OK) {
+                return $this->jsonResponse($response, 400, [
+                    'status' => 'error',
+                    'message' => __('import_file_upload_error'),
+                ]);
+            }
+
+            $originalFilename = $file->getClientFilename() ?? 'import.csv';
+            $contents = (string) $file->getStream()->getContents();
+            $preview = $this->inventoryImportService->buildImportMappingPreview($contents, $originalFilename);
+
+            return $this->jsonResponse($response, 200, [
+                'status' => 'success',
+                'data' => $preview,
+            ]);
+        } catch (Throwable $exception) {
+            return $this->errorResponse($response, 422, __('import_csv_invalid_headers'), $exception);
+        }
+    }
+
+    /**
+     * @return array<int, string>|null
+     */
+    private function resolveColumnMapping(ServerRequestInterface $request): ?array
+    {
+        $parsedBody = $request->getParsedBody();
+        $rawMapping = null;
+
+        if (is_array($parsedBody)) {
+            $rawMapping = $parsedBody['column_mapping'] ?? null;
+        }
+
+        if ($rawMapping === null || $rawMapping === '') {
+            return null;
+        }
+
+        if (is_string($rawMapping)) {
+            $decoded = json_decode($rawMapping, true);
+
+            return is_array($decoded) ? $decoded : null;
+        }
+
+        return is_array($rawMapping) ? $rawMapping : null;
     }
 
     private function resolveUploadedFile(ServerRequestInterface $request): ?UploadedFileInterface
