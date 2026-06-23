@@ -253,7 +253,7 @@ class UserController
             $assetId = (int) $asset['id'];
 
             $updated = $this->assetModel->update($assetId, [
-                'personnel_id' => null,
+                'assigned_to' => '',
                 'status' => 'storage',
             ]);
 

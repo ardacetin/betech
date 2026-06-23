@@ -160,7 +160,7 @@ $assetCsvImportService = new AssetCsvImportService($assetModel, $categoryModel, 
 $assetFilterSchemaService = new AssetFilterSchemaService();
 $licenseFilterSchemaService = new LicenseFilterSchemaService();
 $consumableFilterSchemaService = new ConsumableFilterSchemaService();
-$inventoryImportService = new InventoryImportService($assetModel, $categoryModel, $locationModel, $personnelModel);
+$inventoryImportService = new InventoryImportService($assetModel);
 $ldapAuthenticator = new LdapAuthenticator($settingModel);
 $auditLogModel = new AuditLog($databaseService);
 $auditChangeFormatter = new AuditChangeFormatter();
@@ -184,8 +184,8 @@ $inventoryImportController = new InventoryImportController(
         $appLogger
     );
 $healthController = new HealthController($appConfig, $assetModel, $categoryModel, $viewRenderer, $qrCodeService, $analyticsService, $settingModel, $userModel, $personnelModel, $sessionAuthService, $endUserContextService, $locationModel, $assetFilterSchemaService, $licenseModel, $licenseFilterSchemaService, $consumableModel, $consumableFilterSchemaService);
-$assetController = new AssetController($assetModel, $assetHistoryModel, $userIntegrationFactory, $personnelModel, $userModel, $locationModel, $categoryModel, $assetCsvImportService, $sessionAuthService, $clientIpResolver, $endUserContextService, $auditLogger, $assetFilterSchemaService, $settingModel);
-$assetViewController = new AssetViewController($appConfig, $assetModel, $categoryModel, $viewRenderer);
+$assetController = new AssetController($assetModel, $assetHistoryModel, $userIntegrationFactory, $personnelModel, $userModel, $locationModel, $categoryModel, $assetCsvImportService, $inventoryImportService, $sessionAuthService, $clientIpResolver, $endUserContextService, $auditLogger, $assetFilterSchemaService, $settingModel);
+$assetViewController = new AssetViewController($appConfig, $assetModel, $viewRenderer);
 $assetTutanakController = new AssetTutanakController($assetModel, $settingModel, $personnelModel, $userModel, $userIntegrationFactory, $zimmetTutanakService, $viewRenderer, $sessionAuthService, $endUserContextService);
 $userController = new UserController($userIntegrationFactory, $personnelModel, $assetModel, $assetHistoryModel, $settingModel, $sessionAuthService, $clientIpResolver);
 $analyticsController = new AnalyticsController($analyticsService);

@@ -6,11 +6,26 @@ namespace App\Models;
 
 use App\Services\DatabaseService;
 use App\Services\ListPagination;
-use JsonException;
 use Medoo\Medoo;
 
 class Asset
 {
+    /** @var list<string> */
+    public const FLAT_COLUMNS = [
+        'asset_tag',
+        'name',
+        'model',
+        'brand',
+        'serial_number',
+        'type',
+        'status',
+        'location',
+        'building',
+        'assigned_to',
+        'mac_address_1',
+        'mac_address_2',
+    ];
+
     public function __construct(
         private readonly DatabaseService $databaseService
     ) {
@@ -22,8 +37,6 @@ class Asset
     }
 
     /**
-     * Fetch all assets with decoded JSON properties.
-     *
      * @return list<array<string, mixed>>
      */
     public function findAll(): array
@@ -39,8 +52,6 @@ class Asset
     }
 
     /**
-     * Fetch assets with category names for dashboard display.
-     *
      * @param array<string, string> $filters
      * @param list<array<string, mixed>> $filterDefinitions
      *
@@ -51,28 +62,7 @@ class Asset
         $where = $this->buildDashboardFilterWhere($filters, $filterDefinitions);
         $where['ORDER'] = ['assets.id' => 'DESC'];
 
-        $rows = $this->db()->select('assets', [
-            '[>]categories' => ['category_id' => 'id'],
-            '[>]personnel' => ['personnel_id' => 'id'],
-            '[>]locations' => ['location_id' => 'id'],
-        ], [
-            'assets.id',
-            'assets.asset_tag',
-            'assets.serial_number',
-            'assets.name',
-            'assets.category_id',
-            'assets.status',
-            'assets.personnel_id',
-            'assets.location_id',
-            'assets.properties',
-            'assets.created_at',
-            'assets.updated_at',
-            'categories.name(category_name)',
-            'personnel.name(personnel_name)',
-            'personnel.email(personnel_email)',
-            'locations.name(location_name)',
-            'locations.building(location_building)',
-        ], $where);
+        $rows = $this->db()->select('assets', '*', $where);
 
         return array_map(
             fn (array $row): array => $this->normalizeRow($row),
@@ -95,40 +85,16 @@ class Asset
         int $page = 1,
         int $perPage = ListPagination::PAGE_SIZE
     ): array {
-        $join = [
-            '[>]categories' => ['category_id' => 'id'],
-            '[>]personnel' => ['personnel_id' => 'id'],
-            '[>]locations' => ['location_id' => 'id'],
-        ];
-        $columns = [
-            'assets.id',
-            'assets.asset_tag',
-            'assets.serial_number',
-            'assets.name',
-            'assets.category_id',
-            'assets.status',
-            'assets.personnel_id',
-            'assets.location_id',
-            'assets.properties',
-            'assets.created_at',
-            'assets.updated_at',
-            'categories.name(category_name)',
-            'personnel.name(personnel_name)',
-            'personnel.email(personnel_email)',
-            'locations.name(location_name)',
-            'locations.building(location_building)',
-        ];
-
         $where = $this->buildDashboardFilterWhere($filters, $filterDefinitions);
         $page = max(1, $page);
         $perPage = ListPagination::PAGE_SIZE;
         $countWhere = $where === [] ? null : $where;
-        $total = (int) $this->db()->count('assets', $join, '*', $countWhere);
+        $total = (int) $this->db()->count('assets', $countWhere);
         $selectWhere = $where;
         $selectWhere['ORDER'] = ['assets.id' => 'DESC'];
         $selectWhere['LIMIT'] = [ListPagination::offset($page, $perPage), $perPage];
 
-        $rows = $this->db()->select('assets', $join, $columns, $selectWhere);
+        $rows = $this->db()->select('assets', '*', $selectWhere);
 
         return [
             'data' => array_map(
@@ -142,37 +108,29 @@ class Asset
     /**
      * @return list<string>
      */
-    public function getDistinctPropertyValues(string $propertyKey): array
+    public function getDistinctColumnValues(string $column): array
     {
-        $propertyKey = $this->sanitizePropertyFilterKey($propertyKey);
-
-        if ($propertyKey === '') {
+        if (!in_array($column, self::FLAT_COLUMNS, true)) {
             return [];
         }
 
-        $jsonPath = '$.' . $propertyKey;
-        $statement = $this->db()->query(
-            'SELECT DISTINCT JSON_UNQUOTE(JSON_EXTRACT(properties, ?)) AS value
-             FROM assets
-             WHERE properties IS NOT NULL
-               AND JSON_EXTRACT(properties, ?) IS NOT NULL
-               AND JSON_UNQUOTE(JSON_EXTRACT(properties, ?)) <> \'\'
-             ORDER BY value ASC',
-            [$jsonPath, $jsonPath, $jsonPath]
-        );
-
-        if ($statement === false) {
-            return [];
-        }
+        $rows = $this->db()->select('assets', [$column], [
+            $column . '[!]' => null,
+            'ORDER' => [$column => 'ASC'],
+        ]);
 
         $values = [];
+        $seen = [];
 
-        foreach ($statement->fetchAll() as $row) {
-            $value = trim((string) ($row['value'] ?? ''));
+        foreach ($rows as $row) {
+            $value = trim((string) ($row[$column] ?? ''));
 
-            if ($value !== '') {
-                $values[] = $value;
+            if ($value === '' || isset($seen[$value])) {
+                continue;
             }
+
+            $seen[$value] = true;
+            $values[] = $value;
         }
 
         return $values;
@@ -222,32 +180,18 @@ class Asset
 
             $match = (string) ($definition['match'] ?? 'partial');
             $column = isset($definition['column']) ? (string) $definition['column'] : '';
-            $property = isset($definition['property']) ? (string) $definition['property'] : '';
 
-            if ($column !== '') {
-                if ($match === 'exact') {
-                    if (in_array($column, ['assets.category_id', 'assets.location_id'], true)) {
-                        $conditions[$column] = (int) $trimmedValue;
-                    } else {
-                        $conditions[$column] = $trimmedValue;
-                    }
-
-                    continue;
-                }
-
-                $conditions[$column . '[~]'] = '%' . $this->escapeLikePattern($trimmedValue) . '%';
+            if ($column === '') {
                 continue;
             }
 
-            if ($property !== '') {
-                $propertyCondition = $this->buildPropertyFilterCondition($property, $trimmedValue, $match);
+            if ($match === 'exact') {
+                $conditions[$column] = $trimmedValue;
 
-                if ($propertyCondition !== null) {
-                    foreach ($propertyCondition as $conditionKey => $conditionValue) {
-                        $conditions[$conditionKey] = $conditionValue;
-                    }
-                }
+                continue;
             }
+
+            $conditions[$column . '[~]'] = '%' . $this->escapeLikePattern($trimmedValue) . '%';
         }
 
         if ($conditions === []) {
@@ -260,50 +204,11 @@ class Asset
     private function normalizeDashboardFilterName(string $name): string
     {
         return match ($name) {
-            'categories', 'category' => 'category_id',
+            'categories', 'category', 'category_name' => 'type',
+            'personnel_name', 'user_name' => 'assigned_to',
+            'location_name' => 'location',
             default => $name,
         };
-    }
-
-    /**
-     * @return array<string, string>|null
-     */
-    private function buildPropertyFilterCondition(string $propertyKey, string $value, string $match): ?array
-    {
-        $propertyKey = $this->sanitizePropertyFilterKey($propertyKey);
-        $value = trim($value);
-
-        if ($propertyKey === '' || $value === '') {
-            return null;
-        }
-
-        $conditionKey = 'assets.properties[~] #property_' . $propertyKey;
-
-        if ($match === 'exact') {
-            $jsonValue = json_encode($value, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
-            $needle = '"' . $propertyKey . '":' . (str_starts_with($jsonValue, '"') ? $jsonValue : ' ' . $jsonValue);
-
-            return [
-                $conditionKey => '%' . $this->escapeLikePattern($needle) . '%',
-            ];
-        }
-
-        $needle = '"' . $propertyKey . '":%';
-
-        return [
-            $conditionKey => '%' . $this->escapeLikePattern($needle) . $this->escapeLikePattern($value) . '%',
-        ];
-    }
-
-    private function sanitizePropertyFilterKey(string $propertyKey): string
-    {
-        $propertyKey = trim($propertyKey);
-
-        if ($propertyKey === '' || preg_match('/^[A-Za-z0-9_]+$/', $propertyKey) !== 1) {
-            return '';
-        }
-
-        return $propertyKey;
     }
 
     private function escapeLikePattern(string $value): string
@@ -320,31 +225,7 @@ class Asset
 
     public function findByIdForView(int $assetId): ?array
     {
-        $row = $this->db()->get('assets', [
-            '[>]categories' => ['category_id' => 'id'],
-            '[>]personnel' => ['personnel_id' => 'id'],
-            '[>]locations' => ['location_id' => 'id'],
-        ], [
-            'assets.id',
-            'assets.asset_tag',
-            'assets.serial_number',
-            'assets.name',
-            'assets.category_id',
-            'assets.status',
-            'assets.personnel_id',
-            'assets.location_id',
-            'assets.properties',
-            'assets.created_at',
-            'assets.updated_at',
-            'categories.name(category_name)',
-            'personnel.name(personnel_name)',
-            'locations.name(location_name)',
-            'locations.building(location_building)',
-        ], [
-            'assets.id' => $assetId,
-        ]);
-
-        return $row === null ? null : $this->normalizeRow($row);
+        return $this->findById($assetId);
     }
 
     /**
@@ -352,47 +233,56 @@ class Asset
      */
     public function findAllByPersonnelId(int $userId): array
     {
-        $rows = $this->db()->select('assets', '*', [
-            'personnel_id' => $userId,
-            'ORDER' => ['id' => 'ASC'],
-        ]);
+        $person = $this->db()->get('personnel', ['email', 'name'], ['id' => $userId]);
 
-        return array_map(
-            fn (array $row): array => $this->normalizeRow($row),
-            $rows
+        if (!is_array($person)) {
+            return [];
+        }
+
+        return $this->findByAssignedReferences(
+            trim((string) ($person['email'] ?? '')),
+            trim((string) ($person['name'] ?? ''))
         );
     }
 
     /**
-     * Fetch assigned assets with category names for end-user dashboard display.
-     *
      * @return list<array<string, mixed>>
      */
     public function findForDashboardByPersonnelId(int $userId): array
     {
-        $rows = $this->db()->select('assets', [
-            '[>]categories' => ['category_id' => 'id'],
-            '[>]personnel' => ['personnel_id' => 'id'],
-            '[>]locations' => ['location_id' => 'id'],
-        ], [
-            'assets.id',
-            'assets.asset_tag',
-            'assets.serial_number',
-            'assets.name',
-            'assets.category_id',
-            'assets.status',
-            'assets.personnel_id',
-            'assets.location_id',
-            'assets.properties',
-            'assets.created_at',
-            'assets.updated_at',
-            'categories.name(category_name)',
-            'personnel.name(personnel_name)',
-            'locations.name(location_name)',
-            'locations.building(location_building)',
-        ], [
-            'assets.personnel_id' => $userId,
-            'ORDER' => ['assets.id' => 'DESC'],
+        $person = $this->db()->get('personnel', ['email', 'name'], ['id' => $userId]);
+
+        if (!is_array($person)) {
+            return [];
+        }
+
+        $rows = $this->findByAssignedReferences(
+            trim((string) ($person['email'] ?? '')),
+            trim((string) ($person['name'] ?? ''))
+        );
+
+        usort(
+            $rows,
+            static fn (array $left, array $right): int => ((int) ($right['id'] ?? 0)) <=> ((int) ($left['id'] ?? 0))
+        );
+
+        return $rows;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function findByAssignedReferences(string $email, string $name): array
+    {
+        $needles = array_values(array_unique(array_filter([$email, $name], static fn (string $value): bool => $value !== '')));
+
+        if ($needles === []) {
+            return [];
+        }
+
+        $rows = $this->db()->select('assets', '*', [
+            'assigned_to' => $needles,
+            'ORDER' => ['id' => 'ASC'],
         ]);
 
         return array_map(
@@ -403,10 +293,24 @@ class Asset
 
     public function isAssignedToPersonnel(int $assetId, int $userId): bool
     {
-        return $this->db()->has('assets', [
-            'id' => $assetId,
-            'personnel_id' => $userId,
-        ]);
+        $asset = $this->findById($assetId);
+
+        if ($asset === null || trim((string) ($asset['assigned_to'] ?? '')) === '') {
+            return false;
+        }
+
+        $person = $this->db()->get('personnel', ['email', 'name'], ['id' => $userId]);
+
+        if (!is_array($person)) {
+            return false;
+        }
+
+        $assignedTo = trim((string) ($asset['assigned_to'] ?? ''));
+        $email = trim((string) ($person['email'] ?? ''));
+        $name = trim((string) ($person['name'] ?? ''));
+
+        return ($email !== '' && strcasecmp($assignedTo, $email) === 0)
+            || ($name !== '' && strcasecmp($assignedTo, $name) === 0);
     }
 
     public function deletePermanently(int $assetId): bool
@@ -435,41 +339,29 @@ class Asset
     }
 
     /**
-     * Create a new asset with core columns and hybrid JSON properties.
-     *
-     * @param array<string, mixed> $coreFields
-     * @param array<string, mixed> $properties
+     * @param array<string, mixed> $fields
      *
      * @return array<string, mixed>
      */
-    public function create(array $coreFields, array $properties): array
+    public function create(array $fields): array
     {
-        $assetTag = trim((string) $coreFields['asset_tag']);
-        $name = trim((string) $coreFields['name']);
-        $categoryId = (int) $coreFields['category_id'];
-        $status = trim((string) ($coreFields['status'] ?? 'ready'));
-        $serialNumber = array_key_exists('serial_number', $coreFields) && $coreFields['serial_number'] !== null
-            ? trim((string) $coreFields['serial_number'])
-            : null;
+        $insert = $this->filterFlatFields($fields);
+        $assetTag = trim((string) ($insert['asset_tag'] ?? ''));
 
-        if ($serialNumber === '') {
-            $serialNumber = null;
+        if ($assetTag === '') {
+            $assetTag = $this->generateNextAssetTag();
         }
 
-        $encodedProperties = $properties === []
-            ? null
-            : $this->encodeProperties($properties);
+        $insert['asset_tag'] = $assetTag;
+        $insert['name'] = trim((string) ($insert['name'] ?? ''));
 
-        $this->db()->insert('assets', [
-            'asset_tag' => $assetTag,
-            'serial_number' => $serialNumber,
-            'name' => $name,
-            'category_id' => $categoryId,
-            'status' => $status !== '' ? $status : 'ready',
-            'personnel_id' => array_key_exists('personnel_id', $coreFields) ? $coreFields['personnel_id'] : null,
-            'location_id' => array_key_exists('location_id', $coreFields) ? $coreFields['location_id'] : null,
-            'properties' => $encodedProperties,
-        ]);
+        if ($insert['name'] === '') {
+            throw new \RuntimeException(__('import_error_name_required'));
+        }
+
+        $insert['status'] = trim((string) ($insert['status'] ?? 'ready')) ?: 'ready';
+
+        $this->db()->insert('assets', $insert);
 
         $insertedId = $this->db()->id();
         $row = $this->db()->get('assets', '*', ['id' => $insertedId]);
@@ -482,14 +374,11 @@ class Asset
     }
 
     /**
-     * Update an existing asset with core columns and optional hybrid JSON properties.
-     *
-     * @param array<string, mixed> $coreFields
-     * @param array<string, mixed>|null $properties Null keeps existing properties unchanged.
+     * @param array<string, mixed> $fields
      *
      * @return array<string, mixed>|null
      */
-    public function update(int $assetId, array $coreFields, ?array $properties = null): ?array
+    public function update(int $assetId, array $fields): ?array
     {
         $existing = $this->db()->get('assets', '*', ['id' => $assetId]);
 
@@ -497,48 +386,38 @@ class Asset
             return null;
         }
 
-        $updateData = [];
-
-        if (array_key_exists('asset_tag', $coreFields)) {
-            $updateData['asset_tag'] = trim((string) $coreFields['asset_tag']);
-        }
-
-        if (array_key_exists('name', $coreFields)) {
-            $updateData['name'] = trim((string) $coreFields['name']);
-        }
-
-        if (array_key_exists('serial_number', $coreFields)) {
-            $serialNumber = $coreFields['serial_number'] !== null
-                ? trim((string) $coreFields['serial_number'])
-                : null;
-            $updateData['serial_number'] = $serialNumber === '' ? null : $serialNumber;
-        }
-
-        if (array_key_exists('category_id', $coreFields)) {
-            $updateData['category_id'] = (int) $coreFields['category_id'];
-        }
-
-        if (array_key_exists('status', $coreFields)) {
-            $status = trim((string) $coreFields['status']);
-            $updateData['status'] = $status !== '' ? $status : 'ready';
-        }
-
-        if (array_key_exists('personnel_id', $coreFields)) {
-            $updateData['personnel_id'] = $coreFields['personnel_id'];
-        }
-
-        if (array_key_exists('location_id', $coreFields)) {
-            $updateData['location_id'] = $coreFields['location_id'];
-        }
-
-        if ($properties !== null) {
-            $updateData['properties'] = $properties === []
-                ? null
-                : $this->encodeProperties($properties);
-        }
+        $updateData = $this->filterFlatFields($fields);
 
         if ($updateData === []) {
             return $this->normalizeRow($existing);
+        }
+
+        if (array_key_exists('asset_tag', $updateData)) {
+            $updateData['asset_tag'] = trim((string) $updateData['asset_tag']);
+        }
+
+        if (array_key_exists('name', $updateData)) {
+            $updateData['name'] = trim((string) $updateData['name']);
+        }
+
+        if (array_key_exists('serial_number', $updateData)) {
+            $serialNumber = trim((string) ($updateData['serial_number'] ?? ''));
+            $updateData['serial_number'] = $serialNumber === '' ? null : $serialNumber;
+        }
+
+        if (array_key_exists('status', $updateData)) {
+            $status = trim((string) ($updateData['status'] ?? ''));
+            $updateData['status'] = $status !== '' ? $status : 'ready';
+        }
+
+        foreach (['model', 'brand', 'type', 'location', 'building', 'assigned_to', 'mac_address_1', 'mac_address_2'] as $nullableStringField) {
+            if (!array_key_exists($nullableStringField, $updateData)) {
+                continue;
+            }
+
+            $value = trim((string) ($updateData[$nullableStringField] ?? ''));
+
+            $updateData[$nullableStringField] = $value === '' ? null : $value;
         }
 
         $updateData['updated_at'] = date('Y-m-d H:i:s');
@@ -619,39 +498,30 @@ class Asset
     }
 
     /**
-     * Create or update an asset matched exclusively by asset_tag (Demirbaş No) during inventory import.
-     *
      * @param array<string, mixed>|null $existingAsset
-     * @param array<string, mixed> $coreFields
-     * @param array<string, mixed> $properties
+     * @param array<string, mixed> $fields
      *
      * @return array{asset: array<string, mixed>, created: bool}
      */
-    public function upsertFromImport(?array $existingAsset, array $coreFields, array $properties): array
+    public function upsertFromImport(?array $existingAsset, array $fields): array
     {
+        $fields = $this->filterFlatFields($fields);
+        $assetTag = trim((string) ($fields['asset_tag'] ?? ''));
+
         if ($existingAsset !== null) {
             $assetId = (int) $existingAsset['id'];
-            $assetTag = trim((string) ($coreFields['asset_tag'] ?? ''));
 
             if ($assetTag !== '' && $this->assetTagExists($assetTag, $assetId)) {
                 throw new \RuntimeException(sprintf(__('import_error_duplicate_tag'), $assetTag));
             }
 
-            $serialNumber = array_key_exists('serial_number', $coreFields)
-                ? trim((string) ($coreFields['serial_number'] ?? ''))
-                : '';
+            $serialNumber = trim((string) ($fields['serial_number'] ?? ''));
 
             if ($serialNumber !== '' && $this->serialNumberExists($serialNumber, $assetId)) {
                 throw new \RuntimeException(sprintf(__('import_error_duplicate_serial_in_file'), $serialNumber));
             }
 
-            if ($assetTag !== '') {
-                $coreFields['asset_tag'] = $assetTag;
-            } else {
-                unset($coreFields['asset_tag']);
-            }
-
-            $asset = $this->update($assetId, $coreFields, $properties);
+            $asset = $this->update($assetId, $fields);
 
             if ($asset === null) {
                 throw new \RuntimeException(__('inventory_import_update_failed'));
@@ -663,24 +533,22 @@ class Asset
             ];
         }
 
-        $assetTag = trim((string) ($coreFields['asset_tag'] ?? ''));
-
         if ($assetTag === '') {
-            $coreFields['asset_tag'] = $this->generateNextAssetTag();
+            $fields['asset_tag'] = $this->generateNextAssetTag();
         }
 
-        if ($this->assetTagExists((string) $coreFields['asset_tag'])) {
-            throw new \RuntimeException(sprintf(__('import_error_duplicate_tag'), (string) $coreFields['asset_tag']));
+        if ($this->assetTagExists((string) ($fields['asset_tag'] ?? ''))) {
+            throw new \RuntimeException(sprintf(__('import_error_duplicate_tag'), (string) $fields['asset_tag']));
         }
 
-        $serialNumber = trim((string) ($coreFields['serial_number'] ?? ''));
+        $serialNumber = trim((string) ($fields['serial_number'] ?? ''));
 
         if ($serialNumber !== '' && $this->serialNumberExists($serialNumber)) {
             throw new \RuntimeException(sprintf(__('import_error_duplicate_serial_in_file'), $serialNumber));
         }
 
         return [
-            'asset' => $this->create($coreFields, $properties),
+            'asset' => $this->create($fields),
             'created' => true,
         ];
     }
@@ -711,159 +579,47 @@ class Asset
         return $candidate;
     }
 
-    public function categoryExists(int $categoryId): bool
-    {
-        return $this->db()->has('categories', ['id' => $categoryId]);
-    }
-
-    public function locationExists(int $locationId): bool
-    {
-        return $this->db()->has('locations', ['id' => $locationId]);
-    }
-
     /**
-     * Decode the properties JSON column into an associative array.
+     * @param array<string, mixed> $fields
      *
      * @return array<string, mixed>
      */
-    public function decodeProperties(mixed $properties): array
+    private function filterFlatFields(array $fields): array
     {
-        if ($properties === null || $properties === '') {
-            return [];
+        $filtered = [];
+
+        foreach (self::FLAT_COLUMNS as $column) {
+            if (!array_key_exists($column, $fields)) {
+                continue;
+            }
+
+            $filtered[$column] = $fields[$column];
         }
 
-        if (is_array($properties)) {
-            return $properties;
-        }
-
-        if (!is_string($properties)) {
-            return [];
-        }
-
-        try {
-            $decoded = json_decode($properties, true, 512, JSON_THROW_ON_ERROR);
-        } catch (JsonException) {
-            return [];
-        }
-
-        return is_array($decoded) ? $decoded : [];
+        return $filtered;
     }
 
     /**
-     * Set or update a single key inside the properties JSON column.
-     */
-    public function setProperty(int $assetId, string $key, mixed $value): bool
-    {
-        $row = $this->db()->get('assets', ['id', 'properties'], ['id' => $assetId]);
-
-        if ($row === null) {
-            return false;
-        }
-
-        $properties = $this->decodeProperties($row['properties']);
-        $properties[$key] = $value;
-
-        $this->db()->update('assets', [
-            'properties' => $this->encodeProperties($properties),
-            'updated_at' => date('Y-m-d H:i:s'),
-        ], [
-            'id' => $assetId,
-        ]);
-
-        return true;
-    }
-
-    /**
-     * Merge multiple keys into the properties JSON column.
-     *
-     * @param array<string, mixed> $values
-     */
-    public function mergeProperties(int $assetId, array $values): bool
-    {
-        $row = $this->db()->get('assets', ['id', 'properties'], ['id' => $assetId]);
-
-        if ($row === null) {
-            return false;
-        }
-
-        $properties = array_merge(
-            $this->decodeProperties($row['properties']),
-            $values
-        );
-
-        $this->db()->update('assets', [
-            'properties' => $this->encodeProperties($properties),
-            'updated_at' => date('Y-m-d H:i:s'),
-        ], [
-            'id' => $assetId,
-        ]);
-
-        return true;
-    }
-
-    /**
-     * Encode properties for persistence in MySQL JSON column.
-     *
-     * @param array<string, mixed> $properties
-     *
-     * @throws JsonException
-     */
-    public function encodeProperties(array $properties): string
-    {
-        return json_encode($properties, JSON_THROW_ON_ERROR);
-    }
-
-    /**
-     * Normalize a database row and decode its properties field.
-     *
      * @param array<string, mixed> $row
      *
      * @return array<string, mixed>
      */
     private function normalizeRow(array $row): array
     {
-        $row['properties'] = $this->decodeProperties($row['properties'] ?? null);
-
         if (isset($row['id'])) {
             $row['id'] = (int) $row['id'];
         }
 
-        if (isset($row['category_id'])) {
-            $row['category_id'] = (int) $row['category_id'];
-        }
-
-        if (array_key_exists('category_name', $row) && $row['category_name'] === null) {
-            $row['category_name'] = null;
-        }
-
-        if (array_key_exists('personnel_name', $row) && $row['personnel_name'] === null) {
-            $row['personnel_name'] = null;
-        }
-
-        if (array_key_exists('personnel_email', $row) && $row['personnel_email'] === null) {
-            $row['personnel_email'] = null;
-        }
-
-        if (array_key_exists('personnel_name', $row)) {
-            $row['user_name'] = $row['personnel_name'];
-        }
-
-        if (array_key_exists('personnel_id', $row) && $row['personnel_id'] !== null) {
-            $row['personnel_id'] = (int) $row['personnel_id'];
-            $row['user_id'] = $row['personnel_id'];
-        }
-
-        if (array_key_exists('location_id', $row) && $row['location_id'] !== null) {
-            $row['location_id'] = (int) $row['location_id'];
-        }
-
-        if (array_key_exists('location_name', $row) && $row['location_name'] === null) {
-            $row['location_name'] = null;
-        }
-
-        if (array_key_exists('location_building', $row) && $row['location_building'] === null) {
-            $row['location_building'] = null;
-        }
+        $row['type'] = trim((string) ($row['type'] ?? ''));
+        $row['category_name'] = $row['type'] !== '' ? $row['type'] : null;
+        $row['assigned_to'] = trim((string) ($row['assigned_to'] ?? ''));
+        $row['user_name'] = $row['assigned_to'] !== '' ? $row['assigned_to'] : null;
+        $row['location'] = trim((string) ($row['location'] ?? ''));
+        $row['location_name'] = $row['location'] !== '' ? $row['location'] : null;
+        $row['building'] = trim((string) ($row['building'] ?? ''));
+        $row['location_building'] = $row['building'] !== '' ? $row['building'] : null;
+        $row['model'] = trim((string) ($row['model'] ?? ''));
+        $row['brand'] = trim((string) ($row['brand'] ?? ''));
 
         return $row;
     }

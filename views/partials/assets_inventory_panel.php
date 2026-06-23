@@ -8,10 +8,7 @@ declare(strict_types=1);
  * @var array<string, string> $assetActiveFilters
  * @var bool $canManageAssets
  * @var bool $isSuperAdmin
- * @var array<string, string> $statusStyles
  * @var callable $translateStatus
- * @var callable $formatPropertyValue
- * @var callable $formatLocationLabel
  */
 
 $assetFilterDefinitions = $assetFilterDefinitions ?? [];
@@ -103,19 +100,24 @@ $assetActiveFilters = $assetActiveFilters ?? [];
             <table class="min-w-full divide-y divide-zinc-200">
                 <thead class="bg-zinc-50">
                     <tr>
-                        <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500"><?= htmlspecialchars(__('col_asset_tag'), ENT_QUOTES, 'UTF-8') ?></th>
-                        <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500"><?= htmlspecialchars(__('col_name'), ENT_QUOTES, 'UTF-8') ?></th>
-                        <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500"><?= htmlspecialchars(__('col_category'), ENT_QUOTES, 'UTF-8') ?></th>
-                        <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500"><?= htmlspecialchars(__('col_status'), ENT_QUOTES, 'UTF-8') ?></th>
-                        <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500"><?= htmlspecialchars(__('col_assigned_user'), ENT_QUOTES, 'UTF-8') ?></th>
-                        <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500"><?= htmlspecialchars(__('col_location'), ENT_QUOTES, 'UTF-8') ?></th>
-                        <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500"><?= htmlspecialchars(__('col_properties'), ENT_QUOTES, 'UTF-8') ?></th>
-                        <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500"><?= htmlspecialchars(__('col_actions'), ENT_QUOTES, 'UTF-8') ?></th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500"><?= htmlspecialchars(__('col_asset_tag'), ENT_QUOTES, 'UTF-8') ?></th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500"><?= htmlspecialchars(__('col_name'), ENT_QUOTES, 'UTF-8') ?></th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500"><?= htmlspecialchars(__('col_model'), ENT_QUOTES, 'UTF-8') ?></th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500"><?= htmlspecialchars(__('col_brand'), ENT_QUOTES, 'UTF-8') ?></th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500"><?= htmlspecialchars(__('label_serial_number'), ENT_QUOTES, 'UTF-8') ?></th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500"><?= htmlspecialchars(__('col_category'), ENT_QUOTES, 'UTF-8') ?></th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500"><?= htmlspecialchars(__('col_status'), ENT_QUOTES, 'UTF-8') ?></th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500"><?= htmlspecialchars(__('col_location'), ENT_QUOTES, 'UTF-8') ?></th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500"><?= htmlspecialchars(__('col_building'), ENT_QUOTES, 'UTF-8') ?></th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500"><?= htmlspecialchars(__('col_assigned_user'), ENT_QUOTES, 'UTF-8') ?></th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500"><?= htmlspecialchars(__('label_mac_address_1'), ENT_QUOTES, 'UTF-8') ?></th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500"><?= htmlspecialchars(__('label_mac_address_2'), ENT_QUOTES, 'UTF-8') ?></th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500"><?= htmlspecialchars(__('col_actions'), ENT_QUOTES, 'UTF-8') ?></th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-zinc-100 bg-white">
                     <tr x-show="!assetFiltersLoading && inventoryAssets.length === 0" x-cloak>
-                        <td colspan="8" class="px-6 py-12 text-center text-sm text-zinc-500">
+                        <td colspan="13" class="px-6 py-12 text-center text-sm text-zinc-500">
                             <span x-show="hasActiveAssetFilters()" x-cloak><?= htmlspecialchars(__('inventory_assets_empty_filtered'), ENT_QUOTES, 'UTF-8') ?></span>
                             <span x-show="!hasActiveAssetFilters()" x-cloak>
                                 <?= htmlspecialchars(__('empty_assets_prefix'), ENT_QUOTES, 'UTF-8') ?>
@@ -126,34 +128,24 @@ $assetActiveFilters = $assetActiveFilters ?? [];
                     </tr>
                     <template x-for="asset in inventoryAssets" :key="asset.id">
                         <tr class="hover:bg-zinc-50/80">
-                            <td class="whitespace-nowrap px-6 py-4 text-sm font-medium text-zinc-900" x-text="asset.asset_tag"></td>
-                            <td class="px-6 py-4 text-sm text-zinc-700" x-text="asset.name"></td>
-                            <td class="px-6 py-4 text-sm text-zinc-600" x-text="asset.category_name || window.__i18n.unknown_category"></td>
-                            <td class="px-6 py-4">
+                            <td class="whitespace-nowrap px-4 py-4 text-sm font-medium text-zinc-900" x-text="asset.asset_tag"></td>
+                            <td class="px-4 py-4 text-sm text-zinc-700" x-text="asset.name"></td>
+                            <td class="px-4 py-4 text-sm text-zinc-600" x-text="asset.model || '—'"></td>
+                            <td class="px-4 py-4 text-sm text-zinc-600" x-text="asset.brand || '—'"></td>
+                            <td class="px-4 py-4 text-sm text-zinc-600" x-text="asset.serial_number || '—'"></td>
+                            <td class="px-4 py-4 text-sm text-zinc-600" x-text="asset.type || asset.category_name || '—'"></td>
+                            <td class="px-4 py-4">
                                 <span class="inline-flex rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-inset" :class="inventoryStatusClass(asset.status)" x-text="translateInventoryStatus(asset.status)"></span>
                             </td>
-                            <td class="px-6 py-4 text-sm text-zinc-600">
-                                <span x-show="asset.user_name" x-text="asset.user_name"></span>
-                                <span x-show="!asset.user_name" class="text-zinc-400"><?= htmlspecialchars(__('not_assigned'), ENT_QUOTES, 'UTF-8') ?></span>
+                            <td class="px-4 py-4 text-sm text-zinc-600" x-text="asset.location || asset.location_name || '—'"></td>
+                            <td class="px-4 py-4 text-sm text-zinc-600" x-text="asset.building || asset.location_building || '—'"></td>
+                            <td class="px-4 py-4 text-sm text-zinc-600">
+                                <span x-show="asset.assigned_to || asset.user_name" x-text="asset.assigned_to || asset.user_name"></span>
+                                <span x-show="!(asset.assigned_to || asset.user_name)" class="text-zinc-400"><?= htmlspecialchars(__('not_assigned'), ENT_QUOTES, 'UTF-8') ?></span>
                             </td>
-                            <td class="px-6 py-4 text-sm text-zinc-600">
-                                <span x-show="formatInventoryLocation(asset)" x-text="formatInventoryLocation(asset)"></span>
-                                <span x-show="!formatInventoryLocation(asset)" class="text-zinc-400"><?= htmlspecialchars(__('not_located'), ENT_QUOTES, 'UTF-8') ?></span>
-                            </td>
-                            <td class="px-6 py-4">
-                                <div class="flex max-w-xl flex-wrap gap-2">
-                                    <template x-if="inventoryPropertyEntries(asset).length === 0">
-                                        <span class="text-xs text-zinc-400"><?= htmlspecialchars(__('no_properties'), ENT_QUOTES, 'UTF-8') ?></span>
-                                    </template>
-                                    <template x-for="entry in inventoryPropertyEntries(asset)" :key="`${asset.id}-${entry[0]}`">
-                                        <span class="inline-flex items-center gap-1 rounded-full bg-zinc-100 px-2.5 py-1 text-xs text-zinc-700">
-                                            <span class="font-medium" x-text="`${entry[0]}:`"></span>
-                                            <span x-text="formatInventoryPropertyValue(entry[1])"></span>
-                                        </span>
-                                    </template>
-                                </div>
-                            </td>
-                            <td class="px-6 py-4">
+                            <td class="px-4 py-4 text-sm font-mono text-zinc-600" x-text="asset.mac_address_1 || '—'"></td>
+                            <td class="px-4 py-4 text-sm font-mono text-zinc-600" x-text="asset.mac_address_2 || '—'"></td>
+                            <td class="px-4 py-4">
                                 <div class="flex flex-wrap gap-2">
                                     <button
                                         type="button"
@@ -165,7 +157,7 @@ $assetActiveFilters = $assetActiveFilters ?? [];
                                     <?php if ($canManageAssets): ?>
                                     <button
                                         type="button"
-                                        x-show="!asset.user_id"
+                                        x-show="!(asset.assigned_to || asset.user_name)"
                                         @click="openAssignModal(buildInventoryAssignPayload(asset))"
                                         class="rounded-lg border border-emerald-200 px-3 py-1.5 text-xs font-medium text-emerald-800 transition hover:bg-emerald-50"
                                     >
@@ -181,7 +173,7 @@ $assetActiveFilters = $assetActiveFilters ?? [];
                                     <?php endif; ?>
                                     <button
                                         type="button"
-                                        x-show="asset.user_id"
+                                        x-show="asset.assigned_to || asset.user_name"
                                         @click="printTutanak(asset.id)"
                                         class="rounded-lg border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-700 transition hover:bg-zinc-50"
                                     >
@@ -190,7 +182,7 @@ $assetActiveFilters = $assetActiveFilters ?? [];
                                     <?php if ($canManageAssets): ?>
                                     <button
                                         type="button"
-                                        x-show="asset.user_id"
+                                        x-show="asset.assigned_to || asset.user_name"
                                         @click="openReturnModal(buildInventoryReturnPayload(asset))"
                                         class="rounded-lg border border-amber-200 px-3 py-1.5 text-xs font-medium text-amber-800 transition hover:bg-amber-50"
                                     >
@@ -198,7 +190,7 @@ $assetActiveFilters = $assetActiveFilters ?? [];
                                     </button>
                                     <button
                                         type="button"
-                                        x-show="asset.user_id"
+                                        x-show="asset.assigned_to || asset.user_name"
                                         @click="openTransferModal(buildInventoryTransferPayload(asset))"
                                         class="rounded-lg border border-indigo-200 px-3 py-1.5 text-xs font-medium text-indigo-800 transition hover:bg-indigo-50"
                                     >

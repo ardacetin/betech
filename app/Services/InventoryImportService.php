@@ -5,9 +5,6 @@ declare(strict_types=1);
 namespace App\Services;
 
 use App\Models\Asset;
-use App\Models\Category;
-use App\Models\Location;
-use App\Models\Personnel;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 use RuntimeException;
@@ -44,15 +41,12 @@ class InventoryImportService
         'outoforder' => 'broken',
     ];
 
-    /** Permanent corporate inventory CSV layout (10 columns, index 0-9). */
-    private const MASTER_SCHEMA_COLUMN_COUNT = 10;
+    /** Permanent corporate inventory CSV layout (12 columns, index 0-11). */
+    private const MASTER_SCHEMA_COLUMN_COUNT = 12;
 
-    /**
-     * Exact downloadable template: header row + sample data row.
-     */
     private const MASTER_SCHEMA_TEMPLATE_CSV = <<<'CSV'
-Demirbaş No,"Cihaz Adı",Model,Marka,"Seri No",Tür,Durum,Lokasyon,Bina,"Zimmetli Kişi"
-ENV-GLPI-001,"BT Departman Laptop","Latitude 5540",Dell,SN-GLPI-001,Bilgisayar,deployed,"IT Depo","Merkez Kampüs",ahmet.yilmaz@sirket.com
+Demirbaş No,"Cihaz Adı",Model,Marka,"Seri No",Tür,Durum,Lokasyon,Bina,"Zimmetli Kişi","Mac Adresi 1","Mac Adresi 2"
+ENV-GLPI-001,"BT Departman Laptop","Latitude 5540",Dell,SN-GLPI-001,Bilgisayar,deployed,"IT Depo","Merkez Kampüs",ahmet.yilmaz@sirket.com,AA:BB:CC:DD:EE:01,AA:BB:CC:DD:EE:02
 
 CSV;
 
@@ -61,22 +55,21 @@ CSV;
      */
     private const MASTER_SCHEMA_FIELD_BY_INDEX = [
         0 => 'asset_tag',
-        1 => 'device_name',
-        2 => 'device_model',
+        1 => 'name',
+        2 => 'model',
         3 => 'brand',
         4 => 'serial_number',
-        5 => 'category',
+        5 => 'type',
         6 => 'status',
         7 => 'location',
         8 => 'building',
-        9 => 'personnel',
+        9 => 'assigned_to',
+        10 => 'mac_address_1',
+        11 => 'mac_address_2',
     ];
 
     public function __construct(
         private readonly Asset $assetModel,
-        private readonly Category $categoryModel,
-        private readonly Location $locationModel,
-        private readonly Personnel $personnelModel,
     ) {
     }
 
@@ -95,9 +88,7 @@ CSV;
      *     errors: list<array{row: int, message: string}>,
      *     warnings: list<array{row: int, message: string}>,
      *     created_assets: list<int>,
-     *     updated_assets: list<int>,
-     *     created_categories: list<string>,
-     *     created_locations: list<string>
+     *     updated_assets: list<int>
      * }
      */
     public function importFromUploadedFile(string $contents, string $originalFilename): array
@@ -133,9 +124,7 @@ CSV;
      *     errors: list<array{row: int, message: string}>,
      *     warnings: list<array{row: int, message: string}>,
      *     created_assets: list<int>,
-     *     updated_assets: list<int>,
-     *     created_categories: list<string>,
-     *     created_locations: list<string>
+     *     updated_assets: list<int>
      * }
      */
     private function importCsvContents(string $csvContent): array
@@ -184,8 +173,6 @@ CSV;
     }
 
     /**
-     * Read CSV content one physical line at a time (never merges lines due to open quotes).
-     *
      * @return \Generator<int, string>
      */
     private function iteratePhysicalCsvLines(string $csvContent): \Generator
@@ -212,8 +199,6 @@ CSV;
     }
 
     /**
-     * Split one physical CSV line into exactly 10 columns without RFC4180 quote pairing.
-     *
      * @return list<string>
      */
     private function parseMasterSchemaCsvLine(string $line): array
@@ -254,9 +239,7 @@ CSV;
      *     errors: list<array{row: int, message: string}>,
      *     warnings: list<array{row: int, message: string}>,
      *     created_assets: list<int>,
-     *     updated_assets: list<int>,
-     *     created_categories: list<string>,
-     *     created_locations: list<string>
+     *     updated_assets: list<int>
      * }
      */
     private function importSpreadsheetContents(string $contents, string $extension): array
@@ -297,9 +280,7 @@ CSV;
      *     errors: list<array{row: int, message: string}>,
      *     warnings: list<array{row: int, message: string}>,
      *     created_assets: list<int>,
-     *     updated_assets: list<int>,
-     *     created_categories: list<string>,
-     *     created_locations: list<string>
+     *     updated_assets: list<int>
      * }
      */
     private function importWorksheetRows(Worksheet $worksheet): array
@@ -312,7 +293,7 @@ CSV;
             $columns = [];
 
             foreach ($row->getCellIterator() as $cell) {
-                $columns[] = $this->parseMasterCellValue((string) $cell->getValue());
+                $columns[] = $this->sanitizeCellValue((string) $cell->getValue());
             }
 
             if ($this->isEmptyRow($columns)) {
@@ -322,7 +303,7 @@ CSV;
             $columns = $this->normalizeMasterSchemaColumns($columns);
 
             if (!$headerSkipped) {
-                if (count($columns) < self::MASTER_SCHEMA_COLUMN_COUNT) {
+                if (count(array_filter($columns, static fn (string $value): bool => $value !== '')) < self::MASTER_SCHEMA_COLUMN_COUNT) {
                     throw new RuntimeException(__('import_csv_invalid_headers'));
                 }
 
@@ -355,7 +336,7 @@ CSV;
         $normalized = [];
 
         for ($index = 0; $index < self::MASTER_SCHEMA_COLUMN_COUNT; ++$index) {
-            $normalized[] = $this->parseMasterCellValue((string) ($columns[$index] ?? ''));
+            $normalized[] = $this->sanitizeCellValue((string) ($columns[$index] ?? ''));
         }
 
         return $normalized;
@@ -371,9 +352,8 @@ CSV;
         $values = [];
 
         for ($index = 0; $index < self::MASTER_SCHEMA_COLUMN_COUNT; ++$index) {
-            $rawValue = $columns[$index] ?? '';
+            $parsedValue = $columns[$index] ?? '';
             $fieldKey = self::MASTER_SCHEMA_FIELD_BY_INDEX[$index];
-            $parsedValue = $this->parseMasterCellValue($rawValue);
 
             if ($parsedValue === '') {
                 continue;
@@ -383,11 +363,6 @@ CSV;
         }
 
         return $values;
-    }
-
-    private function parseMasterCellValue(string $value): string
-    {
-        return $this->sanitizeCellValue($value);
     }
 
     /**
@@ -401,10 +376,6 @@ CSV;
      *     warnings: list<array{row: int, message: string}>,
      *     created_assets: list<int>,
      *     updated_assets: list<int>,
-     *     categoryCache: array<string, int>,
-     *     locationCache: array<string, int>,
-     *     createdCategories: list<string>,
-     *     createdLocations: list<string>,
      *     seenSerials: array<string, true>,
      *     seenTags: array<string, true>
      * }
@@ -421,10 +392,6 @@ CSV;
             'warnings' => [],
             'created_assets' => [],
             'updated_assets' => [],
-            'categoryCache' => [],
-            'locationCache' => [],
-            'createdCategories' => [],
-            'createdLocations' => [],
             'seenSerials' => [],
             'seenTags' => [],
         ];
@@ -442,10 +409,6 @@ CSV;
      *     warnings: list<array{row: int, message: string}>,
      *     created_assets: list<int>,
      *     updated_assets: list<int>,
-     *     categoryCache: array<string, int>,
-     *     locationCache: array<string, int>,
-     *     createdCategories: list<string>,
-     *     createdLocations: list<string>,
      *     seenSerials: array<string, true>,
      *     seenTags: array<string, true>
      * } $state
@@ -458,12 +421,8 @@ CSV;
             return;
         }
 
-        $deviceName = trim($values['device_name'] ?? '');
-        $deviceModel = trim($values['device_model'] ?? '');
-        $serialNumber = trim($values['serial_number'] ?? '');
         $assetTag = trim($values['asset_tag'] ?? '');
-        $categoryName = trim($values['category'] ?? '');
-        $name = $deviceName;
+        $name = trim($values['name'] ?? '');
 
         if ($assetTag === '') {
             $state['failed']++;
@@ -491,33 +450,7 @@ CSV;
             return;
         }
 
-        if ($categoryName === '') {
-            if ($existingAsset !== null) {
-                $categoryId = (int) ($existingAsset['category_id'] ?? 0);
-            } else {
-                $state['skipped']++;
-                $state['warnings'][] = [
-                    'row' => $rowNumber,
-                    'message' => __('import_error_category_required'),
-                ];
-
-                return;
-            }
-        } else {
-            try {
-                $categoryId = $this->resolveCategoryId(
-                    $categoryName,
-                    $state['categoryCache'],
-                    $state['createdCategories']
-                );
-            } catch (\Throwable $exception) {
-                $state['failed']++;
-                $state['errors'][] = ['row' => $rowNumber, 'message' => $exception->getMessage()];
-
-                return;
-            }
-        }
-
+        $serialNumber = trim($values['serial_number'] ?? '');
         $serialKey = $serialNumber !== '' ? mb_strtolower($serialNumber, 'UTF-8') : '';
         $tagKey = mb_strtolower($assetTag, 'UTF-8');
 
@@ -556,54 +489,29 @@ CSV;
             return;
         }
 
-        try {
-            $locationId = $this->resolveLocationId(
-                trim($values['location'] ?? ''),
-                trim($values['building'] ?? ''),
-                $state['locationCache'],
-                $state['createdLocations']
-            );
-        } catch (\Throwable $exception) {
-            $state['failed']++;
-            $state['errors'][] = ['row' => $rowNumber, 'message' => $exception->getMessage()];
+        $assignedTo = trim($values['assigned_to'] ?? '');
 
-            return;
-        }
-
-        $personnelRaw = trim($values['personnel'] ?? '');
-        $personnelId = $this->resolvePersonnelId($personnelRaw);
-
-        if ($personnelRaw !== '' && $personnelId === null) {
-            $state['warnings'][] = [
-                'row' => $rowNumber,
-                'message' => sprintf(__('inventory_import_personnel_not_found'), $personnelRaw),
-            ];
-        }
-
-        if ($personnelId !== null) {
+        if ($assignedTo !== '') {
             $status = 'deployed';
         }
 
-        $properties = $this->buildImportProperties($values, $deviceModel, $existingAsset);
-
-        $coreFields = [
-            'name' => $name,
-            'category_id' => $categoryId,
-            'status' => $status,
-            'location_id' => $locationId,
+        $fields = [
             'asset_tag' => $assetTag,
+            'name' => $name,
+            'model' => trim($values['model'] ?? ''),
+            'brand' => trim($values['brand'] ?? ''),
+            'serial_number' => $serialNumber,
+            'type' => trim($values['type'] ?? ''),
+            'status' => $status,
+            'location' => trim($values['location'] ?? ''),
+            'building' => trim($values['building'] ?? ''),
+            'assigned_to' => $assignedTo,
+            'mac_address_1' => trim($values['mac_address_1'] ?? ''),
+            'mac_address_2' => trim($values['mac_address_2'] ?? ''),
         ];
 
-        if ($serialNumber !== '') {
-            $coreFields['serial_number'] = $serialNumber;
-        }
-
-        if ($personnelId !== null) {
-            $coreFields['personnel_id'] = $personnelId;
-        }
-
         try {
-            $result = $this->assetModel->upsertFromImport($existingAsset, $coreFields, $properties);
+            $result = $this->assetModel->upsertFromImport($existingAsset, $fields);
             $asset = $result['asset'];
 
             if ($result['created']) {
@@ -620,7 +528,7 @@ CSV;
             return;
         }
 
-        if ($personnelId !== null) {
+        if ($assignedTo !== '') {
             $state['assigned']++;
         }
 
@@ -629,140 +537,6 @@ CSV;
         }
 
         $state['seenTags'][$tagKey] = true;
-    }
-
-    /**
-     * @param array<string, string> $values
-     * @param array<string, mixed>|null $existingAsset
-     *
-     * @return array<string, mixed>
-     */
-    private function buildImportProperties(array $values, string $deviceModel, ?array $existingAsset): array
-    {
-        $properties = is_array($existingAsset['properties'] ?? null)
-            ? $existingAsset['properties']
-            : [];
-
-        $brand = trim($values['brand'] ?? '');
-
-        if ($brand !== '') {
-            $properties['brand'] = $brand;
-        }
-
-        $model = $deviceModel !== '' ? $deviceModel : trim($values['device_model'] ?? '');
-
-        if ($model !== '') {
-            $properties['model'] = $model;
-        }
-
-        return $properties;
-    }
-
-    private function resolvePersonnelId(string $raw): ?int
-    {
-        $raw = trim($raw);
-
-        if ($raw === '') {
-            return null;
-        }
-
-        if (filter_var($raw, FILTER_VALIDATE_EMAIL) !== false) {
-            $person = $this->personnelModel->findByEmail(strtolower($raw));
-
-            if ($person !== null && ($person['status'] ?? '') !== Personnel::STATUS_OFFBOARDED) {
-                return (int) $person['id'];
-            }
-        }
-
-        $candidates = $this->personnelModel->searchActive($raw, 10);
-
-        foreach ($candidates as $candidate) {
-            if (strcasecmp((string) ($candidate['name'] ?? ''), $raw) === 0) {
-                return (int) $candidate['id'];
-            }
-
-            if (strcasecmp((string) ($candidate['email'] ?? ''), $raw) === 0) {
-                return (int) $candidate['id'];
-            }
-
-            if (strcasecmp((string) ($candidate['external_id'] ?? ''), $raw) === 0) {
-                return (int) $candidate['id'];
-            }
-        }
-
-        if (count($candidates) === 1) {
-            return (int) $candidates[0]['id'];
-        }
-
-        return null;
-    }
-
-    /**
-     * @param array<string, int> $cache
-     * @param list<string> $createdNames
-     */
-    private function resolveCategoryId(string $categoryName, array &$cache, array &$createdNames): int
-    {
-        $cacheKey = mb_strtolower($categoryName, 'UTF-8');
-
-        if (isset($cache[$cacheKey])) {
-            return $cache[$cacheKey];
-        }
-
-        $existing = $this->categoryModel->findByName($categoryName);
-
-        if ($existing !== null) {
-            $cache[$cacheKey] = (int) $existing['id'];
-
-            return $cache[$cacheKey];
-        }
-
-        $created = $this->categoryModel->create($categoryName, []);
-        $cache[$cacheKey] = (int) $created['id'];
-        $createdNames[] = $categoryName;
-
-        return $cache[$cacheKey];
-    }
-
-    /**
-     * @param array<string, int> $cache
-     * @param list<string> $createdNames
-     */
-    private function resolveLocationId(
-        string $locationName,
-        string $building,
-        array &$cache,
-        array &$createdNames
-    ): ?int {
-        if ($locationName === '') {
-            return null;
-        }
-
-        $cacheKey = mb_strtolower($locationName . '|' . $building, 'UTF-8');
-
-        if (isset($cache[$cacheKey])) {
-            return $cache[$cacheKey];
-        }
-
-        $existing = $this->locationModel->findByName($locationName, $building !== '' ? $building : null);
-
-        if ($existing !== null) {
-            $cache[$cacheKey] = (int) $existing['id'];
-
-            return $cache[$cacheKey];
-        }
-
-        $created = $this->locationModel->create(
-            $locationName,
-            $building !== '' ? $building : null,
-            null
-        );
-        $cache[$cacheKey] = (int) $created['id'];
-        $createdNames[] = $building !== ''
-            ? $building . ' / ' . $locationName
-            : $locationName;
-
-        return $cache[$cacheKey];
     }
 
     /**
@@ -851,10 +625,6 @@ CSV;
      *     warnings: list<array{row: int, message: string}>,
      *     created_assets: list<int>,
      *     updated_assets: list<int>,
-     *     categoryCache: array<string, int>,
-     *     locationCache: array<string, int>,
-     *     createdCategories: list<string>,
-     *     createdLocations: list<string>,
      *     seenSerials: array<string, true>,
      *     seenTags: array<string, true>
      * } $state
@@ -868,9 +638,7 @@ CSV;
      *     errors: list<array{row: int, message: string}>,
      *     warnings: list<array{row: int, message: string}>,
      *     created_assets: list<int>,
-     *     updated_assets: list<int>,
-     *     created_categories: list<string>,
-     *     created_locations: list<string>
+     *     updated_assets: list<int>
      * }
      */
     private function finalizeImportState(array $state): array
@@ -885,8 +653,6 @@ CSV;
             'warnings' => $state['warnings'],
             'created_assets' => $state['created_assets'],
             'updated_assets' => $state['updated_assets'],
-            'created_categories' => $state['createdCategories'],
-            'created_locations' => $state['createdLocations'],
         ];
     }
 
@@ -900,9 +666,7 @@ CSV;
      *     errors: list<array{row: int, message: string}>,
      *     warnings: list<array{row: int, message: string}>,
      *     created_assets: list<int>,
-     *     updated_assets: list<int>,
-     *     created_categories: list<string>,
-     *     created_locations: list<string>
+     *     updated_assets: list<int>
      * }
      */
     private function emptyResultWithError(int $row, string $message): array
@@ -919,8 +683,6 @@ CSV;
             'warnings' => [],
             'created_assets' => [],
             'updated_assets' => [],
-            'created_categories' => [],
-            'created_locations' => [],
         ];
     }
 }

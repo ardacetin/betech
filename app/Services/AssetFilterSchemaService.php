@@ -14,22 +14,17 @@ class AssetFilterSchemaService
      *
      * @return list<array<string, mixed>>
      */
-    public function buildDefinitions(array $categories, array $globalCustomFields): array
+    public function buildDefinitions(array $categories = [], array $globalCustomFields = []): array
     {
-        $definitions = [
+        unset($categories, $globalCustomFields);
+
+        return [
             $this->coreTextField('asset_tag', 'col_asset_tag', 'assets.asset_tag'),
-            $this->coreTextField('serial_number', 'label_serial_number', 'assets.serial_number'),
             $this->coreTextField('name', 'col_name', 'assets.name'),
-            [
-                'name' => 'category_id',
-                'label_key' => 'col_category',
-                'type' => 'select',
-                'input' => 'select',
-                'match' => 'exact',
-                'column' => 'assets.category_id',
-                'options_source' => 'categories',
-                'options' => [],
-            ],
+            $this->coreTextField('model', 'col_model', 'assets.model'),
+            $this->coreTextField('brand', 'col_brand', 'assets.brand'),
+            $this->coreTextField('serial_number', 'label_serial_number', 'assets.serial_number'),
+            $this->coreTextField('type', 'col_category', 'assets.type'),
             [
                 'name' => 'status',
                 'label_key' => 'col_status',
@@ -39,26 +34,12 @@ class AssetFilterSchemaService
                 'column' => 'assets.status',
                 'options' => $this->statusOptions(),
             ],
-            [
-                'name' => 'location_id',
-                'label_key' => 'col_location',
-                'type' => 'select',
-                'input' => 'select',
-                'match' => 'exact',
-                'column' => 'assets.location_id',
-                'options_source' => 'locations',
-                'options' => [],
-            ],
-            $this->coreTextField('personnel_name', 'col_assigned_user', 'personnel.name'),
-            $this->propertyTextField('mac_adresi_1', 'label_mac_address_1'),
-            $this->propertyTextField('mac_adresi_2', 'label_mac_address_2'),
+            $this->coreTextField('location', 'col_location', 'assets.location'),
+            $this->coreTextField('building', 'col_building', 'assets.building'),
+            $this->coreTextField('assigned_to', 'col_assigned_user', 'assets.assigned_to'),
+            $this->coreTextField('mac_address_1', 'label_mac_address_1', 'assets.mac_address_1'),
+            $this->coreTextField('mac_address_2', 'label_mac_address_2', 'assets.mac_address_2'),
         ];
-
-        foreach ($this->mergeDynamicFieldDefinitions($categories, $globalCustomFields) as $dynamicField) {
-            $definitions[] = $dynamicField;
-        }
-
-        return $this->dedupeDefinitions($definitions);
     }
 
     /**
@@ -68,52 +49,14 @@ class AssetFilterSchemaService
      *
      * @return list<array<string, mixed>>
      */
-    public function resolveOptions(array $definitions, Asset $assetModel, array $categories, array $locations): array
+    public function resolveOptions(array $definitions, Asset $assetModel, array $categories = [], array $locations = []): array
     {
-        return array_map(function (array $definition) use ($assetModel, $categories, $locations): array {
-            $optionsSource = (string) ($definition['options_source'] ?? '');
+        unset($categories, $locations);
 
-            if ($optionsSource === 'categories') {
-                $definition['options'] = array_map(
-                    static fn (array $category): array => [
-                        'value' => (string) ($category['id'] ?? ''),
-                        'label' => (string) ($category['name'] ?? ''),
-                    ],
-                    $categories
-                );
-
-                return $definition;
-            }
-
-            if ($optionsSource === 'locations') {
-                $definition['options'] = array_map(
-                    static function (array $location): array {
-                        $building = trim((string) ($location['building'] ?? ''));
-                        $name = trim((string) ($location['name'] ?? ''));
-                        $label = $name;
-
-                        if ($building !== '' && $name !== '') {
-                            $label = $building . ' / ' . $name;
-                        }
-
-                        return [
-                            'value' => (string) ($location['id'] ?? ''),
-                            'label' => $label,
-                        ];
-                    },
-                    $locations
-                );
-
-                return $definition;
-            }
-
-            if ($optionsSource === 'property_distinct') {
-                $property = (string) ($definition['property'] ?? '');
-                $schemaOptions = is_array($definition['options'] ?? null) ? $definition['options'] : [];
-                $distinctValues = $property !== '' ? $assetModel->getDistinctPropertyValues($property) : [];
-                $definition['options'] = $this->buildSelectOptions(array_merge($schemaOptions, $distinctValues));
-
-                return $definition;
+        return array_map(function (array $definition) use ($assetModel): array {
+            if (($definition['options_source'] ?? '') === 'column_distinct') {
+                $column = ltrim((string) ($definition['column'] ?? ''), 'assets.');
+                $definition['options'] = $this->buildSelectOptions($assetModel->getDistinctColumnValues($column));
             }
 
             if (isset($definition['options']) && is_array($definition['options'])) {
@@ -179,112 +122,6 @@ class AssetFilterSchemaService
     }
 
     /**
-     * @param list<array<string, mixed>> $categories
-     * @param list<array<string, mixed>> $globalCustomFields
-     *
-     * @return list<array<string, mixed>>
-     */
-    private function mergeDynamicFieldDefinitions(array $categories, array $globalCustomFields): array
-    {
-        $dynamicFields = [];
-
-        foreach ($categories as $category) {
-            $fields = is_array($category['fields'] ?? null) ? $category['fields'] : [];
-
-            foreach ($fields as $field) {
-                if (!is_array($field)) {
-                    continue;
-                }
-
-                $name = trim((string) ($field['name'] ?? ''));
-
-                if ($name === '') {
-                    continue;
-                }
-
-                $dynamicFields[$name] = $field;
-            }
-        }
-
-        foreach ($globalCustomFields as $field) {
-            if (!is_array($field)) {
-                continue;
-            }
-
-            $name = trim((string) ($field['name'] ?? ''));
-
-            if ($name === '') {
-                continue;
-            }
-
-            $dynamicFields[$name] = $field;
-        }
-
-        $definitions = [];
-
-        foreach ($dynamicFields as $field) {
-            $name = trim((string) ($field['name'] ?? ''));
-            $type = trim((string) ($field['type'] ?? 'text'));
-
-            if ($name === '') {
-                continue;
-            }
-
-            if ($type === 'dropdown') {
-                $definitions[] = [
-                    'name' => $name,
-                    'label' => (string) ($field['label'] ?? $name),
-                    'label_en' => isset($field['label_en']) ? (string) $field['label_en'] : null,
-                    'type' => 'dropdown',
-                    'input' => 'select',
-                    'match' => 'exact',
-                    'property' => $name,
-                    'options' => is_array($field['options'] ?? null) ? $field['options'] : [],
-                    'options_source' => 'property_distinct',
-                ];
-
-                continue;
-            }
-
-            if (in_array($type, ['text', 'textarea', 'number'], true)) {
-                $definitions[] = [
-                    'name' => $name,
-                    'label' => (string) ($field['label'] ?? $name),
-                    'label_en' => isset($field['label_en']) ? (string) $field['label_en'] : null,
-                    'type' => $type,
-                    'input' => 'text',
-                    'match' => 'partial',
-                    'property' => $name,
-                ];
-            }
-        }
-
-        return $definitions;
-    }
-
-    /**
-     * @param list<array<string, mixed>> $definitions
-     *
-     * @return list<array<string, mixed>>
-     */
-    private function dedupeDefinitions(array $definitions): array
-    {
-        $deduped = [];
-
-        foreach ($definitions as $definition) {
-            $name = (string) ($definition['name'] ?? '');
-
-            if ($name === '') {
-                continue;
-            }
-
-            $deduped[$name] = $definition;
-        }
-
-        return array_values($deduped);
-    }
-
-    /**
      * @return array{name: string, label_key: string, type: string, input: string, match: string, column: string}
      */
     private function coreTextField(string $name, string $labelKey, string $column): array
@@ -296,21 +133,6 @@ class AssetFilterSchemaService
             'input' => 'text',
             'match' => 'partial',
             'column' => $column,
-        ];
-    }
-
-    /**
-     * @return array{name: string, label_key: string, type: string, input: string, match: string, property: string}
-     */
-    private function propertyTextField(string $name, string $labelKey): array
-    {
-        return [
-            'name' => $name,
-            'label_key' => $labelKey,
-            'type' => 'text',
-            'input' => 'text',
-            'match' => 'partial',
-            'property' => $name,
         ];
     }
 

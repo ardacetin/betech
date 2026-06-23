@@ -77,6 +77,10 @@ class DatabaseInitializer
                     $warnings[] = $warning;
                 }
 
+                foreach ($this->patchFlattenAssetsSchema($connection) as $warning) {
+                    $warnings[] = $warning;
+                }
+
                 foreach ($this->patchSoftwareLicenseManagement($connection) as $warning) {
                     $warnings[] = $warning;
                 }
@@ -762,6 +766,43 @@ class DatabaseInitializer
             );
             $warnings[] = 'Self-healed assets table: added fk_assets_location_id foreign key.';
         }
+
+        return $warnings;
+    }
+
+    private function getFlattenAssetsMigrationPath(): string
+    {
+        return dirname($this->schemaPath) . '/migrations/021_flatten_assets_schema.sql';
+    }
+
+    /**
+     * @param object $connection Medoo instance
+     *
+     * @return list<string>
+     */
+    private function patchFlattenAssetsSchema(object $connection): array
+    {
+        $warnings = [];
+
+        if (!$this->assetsTableExists($connection)) {
+            return $warnings;
+        }
+
+        if ($this->columnExists($connection, 'assets', 'model')
+            && !$this->columnExists($connection, 'assets', 'category_id')) {
+            return $warnings;
+        }
+
+        $migrationPath = $this->getFlattenAssetsMigrationPath();
+
+        if (!is_readable($migrationPath)) {
+            $warnings[] = 'Flatten assets migration is missing or unreadable.';
+
+            return $warnings;
+        }
+
+        $this->applySqlFile($connection, $migrationPath);
+        $warnings[] = 'Applied migration: flattened assets schema to native inventory columns.';
 
         return $warnings;
     }

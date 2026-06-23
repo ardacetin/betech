@@ -179,26 +179,25 @@ class AnalyticsService
     private function fetchCategoryBreakdown(int $total): array
     {
         $rows = $this->db()->select('assets', [
-            '[>]categories' => ['category_id' => 'id'],
+            'type',
+            'count' => Medoo::raw('COUNT(<id>)'),
         ], [
-            'assets.category_id',
-            'categories.name(category_name)',
-            'count' => Medoo::raw('COUNT(<assets.id>)'),
-        ], [
-            'GROUP' => [
-                'assets.category_id',
-                'categories.name',
-            ],
+            'GROUP' => 'type',
         ]);
 
         $breakdown = [];
 
         foreach ($rows as $row) {
             $count = (int) $row['count'];
+            $typeName = trim((string) ($row['type'] ?? ''));
+
+            if ($typeName === '') {
+                $typeName = 'Unknown';
+            }
 
             $breakdown[] = [
-                'category_id' => (int) $row['category_id'],
-                'category_name' => (string) ($row['category_name'] ?? 'Unknown'),
+                'category_id' => 0,
+                'category_name' => $typeName,
                 'count' => $count,
                 'percentage' => $this->percentage($count, $total),
             ];
@@ -223,7 +222,7 @@ class AnalyticsService
     private function fetchAssignmentStats(int $total): array
     {
         $assigned = (int) $this->db()->count('assets', [
-            'personnel_id[!]' => null,
+            'assigned_to[!]' => '',
         ]);
         $unassigned = max(0, $total - $assigned);
 

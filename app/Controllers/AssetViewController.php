@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Controllers;
 
 use App\Models\Asset;
-use App\Models\Category;
 use App\Services\Translator;
 use App\Services\ViewRenderer;
 use Psr\Http\Message\ResponseInterface;
@@ -19,7 +18,6 @@ class AssetViewController
     public function __construct(
         private readonly array $appConfig,
         private readonly Asset $assetModel,
-        private readonly Category $categoryModel,
         private readonly ViewRenderer $viewRenderer
     ) {
     }
@@ -38,18 +36,12 @@ class AssetViewController
             return $this->renderNotFound($response);
         }
 
-        $categoryFields = $this->resolveCategoryFields((int) $asset['category_id']);
-        $propertyRows = $this->buildPropertyRows(
-            is_array($asset['properties'] ?? null) ? $asset['properties'] : [],
-            $categoryFields
-        );
-
         $html = $this->viewRenderer->render('asset_view', [
             'appName' => __('app_name'),
             'pageTitle' => (string) $asset['name'],
             'locale' => Translator::instance()->getLocale(),
             'asset' => $asset,
-            'propertyRows' => $propertyRows,
+            'attributeRows' => $this->buildAttributeRows($asset),
         ]);
 
         $response->getBody()->write($html);
@@ -58,73 +50,39 @@ class AssetViewController
     }
 
     /**
-     * @return list<array{name: string, label: string, value: string}>
+     * @param array<string, mixed> $asset
+     *
+     * @return list<array{label: string, value: string}>
      */
-    private function buildPropertyRows(array $properties, array $categoryFields): array
+    private function buildAttributeRows(array $asset): array
     {
-        if ($properties === []) {
-            return [];
-        }
-
-        $fieldLabels = [];
-
-        foreach ($categoryFields as $field) {
-            if (!is_array($field) || !isset($field['name'])) {
-                continue;
-            }
-
-            $name = (string) $field['name'];
-            $label = (string) ($field['label'] ?? $name);
-
-            if (Translator::instance()->getLocale() === 'en' && !empty($field['label_en'])) {
-                $label = (string) $field['label_en'];
-            }
-
-            $fieldLabels[$name] = $label;
-        }
+        $fields = [
+            ['key' => 'model', 'label' => __('col_model')],
+            ['key' => 'brand', 'label' => __('col_brand')],
+            ['key' => 'serial_number', 'label' => __('label_serial_number')],
+            ['key' => 'type', 'label' => __('col_category')],
+            ['key' => 'location', 'label' => __('col_location')],
+            ['key' => 'building', 'label' => __('col_building')],
+            ['key' => 'mac_address_1', 'label' => __('label_mac_address_1')],
+            ['key' => 'mac_address_2', 'label' => __('label_mac_address_2')],
+        ];
 
         $rows = [];
 
-        foreach ($properties as $key => $value) {
-            if (!is_string($key)) {
+        foreach ($fields as $field) {
+            $value = trim((string) ($asset[$field['key']] ?? ''));
+
+            if ($value === '') {
                 continue;
             }
 
             $rows[] = [
-                'name' => $key,
-                'label' => $fieldLabels[$key] ?? $key,
-                'value' => $this->formatPropertyValue($value),
+                'label' => $field['label'],
+                'value' => $value,
             ];
         }
 
         return $rows;
-    }
-
-    /**
-     * @return list<array<string, mixed>>
-     */
-    private function resolveCategoryFields(int $categoryId): array
-    {
-        foreach ($this->categoryModel->findAll() as $category) {
-            if ((int) $category['id'] === $categoryId) {
-                return is_array($category['fields'] ?? null) ? $category['fields'] : [];
-            }
-        }
-
-        return [];
-    }
-
-    private function formatPropertyValue(mixed $value): string
-    {
-        if (is_array($value)) {
-            return json_encode($value, JSON_UNESCAPED_UNICODE) ?: '';
-        }
-
-        if (is_bool($value)) {
-            return $value ? 'true' : 'false';
-        }
-
-        return (string) $value;
     }
 
     private function renderNotFound(ResponseInterface $response): ResponseInterface

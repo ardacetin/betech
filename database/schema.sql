@@ -61,31 +61,26 @@ CREATE TABLE IF NOT EXISTS locations (
 CREATE TABLE IF NOT EXISTS assets (
     id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
     asset_tag VARCHAR(64) NOT NULL,
-    serial_number VARCHAR(128) DEFAULT NULL,
     name VARCHAR(255) NOT NULL,
-    category_id INT UNSIGNED NOT NULL,
+    model VARCHAR(255) DEFAULT NULL,
+    brand VARCHAR(255) DEFAULT NULL,
+    serial_number VARCHAR(128) DEFAULT NULL,
+    type VARCHAR(255) DEFAULT NULL,
     status VARCHAR(32) NOT NULL DEFAULT 'ready',
-    personnel_id BIGINT UNSIGNED DEFAULT NULL,
-    location_id BIGINT UNSIGNED DEFAULT NULL,
-    properties JSON DEFAULT NULL,
+    location VARCHAR(255) DEFAULT NULL,
+    building VARCHAR(255) DEFAULT NULL,
+    assigned_to VARCHAR(255) DEFAULT NULL,
+    mac_address_1 VARCHAR(255) DEFAULT NULL,
+    mac_address_2 VARCHAR(255) DEFAULT NULL,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
     UNIQUE KEY uq_assets_asset_tag (asset_tag),
     KEY idx_assets_serial_number (serial_number),
-    KEY idx_assets_category_id (category_id),
     KEY idx_assets_status (status),
-    KEY idx_assets_personnel_id (personnel_id),
-    KEY idx_assets_location_id (location_id),
-    CONSTRAINT fk_assets_category_id
-        FOREIGN KEY (category_id) REFERENCES categories (id)
-        ON DELETE RESTRICT ON UPDATE CASCADE,
-    CONSTRAINT fk_assets_personnel_id
-        FOREIGN KEY (personnel_id) REFERENCES personnel (id)
-        ON DELETE SET NULL ON UPDATE CASCADE,
-    CONSTRAINT fk_assets_location_id
-        FOREIGN KEY (location_id) REFERENCES locations (id)
-        ON DELETE SET NULL ON UPDATE CASCADE
+    KEY idx_assets_type (type),
+    KEY idx_assets_location (location),
+    KEY idx_assets_assigned_to (assigned_to)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS asset_histories (

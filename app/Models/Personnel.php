@@ -955,8 +955,17 @@ class Personnel
             return [];
         }
 
+        $placeholders = implode(',', array_fill(0, count($personnelIds), '?'));
         $statement = $this->db()->query(
-            'SELECT personnel_id, COUNT(*) AS asset_count FROM assets WHERE personnel_id IS NOT NULL GROUP BY personnel_id'
+            'SELECT p.id AS personnel_id, COUNT(a.id) AS asset_count
+             FROM personnel p
+             LEFT JOIN assets a ON (
+                 LOWER(TRIM(a.assigned_to)) = LOWER(TRIM(p.email))
+                 OR LOWER(TRIM(a.assigned_to)) = LOWER(TRIM(p.name))
+             )
+             WHERE p.id IN (' . $placeholders . ')
+             GROUP BY p.id',
+            $personnelIds
         );
 
         if ($statement === false) {

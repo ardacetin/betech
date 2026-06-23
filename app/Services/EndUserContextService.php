@@ -107,8 +107,22 @@ class EndUserContextService
             return false;
         }
 
-        $assignedPersonnelId = $asset['personnel_id'] ?? null;
+        $assignedTo = trim((string) ($asset['assigned_to'] ?? ''));
 
-        return $assignedPersonnelId !== null && (int) $assignedPersonnelId === $personnelId;
+        if ($assignedTo === '') {
+            return false;
+        }
+
+        $person = $this->personnelModel->findById($personnelId);
+
+        if ($person === null) {
+            return false;
+        }
+
+        $email = trim((string) ($person['email'] ?? ''));
+        $name = trim((string) ($person['name'] ?? ''));
+
+        return ($email !== '' && strcasecmp($assignedTo, $email) === 0)
+            || ($name !== '' && strcasecmp($assignedTo, $name) === 0);
     }
 }

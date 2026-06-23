@@ -7,7 +7,7 @@ declare(strict_types=1);
  * @var string $pageTitle
  * @var string $locale
  * @var array<string, mixed> $asset
- * @var list<array{name: string, label: string, value: string}> $propertyRows
+ * @var list<array{label: string, value: string}> $attributeRows
  */
 
 $statusStyles = [
@@ -20,6 +20,8 @@ $statusStyles = [
 $status = (string) ($asset['status'] ?? 'ready');
 $statusClass = $statusStyles[$status] ?? 'bg-zinc-100 text-zinc-700 ring-zinc-500/20';
 $statusLabel = __('status_' . $status);
+$assignedTo = trim((string) ($asset['assigned_to'] ?? $asset['user_name'] ?? ''));
+$typeLabel = trim((string) ($asset['type'] ?? $asset['category_name'] ?? ''));
 ?>
 <div class="min-h-full bg-zinc-50">
     <header class="border-b border-zinc-200 bg-white">
@@ -44,7 +46,9 @@ $statusLabel = __('status_' . $status);
                 <div class="grid grid-cols-2 gap-4">
                     <div>
                         <p class="text-xs uppercase tracking-wide text-zinc-400"><?= htmlspecialchars(__('col_category'), ENT_QUOTES, 'UTF-8') ?></p>
-                        <p class="mt-1 text-sm font-medium text-zinc-800"><?= htmlspecialchars((string) ($asset['category_name'] ?? __('unknown_category')), ENT_QUOTES, 'UTF-8') ?></p>
+                        <p class="mt-1 text-sm font-medium text-zinc-800">
+                            <?= htmlspecialchars($typeLabel !== '' ? $typeLabel : __('unknown_category'), ENT_QUOTES, 'UTF-8') ?>
+                        </p>
                     </div>
                     <div>
                         <p class="text-xs uppercase tracking-wide text-zinc-400"><?= htmlspecialchars(__('col_status'), ENT_QUOTES, 'UTF-8') ?></p>
@@ -59,38 +63,27 @@ $statusLabel = __('status_' . $status);
                 <div>
                     <p class="text-xs uppercase tracking-wide text-zinc-400"><?= htmlspecialchars(__('col_assigned_user'), ENT_QUOTES, 'UTF-8') ?></p>
                     <p class="mt-1 text-sm text-zinc-800">
-                        <?php if (!empty($asset['user_name'])): ?>
-                            <?= htmlspecialchars((string) $asset['user_name'], ENT_QUOTES, 'UTF-8') ?>
+                        <?php if ($assignedTo !== ''): ?>
+                            <?= htmlspecialchars($assignedTo, ENT_QUOTES, 'UTF-8') ?>
                         <?php else: ?>
                             <span class="text-zinc-400"><?= htmlspecialchars(__('not_assigned'), ENT_QUOTES, 'UTF-8') ?></span>
                         <?php endif; ?>
                     </p>
                 </div>
 
-                <?php if (!empty($asset['serial_number'])): ?>
-                <div>
-                    <p class="text-xs uppercase tracking-wide text-zinc-400"><?= htmlspecialchars(__('label_serial_number'), ENT_QUOTES, 'UTF-8') ?></p>
-                    <p class="mt-1 text-sm text-zinc-800"><?= htmlspecialchars((string) $asset['serial_number'], ENT_QUOTES, 'UTF-8') ?></p>
-                </div>
-                <?php endif; ?>
-
+                <?php if ($attributeRows !== []): ?>
                 <div>
                     <h2 class="text-sm font-semibold text-zinc-900"><?= htmlspecialchars(__('technical_specifications'), ENT_QUOTES, 'UTF-8') ?></h2>
-                    <?php if ($propertyRows === []): ?>
-                        <p class="mt-3 rounded-xl border border-dashed border-zinc-200 bg-zinc-50 px-4 py-3 text-sm text-zinc-500">
-                            <?= htmlspecialchars(__('no_properties'), ENT_QUOTES, 'UTF-8') ?>
-                        </p>
-                    <?php else: ?>
-                        <dl class="mt-3 divide-y divide-zinc-100 rounded-xl border border-zinc-200">
-                            <?php foreach ($propertyRows as $row): ?>
-                            <div class="grid grid-cols-2 gap-3 px-4 py-3">
-                                <dt class="text-sm text-zinc-500"><?= htmlspecialchars($row['label'], ENT_QUOTES, 'UTF-8') ?></dt>
-                                <dd class="text-sm font-medium text-zinc-900"><?= htmlspecialchars($row['value'], ENT_QUOTES, 'UTF-8') ?></dd>
-                            </div>
-                            <?php endforeach; ?>
-                        </dl>
-                    <?php endif; ?>
+                    <dl class="mt-3 divide-y divide-zinc-100 rounded-xl border border-zinc-200">
+                        <?php foreach ($attributeRows as $row): ?>
+                        <div class="grid grid-cols-2 gap-3 px-4 py-3">
+                            <dt class="text-sm text-zinc-500"><?= htmlspecialchars($row['label'], ENT_QUOTES, 'UTF-8') ?></dt>
+                            <dd class="text-sm font-medium text-zinc-900"><?= htmlspecialchars($row['value'], ENT_QUOTES, 'UTF-8') ?></dd>
+                        </div>
+                        <?php endforeach; ?>
+                    </dl>
                 </div>
+                <?php endif; ?>
             </div>
         </article>
 

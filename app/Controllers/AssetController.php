@@ -14,6 +14,7 @@ use App\Models\Setting;
 use App\Models\User;
 use App\Services\AssetCsvImportService;
 use App\Services\AssetFilterSchemaService;
+use App\Services\InventoryImportService;
 use App\Services\ListPagination;
 use App\Services\AuditLogger;
 use App\Services\Auth\SessionAuthService;
@@ -27,12 +28,17 @@ class AssetController
 {
     private const CORE_FIELDS = [
         'asset_tag',
-        'serial_number',
         'name',
-        'category_id',
+        'model',
+        'brand',
+        'serial_number',
+        'type',
         'status',
-        'personnel_id',
-        'location_id',
+        'location',
+        'building',
+        'assigned_to',
+        'mac_address_1',
+        'mac_address_2',
     ];
 
     public function __construct(
@@ -44,6 +50,7 @@ class AssetController
         private readonly Location $locationModel,
         private readonly Category $categoryModel,
         private readonly AssetCsvImportService $assetCsvImportService,
+        private readonly InventoryImportService $inventoryImportService,
         private readonly SessionAuthService $sessionAuthService,
         private readonly ClientIpResolver $clientIpResolver,
         private readonly EndUserContextService $endUserContextService,
@@ -94,8 +101,7 @@ class AssetController
             ]);
         }
 
-        [$coreFields, $properties] = $this->separatePayload($payload);
-        $properties = $this->filterOptionalProperties($properties);
+        [$coreFields] = $this->separatePayload($payload);
         $coreFields['asset_tag'] = $this->assetModel->generateNextAssetTag();
         $errors = $this->validateCoreFields($coreFields);
 
@@ -110,7 +116,7 @@ class AssetController
         $coreFields = $this->normalizeCoreFields($coreFields);
 
         try {
-            $asset = $this->assetModel->create($coreFields, $properties);
+            $asset = $this->assetModel->create($coreFields);
             $this->logAssetCreation($request, $asset, $coreFields);
             $this->auditLogger->logFromRequest(
                 $request,
@@ -168,11 +174,7 @@ class AssetController
             ]);
         }
 
-        [$coreFields, $properties] = $this->separatePayload($payload);
-
-        if (array_key_exists('properties', $payload)) {
-            $properties = $this->filterOptionalProperties($properties);
-        }
+        [$coreFields] = $this->separatePayload($payload);
 
         $errors = $this->validateCoreFields($coreFields, $assetId);
 
@@ -186,7 +188,7 @@ class AssetController
 
         $coreFields = $this->normalizeCoreFields($coreFields, allowPartial: true);
 
-        if ($coreFields === [] && $properties === []) {
+        if ($coreFields === []) {
             return $this->jsonResponse($response, 422, [
                 'status' => 'error',
                 'message' => 'No updatable fields were provided.',
@@ -194,11 +196,7 @@ class AssetController
         }
 
         try {
-            $asset = $this->assetModel->update(
-                $assetId,
-                $coreFields,
-                array_key_exists('properties', $payload) ? $properties : null
-            );
+            $asset = $this->assetModel->update($assetId, $coreFields);
             $this->logAssetUpdates($request, $assetId, $existingAsset, $coreFields);
             $this->auditLogger->logFromRequest(
                 $request,
@@ -329,7 +327,7 @@ class AssetController
             ]);
         }
 
-        if (($existingAsset['personnel_id'] ?? null) !== null) {
+        if (trim((string) ($existingAsset['assigned_to'] ?? '')) !== '') {
             return $this->jsonResponse($response, 422, [
                 'status' => 'error',
                 'message' => __('assign_already_assigned'),
@@ -365,29 +363,33 @@ class AssetController
             ]);
         }
 
+        $assignedTo = $this->resolveAssignedToReference($personnelId) ?? $this->resolvePersonnelName($personnelId) ?? ('personnel #' . $personnelId);
+
         $updateFields = [
-            'personnel_id' => $personnelId,
+            'assigned_to' => $assignedTo,
             'status' => 'deployed',
         ];
 
-        if (array_key_exists('location_id', $payload)) {
-            $locationErrors = $this->validateLocationId($payload['location_id']);
+        if (array_key_exists('location', $payload)) {
+            $updateFields['location'] = trim((string) $payload['location']);
+        }
 
-            if ($locationErrors !== []) {
-                return $this->jsonResponse($response, 422, [
-                    'status' => 'error',
-                    'message' => __('assign_invalid_location'),
-                    'errors' => ['location_id' => $locationErrors],
-                ]);
-            }
+        if (array_key_exists('building', $payload)) {
+            $updateFields['building'] = trim((string) $payload['building']);
+        }
 
-            if ($payload['location_id'] !== null && $payload['location_id'] !== '') {
-                $updateFields['location_id'] = (int) $payload['location_id'];
+        if (array_key_exists('location_id', $payload) && $payload['location_id'] !== null && $payload['location_id'] !== '') {
+            $location = $this->locationModel->findById((int) $payload['location_id']);
+
+            if ($location !== null) {
+                $updateFields['location'] = trim((string) ($location['name'] ?? ''));
+                $updateFields['building'] = trim((string) ($location['building'] ?? ''));
             }
         }
 
         $previousStatus = (string) ($existingAsset['status'] ?? 'ready');
-        $previousLocationId = $existingAsset['location_id'] ?? null;
+        $previousLocation = trim((string) ($existingAsset['location'] ?? ''));
+        $previousBuilding = trim((string) ($existingAsset['building'] ?? ''));
 
         try {
             $asset = $this->assetModel->update($assetId, $updateFields);
@@ -427,12 +429,20 @@ class AssetController
             );
         }
 
-        if (array_key_exists('location_id', $updateFields)) {
+        if (
+            array_key_exists('location', $updateFields)
+            || array_key_exists('building', $updateFields)
+        ) {
             $this->logLocationChange(
                 $request,
                 $assetId,
-                $previousLocationId,
-                $updateFields['location_id']
+                $previousLocation !== '' || $previousBuilding !== ''
+                    ? trim($previousBuilding . ' / ' . $previousLocation, ' /')
+                    : null,
+                trim(
+                    (string) ($updateFields['building'] ?? $previousBuilding) . ' / ' . (string) ($updateFields['location'] ?? $previousLocation),
+                    ' /'
+                )
             );
         }
 
@@ -444,12 +454,12 @@ class AssetController
             $assetId,
             [
                 'asset_tag' => (string) ($existingAsset['asset_tag'] ?? ''),
-                'personnel_id' => $existingAsset['personnel_id'] ?? null,
+                'assigned_to' => (string) ($existingAsset['assigned_to'] ?? ''),
                 'status' => $previousStatus,
             ],
             [
                 'asset_tag' => (string) ($asset['asset_tag'] ?? ''),
-                'personnel_id' => $personnelId,
+                'assigned_to' => $assignedTo,
                 'personnel_name' => $personnelName,
                 'status' => 'deployed',
             ]
@@ -482,19 +492,19 @@ class AssetController
             ]);
         }
 
-        if (($existingAsset['personnel_id'] ?? null) === null) {
+        if (trim((string) ($existingAsset['assigned_to'] ?? '')) === '') {
             return $this->jsonResponse($response, 422, [
                 'status' => 'error',
                 'message' => __('return_not_assigned'),
             ]);
         }
 
-        $previousUserId = (int) $existingAsset['personnel_id'];
+        $previousAssignedTo = (string) ($existingAsset['assigned_to'] ?? '');
         $previousStatus = (string) ($existingAsset['status'] ?? 'ready');
 
         try {
             $asset = $this->assetModel->update($assetId, [
-                'personnel_id' => null,
+                'assigned_to' => '',
                 'status' => 'ready',
             ]);
         } catch (\RuntimeException $exception) {
@@ -516,8 +526,8 @@ class AssetController
             $assetId,
             'returned',
             $this->actorUserId(),
-            $previousUserId,
-            __('asset_history_returned')
+            null,
+            sprintf(__('asset_history_returned') . ' (%s)', $previousAssignedTo)
         );
 
         if ($previousStatus !== 'ready') {
@@ -543,7 +553,7 @@ class AssetController
             $assetId,
             [
                 'asset_tag' => (string) ($existingAsset['asset_tag'] ?? ''),
-                'personnel_id' => $previousUserId,
+                'assigned_to' => $previousAssignedTo,
                 'status' => $previousStatus,
             ],
             [
@@ -579,7 +589,7 @@ class AssetController
             ]);
         }
 
-        if (($existingAsset['personnel_id'] ?? null) === null) {
+        if (trim((string) ($existingAsset['assigned_to'] ?? '')) === '') {
             return $this->jsonResponse($response, 422, [
                 'status' => 'error',
                 'message' => __('transfer_not_assigned'),
@@ -605,11 +615,14 @@ class AssetController
             ]);
         }
 
-        $previousUserId = (int) $existingAsset['personnel_id'];
+        $previousAssignedTo = (string) ($existingAsset['assigned_to'] ?? '');
         $newUserId = (int) $payload['personnel_id'];
+        $newAssignedTo = $this->resolveAssignedToReference($newUserId)
+            ?? $this->resolvePersonnelName($newUserId)
+            ?? ('personnel #' . $newUserId);
         $previousStatus = (string) ($existingAsset['status'] ?? 'ready');
 
-        if ($newUserId === $previousUserId) {
+        if (strcasecmp($previousAssignedTo, $newAssignedTo) === 0) {
             return $this->jsonResponse($response, 422, [
                 'status' => 'error',
                 'message' => __('transfer_same_user'),
@@ -626,7 +639,7 @@ class AssetController
         }
 
         $updateFields = [
-            'personnel_id' => $newUserId,
+            'assigned_to' => $newAssignedTo,
         ];
 
         if ($previousStatus !== 'deployed') {
@@ -649,7 +662,7 @@ class AssetController
             ]);
         }
 
-        $oldUserName = $this->resolvePersonnelName($previousUserId) ?? ('personnel #' . $previousUserId);
+        $oldUserName = $previousAssignedTo !== '' ? $previousAssignedTo : __('not_assigned');
         $newUserName = $this->resolvePersonnelName($newUserId) ?? ('personnel #' . $newUserId);
 
         $this->logAssetHistory(
@@ -684,12 +697,12 @@ class AssetController
             $assetId,
             [
                 'asset_tag' => (string) ($existingAsset['asset_tag'] ?? ''),
-                'personnel_id' => $previousUserId,
+                'assigned_to' => $previousAssignedTo,
                 'personnel_name' => $oldUserName,
             ],
             [
                 'asset_tag' => (string) ($asset['asset_tag'] ?? ''),
-                'personnel_id' => $newUserId,
+                'assigned_to' => $newAssignedTo,
                 'personnel_name' => $newUserName,
             ]
         );
@@ -763,7 +776,8 @@ class AssetController
             ]);
         }
 
-        $result = $this->assetCsvImportService->importFromString($csvContent);
+        $originalFilename = $file->getClientFilename() ?? 'import.csv';
+        $result = $this->inventoryImportService->importFromUploadedFile($csvContent, $originalFilename);
         $actorUserId = $this->actorUserId();
 
         foreach ($result['created_assets'] as $assetId) {
@@ -777,10 +791,23 @@ class AssetController
             );
         }
 
-        $imported = (int) $result['imported'];
-        $failed = (int) $result['failed'];
+        foreach ($result['updated_assets'] ?? [] as $assetId) {
+            $this->logAssetHistory(
+                $request,
+                $assetId,
+                'updated',
+                $actorUserId,
+                null,
+                __('asset_history_updated_inventory_import')
+            );
+        }
 
-        if ($imported === 0 && $failed > 0) {
+        $imported = (int) $result['imported'];
+        $updated = (int) ($result['updated'] ?? 0);
+        $failed = (int) $result['failed'];
+        $processed = $imported + $updated;
+
+        if ($processed === 0 && $failed > 0) {
             return $this->jsonResponse($response, 422, [
                 'status' => 'error',
                 'message' => __('import_all_failed'),
@@ -789,8 +816,10 @@ class AssetController
         }
 
         $message = $failed > 0
-            ? sprintf(__('import_partial_success'), $imported, $failed)
-            : sprintf(__('import_success'), $imported);
+            ? sprintf(__('inventory_import_partial_success'), $imported, $updated, $failed)
+            : ($updated > 0
+                ? sprintf(__('inventory_import_mixed_success'), $imported, $updated)
+                : sprintf(__('import_success'), $imported));
 
         return $this->jsonResponse($response, 200, [
             'status' => 'success',
@@ -830,46 +859,23 @@ class AssetController
             sprintf('Asset created with tag %s', (string) $asset['asset_tag'])
         );
 
-        if (!array_key_exists('personnel_id', $coreFields) || $coreFields['personnel_id'] === null) {
-            if (array_key_exists('location_id', $coreFields) && $coreFields['location_id'] !== null) {
-                $locationId = (int) $coreFields['location_id'];
-                $locationName = $this->resolveLocationName($locationId);
+        $assignedTo = trim((string) ($coreFields['assigned_to'] ?? ''));
 
-                $this->logAssetHistory(
-                    $request,
-                    $assetId,
-                    'location_moved',
-                    null,
-                    null,
-                    sprintf(
-                        __('asset_history_assigned_to_location'),
-                        $locationName ?? ('lokasyon #' . $locationId)
-                    )
-                );
-            }
-
-            return;
+        if ($assignedTo !== '') {
+            $this->logAssetHistory(
+                $request,
+                $assetId,
+                'assigned',
+                null,
+                null,
+                sprintf(__('asset_history_assigned_to'), $assignedTo)
+            );
         }
 
-        $targetUserId = (int) $coreFields['personnel_id'];
-        $targetUserName = $this->resolvePersonnelName($targetUserId);
+        $location = trim((string) ($coreFields['location'] ?? ''));
+        $building = trim((string) ($coreFields['building'] ?? ''));
 
-        $this->logAssetHistory(
-            $request,
-            $assetId,
-            'assigned',
-            null,
-            $targetUserId,
-            sprintf(
-                'Assigned to %s on creation',
-                $targetUserName ?? ('user #' . $targetUserId)
-            )
-        );
-
-        if (array_key_exists('location_id', $coreFields) && $coreFields['location_id'] !== null) {
-            $locationId = (int) $coreFields['location_id'];
-            $locationName = $this->resolveLocationName($locationId);
-
+        if ($location !== '' || $building !== '') {
             $this->logAssetHistory(
                 $request,
                 $assetId,
@@ -878,7 +884,7 @@ class AssetController
                 null,
                 sprintf(
                     __('asset_history_assigned_to_location'),
-                    $locationName ?? ('lokasyon #' . $locationId)
+                    trim($building . ' / ' . $location, ' /')
                 )
             );
         }
@@ -890,21 +896,31 @@ class AssetController
      */
     private function logAssetUpdates(ServerRequestInterface $request, int $assetId, array $existingAsset, array $coreFields): void
     {
-        if (array_key_exists('personnel_id', $coreFields)) {
+        if (array_key_exists('assigned_to', $coreFields)) {
             $this->logAssignmentChange(
                 $request,
                 $assetId,
-                $existingAsset['personnel_id'] ?? null,
-                $coreFields['personnel_id']
+                trim((string) ($existingAsset['assigned_to'] ?? '')),
+                trim((string) ($coreFields['assigned_to'] ?? ''))
             );
         }
 
-        if (array_key_exists('location_id', $coreFields)) {
+        if (array_key_exists('location', $coreFields) || array_key_exists('building', $coreFields)) {
+            $previousLocation = trim(
+                (string) ($existingAsset['building'] ?? '') . ' / ' . (string) ($existingAsset['location'] ?? ''),
+                ' /'
+            );
+            $nextLocation = trim(
+                (string) ($coreFields['building'] ?? $existingAsset['building'] ?? '') . ' / '
+                . (string) ($coreFields['location'] ?? $existingAsset['location'] ?? ''),
+                ' /'
+            );
+
             $this->logLocationChange(
                 $request,
                 $assetId,
-                $existingAsset['location_id'] ?? null,
-                $coreFields['location_id']
+                $previousLocation !== '' ? $previousLocation : null,
+                $nextLocation !== '' ? $nextLocation : null
             );
         }
 
@@ -925,80 +941,69 @@ class AssetController
         }
     }
 
-    private function logAssignmentChange(ServerRequestInterface $request, int $assetId, mixed $previousUserId, mixed $nextUserId): void
+    private function logAssignmentChange(ServerRequestInterface $request, int $assetId, string $previousAssignedTo, string $nextAssignedTo): void
     {
-        $oldUserId = $previousUserId !== null ? (int) $previousUserId : null;
-        $newUserId = $nextUserId !== null ? (int) $nextUserId : null;
+        $oldAssignedTo = trim($previousAssignedTo);
+        $newAssignedTo = trim($nextAssignedTo);
         $actorUserId = $this->actorUserId();
 
-        if ($oldUserId === $newUserId) {
+        if ($oldAssignedTo === $newAssignedTo) {
             return;
         }
 
-        if ($newUserId === null) {
-            $oldUserName = $this->resolvePersonnelName($oldUserId);
-
+        if ($newAssignedTo === '') {
             $this->logAssetHistory(
                 $request,
                 $assetId,
                 'unassigned',
                 $actorUserId,
-                $oldUserId,
+                null,
                 sprintf(
                     __('asset_history_unassigned_from'),
-                    $oldUserName ?? ('user #' . $oldUserId)
+                    $oldAssignedTo !== '' ? $oldAssignedTo : __('not_assigned')
                 )
             );
 
             return;
         }
 
-        $newUserName = $this->resolvePersonnelName($newUserId);
-
-        if ($oldUserId === null) {
+        if ($oldAssignedTo === '') {
             $this->logAssetHistory(
                 $request,
                 $assetId,
                 'assigned',
                 $actorUserId,
-                $newUserId,
-                sprintf(
-                    __('asset_history_assigned_to'),
-                    $newUserName ?? ('user #' . $newUserId)
-                )
+                null,
+                sprintf(__('asset_history_assigned_to'), $newAssignedTo)
             );
 
             return;
         }
-
-        $oldUserName = $this->resolvePersonnelName($oldUserId);
 
         $this->logAssetHistory(
             $request,
             $assetId,
             'assigned',
             $actorUserId,
-            $newUserId,
+            null,
             sprintf(
                 __('asset_history_reassigned'),
-                $oldUserName ?? ('user #' . $oldUserId),
-                $newUserName ?? ('user #' . $newUserId)
+                $oldAssignedTo,
+                $newAssignedTo
             )
         );
     }
 
-    private function logLocationChange(ServerRequestInterface $request, int $assetId, mixed $previousLocationId, mixed $nextLocationId): void
+    private function logLocationChange(ServerRequestInterface $request, int $assetId, ?string $previousLocation, ?string $nextLocation): void
     {
-        $oldLocationId = $previousLocationId !== null ? (int) $previousLocationId : null;
-        $newLocationId = $nextLocationId !== null ? (int) $nextLocationId : null;
+        $oldLocation = $previousLocation !== null ? trim($previousLocation) : '';
+        $newLocation = $nextLocation !== null ? trim($nextLocation) : '';
 
-        if ($oldLocationId === $newLocationId) {
+        if ($oldLocation === $newLocation) {
             return;
         }
 
-        if ($newLocationId === null) {
-            $oldLocationName = $this->resolveLocationName($oldLocationId);
-
+        if ($newLocation === '') {
             $this->logAssetHistory(
                 $request,
                 $assetId,
@@ -1007,32 +1012,25 @@ class AssetController
                 null,
                 sprintf(
                     __('asset_history_removed_from_location'),
-                    $oldLocationName ?? ('lokasyon #' . $oldLocationId)
+                    $oldLocation !== '' ? $oldLocation : '-'
                 )
             );
 
             return;
         }
 
-        $newLocationName = $this->resolveLocationName($newLocationId);
-
-        if ($oldLocationId === null) {
+        if ($oldLocation === '') {
             $this->logAssetHistory(
                 $request,
                 $assetId,
                 'location_moved',
                 null,
                 null,
-                sprintf(
-                    __('asset_history_assigned_to_location'),
-                    $newLocationName ?? ('lokasyon #' . $newLocationId)
-                )
+                sprintf(__('asset_history_assigned_to_location'), $newLocation)
             );
 
             return;
         }
-
-        $oldLocationName = $this->resolveLocationName($oldLocationId);
 
         $this->logAssetHistory(
             $request,
@@ -1042,8 +1040,8 @@ class AssetController
             null,
             sprintf(
                 __('asset_history_moved_to_location'),
-                $oldLocationName ?? ('lokasyon #' . $oldLocationId),
-                $newLocationName ?? ('lokasyon #' . $newLocationId)
+                $oldLocation,
+                $newLocation
             )
         );
     }
@@ -1116,57 +1114,43 @@ class AssetController
     /**
      * @param array<string, mixed> $payload
      *
-     * @return array{0: array<string, mixed>, 1: array<string, mixed>}
+     * @return array{0: array<string, mixed>}
      */
     private function separatePayload(array $payload): array
     {
         $coreFields = [];
-        $properties = [];
+        $legacyKeys = ['category_id', 'personnel_id', 'location_id'];
 
         foreach ($payload as $key => $value) {
             if (!is_string($key)) {
                 continue;
             }
 
-            if (in_array($key, self::CORE_FIELDS, true)) {
+            if (in_array($key, self::CORE_FIELDS, true) || in_array($key, $legacyKeys, true)) {
                 $coreFields[$key] = $value;
-                continue;
             }
-
-            $properties[$key] = $value;
         }
 
-        return [$coreFields, $properties];
+        return [$coreFields];
     }
 
-    /**
-     * Category-driven and global custom properties are optional; omit empty values.
-     *
-     * @param array<string, mixed> $properties
-     *
-     * @return array<string, mixed>
-     */
-    private function filterOptionalProperties(array $properties): array
+    private function resolveAssignedToReference(int $personnelId): ?string
     {
-        $filtered = [];
+        $person = $this->personnelModel->findById($personnelId);
 
-        foreach ($properties as $key => $value) {
-            if (!is_string($key)) {
-                continue;
-            }
-
-            if ($value === null) {
-                continue;
-            }
-
-            if (is_string($value) && trim($value) === '') {
-                continue;
-            }
-
-            $filtered[$key] = $value;
+        if ($person === null) {
+            return null;
         }
 
-        return $filtered;
+        $email = trim((string) ($person['email'] ?? ''));
+
+        if ($email !== '') {
+            return $email;
+        }
+
+        $name = trim((string) ($person['name'] ?? ''));
+
+        return $name !== '' ? $name : null;
     }
 
     /**
@@ -1196,43 +1180,115 @@ class AssetController
             }
         }
 
-        if (array_key_exists('category_id', $coreFields)) {
-            if ($coreFields['category_id'] === '' || $coreFields['category_id'] === null) {
-                $errors['category_id'][] = 'The category_id field is required.';
-            } elseif (!is_numeric($coreFields['category_id'])) {
-                $errors['category_id'][] = 'The category_id must be a valid integer.';
-            } else {
-                $categoryId = (int) $coreFields['category_id'];
+        if (array_key_exists('category_id', $coreFields) && !array_key_exists('type', $coreFields)) {
+            $category = $this->categoryModel->findById((int) $coreFields['category_id']);
+            $coreFields['type'] = trim((string) ($category['name'] ?? ''));
+            unset($coreFields['category_id']);
+        }
 
-                if ($categoryId <= 0) {
-                    $errors['category_id'][] = 'The category_id must be a positive integer.';
-                } elseif (!$this->assetModel->categoryExists($categoryId)) {
-                    $errors['category_id'][] = 'The selected category_id does not exist.';
-                }
+        if (array_key_exists('personnel_id', $coreFields) && !array_key_exists('assigned_to', $coreFields)) {
+            $personnelId = (int) $coreFields['personnel_id'];
+            $assignedTo = $this->resolveAssignedToReference($personnelId);
+
+            if ($assignedTo !== null) {
+                $coreFields['assigned_to'] = $assignedTo;
             }
+
+            unset($coreFields['personnel_id']);
+        }
+
+        if (array_key_exists('location_id', $coreFields) && !array_key_exists('location', $coreFields)) {
+            $locationId = (int) $coreFields['location_id'];
+            $location = $this->locationModel->findById($locationId);
+
+            if ($location !== null) {
+                $coreFields['location'] = trim((string) ($location['name'] ?? ''));
+                $coreFields['building'] = trim((string) ($location['building'] ?? ''));
+            }
+
+            unset($coreFields['location_id']);
+        }
+
+        if (array_key_exists('type', $coreFields) && trim((string) $coreFields['type']) === '') {
+            $errors['type'][] = 'The type field is required.';
         }
 
         if (array_key_exists('status', $coreFields) && trim((string) $coreFields['status']) === '') {
             $errors['status'][] = 'The status field cannot be empty when provided.';
         }
 
-        if (array_key_exists('personnel_id', $coreFields)) {
-            $userErrors = $this->validatePersonnelId($coreFields['personnel_id']);
-
-            if ($userErrors !== []) {
-                $errors['personnel_id'] = $userErrors;
-            }
-        }
-
-        if (array_key_exists('location_id', $coreFields)) {
-            $locationErrors = $this->validateLocationId($coreFields['location_id']);
-
-            if ($locationErrors !== []) {
-                $errors['location_id'] = $locationErrors;
-            }
-        }
-
         return $errors;
+    }
+
+    /**
+     * @param array<string, mixed> $coreFields
+     *
+     * @return array<string, mixed>
+     */
+    private function normalizeCoreFields(array $coreFields, bool $allowPartial = false): array
+    {
+        if (array_key_exists('category_id', $coreFields) && !array_key_exists('type', $coreFields)) {
+            $category = $this->categoryModel->findById((int) $coreFields['category_id']);
+            $coreFields['type'] = trim((string) ($category['name'] ?? ''));
+            unset($coreFields['category_id']);
+        }
+
+        if (array_key_exists('personnel_id', $coreFields) && !array_key_exists('assigned_to', $coreFields)) {
+            $assignedTo = $this->resolveAssignedToReference((int) $coreFields['personnel_id']);
+
+            if ($assignedTo !== null) {
+                $coreFields['assigned_to'] = $assignedTo;
+            }
+
+            unset($coreFields['personnel_id']);
+        }
+
+        if (array_key_exists('location_id', $coreFields) && !array_key_exists('location', $coreFields)) {
+            $location = $this->locationModel->findById((int) $coreFields['location_id']);
+
+            if ($location !== null) {
+                $coreFields['location'] = trim((string) ($location['name'] ?? ''));
+                $coreFields['building'] = trim((string) ($location['building'] ?? ''));
+            }
+
+            unset($coreFields['location_id']);
+        }
+
+        $normalized = [];
+
+        foreach (self::CORE_FIELDS as $field) {
+            if (!array_key_exists($field, $coreFields)) {
+                continue;
+            }
+
+            $value = $coreFields[$field];
+
+            if ($field === 'serial_number') {
+                $serialNumber = $value !== null ? trim((string) $value) : '';
+                $normalized[$field] = $serialNumber === '' ? null : $serialNumber;
+
+                continue;
+            }
+
+            if ($field === 'status') {
+                $status = trim((string) ($value ?? 'ready'));
+                $normalized[$field] = $status !== '' ? $status : 'ready';
+
+                continue;
+            }
+
+            $normalized[$field] = trim((string) ($value ?? ''));
+        }
+
+        if (!$allowPartial) {
+            foreach (['asset_tag', 'name'] as $requiredField) {
+                if (!array_key_exists($requiredField, $normalized)) {
+                    $normalized[$requiredField] = trim((string) ($coreFields[$requiredField] ?? ''));
+                }
+            }
+        }
+
+        return $normalized;
     }
 
     /**
@@ -1268,98 +1324,6 @@ class AssetController
         $this->personnelModel->syncFromDirectory($directoryUser);
 
         return [];
-    }
-
-    /**
-     * @return list<string>
-     */
-    private function validateLocationId(mixed $locationId): array
-    {
-        if ($locationId === null || $locationId === '') {
-            return [];
-        }
-
-        if (!is_numeric($locationId)) {
-            return [__('location_invalid_id')];
-        }
-
-        $normalizedLocationId = (int) $locationId;
-
-        if ($normalizedLocationId <= 0) {
-            return [__('location_invalid_id')];
-        }
-
-        if (!$this->assetModel->locationExists($normalizedLocationId)) {
-            return [__('location_not_found')];
-        }
-
-        return [];
-    }
-
-    /**
-     * @param array<string, mixed> $coreFields
-     *
-     * @return array<string, mixed>
-     */
-    private function normalizeCoreFields(array $coreFields, bool $allowPartial = false): array
-    {
-        $normalized = [];
-
-        if (array_key_exists('asset_tag', $coreFields)) {
-            $normalized['asset_tag'] = trim((string) $coreFields['asset_tag']);
-        } elseif (!$allowPartial) {
-            $normalized['asset_tag'] = trim((string) ($coreFields['asset_tag'] ?? ''));
-        }
-
-        if (array_key_exists('name', $coreFields)) {
-            $normalized['name'] = trim((string) $coreFields['name']);
-        } elseif (!$allowPartial) {
-            $normalized['name'] = trim((string) ($coreFields['name'] ?? ''));
-        }
-
-        if (array_key_exists('serial_number', $coreFields)) {
-            $serialNumber = $coreFields['serial_number'] !== null
-                ? trim((string) $coreFields['serial_number'])
-                : null;
-            $normalized['serial_number'] = $serialNumber === '' ? null : $serialNumber;
-        } elseif (!$allowPartial) {
-            $serialNumber = array_key_exists('serial_number', $coreFields) && $coreFields['serial_number'] !== null
-                ? trim((string) $coreFields['serial_number'])
-                : null;
-            $normalized['serial_number'] = $serialNumber === '' ? null : $serialNumber;
-        }
-
-        if (array_key_exists('category_id', $coreFields)) {
-            $normalized['category_id'] = (int) $coreFields['category_id'];
-        } elseif (!$allowPartial) {
-            $normalized['category_id'] = (int) ($coreFields['category_id'] ?? 0);
-        }
-
-        if (array_key_exists('status', $coreFields)) {
-            $status = trim((string) $coreFields['status']);
-            $normalized['status'] = $status !== '' ? $status : 'ready';
-        } elseif (!$allowPartial) {
-            $status = trim((string) ($coreFields['status'] ?? 'ready'));
-            $normalized['status'] = $status !== '' ? $status : 'ready';
-        }
-
-        if (array_key_exists('personnel_id', $coreFields)) {
-            if ($coreFields['personnel_id'] === null || $coreFields['personnel_id'] === '') {
-                $normalized['personnel_id'] = null;
-            } else {
-                $normalized['personnel_id'] = (int) $coreFields['personnel_id'];
-            }
-        }
-
-        if (array_key_exists('location_id', $coreFields)) {
-            if ($coreFields['location_id'] === null || $coreFields['location_id'] === '') {
-                $normalized['location_id'] = null;
-            } else {
-                $normalized['location_id'] = (int) $coreFields['location_id'];
-            }
-        }
-
-        return $normalized;
     }
 
     /**

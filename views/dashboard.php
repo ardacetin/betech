@@ -693,31 +693,27 @@ $i18nScript = json_encode([
 
             <form @submit.prevent="submitAddForm" class="max-h-[70vh] overflow-y-auto px-6 py-5">
                 <div class="grid gap-4 sm:grid-cols-2">
-                    <label class="block sm:col-span-1">
-                        <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('label_serial_number'), ENT_QUOTES, 'UTF-8') ?></span>
-                        <input x-model="form.serial_number" type="text" class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4">
-                    </label>
                     <label class="block sm:col-span-2">
                         <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('label_name'), ENT_QUOTES, 'UTF-8') ?></span>
                         <input x-model="form.name" type="text" required class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4">
                     </label>
-                    <label class="block sm:col-span-1">
-                        <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('label_category'), ENT_QUOTES, 'UTF-8') ?></span>
-                        <select
-                            x-model="form.category_id"
-                            @change="loadCategoryFields(form.category_id)"
-                            required
-                            class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4"
-                        >
-                            <option value=""><?= htmlspecialchars(__('select_category'), ENT_QUOTES, 'UTF-8') ?></option>
-                            <?php foreach ($categories as $category): ?>
-                            <option value="<?= (int) $category['id'] ?>">
-                                <?= htmlspecialchars((string) $category['name'], ENT_QUOTES, 'UTF-8') ?>
-                            </option>
-                            <?php endforeach; ?>
-                        </select>
+                    <label class="block">
+                        <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('col_model'), ENT_QUOTES, 'UTF-8') ?></span>
+                        <input x-model="form.model" type="text" class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4">
                     </label>
-                    <label class="block sm:col-span-1">
+                    <label class="block">
+                        <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('col_brand'), ENT_QUOTES, 'UTF-8') ?></span>
+                        <input x-model="form.brand" type="text" class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4">
+                    </label>
+                    <label class="block">
+                        <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('label_serial_number'), ENT_QUOTES, 'UTF-8') ?></span>
+                        <input x-model="form.serial_number" type="text" class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4">
+                    </label>
+                    <label class="block">
+                        <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('col_category'), ENT_QUOTES, 'UTF-8') ?></span>
+                        <input x-model="form.type" type="text" class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4">
+                    </label>
+                    <label class="block">
                         <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('label_status'), ENT_QUOTES, 'UTF-8') ?></span>
                         <select x-model="form.status" class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4">
                             <option value="ready"><?= htmlspecialchars(__('status_ready'), ENT_QUOTES, 'UTF-8') ?></option>
@@ -726,63 +722,28 @@ $i18nScript = json_encode([
                             <option value="broken"><?= htmlspecialchars(__('status_broken'), ENT_QUOTES, 'UTF-8') ?></option>
                         </select>
                     </label>
+                    <label class="block">
+                        <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('col_location'), ENT_QUOTES, 'UTF-8') ?></span>
+                        <input x-model="form.location" type="text" class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4">
+                    </label>
+                    <label class="block">
+                        <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('col_building'), ENT_QUOTES, 'UTF-8') ?></span>
+                        <input x-model="form.building" type="text" class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4">
+                    </label>
+                    <label class="block">
+                        <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('label_mac_address_1'), ENT_QUOTES, 'UTF-8') ?></span>
+                        <input x-model="form.mac_address_1" type="text" class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 font-mono text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4">
+                    </label>
+                    <label class="block">
+                        <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('label_mac_address_2'), ENT_QUOTES, 'UTF-8') ?></span>
+                        <input x-model="form.mac_address_2" type="text" class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 font-mono text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4">
+                    </label>
                 </div>
 
                 <div class="mt-6 border-t border-zinc-200 pt-5">
                     <h4 class="text-sm font-semibold text-zinc-900"><?= htmlspecialchars(__('label_assign_user'), ENT_QUOTES, 'UTF-8') ?></h4>
                     <p class="mt-1 text-xs text-zinc-500"><?= htmlspecialchars(__('assign_user_hint'), ENT_QUOTES, 'UTF-8') ?></p>
                     <?php require __DIR__ . '/partials/user_picker.php'; ?>
-                </div>
-
-                <div class="mt-6 border-t border-zinc-200 pt-5">
-                    <h4 class="text-sm font-semibold text-zinc-900"><?= htmlspecialchars(__('label_select_location'), ENT_QUOTES, 'UTF-8') ?></h4>
-                    <p class="mt-1 text-xs text-zinc-500"><?= htmlspecialchars(__('assign_location_hint'), ENT_QUOTES, 'UTF-8') ?></p>
-                    <label class="mt-4 block">
-                        <select
-                            x-model="form.location_id"
-                            class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4"
-                        >
-                            <option value=""><?= htmlspecialchars(__('select_location'), ENT_QUOTES, 'UTF-8') ?></option>
-                            <template x-for="location in locations" :key="location.id">
-                                <option :value="location.id" x-text="formatLocationLabel(location)"></option>
-                            </template>
-                        </select>
-                    </label>
-                </div>
-
-                <div class="mt-6 border-t border-zinc-200 pt-5">
-                    <h4 class="text-sm font-semibold text-zinc-900"><?= htmlspecialchars(__('technical_specifications'), ENT_QUOTES, 'UTF-8') ?></h4>
-                    <p class="mt-1 text-xs text-zinc-500"><?= htmlspecialchars(__('technical_specifications_hint'), ENT_QUOTES, 'UTF-8') ?></p>
-
-                    <div class="mt-4 grid gap-4 sm:grid-cols-2">
-                        <template x-for="field in dynamicFields" :key="field.name">
-                            <label class="block" :class="field.type === 'textarea' ? 'sm:col-span-2' : ''">
-                                <span class="mb-1.5 block text-sm font-medium text-zinc-700" x-text="resolveFieldLabel(field)"></span>
-                                <input
-                                    x-show="field.type !== 'textarea' && field.type !== 'dropdown'"
-                                    :type="field.type === 'number' ? 'number' : 'text'"
-                                    x-model="dynamicValues[field.name]"
-                                    class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4"
-                                >
-                                <select
-                                    x-show="field.type === 'dropdown'"
-                                    x-model="dynamicValues[field.name]"
-                                    class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4"
-                                >
-                                    <option value=""><?= htmlspecialchars(__('field_select_option'), ENT_QUOTES, 'UTF-8') ?></option>
-                                    <template x-for="option in (field.options || [])" :key="option">
-                                        <option :value="option" x-text="option"></option>
-                                    </template>
-                                </select>
-                                <textarea
-                                    x-show="field.type === 'textarea'"
-                                    x-model="dynamicValues[field.name]"
-                                    rows="3"
-                                    class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4"
-                                ></textarea>
-                            </label>
-                        </template>
-                    </div>
                 </div>
 
                 <div x-show="addErrorMessage" x-cloak class="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700" x-text="addErrorMessage"></div>
@@ -823,75 +784,60 @@ $i18nScript = json_encode([
                 <div class="rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3">
                     <p class="text-xs uppercase tracking-wide text-zinc-400"><?= htmlspecialchars(__('col_asset_tag'), ENT_QUOTES, 'UTF-8') ?></p>
                     <p class="mt-1 text-sm font-semibold text-zinc-900" x-text="editAsset?.asset_tag"></p>
-                    <p class="mt-3 text-xs uppercase tracking-wide text-zinc-400"><?= htmlspecialchars(__('col_name'), ENT_QUOTES, 'UTF-8') ?></p>
-                    <p class="mt-1 text-sm text-zinc-700" x-text="editAsset?.name"></p>
                 </div>
 
-                <label class="mt-5 block">
-                    <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('label_status'), ENT_QUOTES, 'UTF-8') ?></span>
-                    <select x-model="editForm.status" class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4">
-                        <option value="ready"><?= htmlspecialchars(__('status_ready'), ENT_QUOTES, 'UTF-8') ?></option>
-                        <option value="deployed"><?= htmlspecialchars(__('status_deployed'), ENT_QUOTES, 'UTF-8') ?></option>
-                        <option value="storage"><?= htmlspecialchars(__('status_storage'), ENT_QUOTES, 'UTF-8') ?></option>
-                        <option value="broken"><?= htmlspecialchars(__('status_broken'), ENT_QUOTES, 'UTF-8') ?></option>
-                    </select>
-                </label>
+                <div class="mt-5 grid gap-4 sm:grid-cols-2">
+                    <label class="block sm:col-span-2">
+                        <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('label_name'), ENT_QUOTES, 'UTF-8') ?></span>
+                        <input x-model="editForm.name" type="text" required class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4">
+                    </label>
+                    <label class="block">
+                        <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('col_model'), ENT_QUOTES, 'UTF-8') ?></span>
+                        <input x-model="editForm.model" type="text" class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4">
+                    </label>
+                    <label class="block">
+                        <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('col_brand'), ENT_QUOTES, 'UTF-8') ?></span>
+                        <input x-model="editForm.brand" type="text" class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4">
+                    </label>
+                    <label class="block">
+                        <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('label_serial_number'), ENT_QUOTES, 'UTF-8') ?></span>
+                        <input x-model="editForm.serial_number" type="text" class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4">
+                    </label>
+                    <label class="block">
+                        <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('col_category'), ENT_QUOTES, 'UTF-8') ?></span>
+                        <input x-model="editForm.type" type="text" class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4">
+                    </label>
+                    <label class="block">
+                        <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('label_status'), ENT_QUOTES, 'UTF-8') ?></span>
+                        <select x-model="editForm.status" class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4">
+                            <option value="ready"><?= htmlspecialchars(__('status_ready'), ENT_QUOTES, 'UTF-8') ?></option>
+                            <option value="deployed"><?= htmlspecialchars(__('status_deployed'), ENT_QUOTES, 'UTF-8') ?></option>
+                            <option value="storage"><?= htmlspecialchars(__('status_storage'), ENT_QUOTES, 'UTF-8') ?></option>
+                            <option value="broken"><?= htmlspecialchars(__('status_broken'), ENT_QUOTES, 'UTF-8') ?></option>
+                        </select>
+                    </label>
+                    <label class="block">
+                        <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('col_location'), ENT_QUOTES, 'UTF-8') ?></span>
+                        <input x-model="editForm.location" type="text" class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4">
+                    </label>
+                    <label class="block">
+                        <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('col_building'), ENT_QUOTES, 'UTF-8') ?></span>
+                        <input x-model="editForm.building" type="text" class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4">
+                    </label>
+                    <label class="block">
+                        <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('label_mac_address_1'), ENT_QUOTES, 'UTF-8') ?></span>
+                        <input x-model="editForm.mac_address_1" type="text" class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 font-mono text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4">
+                    </label>
+                    <label class="block">
+                        <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('label_mac_address_2'), ENT_QUOTES, 'UTF-8') ?></span>
+                        <input x-model="editForm.mac_address_2" type="text" class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 font-mono text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4">
+                    </label>
+                </div>
 
                 <div class="mt-6 border-t border-zinc-200 pt-5">
                     <h4 class="text-sm font-semibold text-zinc-900"><?= htmlspecialchars(__('label_assign_user'), ENT_QUOTES, 'UTF-8') ?></h4>
                     <p class="mt-1 text-xs text-zinc-500"><?= htmlspecialchars(__('assign_user_hint'), ENT_QUOTES, 'UTF-8') ?></p>
                     <?php require __DIR__ . '/partials/user_picker.php'; ?>
-                </div>
-
-                <div class="mt-6 border-t border-zinc-200 pt-5">
-                    <h4 class="text-sm font-semibold text-zinc-900"><?= htmlspecialchars(__('label_select_location'), ENT_QUOTES, 'UTF-8') ?></h4>
-                    <p class="mt-1 text-xs text-zinc-500"><?= htmlspecialchars(__('assign_location_hint'), ENT_QUOTES, 'UTF-8') ?></p>
-                    <label class="mt-4 block">
-                        <select
-                            x-model="editForm.location_id"
-                            class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4"
-                        >
-                            <option value=""><?= htmlspecialchars(__('select_location'), ENT_QUOTES, 'UTF-8') ?></option>
-                            <template x-for="location in locations" :key="location.id">
-                                <option :value="location.id" x-text="formatLocationLabel(location)"></option>
-                            </template>
-                        </select>
-                    </label>
-                </div>
-
-                <div x-show="dynamicFields.length > 0" class="mt-6 border-t border-zinc-200 pt-5">
-                    <h4 class="text-sm font-semibold text-zinc-900"><?= htmlspecialchars(__('technical_specifications'), ENT_QUOTES, 'UTF-8') ?></h4>
-                    <p class="mt-1 text-xs text-zinc-500"><?= htmlspecialchars(__('technical_specifications_hint'), ENT_QUOTES, 'UTF-8') ?></p>
-
-                    <div class="mt-4 grid gap-4 sm:grid-cols-2">
-                        <template x-for="field in dynamicFields" :key="field.name">
-                            <label class="block" :class="field.type === 'textarea' ? 'sm:col-span-2' : ''">
-                                <span class="mb-1.5 block text-sm font-medium text-zinc-700" x-text="resolveFieldLabel(field)"></span>
-                                <input
-                                    x-show="field.type !== 'textarea' && field.type !== 'dropdown'"
-                                    :type="field.type === 'number' ? 'number' : 'text'"
-                                    x-model="dynamicValues[field.name]"
-                                    class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4"
-                                >
-                                <select
-                                    x-show="field.type === 'dropdown'"
-                                    x-model="dynamicValues[field.name]"
-                                    class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4"
-                                >
-                                    <option value=""><?= htmlspecialchars(__('field_select_option'), ENT_QUOTES, 'UTF-8') ?></option>
-                                    <template x-for="option in (field.options || [])" :key="option">
-                                        <option :value="option" x-text="option"></option>
-                                    </template>
-                                </select>
-                                <textarea
-                                    x-show="field.type === 'textarea'"
-                                    x-model="dynamicValues[field.name]"
-                                    rows="3"
-                                    class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4"
-                                ></textarea>
-                            </label>
-                        </template>
-                    </div>
                 </div>
 
                 <div x-show="editErrorMessage" x-cloak class="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700" x-text="editErrorMessage"></div>
@@ -2445,15 +2391,28 @@ $i18nScript = json_encode([
             isManualUserSubmitting: false,
             editAsset: null,
             editForm: {
+                name: '',
+                model: '',
+                brand: '',
+                serial_number: '',
+                type: '',
                 status: 'ready',
-                location_id: '',
+                location: '',
+                building: '',
+                mac_address_1: '',
+                mac_address_2: '',
             },
             form: {
-                serial_number: '',
                 name: '',
-                category_id: '',
+                model: '',
+                brand: '',
+                serial_number: '',
+                type: '',
                 status: 'ready',
-                location_id: '',
+                location: '',
+                building: '',
+                mac_address_1: '',
+                mac_address_2: '',
             },
             settingsForm: {
                 active_auth_driver: window.__settings?.active_auth_driver || 'local',
@@ -3679,13 +3638,13 @@ $i18nScript = json_encode([
                 window.location.href = '/api/assets/export';
             },
             openAssignModal(asset) {
-                if (asset?.user_id) {
+                if (asset?.assigned_to) {
                     return;
                 }
 
                 this.assignAsset = asset;
                 this.assignErrorMessage = '';
-                this.assignLocationId = asset?.location_id ? String(asset.location_id) : '';
+                this.assignLocationId = '';
                 this.resetAssignUserSearch();
                 this.isAssignOpen = true;
 
@@ -3991,10 +3950,19 @@ $i18nScript = json_encode([
             },
             openAddModal() {
                 this.addErrorMessage = '';
-                this.resetDynamicFields();
                 this.resetUserSearch();
-                this.form.location_id = '';
-                this.loadCategoryFields(this.form.category_id);
+                this.form = {
+                    name: '',
+                    model: '',
+                    brand: '',
+                    serial_number: '',
+                    type: '',
+                    status: 'ready',
+                    location: '',
+                    building: '',
+                    mac_address_1: '',
+                    mac_address_2: '',
+                };
                 this.isAddOpen = true;
             },
             closeAddModal() {
@@ -4084,11 +4052,11 @@ $i18nScript = json_encode([
                 return window.__i18n[key] || status;
             },
             formatInventoryLocation(asset) {
-                const building = String(asset?.location_building || '').trim();
-                const name = String(asset?.location_name || '').trim();
+                const building = String(asset?.building || asset?.location_building || '').trim();
+                const name = String(asset?.location || asset?.location_name || '').trim();
 
                 if (name === '') {
-                    return '';
+                    return building;
                 }
 
                 if (building === '') {
@@ -4097,38 +4065,21 @@ $i18nScript = json_encode([
 
                 return `${building} / ${name}`;
             },
-            inventoryPropertyEntries(asset) {
-                const properties = asset?.properties;
-
-                if (!properties || typeof properties !== 'object' || Array.isArray(properties)) {
-                    return [];
-                }
-
-                return Object.entries(properties);
-            },
-            formatInventoryPropertyValue(value) {
-                if (Array.isArray(value)) {
-                    return JSON.stringify(value);
-                }
-
-                if (typeof value === 'boolean') {
-                    return value ? 'true' : 'false';
-                }
-
-                return String(value ?? '');
-            },
             buildInventoryDetailPayload(asset) {
                 return {
                     id: asset.id,
                     asset_tag: asset.asset_tag,
                     name: asset.name,
+                    model: asset.model || '',
+                    brand: asset.brand || '',
+                    serial_number: asset.serial_number || '',
+                    type: asset.type || asset.category_name || '',
                     status: asset.status,
-                    category_name: asset.category_name || window.__i18n.unknown_category,
-                    user_id: asset.user_id ?? null,
-                    user_name: asset.user_name ?? null,
-                    location_id: asset.location_id ?? null,
-                    location_name: asset.location_name ?? null,
-                    location_building: asset.location_building ?? null,
+                    location: asset.location || asset.location_name || '',
+                    building: asset.building || asset.location_building || '',
+                    assigned_to: asset.assigned_to || asset.user_name || '',
+                    mac_address_1: asset.mac_address_1 || '',
+                    mac_address_2: asset.mac_address_2 || '',
                 };
             },
             buildInventoryAssignPayload(asset) {
@@ -4137,9 +4088,10 @@ $i18nScript = json_encode([
                     asset_tag: asset.asset_tag,
                     name: asset.name,
                     serial_number: asset.serial_number || '',
-                    category_name: asset.category_name || window.__i18n.unknown_category,
-                    location_id: asset.location_id ?? null,
-                    location_name: asset.location_name ?? null,
+                    type: asset.type || asset.category_name || '',
+                    location: asset.location || asset.location_name || '',
+                    building: asset.building || asset.location_building || '',
+                    assigned_to: asset.assigned_to || asset.user_name || '',
                 };
             },
             buildInventoryEditPayload(asset) {
@@ -4147,14 +4099,16 @@ $i18nScript = json_encode([
                     id: asset.id,
                     asset_tag: asset.asset_tag,
                     name: asset.name,
+                    model: asset.model || '',
+                    brand: asset.brand || '',
+                    serial_number: asset.serial_number || '',
+                    type: asset.type || asset.category_name || '',
                     status: asset.status,
-                    category_id: asset.category_id ?? null,
-                    user_id: asset.user_id ?? null,
-                    user_name: asset.user_name ?? null,
-                    location_id: asset.location_id ?? null,
-                    location_name: asset.location_name ?? null,
-                    location_building: asset.location_building ?? null,
-                    properties: asset.properties && typeof asset.properties === 'object' ? asset.properties : {},
+                    location: asset.location || asset.location_name || '',
+                    building: asset.building || asset.location_building || '',
+                    assigned_to: asset.assigned_to || asset.user_name || '',
+                    mac_address_1: asset.mac_address_1 || '',
+                    mac_address_2: asset.mac_address_2 || '',
                 };
             },
             buildInventoryReturnPayload(asset) {
@@ -4162,8 +4116,7 @@ $i18nScript = json_encode([
                     id: asset.id,
                     asset_tag: asset.asset_tag,
                     name: asset.name,
-                    user_id: asset.user_id ?? null,
-                    user_name: asset.user_name ?? null,
+                    assigned_to: asset.assigned_to || asset.user_name || '',
                 };
             },
             buildInventoryTransferPayload(asset) {
@@ -4171,11 +4124,9 @@ $i18nScript = json_encode([
                     id: asset.id,
                     asset_tag: asset.asset_tag,
                     name: asset.name,
-                    user_id: asset.user_id ?? null,
-                    user_name: asset.user_name ?? null,
-                    location_id: asset.location_id ?? null,
-                    location_name: asset.location_name ?? null,
-                    location_building: asset.location_building ?? null,
+                    assigned_to: asset.assigned_to || asset.user_name || '',
+                    location: asset.location || asset.location_name || '',
+                    building: asset.building || asset.location_building || '',
                 };
             },
             syncInventoryAssetOptions() {
@@ -4345,16 +4296,25 @@ $i18nScript = json_encode([
             openEditModal(asset) {
                 this.editErrorMessage = '';
                 this.editAsset = asset;
-                this.editForm.status = asset.status || 'ready';
-                this.editForm.location_id = asset.location_id ? String(asset.location_id) : '';
+                this.editForm = {
+                    name: asset.name || '',
+                    model: asset.model || '',
+                    brand: asset.brand || '',
+                    serial_number: asset.serial_number || '',
+                    type: asset.type || asset.category_name || '',
+                    status: asset.status || 'ready',
+                    location: asset.location || asset.location_name || '',
+                    building: asset.building || asset.location_building || '',
+                    mac_address_1: asset.mac_address_1 || '',
+                    mac_address_2: asset.mac_address_2 || '',
+                };
                 this.resetUserSearch();
-                this.loadCategoryFields(asset.category_id || '', asset.properties || {});
 
-                if (asset.user_id) {
+                if (asset.assigned_to || asset.user_name) {
                     this.selectedUser = {
-                        id: String(asset.user_id),
-                        name: asset.user_name || '',
-                        email: '',
+                        id: '',
+                        name: asset.assigned_to || asset.user_name || '',
+                        email: asset.assigned_to || '',
                         department: null,
                     };
                 } else {
@@ -4370,7 +4330,6 @@ $i18nScript = json_encode([
 
                 this.isEditOpen = false;
                 this.editAsset = null;
-                this.resetDynamicFields();
             },
             async openDetailModal(asset) {
                 this.detailAsset = asset;
@@ -4679,62 +4638,40 @@ $i18nScript = json_encode([
             buildAddPayload() {
                 const payload = {
                     name: this.form.name.trim(),
-                    category_id: Number(this.form.category_id),
                     status: this.form.status,
                 };
 
-                if (this.form.serial_number.trim() !== '') {
-                    payload.serial_number = this.form.serial_number.trim();
-                }
+                ['model', 'brand', 'serial_number', 'type', 'location', 'building', 'mac_address_1', 'mac_address_2'].forEach((field) => {
+                    const value = String(this.form[field] || '').trim();
+
+                    if (value !== '') {
+                        payload[field] = value;
+                    }
+                });
 
                 if (this.selectedUser?.id) {
                     payload.personnel_id = Number(this.selectedUser.id);
                 }
 
-                if (this.form.location_id) {
-                    payload.location_id = Number(this.form.location_id);
-                }
-
-                this.dynamicFields.forEach((field) => {
-                    if (!field || !field.name) {
-                        return;
-                    }
-
-                    const rawValue = this.dynamicValues[field.name];
-
-                    if (rawValue === undefined || rawValue === null || String(rawValue).trim() === '') {
-                        return;
-                    }
-
-                    payload[field.name] = field.type === 'number'
-                        ? Number(rawValue)
-                        : String(rawValue).trim();
-                });
-
                 return payload;
             },
             buildEditPayload() {
                 const payload = {
+                    name: this.editForm.name.trim(),
                     status: this.editForm.status,
-                    personnel_id: this.selectedUser?.id ? Number(this.selectedUser.id) : null,
-                    location_id: this.editForm.location_id ? Number(this.editForm.location_id) : null,
                 };
 
-                this.dynamicFields.forEach((field) => {
-                    if (!field || !field.name) {
-                        return;
-                    }
-
-                    const rawValue = this.dynamicValues[field.name];
-
-                    if (rawValue === undefined || rawValue === null || String(rawValue).trim() === '') {
-                        return;
-                    }
-
-                    payload[field.name] = field.type === 'number'
-                        ? Number(rawValue)
-                        : String(rawValue).trim();
+                ['model', 'brand', 'serial_number', 'type', 'location', 'building', 'mac_address_1', 'mac_address_2'].forEach((field) => {
+                    payload[field] = String(this.editForm[field] || '').trim();
                 });
+
+                if (this.selectedUser?.id) {
+                    payload.personnel_id = Number(this.selectedUser.id);
+                } else {
+                    payload.assigned_to = this.selectedUser
+                        ? String(this.selectedUser.name || this.selectedUser.email || '').trim()
+                        : '';
+                }
 
                 return payload;
             },
@@ -7368,10 +7305,6 @@ $i18nScript = json_encode([
                                 client_secret: '',
                             },
                         };
-                    }
-
-                    if (this.form.category_id) {
-                        this.loadCategoryFields(this.form.category_id);
                     }
                 } catch (error) {
                     this.settingsErrorMessage = window.__i18n.settings_network_error;
