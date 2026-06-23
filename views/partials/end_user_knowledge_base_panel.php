@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 ?>
+<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.8/dist/cdn.min.js"></script>
 <section x-show="activeView === 'knowledge_base'" x-cloak class="space-y-4">
     <div>
         <h2 class="text-lg font-semibold text-zinc-900"><?= htmlspecialchars(__('portal_knowledge_base_title'), ENT_QUOTES, 'UTF-8') ?></h2>
@@ -33,7 +34,7 @@ declare(strict_types=1);
                 <div
                     @click="isOpen = !isOpen"
                     class="flex w-full cursor-pointer items-start justify-between gap-3 px-5 py-4 text-left transition-colors hover:bg-gray-50/80"
-                    :aria-expanded="isOpen"
+                    :aria-expanded="isOpen ? 'true' : 'false'"
                     role="button"
                     tabindex="0"
                     @keydown.enter.prevent="isOpen = !isOpen"
@@ -42,7 +43,7 @@ declare(strict_types=1);
                     <h3 class="text-base font-semibold leading-snug text-gray-900" x-text="article.title"></h3>
                     <svg
                         class="mt-0.5 h-5 w-5 shrink-0 text-gray-400 transition-transform duration-200"
-                        :class="{ 'rotate-180': isOpen }"
+                        :class="isOpen ? 'rotate-180' : 'rotate-0'"
                         fill="none"
                         viewBox="0 0 24 24"
                         stroke-width="1.5"
@@ -52,7 +53,10 @@ declare(strict_types=1);
                         <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5"></path>
                     </svg>
                 </div>
-                <div x-show="isOpen" x-collapse x-cloak>
+                <div
+                    class="hidden"
+                    :class="isOpen ? 'block' : 'hidden'"
+                >
                     <div class="border-t border-gray-100 px-5 pb-5 pt-3">
                         <p class="whitespace-pre-wrap text-sm leading-relaxed text-gray-700" x-text="article.content"></p>
                     </div>
