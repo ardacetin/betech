@@ -66,8 +66,7 @@ class InventoryImportController
 
             $originalFilename = $file->getClientFilename() ?? 'import.csv';
             $contents = (string) $file->getStream()->getContents();
-            $columnMapping = $this->resolveColumnMapping($request);
-            $result = $this->inventoryImportService->importFromUploadedFile($contents, $originalFilename, $columnMapping);
+            $result = $this->inventoryImportService->importFromUploadedFile($contents, $originalFilename);
 
             $actorUserId = $this->sessionAuthService->userId();
 

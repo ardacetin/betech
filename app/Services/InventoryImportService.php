@@ -126,6 +126,28 @@ class InventoryImportService
 
     private const GLOBAL_CUSTOM_FIELD_KIND = 'global_custom';
 
+    /** Official immutable GLPI corporate export layout (13 columns, index 0-12). */
+    private const GLPI_SCHEMA_COLUMN_COUNT = 13;
+
+    /**
+     * @var array<int, string>
+     */
+    private const GLPI_SCHEMA_FIELD_BY_INDEX = [
+        0 => 'device_name',
+        1 => 'custom_birim',
+        2 => 'import_meta_son_guncelleme',
+        3 => 'custom_grup',
+        4 => 'custom_konum',
+        5 => 'brand',
+        6 => 'device_model',
+        7 => 'category',
+        8 => 'serial_number',
+        9 => 'asset_tag',
+        10 => '10',
+        11 => '11',
+        12 => '12',
+    ];
+
     /**
      * Case-insensitive smart aliases (space-normalized) for GLPI and legacy exports.
      *
@@ -240,6 +262,8 @@ class InventoryImportService
      */
     public function importFromUploadedFile(string $contents, string $originalFilename, ?array $columnMapping = null): array
     {
+        unset($columnMapping);
+
         if (trim($contents) === '') {
             return $this->emptyResultWithError(0, __('import_csv_empty'));
         }
@@ -252,8 +276,8 @@ class InventoryImportService
 
         try {
             return match ($extension) {
-                'csv' => $this->importCsvContents($contents, $columnMapping),
-                'xlsx', 'xls' => $this->importSpreadsheetContents($contents, $extension, $columnMapping),
+                'csv' => $this->importCsvContents($contents),
+                'xlsx', 'xls' => $this->importSpreadsheetContents($contents, $extension),
                 default => $this->emptyResultWithError(0, __('inventory_import_invalid_file_type')),
             };
         } catch (RuntimeException $exception) {
@@ -344,7 +368,7 @@ class InventoryImportService
      *     created_locations: list<string>
      * }
      */
-    private function importCsvContents(string $csvContent, ?array $columnMapping = null): array
+    private function importCsvContents(string $csvContent): array
     {
         $csvContent = $this->stripBom($csvContent);
         $lines = preg_split('/\R/', $csvContent) ?? [];
@@ -354,7 +378,7 @@ class InventoryImportService
         }
 
         $state = $this->newImportState();
-        $headerMap = null;
+        $headerSkipped = false;
 
         foreach ($lines as $index => $line) {
             $lineNumber = $index + 1;
@@ -370,26 +394,24 @@ class InventoryImportService
                 continue;
             }
 
-            if ($headerMap === null) {
-                $headerMap = $columnMapping !== null
-                    ? $this->normalizeColumnMapping($columnMapping, count($columns))
-                    : $this->mapHeaders($columns);
-
-                if ($headerMap === []) {
+            if (!$headerSkipped) {
+                if (count($columns) < self::GLPI_SCHEMA_COLUMN_COUNT) {
                     throw new RuntimeException(__('import_csv_invalid_headers'));
                 }
+
+                $headerSkipped = true;
 
                 continue;
             }
 
             $this->processRow(
                 $lineNumber,
-                $this->normalizeRowValues($columns, $headerMap),
+                $this->mapGlpiRowValuesByIndex($columns),
                 $state
             );
         }
 
-        if ($headerMap === null) {
+        if (!$headerSkipped) {
             throw new RuntimeException(__('import_csv_missing_headers'));
         }
 
@@ -411,7 +433,7 @@ class InventoryImportService
      *     created_locations: list<string>
      * }
      */
-    private function importSpreadsheetContents(string $contents, string $extension, ?array $columnMapping = null): array
+    private function importSpreadsheetContents(string $contents, string $extension): array
     {
         $tempPath = tempnam(sys_get_temp_dir(), 'betech_inventory_import_');
 
@@ -432,7 +454,7 @@ class InventoryImportService
             $spreadsheet = $reader->load($storedPath);
             $worksheet = $spreadsheet->getActiveSheet();
 
-            return $this->importWorksheetRows($worksheet, $columnMapping);
+            return $this->importWorksheetRows($worksheet);
         } finally {
             @unlink($tempPath);
             @unlink($storedPath);
@@ -454,47 +476,121 @@ class InventoryImportService
      *     created_locations: list<string>
      * }
      */
-    private function importWorksheetRows(Worksheet $worksheet, ?array $columnMapping = null): array
+    private function importWorksheetRows(Worksheet $worksheet): array
     {
         $state = $this->newImportState();
-        $headerMap = null;
+        $headerSkipped = false;
 
         foreach ($worksheet->getRowIterator() as $row) {
             $lineNumber = $row->getRowIndex();
             $columns = [];
 
             foreach ($row->getCellIterator() as $cell) {
-                $columns[] = trim((string) $cell->getValue());
+                $columns[] = $this->parseGlpiCellValue((string) $cell->getValue());
             }
 
             if ($this->isEmptyRow($columns)) {
                 continue;
             }
 
-            if ($headerMap === null) {
-                $headerMap = $columnMapping !== null
-                    ? $this->normalizeColumnMapping($columnMapping, count($columns))
-                    : $this->mapHeaders($columns);
-
-                if ($headerMap === []) {
+            if (!$headerSkipped) {
+                if (count($columns) < self::GLPI_SCHEMA_COLUMN_COUNT) {
                     throw new RuntimeException(__('import_csv_invalid_headers'));
                 }
+
+                $headerSkipped = true;
 
                 continue;
             }
 
             $this->processRow(
                 $lineNumber,
-                $this->normalizeRowValues($columns, $headerMap),
+                $this->mapGlpiRowValuesByIndex($columns),
                 $state
             );
         }
 
-        if ($headerMap === null) {
+        if (!$headerSkipped) {
             throw new RuntimeException(__('import_csv_missing_headers'));
         }
 
         return $this->finalizeImportState($state);
+    }
+
+    /**
+     * @param list<string|null> $columns
+     *
+     * @return array<string, string>
+     */
+    private function mapGlpiRowValuesByIndex(array $columns): array
+    {
+        $values = [];
+
+        for ($index = 0; $index < self::GLPI_SCHEMA_COLUMN_COUNT; ++$index) {
+            $rawValue = $this->parseGlpiCellValue((string) ($columns[$index] ?? ''));
+
+            if ($rawValue === '') {
+                continue;
+            }
+
+            $fieldKey = $this->resolveGlpiSchemaFieldKey($index);
+
+            if ($fieldKey === null || $fieldKey === '') {
+                continue;
+            }
+
+            $values[$fieldKey] = $rawValue;
+        }
+
+        return $values;
+    }
+
+    private function resolveGlpiSchemaFieldKey(int $index): ?string
+    {
+        $configured = self::GLPI_SCHEMA_FIELD_BY_INDEX[$index] ?? null;
+
+        if ($configured === null) {
+            return null;
+        }
+
+        if (in_array($index, [10, 11, 12], true)) {
+            return $this->resolveGlpiGlobalFieldKey($index);
+        }
+
+        if ($configured === 'import_meta_son_guncelleme') {
+            return $configured;
+        }
+
+        return $this->mapLegacyFieldKeyToRegistryKey($configured);
+    }
+
+    private function resolveGlpiGlobalFieldKey(int $index): string
+    {
+        $fallbackNames = [
+            10 => 'mac_adresi_1',
+            11 => 'mac_adresi_2',
+            12 => 'eski_kullanici',
+        ];
+
+        $targetId = (string) $index;
+
+        if ($this->getGlobalCustomFieldById($targetId) !== null) {
+            return $targetId;
+        }
+
+        $name = $fallbackNames[$index];
+        $globalId = $this->resolveGlobalCustomFieldIdByName($name);
+
+        if ($globalId !== null) {
+            return $globalId;
+        }
+
+        return self::CUSTOM_FIELD_VALUE_PREFIX . $name;
+    }
+
+    private function parseGlpiCellValue(string $value): string
+    {
+        return $this->sanitizeCellValue($value);
     }
 
     /**
@@ -778,8 +874,19 @@ class InventoryImportService
             ? $properties['custom_fields']
             : [];
 
+        $glpiLastUpdated = trim($values['import_meta_son_guncelleme'] ?? '');
+
+        if ($glpiLastUpdated !== '') {
+            $properties['glpi_last_updated'] = $glpiLastUpdated;
+            $customFields['son_guncelleme'] = $glpiLastUpdated;
+        }
+
         foreach ($values as $field => $rawValue) {
             if (!is_string($field)) {
+                continue;
+            }
+
+            if ($field === 'import_meta_son_guncelleme') {
                 continue;
             }
 
