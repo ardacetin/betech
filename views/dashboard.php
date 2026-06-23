@@ -970,7 +970,12 @@ $i18nScript = json_encode([
                     <?= htmlspecialchars(__('import_mapping_loading'), ENT_QUOTES, 'UTF-8') ?>
                 </p>
 
-                <div x-show="importMappingColumns.length > 0 && !importMappingLoading" x-cloak class="mt-5">
+                <div
+                    x-ref="importMappingTable"
+                    x-show="importMappingColumns.length > 0 && !importMappingLoading"
+                    x-cloak
+                    class="mt-5"
+                >
                     <div class="mb-3">
                         <h4 class="text-sm font-semibold text-zinc-900"><?= htmlspecialchars(__('import_mapping_title'), ENT_QUOTES, 'UTF-8') ?></h4>
                         <p class="mt-1 text-xs text-zinc-500"><?= htmlspecialchars(__('import_mapping_subtitle'), ENT_QUOTES, 'UTF-8') ?></p>
@@ -986,10 +991,11 @@ $i18nScript = json_encode([
                             </thead>
                             <tbody class="divide-y divide-zinc-100 bg-white">
                                 <template x-for="(column, columnIndex) in importMappingColumns" :key="column.index ?? columnIndex">
-                                    <tr>
+                                    <tr data-import-column-row :data-csv-header="column.header" :data-column-index="columnIndex">
                                         <td class="px-3 py-2 align-top text-zinc-700" x-text="column.header"></td>
                                         <td class="px-3 py-2 align-top">
                                             <select
+                                                data-import-field-select
                                                 x-model="column.selected_field"
                                                 class="w-full rounded-lg border border-zinc-200 bg-white px-2 py-1.5 text-xs text-zinc-700 focus:border-zinc-400 focus:outline-none"
                                             >
@@ -4132,10 +4138,13 @@ $i18nScript = json_encode([
 
                 return key;
             },
+            normalizeImportMatchKey(header) {
+                return this.normalizeImportHeaderKey(header).replace(/[^a-z0-9]/g, '');
+            },
             guessImportFieldFromHeader(header) {
-                const compare = this.normalizeImportHeaderKey(header);
+                const headerKey = this.normalizeImportMatchKey(header);
 
-                if (!compare) {
+                if (!headerKey) {
                     return '';
                 }
 
@@ -4150,28 +4159,33 @@ $i18nScript = json_encode([
                         continue;
                     }
 
-                    const label = this.importFieldOptionLabel(option);
-                    const normalizedLabel = this.normalizeImportHeaderKey(label);
+                    const labelKey = this.normalizeImportMatchKey(this.importFieldOptionLabel(option));
 
-                    if (!normalizedLabel || normalizedLabel.length < 2) {
+                    if (!labelKey || labelKey.length < 2) {
                         continue;
                     }
 
-                    if (compare.includes(normalizedLabel) && normalizedLabel.length > bestScore) {
+                    if (headerKey.includes(labelKey) && labelKey.length > bestScore) {
                         bestValue = value;
-                        bestScore = normalizedLabel.length;
+                        bestScore = labelKey.length;
                         continue;
                     }
 
-                    if (normalizedLabel.includes(compare) && compare.length > bestScore) {
+                    if (labelKey.includes(headerKey) && headerKey.length > bestScore) {
                         bestValue = value;
-                        bestScore = compare.length;
+                        bestScore = headerKey.length;
                     }
                 }
 
                 return bestValue;
             },
             resolveImportFieldSelection(header, backendMapped) {
+                const labelMatch = this.guessImportFieldFromHeader(header);
+
+                if (labelMatch) {
+                    return labelMatch;
+                }
+
                 const options = this.importFieldOptions || [];
                 const availableValues = options.map((option) => this.importFieldOptionValue(option));
 
@@ -4179,7 +4193,83 @@ $i18nScript = json_encode([
                     return backendMapped;
                 }
 
-                return this.guessImportFieldFromHeader(header) || '';
+                return '';
+            },
+            scheduleImportMappingDomSync() {
+                this.$nextTick(() => {
+                    requestAnimationFrame(() => {
+                        this.applyImportMappingFromDom();
+
+                        window.setTimeout(() => {
+                            this.applyImportMappingFromDom();
+                        }, 0);
+                    });
+                });
+            },
+            applyImportMappingFromDom() {
+                const container = this.$refs.importMappingTable;
+
+                if (!container) {
+                    return;
+                }
+
+                const rows = container.querySelectorAll('[data-import-column-row]');
+
+                rows.forEach((row) => {
+                    const header = row.getAttribute('data-csv-header') || '';
+                    const columnIndex = Number.parseInt(row.getAttribute('data-column-index') || '-1', 10);
+                    const select = row.querySelector('select[data-import-field-select]');
+
+                    if (!select || header === '') {
+                        return;
+                    }
+
+                    const headerKey = this.normalizeImportMatchKey(header);
+
+                    if (!headerKey) {
+                        return;
+                    }
+
+                    let bestIndex = -1;
+                    let bestScore = 0;
+
+                    for (let index = 0; index < select.options.length; index += 1) {
+                        const option = select.options[index];
+                        const value = option.value;
+
+                        if (!value) {
+                            continue;
+                        }
+
+                        const labelKey = this.normalizeImportMatchKey(option.text || option.label || '');
+
+                        if (!labelKey || labelKey.length < 2) {
+                            continue;
+                        }
+
+                        if (headerKey.includes(labelKey) && labelKey.length > bestScore) {
+                            bestIndex = index;
+                            bestScore = labelKey.length;
+                            continue;
+                        }
+
+                        if (labelKey.includes(headerKey) && headerKey.length > bestScore) {
+                            bestIndex = index;
+                            bestScore = headerKey.length;
+                        }
+                    }
+
+                    if (bestIndex < 0) {
+                        return;
+                    }
+
+                    const matchedValue = select.options[bestIndex].value;
+                    select.selectedIndex = bestIndex;
+
+                    if (Number.isInteger(columnIndex) && columnIndex >= 0 && this.importMappingColumns[columnIndex]) {
+                        this.importMappingColumns[columnIndex].selected_field = matchedValue;
+                    }
+                });
             },
             buildImportColumnMapping() {
                 const mapping = {};
@@ -4239,10 +4329,12 @@ $i18nScript = json_encode([
                         header: column.header,
                         selected_field: this.resolveImportFieldSelection(column.header, column.mapped_field || ''),
                     }));
+                    this.scheduleImportMappingDomSync();
                 } catch (error) {
                     this.importErrorMessage = window.__i18n.import_network_error;
                 } finally {
                     this.importMappingLoading = false;
+                    this.scheduleImportMappingDomSync();
                 }
             },
             async setImportFile(file) {

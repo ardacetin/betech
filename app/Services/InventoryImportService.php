@@ -942,6 +942,13 @@ class InventoryImportService
 
     private function resolveImportField(string $rawHeader): ?string
     {
+        $registry = $this->getMappingFieldRegistry();
+        $labelMatch = $this->matchImportFieldByVisibleLabel($rawHeader, $registry);
+
+        if ($labelMatch !== null) {
+            return $labelMatch;
+        }
+
         $compare = $this->headerComparisonKey($rawHeader);
         $normalized = $this->normalizeHeader($rawHeader);
 
@@ -1018,6 +1025,66 @@ class InventoryImportService
         }
 
         return $bestField;
+    }
+
+    /**
+     * Match CSV headers against visible dropdown labels (not internal keys/IDs).
+     *
+     * @param array<string, array{key: string, label: string, needles: list<string>}> $registry
+     */
+    private function matchImportFieldByVisibleLabel(string $rawHeader, array $registry): ?string
+    {
+        $headerKey = $this->compactLabelMatchKey($rawHeader);
+
+        if ($headerKey === '') {
+            return null;
+        }
+
+        $bestField = null;
+        $bestScore = 0;
+
+        foreach ($registry as $entry) {
+            $fieldKey = $entry['key'];
+
+            if ($fieldKey === '') {
+                continue;
+            }
+
+            $labelCandidates = array_merge(
+                [$entry['label']],
+                $entry['needles'] ?? []
+            );
+
+            foreach ($labelCandidates as $labelCandidate) {
+                $labelKey = $this->compactLabelMatchKey((string) $labelCandidate);
+
+                if ($labelKey === '' || strlen($labelKey) < 2) {
+                    continue;
+                }
+
+                if (str_contains($headerKey, $labelKey) && strlen($labelKey) > $bestScore) {
+                    $bestField = $fieldKey;
+                    $bestScore = strlen($labelKey);
+
+                    continue;
+                }
+
+                if (strlen($headerKey) >= 2 && str_contains($labelKey, $headerKey) && strlen($headerKey) > $bestScore) {
+                    $bestField = $fieldKey;
+                    $bestScore = strlen($headerKey);
+                }
+            }
+        }
+
+        return $bestField;
+    }
+
+    private function compactLabelMatchKey(string $text): string
+    {
+        $key = $this->headerComparisonKey($text);
+        $compact = preg_replace('/[^a-z0-9]/u', '', $key) ?? '';
+
+        return $compact;
     }
 
     /**
