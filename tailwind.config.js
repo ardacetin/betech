@@ -4,6 +4,10 @@ module.exports = {
     './views/**/*.php',
     './resources/**/*.{css,js}',
   ],
+  safelist: [
+    'rotate-180',
+    'transition-transform',
+  ],
   theme: {
     extend: {
       fontFamily: {
