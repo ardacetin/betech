@@ -797,6 +797,8 @@ class InventoryImportService
     }
 
     /**
+     * seri_numarasi -> serial_number, stok_numarasi -> asset_tag, grup -> custom_fields.grup
+     *
      * @param list<string> $headers
      *
      * @return array<int, string>
@@ -837,7 +839,7 @@ class InventoryImportService
         $values = [];
 
         foreach ($headerMap as $index => $field) {
-            $values[$field] = trim((string) ($columns[$index] ?? ''));
+            $values[$field] = $this->sanitizeCellValue((string) ($columns[$index] ?? ''));
         }
 
         return $values;
@@ -873,7 +875,7 @@ class InventoryImportService
 
     private function normalizeHeader(string $header): string
     {
-        $normalized = mb_strtolower(trim($header), 'UTF-8');
+        $normalized = mb_strtolower($this->sanitizeHeaderString($header), 'UTF-8');
         $normalized = strtr($normalized, [
             'ı' => 'i',
             'ş' => 's',
@@ -887,6 +889,29 @@ class InventoryImportService
         $normalized = preg_replace('/_+/', '_', $normalized) ?? $normalized;
 
         return trim($normalized, '_');
+    }
+
+    /**
+     * Strip GLPI export noise (CR/LF, NBSP, control chars) before header matching.
+     */
+    private function sanitizeHeaderString(string $header): string
+    {
+        $header = $this->stripBom($header);
+        $cleaned = trim($header);
+        $cleaned = preg_replace('/[\x{FEFF}\x{00A0}\x{200B}-\x{200D}\x{2060}]/u', ' ', $cleaned) ?? $cleaned;
+        $cleaned = preg_replace('/[\x00-\x1F\x7F-\x9F\s]+/u', ' ', $cleaned) ?? $cleaned;
+        $cleaned = preg_replace('/\s+/u', ' ', $cleaned) ?? $cleaned;
+
+        return trim($cleaned);
+    }
+
+    private function sanitizeCellValue(string $value): string
+    {
+        $cleaned = preg_replace('/[\x{FEFF}\x{00A0}\x{200B}-\x{200D}\x{2060}]/u', ' ', $value) ?? $value;
+        $cleaned = preg_replace('/[\x00-\x1F\x7F-\x9F\s]+/u', ' ', $cleaned) ?? $cleaned;
+        $cleaned = preg_replace('/\s+/u', ' ', $cleaned) ?? $cleaned;
+
+        return trim($cleaned);
     }
 
     private function normalizeStatus(string $status): ?string
