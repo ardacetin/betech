@@ -4179,6 +4179,64 @@ $i18nScript = json_encode([
 
                 return bestValue;
             },
+            buildImportFieldOptionsFromPreview(fieldOptions, legacyFields) {
+                const merged = new Map();
+                const registerOption = (option) => {
+                    if (!option || typeof option !== 'object') {
+                        return;
+                    }
+
+                    const value = String(option.value ?? '').trim();
+
+                    if (!value) {
+                        return;
+                    }
+
+                    merged.set(value, {
+                        value,
+                        label: String(option.label ?? value),
+                        kind: option.kind || 'core',
+                        name: option.name ?? null,
+                        needles: Array.isArray(option.needles) ? option.needles : [],
+                    });
+                };
+
+                fieldOptions.forEach(registerOption);
+
+                const globalFields = Array.isArray(this.globalCustomFields) ? this.globalCustomFields : [];
+
+                globalFields.forEach((field, index) => {
+                    if (!field || !field.name) {
+                        return;
+                    }
+
+                    const value = String(field.id ?? (index + 1));
+                    const label = String(field.label || field.name).trim();
+
+                    if (!label) {
+                        return;
+                    }
+
+                    if (!merged.has(value)) {
+                        merged.set(value, {
+                            value,
+                            label,
+                            kind: 'global_custom',
+                            name: field.name,
+                            needles: [label, field.name].filter(Boolean),
+                        });
+                    }
+                });
+
+                if (merged.size > 0) {
+                    return [
+                        { value: '', label: window.__i18n.import_map_select || 'Seçin', needles: [], kind: 'core' },
+                        ...Array.from(merged.values()),
+                    ];
+                }
+
+                return legacyFields;
+            },
             resolveImportFieldSelection(header, backendMapped) {
                 const labelMatch = this.guessImportFieldFromHeader(header);
 
@@ -4314,15 +4372,7 @@ $i18nScript = json_encode([
                     const data = result?.data ?? {};
                     const fieldOptions = Array.isArray(data.field_options) ? data.field_options : [];
                     const legacyFields = Array.isArray(data.available_fields) ? data.available_fields : [];
-
-                    if (fieldOptions.length > 0) {
-                        this.importFieldOptions = [
-                            { value: '', label: window.__i18n.import_map_select || 'Seçin', needles: [] },
-                            ...fieldOptions,
-                        ];
-                    } else {
-                        this.importFieldOptions = legacyFields;
-                    }
+                    this.importFieldOptions = this.buildImportFieldOptionsFromPreview(fieldOptions, legacyFields);
 
                     this.importMappingColumns = (Array.isArray(data.columns) ? data.columns : []).map((column) => ({
                         index: column.index,
@@ -5201,13 +5251,26 @@ $i18nScript = json_encode([
                 field.name = this.generateCustomFieldCode(field.label);
             },
             prepareCustomFieldsForSave() {
+                let nextId = 1;
+
+                this.settingsForm.custom_fields.forEach((field) => {
+                    if (field?.id && Number.isFinite(Number(field.id))) {
+                        nextId = Math.max(nextId, Number(field.id) + 1);
+                    }
+                });
+
                 return this.settingsForm.custom_fields
                     .filter((field) => String(field?.label ?? '').trim() !== '')
-                    .map((field) => ({
-                        name: this.generateCustomFieldCode(field.label),
-                        label: String(field.label).trim(),
-                        type: field.type || 'text',
-                    }));
+                    .map((field) => {
+                        const id = field?.id && Number.isFinite(Number(field.id)) ? Number(field.id) : nextId++;
+
+                        return {
+                            id,
+                            name: this.generateCustomFieldCode(field.label),
+                            label: String(field.label).trim(),
+                            type: field.type || 'text',
+                        };
+                    });
             },
             async fetchCategories() {
                 if (!this.canAccessSettings) {

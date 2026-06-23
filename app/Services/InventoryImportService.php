@@ -124,6 +124,8 @@ class InventoryImportService
 
     private const CUSTOM_FIELD_VALUE_PREFIX = 'custom_';
 
+    private const GLOBAL_CUSTOM_FIELD_KIND = 'global_custom';
+
     /**
      * Case-insensitive smart aliases (space-normalized) for GLPI and legacy exports.
      *
@@ -172,6 +174,9 @@ class InventoryImportService
 
     /** @var array<string, array{key: string, label: string, needles: list<string>}>|null */
     private ?array $mappingFieldRegistryCache = null;
+
+    /** @var list<array{id: int, name: string, label: string, type: string}>|null */
+    private ?array $globalCustomFieldsCache = null;
 
     public function __construct(
         private readonly Asset $assetModel,
@@ -297,6 +302,8 @@ class InventoryImportService
                 'value' => $entry['key'],
                 'label' => $entry['label'],
                 'needles' => $entry['needles'],
+                'kind' => $entry['kind'] ?? 'core',
+                'name' => $entry['name'] ?? null,
             ];
         }
 
@@ -772,14 +779,31 @@ class InventoryImportService
             : [];
 
         foreach ($values as $field => $rawValue) {
-            if (!is_string($field) || !str_starts_with($field, self::CUSTOM_FIELD_VALUE_PREFIX)) {
+            if (!is_string($field)) {
+                continue;
+            }
+
+            $customValue = trim($rawValue);
+
+            if ($customValue === '') {
+                continue;
+            }
+
+            $globalField = $this->getGlobalCustomFieldById($field);
+
+            if ($globalField !== null) {
+                $properties[$globalField['name']] = $customValue;
+
+                continue;
+            }
+
+            if (!str_starts_with($field, self::CUSTOM_FIELD_VALUE_PREFIX)) {
                 continue;
             }
 
             $customKey = substr($field, strlen(self::CUSTOM_FIELD_VALUE_PREFIX));
-            $customValue = trim($rawValue);
 
-            if ($customKey === '' || $customValue === '') {
+            if ($customKey === '') {
                 continue;
             }
 
@@ -942,6 +966,11 @@ class InventoryImportService
 
     private function resolveImportField(string $rawHeader): ?string
     {
+        return $this->mapLegacyFieldKeyToRegistryKey($this->resolveRawImportField($rawHeader));
+    }
+
+    private function resolveRawImportField(string $rawHeader): ?string
+    {
         $registry = $this->getMappingFieldRegistry();
         $labelMatch = $this->matchImportFieldByVisibleLabel($rawHeader, $registry);
 
@@ -1088,7 +1117,7 @@ class InventoryImportService
     }
 
     /**
-     * @return array<string, array{key: string, label: string, needles: list<string>}>
+     * @return array<string, array{key: string, label: string, needles: list<string>, kind?: string, name?: string}>
      */
     public function buildMappingFieldRegistry(): array
     {
@@ -1097,12 +1126,39 @@ class InventoryImportService
                 'key' => '',
                 'label' => __('import_map_select'),
                 'needles' => [],
+                'kind' => 'core',
             ],
         ];
+
+        $globalFieldNames = [];
+
+        foreach ($this->collectGlobalCustomFields() as $field) {
+            $fieldKey = (string) $field['id'];
+            $globalFieldNames[$field['name']] = true;
+
+            $registry[$fieldKey] = [
+                'key' => $fieldKey,
+                'label' => $field['label'],
+                'name' => $field['name'],
+                'kind' => self::GLOBAL_CUSTOM_FIELD_KIND,
+                'needles' => $this->buildNeedlesForCustomFieldDefinition([
+                    'name' => $field['name'],
+                    'label' => $field['label'],
+                ]),
+            ];
+        }
 
         foreach (self::MAPPING_FIELD_KEYS as $fieldKey) {
             if ($fieldKey === '') {
                 continue;
+            }
+
+            if (str_starts_with($fieldKey, self::CUSTOM_FIELD_VALUE_PREFIX)) {
+                $slug = substr($fieldKey, strlen(self::CUSTOM_FIELD_VALUE_PREFIX));
+
+                if (isset($globalFieldNames[$slug])) {
+                    continue;
+                }
             }
 
             $needles = [];
@@ -1127,25 +1183,23 @@ class InventoryImportService
             $registry[$fieldKey] = [
                 'key' => $fieldKey,
                 'label' => $this->mappingLabelForKey($fieldKey),
+                'kind' => str_starts_with($fieldKey, self::CUSTOM_FIELD_VALUE_PREFIX) ? 'legacy_custom' : 'core',
                 'needles' => array_values(array_unique($needles)),
             ];
         }
 
-        foreach ($this->collectRegisteredCustomFieldDefinitions() as $definition) {
+        foreach ($this->collectCategoryCustomFieldDefinitions() as $definition) {
             $fieldKey = self::CUSTOM_FIELD_VALUE_PREFIX . $definition['name'];
 
-            if (isset($registry[$fieldKey])) {
-                $registry[$fieldKey]['needles'] = array_values(array_unique(array_merge(
-                    $registry[$fieldKey]['needles'],
-                    $this->buildNeedlesForCustomFieldDefinition($definition)
-                )));
-
+            if (isset($registry[$fieldKey]) || isset($globalFieldNames[$definition['name']])) {
                 continue;
             }
 
             $registry[$fieldKey] = [
                 'key' => $fieldKey,
                 'label' => $definition['label'],
+                'name' => $definition['name'],
+                'kind' => 'category_custom',
                 'needles' => $this->buildNeedlesForCustomFieldDefinition($definition),
             ];
         }
@@ -1154,31 +1208,60 @@ class InventoryImportService
     }
 
     /**
-     * @return list<array{name: string, label: string}>
+     * @return list<array{id: int, name: string, label: string, type: string}>
      */
-    private function collectRegisteredCustomFieldDefinitions(): array
+    private function collectGlobalCustomFields(): array
     {
-        $definitions = [];
-        $seen = [];
-        $bundle = $this->settingModel->getAdminBundle();
-        $globalFields = is_array($bundle['custom_fields'] ?? null) ? $bundle['custom_fields'] : [];
+        if ($this->globalCustomFieldsCache !== null) {
+            return $this->globalCustomFieldsCache;
+        }
 
-        foreach ($globalFields as $field) {
+        $bundle = $this->settingModel->getAdminBundle();
+        $rawFields = is_array($bundle['custom_fields'] ?? null) ? $bundle['custom_fields'] : [];
+        $fields = [];
+        $seenNames = [];
+        $nextId = 1;
+
+        foreach ($rawFields as $index => $field) {
             if (!is_array($field)) {
                 continue;
             }
 
             $name = trim((string) ($field['name'] ?? ''));
+            $label = trim((string) ($field['label'] ?? $name));
 
-            if ($name === '' || isset($seen[$name])) {
+            if ($name === '' || $label === '' || isset($seenNames[$name])) {
                 continue;
             }
 
-            $seen[$name] = true;
-            $definitions[] = [
+            $seenNames[$name] = true;
+            $id = isset($field['id']) && is_numeric($field['id']) ? (int) $field['id'] : $nextId;
+            $nextId = max($nextId, $id + 1);
+
+            $fields[] = [
+                'id' => $id,
                 'name' => $name,
-                'label' => trim((string) ($field['label'] ?? $name)),
+                'label' => $label,
+                'type' => trim((string) ($field['type'] ?? 'text')),
             ];
+        }
+
+        $this->globalCustomFieldsCache = $fields;
+
+        return $fields;
+    }
+
+    /**
+     * @return list<array{name: string, label: string}>
+     */
+    private function collectCategoryCustomFieldDefinitions(): array
+    {
+        $definitions = [];
+        $seen = [];
+        $globalNames = [];
+
+        foreach ($this->collectGlobalCustomFields() as $field) {
+            $globalNames[$field['name']] = true;
         }
 
         foreach ($this->categoryModel->findAll() as $category) {
@@ -1191,7 +1274,7 @@ class InventoryImportService
 
                 $name = trim((string) ($field['name'] ?? ''));
 
-                if ($name === '' || isset($seen[$name])) {
+                if ($name === '' || isset($seen[$name]) || isset($globalNames[$name])) {
                     continue;
                 }
 
@@ -1204,6 +1287,51 @@ class InventoryImportService
         }
 
         return $definitions;
+    }
+
+    /**
+     * @return array{id: int, name: string, label: string, type: string}|null
+     */
+    private function getGlobalCustomFieldById(string $fieldKey): ?array
+    {
+        foreach ($this->collectGlobalCustomFields() as $field) {
+            if ((string) $field['id'] === $fieldKey) {
+                return $field;
+            }
+        }
+
+        return null;
+    }
+
+    private function resolveGlobalCustomFieldIdByName(string $name): ?string
+    {
+        foreach ($this->collectGlobalCustomFields() as $field) {
+            if ($field['name'] === $name) {
+                return (string) $field['id'];
+            }
+        }
+
+        return null;
+    }
+
+    private function mapLegacyFieldKeyToRegistryKey(?string $fieldKey): ?string
+    {
+        if ($fieldKey === null || $fieldKey === '') {
+            return $fieldKey;
+        }
+
+        if ($this->getGlobalCustomFieldById($fieldKey) !== null) {
+            return $fieldKey;
+        }
+
+        if (str_starts_with($fieldKey, self::CUSTOM_FIELD_VALUE_PREFIX)) {
+            $name = substr($fieldKey, strlen(self::CUSTOM_FIELD_VALUE_PREFIX));
+            $globalId = $this->resolveGlobalCustomFieldIdByName($name);
+
+            return $globalId ?? $fieldKey;
+        }
+
+        return $fieldKey;
     }
 
     /**

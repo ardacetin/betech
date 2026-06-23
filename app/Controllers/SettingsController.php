@@ -367,7 +367,7 @@ class SettingsController
     /**
      * @param mixed $fields
      *
-     * @return list<array{name: string, label: string, type: string}>
+     * @return list<array{id: int, name: string, label: string, type: string}>
      */
     private function normalizeCustomFields(mixed $fields): array
     {
@@ -377,6 +377,13 @@ class SettingsController
 
         $normalized = [];
         $usedNames = [];
+        $nextId = 1;
+
+        foreach ($fields as $field) {
+            if (is_array($field) && isset($field['id']) && is_numeric($field['id'])) {
+                $nextId = max($nextId, ((int) $field['id']) + 1);
+            }
+        }
 
         foreach ($fields as $field) {
             if (!is_array($field)) {
@@ -406,7 +413,11 @@ class SettingsController
 
             $usedNames[] = $name;
 
+            $id = isset($field['id']) && is_numeric($field['id']) ? (int) $field['id'] : $nextId;
+            $nextId = max($nextId, $id + 1);
+
             $normalized[] = [
+                'id' => $id,
                 'name' => $name,
                 'label' => $label,
                 'type' => $type,
