@@ -617,7 +617,7 @@ class Asset
     }
 
     /**
-     * Create or update an asset matched by serial_number and/or asset_tag (GLPI import upsert).
+     * Create or update an asset matched exclusively by asset_tag (Demirbaş No) during inventory import.
      *
      * @param array<string, mixed>|null $existingAsset
      * @param array<string, mixed> $coreFields

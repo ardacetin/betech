@@ -16,6 +16,8 @@ use Throwable;
 
 class InventoryImportController
 {
+    private const TEMPLATE_FILENAME = 'standart_envanter_import_template.csv';
+
     public function __construct(
         private readonly InventoryImportService $inventoryImportService,
         private readonly AssetHistory $assetHistoryModel,
@@ -34,7 +36,9 @@ class InventoryImportController
 
             return $response
                 ->withHeader('Content-Type', 'text/csv; charset=utf-8')
-                ->withHeader('Content-Disposition', 'attachment; filename="standart_envanter_import_template.csv"');
+                ->withHeader('Content-Disposition', 'attachment; filename="' . self::TEMPLATE_FILENAME . '"')
+                ->withHeader('Cache-Control', 'no-store, no-cache, must-revalidate')
+                ->withHeader('Pragma', 'no-cache');
         } catch (Throwable $exception) {
             return $this->errorResponse($response, 500, __('import_template_error'), $exception);
         }
@@ -121,63 +125,6 @@ class InventoryImportController
         } catch (Throwable $exception) {
             return $this->errorResponse($response, 500, __('inventory_import_failed'), $exception);
         }
-    }
-
-    public function preview(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
-    {
-        try {
-            $file = $this->resolveUploadedFile($request);
-
-            if ($file === null) {
-                return $this->jsonResponse($response, 400, [
-                    'status' => 'error',
-                    'message' => __('import_file_missing'),
-                ]);
-            }
-
-            if ($file->getError() !== UPLOAD_ERR_OK) {
-                return $this->jsonResponse($response, 400, [
-                    'status' => 'error',
-                    'message' => __('import_file_upload_error'),
-                ]);
-            }
-
-            $originalFilename = $file->getClientFilename() ?? 'import.csv';
-            $contents = (string) $file->getStream()->getContents();
-            $preview = $this->inventoryImportService->buildImportMappingPreview($contents, $originalFilename);
-
-            return $this->jsonResponse($response, 200, [
-                'status' => 'success',
-                'data' => $preview,
-            ]);
-        } catch (Throwable $exception) {
-            return $this->errorResponse($response, 422, __('import_csv_invalid_headers'), $exception);
-        }
-    }
-
-    /**
-     * @return array<int, string>|null
-     */
-    private function resolveColumnMapping(ServerRequestInterface $request): ?array
-    {
-        $parsedBody = $request->getParsedBody();
-        $rawMapping = null;
-
-        if (is_array($parsedBody)) {
-            $rawMapping = $parsedBody['column_mapping'] ?? null;
-        }
-
-        if ($rawMapping === null || $rawMapping === '') {
-            return null;
-        }
-
-        if (is_string($rawMapping)) {
-            $decoded = json_decode($rawMapping, true);
-
-            return is_array($decoded) ? $decoded : null;
-        }
-
-        return is_array($rawMapping) ? $rawMapping : null;
     }
 
     private function resolveUploadedFile(ServerRequestInterface $request): ?UploadedFileInterface

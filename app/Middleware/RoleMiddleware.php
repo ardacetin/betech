@@ -454,11 +454,6 @@ class RoleMiddleware implements MiddlewareInterface
             ],
             [
                 'methods' => ['POST'],
-                'pattern' => '/api/inventory/import/preview',
-                'roles' => $operational,
-            ],
-            [
-                'methods' => ['POST'],
                 'pattern' => '/api/inventory/import',
                 'roles' => $operational,
             ],
