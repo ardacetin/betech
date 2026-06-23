@@ -52,6 +52,19 @@ class InventoryImportService
         return $this->columnSchemaService->buildTemplateCsvContent();
     }
 
+    public static function buildResultMessage(int $imported, int $updated, int $failed): string
+    {
+        if ($failed > 0) {
+            return sprintf(__('inventory_import_partial_success'), $imported, $updated, $failed);
+        }
+
+        if ($imported === 0 && $updated === 0) {
+            return __('inventory_import_no_changes');
+        }
+
+        return sprintf(__('inventory_import_completion_report'), $imported, $updated);
+    }
+
     /**
      * @return array{
      *     imported: int,

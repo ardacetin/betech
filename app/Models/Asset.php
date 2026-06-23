@@ -320,10 +320,91 @@ class Asset
             return false;
         }
 
-        $this->db()->delete('asset_histories', ['asset_id' => $assetId]);
-        $this->db()->delete('assets', ['id' => $assetId]);
+        $pdo = $this->db()->pdo;
+
+        if ($pdo->inTransaction()) {
+            return $this->executeDeleteCascade($assetId);
+        }
+
+        $pdo->beginTransaction();
+
+        try {
+            $deleted = $this->executeDeleteCascade($assetId);
+            $pdo->commit();
+
+            return $deleted;
+        } catch (\Throwable $exception) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+
+            throw $exception;
+        }
+    }
+
+    private function executeDeleteCascade(int $assetId): bool
+    {
+        if (!$this->db()->has('assets', ['id' => $assetId])) {
+            return false;
+        }
+
+        $timestamp = date('Y-m-d H:i:s');
+
+        $this->db()->update('ip_addresses', [
+            'asset_id' => null,
+            'updated_at' => $timestamp,
+        ], [
+            'asset_id' => $assetId,
+        ]);
+
+        if ($this->tableExists('license_assignments')) {
+            $this->db()->update('license_assignments', [
+                'asset_id' => null,
+            ], [
+                'asset_id' => $assetId,
+            ]);
+        }
+
+        if ($this->tableExists('tickets')) {
+            $this->db()->update('tickets', [
+                'asset_id' => null,
+            ], [
+                'asset_id' => $assetId,
+            ]);
+        }
+
+        if ($this->tableExists('maintenance_logs')) {
+            $this->db()->delete('maintenance_logs', [
+                'asset_id' => $assetId,
+            ]);
+        }
+
+        $this->db()->delete('asset_histories', [
+            'asset_id' => $assetId,
+        ]);
+
+        $this->db()->delete('assets', [
+            'id' => $assetId,
+        ]);
 
         return true;
+    }
+
+    private function tableExists(string $tableName): bool
+    {
+        if (!preg_match('/^[a-z0-9_]+$/', $tableName)) {
+            return false;
+        }
+
+        $statement = $this->db()->query(
+            "SHOW TABLES LIKE '" . str_replace("'", "''", $tableName) . "'"
+        );
+
+        if ($statement === false) {
+            return false;
+        }
+
+        return $statement->fetch() !== false;
     }
 
     /**

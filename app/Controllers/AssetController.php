@@ -281,10 +281,17 @@ class AssetController
             ]);
         }
 
-        if (!$this->assetModel->deletePermanently($assetId)) {
-            return $this->jsonResponse($response, 404, [
+        try {
+            if (!$this->assetModel->deletePermanently($assetId)) {
+                return $this->jsonResponse($response, 404, [
+                    'status' => 'error',
+                    'message' => 'Asset not found.',
+                ]);
+            }
+        } catch (\Throwable $exception) {
+            return $this->jsonResponse($response, 422, [
                 'status' => 'error',
-                'message' => 'Asset not found.',
+                'message' => 'Asset could not be deleted because related records blocked the operation.',
             ]);
         }
 
@@ -815,16 +822,18 @@ class AssetController
             ]);
         }
 
-        $message = $failed > 0
-            ? sprintf(__('inventory_import_partial_success'), $imported, $updated, $failed)
-            : ($updated > 0
-                ? sprintf(__('inventory_import_mixed_success'), $imported, $updated)
-                : sprintf(__('import_success'), $imported));
+        $message = InventoryImportService::buildResultMessage($imported, $updated, $failed);
 
         return $this->jsonResponse($response, 200, [
             'status' => 'success',
             'message' => $message,
-            'data' => $result,
+            'data' => array_merge($result, [
+                'report' => [
+                    'created' => $imported,
+                    'updated' => $updated,
+                    'failed' => $failed,
+                ],
+            ]),
         ]);
     }
 

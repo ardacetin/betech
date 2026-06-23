@@ -422,6 +422,7 @@ $i18nScript = json_encode([
     'ipam_bulk_edit_subtitle' => __('ipam_bulk_edit_subtitle'),
     'ipam_bulk_edit_selected_count' => __('ipam_bulk_edit_selected_count'),
     'ipam_bulk_edit_select_minimum' => __('ipam_bulk_edit_select_minimum'),
+    'ipam_bulk_edit_confirm' => __('ipam_bulk_edit_confirm'),
     'ipam_bulk_edit_no_fields' => __('ipam_bulk_edit_no_fields'),
     'ipam_bulk_update_success' => __('ipam_bulk_update_success'),
     'audit_entity_ip_address' => __('audit_entity_ip_address'),
@@ -2310,6 +2311,7 @@ $i18nScript = json_encode([
             },
             knowledgeBaseFormError: '',
             publishedKnowledgeBase: [],
+            publishedKnowledgeBaseSearchQuery: '',
             publishedKnowledgeBaseLoading: false,
             publishedKnowledgeBaseError: '',
             tickets: [],
@@ -5583,6 +5585,14 @@ $i18nScript = json_encode([
                     return;
                 }
 
+                const confirmTemplate = window.__i18n.ipam_bulk_edit_confirm
+                    || '%d adet seçili IP adresi toplu olarak güncellenecektir. Devam etmek istiyor musunuz?';
+                const confirmMessage = confirmTemplate.replace('%d', String(this.selectedIpAddressCount || 0));
+
+                if (!window.confirm(confirmMessage)) {
+                    return;
+                }
+
                 this.ipBulkEditFormError = '';
                 this.ipBulkEditForm = {
                     applyStatus: true,
@@ -6206,6 +6216,7 @@ $i18nScript = json_encode([
                     }
 
                     this.publishedKnowledgeBase = Array.isArray(result.data) ? result.data : [];
+                    this.publishedKnowledgeBaseSearchQuery = '';
                 } catch (error) {
                     this.publishedKnowledgeBaseError = window.__i18n.portal_knowledge_base_error;
                     this.publishedKnowledgeBase = [];
@@ -6225,6 +6236,21 @@ $i18nScript = json_encode([
                 }
 
                 return date.toLocaleString();
+            },
+            matchesPublishedKnowledgeBaseArticle(article) {
+                const query = String(this.publishedKnowledgeBaseSearchQuery || '').trim().toLocaleLowerCase('tr-TR');
+
+                if (query === '') {
+                    return true;
+                }
+
+                const title = String(article?.title || '').toLocaleLowerCase('tr-TR');
+                const content = String(article?.content || '').toLocaleLowerCase('tr-TR');
+
+                return title.includes(query) || content.includes(query);
+            },
+            filteredPublishedKnowledgeBase() {
+                return (this.publishedKnowledgeBase || []).filter((article) => this.matchesPublishedKnowledgeBaseArticle(article));
             },
             openKnowledgeBaseModal(article = null) {
                 this.knowledgeBaseForm = {

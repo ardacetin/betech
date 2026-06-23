@@ -108,19 +108,23 @@ class InventoryImportController
             }
 
             if ($failed > 0) {
-                $message = sprintf(__('inventory_import_partial_success'), $imported, $updated, $failed);
-            } elseif ($updated > 0 && $imported > 0) {
-                $message = sprintf(__('inventory_import_mixed_success'), $imported, $updated);
-            } elseif ($updated > 0) {
-                $message = sprintf(__('inventory_import_update_success'), $updated);
+                $message = InventoryImportService::buildResultMessage($imported, $updated, $failed);
+            } elseif ($processed > 0) {
+                $message = InventoryImportService::buildResultMessage($imported, $updated, 0);
             } else {
-                $message = sprintf(__('import_success'), $imported);
+                $message = __('inventory_import_no_changes');
             }
 
             return $this->jsonResponse($response, 200, [
                 'status' => 'success',
                 'message' => $message,
-                'data' => $result,
+                'data' => array_merge($result, [
+                    'report' => [
+                        'created' => $imported,
+                        'updated' => $updated,
+                        'failed' => $failed,
+                    ],
+                ]),
             ]);
         } catch (Throwable $exception) {
             return $this->errorResponse($response, 500, __('inventory_import_failed'), $exception);
