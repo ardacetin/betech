@@ -34,7 +34,7 @@ class InventoryImportController
 
             return $response
                 ->withHeader('Content-Type', 'text/csv; charset=utf-8')
-                ->withHeader('Content-Disposition', 'attachment; filename="glpi_asset_import_template.csv"');
+                ->withHeader('Content-Disposition', 'attachment; filename="standart_envanter_import_template.csv"');
         } catch (Throwable $exception) {
             return $this->errorResponse($response, 500, __('import_template_error'), $exception);
         }

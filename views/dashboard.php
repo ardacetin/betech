@@ -932,13 +932,13 @@ $i18nScript = json_encode([
                 <a
                     href="/api/inventory/import/template"
                     class="inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-2.5 text-sm font-medium text-zinc-700 transition hover:bg-zinc-100"
-                    download="glpi_asset_import_template.csv"
+                    download="standart_envanter_import_template.csv"
                 >
                     <?= htmlspecialchars(__('import_download_template'), ENT_QUOTES, 'UTF-8') ?>
                 </a>
 
                 <p class="mt-4 rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-xs leading-relaxed text-zinc-600">
-                    <?= htmlspecialchars(__('inventory_import_glpi_schema_hint'), ENT_QUOTES, 'UTF-8') ?>
+                    <?= htmlspecialchars(__('inventory_import_master_schema_hint'), ENT_QUOTES, 'UTF-8') ?>
                 </p>
 
                 <label
@@ -951,7 +951,7 @@ $i18nScript = json_encode([
                     <svg class="h-11 w-11 text-zinc-300" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m6.75 12l-3-3m0 0l-3 3m3-3v6"></path>
                     </svg>
-                    <span class="mt-4 text-sm font-semibold text-zinc-900"><?= htmlspecialchars(__('inventory_import_glpi_standard_file'), ENT_QUOTES, 'UTF-8') ?></span>
+                    <span class="mt-4 text-sm font-semibold text-zinc-900"><?= htmlspecialchars(__('inventory_import_master_standard_file'), ENT_QUOTES, 'UTF-8') ?></span>
                     <span class="mt-1 text-xs text-zinc-500"><?= htmlspecialchars(__('inventory_import_select_file'), ENT_QUOTES, 'UTF-8') ?></span>
                     <span x-show="importFileName" x-cloak class="mt-3 text-xs font-medium text-emerald-700" x-text="importFileName"></span>
                     <input

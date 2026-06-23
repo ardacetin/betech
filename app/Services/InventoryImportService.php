@@ -126,26 +126,23 @@ class InventoryImportService
 
     private const GLOBAL_CUSTOM_FIELD_KIND = 'global_custom';
 
-    /** Official immutable GLPI corporate export layout (13 columns, index 0-12). */
-    private const GLPI_SCHEMA_COLUMN_COUNT = 13;
+    /** Permanent corporate inventory CSV layout (10 columns, index 0-9). */
+    private const MASTER_SCHEMA_COLUMN_COUNT = 10;
 
     /**
      * @var array<int, string>
      */
-    private const GLPI_SCHEMA_FIELD_BY_INDEX = [
-        0 => 'device_name',
-        1 => 'custom_birim',
-        2 => 'import_meta_son_guncelleme',
-        3 => 'custom_grup',
-        4 => 'custom_konum',
-        5 => 'brand',
-        6 => 'device_model',
-        7 => 'category',
-        8 => 'serial_number',
-        9 => 'asset_tag',
-        10 => '10',
-        11 => '11',
-        12 => '12',
+    private const MASTER_SCHEMA_FIELD_BY_INDEX = [
+        0 => 'asset_tag',
+        1 => 'device_name',
+        2 => 'device_model',
+        3 => 'brand',
+        4 => 'serial_number',
+        5 => 'category',
+        6 => 'status',
+        7 => 'location',
+        8 => 'building',
+        9 => 'personnel',
     ];
 
     /**
@@ -212,34 +209,28 @@ class InventoryImportService
     public static function templateCsvContent(): string
     {
         $headers = [
-            'Ad',
-            'Birim',
-            'Son güncelleme',
-            'Grup',
-            'Konum',
-            'Üretici',
+            'Demirbaş No',
+            'Cihaz Adı',
             'Model',
+            'Marka',
+            'Seri No',
             'Tür',
-            'Seri numarası',
-            'Stok numarası',
-            'Uygulama ekleri - Bilgisayar Ek Alanlar - Mac Adresi 1',
-            'Uygulama ekleri - Bilgisayar Ek Alanlar - Mac Adresi 2',
-            'Uygulama ekleri - Bilgisayar Ek Alanlar - Eski Kullanıcı',
+            'Durum',
+            'Lokasyon',
+            'Bina',
+            'Zimmetli Kişi',
         ];
         $example = [
+            'ENV-001',
             'BT Departman Laptop',
-            'BT Birimi',
-            '2026-03-15 10:30:00',
-            'IT Envanter',
-            'Merkez Kampüs / IT Depo',
-            'Dell',
             'Latitude 5540',
+            'Dell',
+            'SN-001',
             'Bilgisayar',
-            'SN-GLPI-001',
-            'ENV-GLPI-001',
-            '00:11:22:33:44:55',
-            '00:11:22:33:44:56',
-            'ahmet.yilmaz@sirket.com',
+            'Hazır',
+            'IT Depo',
+            'Merkez Kampüs',
+            'ayse.yilmaz@sirket.com',
         ];
 
         return self::buildCsvLine($headers) . self::buildCsvLine($example);
@@ -395,7 +386,7 @@ class InventoryImportService
             }
 
             if (!$headerSkipped) {
-                if (count($columns) < self::GLPI_SCHEMA_COLUMN_COUNT) {
+                if (count($columns) < self::MASTER_SCHEMA_COLUMN_COUNT) {
                     throw new RuntimeException(__('import_csv_invalid_headers'));
                 }
 
@@ -406,7 +397,7 @@ class InventoryImportService
 
             $this->processRow(
                 $lineNumber,
-                $this->mapGlpiRowValuesByIndex($columns),
+                $this->mapMasterSchemaRowByIndex($columns),
                 $state
             );
         }
@@ -486,7 +477,7 @@ class InventoryImportService
             $columns = [];
 
             foreach ($row->getCellIterator() as $cell) {
-                $columns[] = $this->parseGlpiCellValue((string) $cell->getValue());
+                $columns[] = $this->parseMasterCellValue((string) $cell->getValue());
             }
 
             if ($this->isEmptyRow($columns)) {
@@ -494,7 +485,7 @@ class InventoryImportService
             }
 
             if (!$headerSkipped) {
-                if (count($columns) < self::GLPI_SCHEMA_COLUMN_COUNT) {
+                if (count($columns) < self::MASTER_SCHEMA_COLUMN_COUNT) {
                     throw new RuntimeException(__('import_csv_invalid_headers'));
                 }
 
@@ -505,7 +496,7 @@ class InventoryImportService
 
             $this->processRow(
                 $lineNumber,
-                $this->mapGlpiRowValuesByIndex($columns),
+                $this->mapMasterSchemaRowByIndex($columns),
                 $state
             );
         }
@@ -522,20 +513,15 @@ class InventoryImportService
      *
      * @return array<string, string>
      */
-    private function mapGlpiRowValuesByIndex(array $columns): array
+    private function mapMasterSchemaRowByIndex(array $columns): array
     {
         $values = [];
 
-        for ($index = 0; $index < self::GLPI_SCHEMA_COLUMN_COUNT; ++$index) {
-            $rawValue = $this->parseGlpiCellValue((string) ($columns[$index] ?? ''));
+        for ($index = 0; $index < self::MASTER_SCHEMA_COLUMN_COUNT; ++$index) {
+            $rawValue = $this->parseMasterCellValue((string) ($columns[$index] ?? ''));
+            $fieldKey = self::MASTER_SCHEMA_FIELD_BY_INDEX[$index] ?? null;
 
-            if ($rawValue === '') {
-                continue;
-            }
-
-            $fieldKey = $this->resolveGlpiSchemaFieldKey($index);
-
-            if ($fieldKey === null || $fieldKey === '') {
+            if ($fieldKey === null || $rawValue === '') {
                 continue;
             }
 
@@ -545,50 +531,7 @@ class InventoryImportService
         return $values;
     }
 
-    private function resolveGlpiSchemaFieldKey(int $index): ?string
-    {
-        $configured = self::GLPI_SCHEMA_FIELD_BY_INDEX[$index] ?? null;
-
-        if ($configured === null) {
-            return null;
-        }
-
-        if (in_array($index, [10, 11, 12], true)) {
-            return $this->resolveGlpiGlobalFieldKey($index);
-        }
-
-        if ($configured === 'import_meta_son_guncelleme') {
-            return $configured;
-        }
-
-        return $this->mapLegacyFieldKeyToRegistryKey($configured);
-    }
-
-    private function resolveGlpiGlobalFieldKey(int $index): string
-    {
-        $fallbackNames = [
-            10 => 'mac_adresi_1',
-            11 => 'mac_adresi_2',
-            12 => 'eski_kullanici',
-        ];
-
-        $targetId = (string) $index;
-
-        if ($this->getGlobalCustomFieldById($targetId) !== null) {
-            return $targetId;
-        }
-
-        $name = $fallbackNames[$index];
-        $globalId = $this->resolveGlobalCustomFieldIdByName($name);
-
-        if ($globalId !== null) {
-            return $globalId;
-        }
-
-        return self::CUSTOM_FIELD_VALUE_PREFIX . $name;
-    }
-
-    private function parseGlpiCellValue(string $value): string
+    private function parseMasterCellValue(string $value): string
     {
         return $this->sanitizeCellValue($value);
     }
@@ -666,22 +609,19 @@ class InventoryImportService
         $serialNumber = trim($values['serial_number'] ?? '');
         $assetTag = trim($values['asset_tag'] ?? '');
         $categoryName = trim($values['category'] ?? '');
-        $name = $deviceName !== '' ? $deviceName : $deviceModel;
+        $name = $deviceName;
 
-        if ($serialNumber === '' && $assetTag === '' && $name === '') {
-            $state['skipped']++;
-
-            return;
-        }
-
-        try {
-            $existingAsset = $this->resolveExistingAsset($serialNumber, $assetTag);
-        } catch (RuntimeException $exception) {
+        if ($assetTag === '') {
             $state['failed']++;
-            $state['errors'][] = ['row' => $rowNumber, 'message' => $exception->getMessage()];
+            $state['errors'][] = [
+                'row' => $rowNumber,
+                'message' => __('import_error_asset_tag_required'),
+            ];
 
             return;
         }
+
+        $existingAsset = $this->assetModel->findByAssetTag($assetTag);
 
         if ($name === '' && $existingAsset !== null) {
             $name = trim((string) ($existingAsset['name'] ?? ''));
@@ -741,14 +681,10 @@ class InventoryImportService
             $state['failed']++;
             $state['errors'][] = [
                 'row' => $rowNumber,
-                'message' => sprintf(__('import_error_duplicate_tag'), $assetTag),
+                'message' => sprintf(__('import_error_duplicate_tag_in_file'), $assetTag),
             ];
 
             return;
-        }
-
-        if ($existingAsset === null && $assetTag === '') {
-            $assetTag = $this->assetModel->generateNextAssetTag();
         }
 
         $status = $this->normalizeStatus($values['status'] ?? '');
