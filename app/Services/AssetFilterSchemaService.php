@@ -140,7 +140,11 @@ class AssetFilterSchemaService
         $filters = [];
 
         foreach ($rawFilters as $name => $value) {
-            if (!is_string($name)) {
+            if (!is_string($name) || is_object($value) || is_array($value)) {
+                continue;
+            }
+
+            if (!is_scalar($value) && $value !== null) {
                 continue;
             }
 

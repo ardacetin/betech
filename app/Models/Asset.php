@@ -142,7 +142,9 @@ class Asset
      */
     public function getDistinctPropertyValues(string $propertyKey): array
     {
-        if (!preg_match('/^[A-Za-z0-9_]+$/', $propertyKey)) {
+        $propertyKey = $this->sanitizePropertyFilterKey($propertyKey);
+
+        if ($propertyKey === '') {
             return [];
         }
 
@@ -199,13 +201,17 @@ class Asset
         $conditions = [];
 
         foreach ($filters as $name => $value) {
-            $trimmedValue = trim($value);
+            if (is_object($value) || is_array($value)) {
+                continue;
+            }
+
+            $trimmedValue = trim((string) $value);
 
             if ($trimmedValue === '') {
                 continue;
             }
 
-            $name = $this->normalizeDashboardFilterName($name);
+            $name = $this->normalizeDashboardFilterName((string) $name);
             $definition = $definitionMap[$name] ?? null;
 
             if ($definition === null) {
@@ -227,12 +233,18 @@ class Asset
                     continue;
                 }
 
-                $conditions[$column . '[~]'] = '%' . $trimmedValue . '%';
+                $conditions[$column . '[~]'] = '%' . $this->escapeLikePattern($trimmedValue) . '%';
                 continue;
             }
 
             if ($property !== '') {
-                $conditions[] = $this->buildPropertyFilterCondition($property, $trimmedValue, $match);
+                $propertyCondition = $this->buildPropertyFilterCondition($property, $trimmedValue, $match);
+
+                if ($propertyCondition !== null) {
+                    foreach ($propertyCondition as $conditionKey => $conditionValue) {
+                        $conditions[$conditionKey] = $conditionValue;
+                    }
+                }
             }
         }
 
@@ -251,25 +263,50 @@ class Asset
         };
     }
 
-    private function buildPropertyFilterCondition(string $propertyKey, string $value, string $match): mixed
+    /**
+     * @return array<string, string>|null
+     */
+    private function buildPropertyFilterCondition(string $propertyKey, string $value, string $match): ?array
     {
-        if (!preg_match('/^[A-Za-z0-9_]+$/', $propertyKey)) {
-            return Medoo::raw('1 = 0');
+        $propertyKey = $this->sanitizePropertyFilterKey($propertyKey);
+        $value = trim($value);
+
+        if ($propertyKey === '' || $value === '') {
+            return null;
         }
 
-        $jsonPath = '$.' . $propertyKey;
-        $extractExpression = "JSON_UNQUOTE(JSON_EXTRACT(<assets.properties>, '" . $jsonPath . "'))";
+        $conditionKey = 'assets.properties[~] #property_' . $propertyKey;
 
         if ($match === 'exact') {
-            return Medoo::raw($extractExpression . ' = ' . $this->quoteSqlValue($value));
+            $jsonValue = json_encode($value, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+            $needle = '"' . $propertyKey . '":' . (str_starts_with($jsonValue, '"') ? $jsonValue : ' ' . $jsonValue);
+
+            return [
+                $conditionKey => '%' . $this->escapeLikePattern($needle) . '%',
+            ];
         }
 
-        return Medoo::raw($extractExpression . ' LIKE ' . $this->quoteSqlValue('%' . $value . '%'));
+        $needle = '"' . $propertyKey . '":%';
+
+        return [
+            $conditionKey => '%' . $this->escapeLikePattern($needle) . $this->escapeLikePattern($value) . '%',
+        ];
     }
 
-    private function quoteSqlValue(string $value): string
+    private function sanitizePropertyFilterKey(string $propertyKey): string
     {
-        return "'" . str_replace("'", "''", $value) . "'";
+        $propertyKey = trim($propertyKey);
+
+        if ($propertyKey === '' || preg_match('/^[A-Za-z0-9_]+$/', $propertyKey) !== 1) {
+            return '';
+        }
+
+        return $propertyKey;
+    }
+
+    private function escapeLikePattern(string $value): string
+    {
+        return str_replace(['\\', '%', '_'], ['\\\\', '\%', '\_'], $value);
     }
 
     public function findById(int $assetId): ?array
