@@ -2,7 +2,6 @@
 
 declare(strict_types=1);
 ?>
-<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.8/dist/cdn.min.js"></script>
 <section x-show="activeView === 'knowledge_base'" x-cloak class="space-y-4">
     <div>
         <h2 class="text-lg font-semibold text-zinc-900"><?= htmlspecialchars(__('portal_knowledge_base_title'), ENT_QUOTES, 'UTF-8') ?></h2>

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Services\AssetColumnSchemaService;
 use App\Services\DatabaseService;
 use App\Services\ListPagination;
 use Medoo\Medoo;
