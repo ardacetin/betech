@@ -993,8 +993,8 @@ $i18nScript = json_encode([
                                                 x-model="column.selected_field"
                                                 class="w-full rounded-lg border border-zinc-200 bg-white px-2 py-1.5 text-xs text-zinc-700 focus:border-zinc-400 focus:outline-none"
                                             >
-                                                <template x-for="fieldKey in importFieldOptions" :key="fieldKey">
-                                                    <option :value="fieldKey" x-text="importFieldLabel(fieldKey)"></option>
+                                                <template x-for="option in importFieldOptions" :key="importFieldOptionValue(option)">
+                                                    <option :value="importFieldOptionValue(option)" x-text="importFieldLabel(importFieldOptionValue(option))"></option>
                                                 </template>
                                             </select>
                                         </td>
@@ -4075,14 +4075,136 @@ $i18nScript = json_encode([
                 this.importMappingLoading = false;
                 this.importFieldOptions = [];
             },
+            importFieldOptionValue(option) {
+                if (option && typeof option === 'object') {
+                    return option.value ?? '';
+                }
+
+                return option ?? '';
+            },
             importFieldLabel(fieldKey) {
                 if (!fieldKey) {
                     return window.__i18n.import_map_select || 'Seçin';
                 }
 
+                const options = this.importFieldOptions || [];
+
+                for (const option of options) {
+                    const value = this.importFieldOptionValue(option);
+
+                    if (value === fieldKey) {
+                        if (option && typeof option === 'object' && option.label) {
+                            return option.label;
+                        }
+
+                        break;
+                    }
+                }
+
                 const labelKey = `import_map_${fieldKey}`;
 
                 return window.__i18n[labelKey] || fieldKey;
+            },
+            normalizeImportHeaderKey(header) {
+                let key = String(header ?? '')
+                    .replace(/^\uFEFF/, '')
+                    .trim()
+                    .toLowerCase()
+                    .replace(/[\u00A0\u200B-\u200D\u2060]/g, ' ')
+                    .replace(/[\s\-–—]+/g, ' ')
+                    .replace(/\s+/g, ' ')
+                    .trim();
+
+                key = key
+                    .replace(/ı/g, 'i')
+                    .replace(/ş/g, 's')
+                    .replace(/ğ/g, 'g')
+                    .replace(/ü/g, 'u')
+                    .replace(/ö/g, 'o')
+                    .replace(/ç/g, 'c');
+
+                return key;
+            },
+            guessImportFieldFromHeader(header) {
+                const compare = this.normalizeImportHeaderKey(header);
+
+                if (!compare) {
+                    return '';
+                }
+
+                if (compare.includes('uygulama ekleri')) {
+                    if (compare.includes('mac adresi 2') || compare.includes('mac address 2')) {
+                        return 'custom_mac_adresi_2';
+                    }
+
+                    if (compare.includes('mac adresi 1') || compare.includes('mac address 1')) {
+                        return 'custom_mac_adresi_1';
+                    }
+
+                    if (compare.includes('eski kullanici') || compare.includes('eski kullanıcı') || compare.includes('former user')) {
+                        return 'custom_eski_kullanici';
+                    }
+                }
+
+                if (compare.includes('birim grup')) {
+                    return 'custom_grup';
+                }
+
+                if (compare.includes('son guncelleme') || compare.includes('son güncelleme')) {
+                    return 'custom_son_guncelleme';
+                }
+
+                if (compare.includes('grup') || compare.includes('group')) {
+                    return 'custom_grup';
+                }
+
+                if (compare.includes('birim')) {
+                    return 'custom_birim';
+                }
+
+                if (compare.includes('konum')) {
+                    return 'location';
+                }
+
+                let bestField = '';
+                let bestScore = 0;
+                const options = this.importFieldOptions || [];
+
+                for (const option of options) {
+                    const value = this.importFieldOptionValue(option);
+
+                    if (!value) {
+                        continue;
+                    }
+
+                    const needles = option && typeof option === 'object' && Array.isArray(option.needles)
+                        ? option.needles
+                        : [];
+
+                    for (const needle of needles) {
+                        const normalizedNeedle = this.normalizeImportHeaderKey(needle);
+
+                        if (!normalizedNeedle || normalizedNeedle.length < 2) {
+                            continue;
+                        }
+
+                        if (compare === normalizedNeedle || compare.includes(normalizedNeedle)) {
+                            if (normalizedNeedle.length > bestScore) {
+                                bestField = value;
+                                bestScore = normalizedNeedle.length;
+                            }
+
+                            continue;
+                        }
+
+                        if (compare.length >= 2 && normalizedNeedle.includes(compare) && compare.length > bestScore) {
+                            bestField = value;
+                            bestScore = compare.length;
+                        }
+                    }
+                }
+
+                return bestField;
             },
             buildImportColumnMapping() {
                 const mapping = {};
@@ -4125,11 +4247,22 @@ $i18nScript = json_encode([
                     }
 
                     const data = result?.data ?? {};
-                    this.importFieldOptions = Array.isArray(data.available_fields) ? data.available_fields : [];
+                    const fieldOptions = Array.isArray(data.field_options) ? data.field_options : [];
+                    const legacyFields = Array.isArray(data.available_fields) ? data.available_fields : [];
+
+                    if (fieldOptions.length > 0) {
+                        this.importFieldOptions = [
+                            { value: '', label: window.__i18n.import_map_select || 'Seçin', needles: [] },
+                            ...fieldOptions,
+                        ];
+                    } else {
+                        this.importFieldOptions = legacyFields;
+                    }
+
                     this.importMappingColumns = (Array.isArray(data.columns) ? data.columns : []).map((column) => ({
                         index: column.index,
                         header: column.header,
-                        selected_field: column.mapped_field || '',
+                        selected_field: column.mapped_field || this.guessImportFieldFromHeader(column.header) || '',
                     }));
                 } catch (error) {
                     this.importErrorMessage = window.__i18n.import_network_error;

@@ -8,6 +8,7 @@ use App\Models\Asset;
 use App\Models\Category;
 use App\Models\Location;
 use App\Models\Personnel;
+use App\Models\Setting;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 use RuntimeException;
@@ -115,7 +116,6 @@ class InventoryImportService
     private const GLPI_CUSTOM_FIELD_ALIASES = [
         'birim' => 'birim',
         'grup' => 'grup',
-        'konum' => 'konum',
         'son_guncelleme' => 'son_guncelleme',
         'uygulama_ekleri_bilgisayar_ek_alanlar_mac_adresi_1' => 'mac_adresi_1',
         'uygulama_ekleri_bilgisayar_ek_alanlar_mac_adresi_2' => 'mac_adresi_2',
@@ -138,11 +138,10 @@ class InventoryImportService
         'device_model' => ['model', 'device model'],
         'category' => ['tür', 'tur', 'type', 'category', 'kategori', 'itemtype'],
         'status' => ['durum', 'status', 'state'],
-        'location' => ['lokasyon', 'location', 'oda', 'room'],
+        'location' => ['lokasyon', 'location', 'oda', 'room', 'konum'],
         'building' => ['bina', 'building', 'campus'],
         'personnel' => ['zimmetli kişi', 'zimmetli kisi', 'personel', 'assignee', 'assigned to', 'kullanici', 'kullanıcı'],
         'custom_birim' => ['birim'],
-        'custom_konum' => ['konum'],
         'custom_son_guncelleme' => ['son güncelleme', 'son guncelleme'],
         'custom_mac_adresi_1' => ['mac adresi 1', 'mac address 1'],
         'custom_mac_adresi_2' => ['mac adresi 2', 'mac address 2'],
@@ -171,11 +170,15 @@ class InventoryImportService
         'custom_eski_kullanici',
     ];
 
+    /** @var array<string, array{key: string, label: string, needles: list<string>}>|null */
+    private ?array $mappingFieldRegistryCache = null;
+
     public function __construct(
         private readonly Asset $assetModel,
         private readonly Category $categoryModel,
         private readonly Location $locationModel,
-        private readonly Personnel $personnelModel
+        private readonly Personnel $personnelModel,
+        private readonly Setting $settingModel,
     ) {
     }
 
@@ -257,7 +260,8 @@ class InventoryImportService
      * @return array{
      *     headers: list<string>,
      *     columns: list<array{index: int, header: string, mapped_field: string|null, is_mapped: bool}>,
-     *     available_fields: list<string>
+     *     available_fields: list<string>,
+     *     field_options: list<array{value: string, label: string, needles: list<string>}>
      * }
      */
     public function buildImportMappingPreview(string $contents, string $originalFilename): array
@@ -268,6 +272,7 @@ class InventoryImportService
             throw new RuntimeException(__('import_csv_missing_headers'));
         }
 
+        $registry = $this->getMappingFieldRegistry();
         $columns = [];
 
         foreach ($headers as $index => $header) {
@@ -281,10 +286,25 @@ class InventoryImportService
             ];
         }
 
+        $fieldOptions = [];
+
+        foreach ($registry as $entry) {
+            if ($entry['key'] === '') {
+                continue;
+            }
+
+            $fieldOptions[] = [
+                'value' => $entry['key'],
+                'label' => $entry['label'],
+                'needles' => $entry['needles'],
+            ];
+        }
+
         return [
             'headers' => $headers,
             'columns' => $columns,
-            'available_fields' => self::MAPPING_FIELD_KEYS,
+            'available_fields' => array_keys($registry),
+            'field_options' => $fieldOptions,
         ];
     }
 
@@ -922,7 +942,22 @@ class InventoryImportService
 
     private function resolveImportField(string $rawHeader): ?string
     {
+        $compare = $this->headerComparisonKey($rawHeader);
         $normalized = $this->normalizeHeader($rawHeader);
+
+        if ($compare !== '') {
+            $extensionField = $this->matchUygulamaEkleriField($compare);
+
+            if ($extensionField !== null) {
+                return $extensionField;
+            }
+
+            $priorityField = $this->matchPrioritySubstringRules($compare);
+
+            if ($priorityField !== null) {
+                return $priorityField;
+            }
+        }
 
         if ($normalized !== '' && isset(self::HEADER_ALIASES[$normalized])) {
             return self::HEADER_ALIASES[$normalized];
@@ -932,10 +967,14 @@ class InventoryImportService
             return self::CUSTOM_FIELD_VALUE_PREFIX . self::GLPI_CUSTOM_FIELD_ALIASES[$normalized];
         }
 
-        $compare = $this->headerComparisonKey($rawHeader);
-
         if ($compare === '') {
             return null;
+        }
+
+        $registryField = $this->matchRegistrySubstrings($compare, $this->getMappingFieldRegistry());
+
+        if ($registryField !== null) {
+            return $registryField;
         }
 
         $bestField = null;
@@ -982,6 +1021,285 @@ class InventoryImportService
     }
 
     /**
+     * @return array<string, array{key: string, label: string, needles: list<string>}>
+     */
+    public function buildMappingFieldRegistry(): array
+    {
+        $registry = [
+            '' => [
+                'key' => '',
+                'label' => __('import_map_select'),
+                'needles' => [],
+            ],
+        ];
+
+        foreach (self::MAPPING_FIELD_KEYS as $fieldKey) {
+            if ($fieldKey === '') {
+                continue;
+            }
+
+            $needles = [];
+
+            foreach (self::SMART_FIELD_ALIASES[$fieldKey] ?? [] as $alias) {
+                $needle = $this->headerComparisonKey($alias);
+
+                if ($needle !== '') {
+                    $needles[] = $needle;
+                }
+            }
+
+            if (str_starts_with($fieldKey, self::CUSTOM_FIELD_VALUE_PREFIX)) {
+                $slug = substr($fieldKey, strlen(self::CUSTOM_FIELD_VALUE_PREFIX));
+                $slugNeedle = $this->headerComparisonKey(str_replace('_', ' ', $slug));
+
+                if ($slugNeedle !== '') {
+                    $needles[] = $slugNeedle;
+                }
+            }
+
+            $registry[$fieldKey] = [
+                'key' => $fieldKey,
+                'label' => $this->mappingLabelForKey($fieldKey),
+                'needles' => array_values(array_unique($needles)),
+            ];
+        }
+
+        foreach ($this->collectRegisteredCustomFieldDefinitions() as $definition) {
+            $fieldKey = self::CUSTOM_FIELD_VALUE_PREFIX . $definition['name'];
+
+            if (isset($registry[$fieldKey])) {
+                $registry[$fieldKey]['needles'] = array_values(array_unique(array_merge(
+                    $registry[$fieldKey]['needles'],
+                    $this->buildNeedlesForCustomFieldDefinition($definition)
+                )));
+
+                continue;
+            }
+
+            $registry[$fieldKey] = [
+                'key' => $fieldKey,
+                'label' => $definition['label'],
+                'needles' => $this->buildNeedlesForCustomFieldDefinition($definition),
+            ];
+        }
+
+        return $registry;
+    }
+
+    /**
+     * @return list<array{name: string, label: string}>
+     */
+    private function collectRegisteredCustomFieldDefinitions(): array
+    {
+        $definitions = [];
+        $seen = [];
+        $bundle = $this->settingModel->getAdminBundle();
+        $globalFields = is_array($bundle['custom_fields'] ?? null) ? $bundle['custom_fields'] : [];
+
+        foreach ($globalFields as $field) {
+            if (!is_array($field)) {
+                continue;
+            }
+
+            $name = trim((string) ($field['name'] ?? ''));
+
+            if ($name === '' || isset($seen[$name])) {
+                continue;
+            }
+
+            $seen[$name] = true;
+            $definitions[] = [
+                'name' => $name,
+                'label' => trim((string) ($field['label'] ?? $name)),
+            ];
+        }
+
+        foreach ($this->categoryModel->findAll() as $category) {
+            $fields = is_array($category['fields'] ?? null) ? $category['fields'] : [];
+
+            foreach ($fields as $field) {
+                if (!is_array($field)) {
+                    continue;
+                }
+
+                $name = trim((string) ($field['name'] ?? ''));
+
+                if ($name === '' || isset($seen[$name])) {
+                    continue;
+                }
+
+                $seen[$name] = true;
+                $definitions[] = [
+                    'name' => $name,
+                    'label' => trim((string) ($field['label'] ?? $name)),
+                ];
+            }
+        }
+
+        return $definitions;
+    }
+
+    /**
+     * @param array{name: string, label: string} $definition
+     *
+     * @return list<string>
+     */
+    private function buildNeedlesForCustomFieldDefinition(array $definition): array
+    {
+        $needles = [];
+
+        foreach ([$definition['name'], $definition['label'], str_replace('_', ' ', $definition['name'])] as $candidate) {
+            $needle = $this->headerComparisonKey($candidate);
+
+            if ($needle !== '') {
+                $needles[] = $needle;
+            }
+        }
+
+        return array_values(array_unique($needles));
+    }
+
+    /**
+     * @return array<string, array{key: string, label: string, needles: list<string>}>
+     */
+    private function getMappingFieldRegistry(): array
+    {
+        if ($this->mappingFieldRegistryCache === null) {
+            $this->mappingFieldRegistryCache = $this->buildMappingFieldRegistry();
+        }
+
+        return $this->mappingFieldRegistryCache;
+    }
+
+    private function mappingLabelForKey(string $fieldKey): string
+    {
+        $translationKey = 'import_map_' . $fieldKey;
+        $translated = __($translationKey);
+
+        return $translated !== $translationKey ? $translated : $fieldKey;
+    }
+
+    private function matchUygulamaEkleriField(string $compare): ?string
+    {
+        if (!str_contains($compare, 'uygulama ekleri')) {
+            return null;
+        }
+
+        $suffixRules = [
+            ['needles' => ['mac adresi 2', 'mac address 2'], 'field' => 'custom_mac_adresi_2'],
+            ['needles' => ['mac adresi 1', 'mac address 1'], 'field' => 'custom_mac_adresi_1'],
+            ['needles' => ['eski kullanici', 'eski kullanıcı', 'former user'], 'field' => 'custom_eski_kullanici'],
+        ];
+
+        $bestField = null;
+        $bestScore = 0;
+
+        foreach ($suffixRules as $rule) {
+            foreach ($rule['needles'] as $needle) {
+                $needleKey = $this->headerComparisonKey($needle);
+
+                if ($needleKey === '' || !str_contains($compare, $needleKey)) {
+                    continue;
+                }
+
+                $score = strlen($needleKey);
+
+                if ($score > $bestScore) {
+                    $bestField = $rule['field'];
+                    $bestScore = $score;
+                }
+            }
+        }
+
+        return $bestField;
+    }
+
+    private function matchPrioritySubstringRules(string $compare): ?string
+    {
+        $rules = [
+            ['needles' => ['birim grup'], 'field' => 'custom_grup'],
+            ['needles' => ['son guncelleme', 'son güncelleme'], 'field' => 'custom_son_guncelleme'],
+            ['needles' => ['mac adresi 2', 'mac address 2'], 'field' => 'custom_mac_adresi_2'],
+            ['needles' => ['mac adresi 1', 'mac address 1'], 'field' => 'custom_mac_adresi_1'],
+            ['needles' => ['eski kullanici', 'eski kullanıcı', 'former user'], 'field' => 'custom_eski_kullanici'],
+            ['needles' => ['grup', 'group'], 'field' => 'custom_grup'],
+            ['needles' => ['birim'], 'field' => 'custom_birim'],
+            ['needles' => ['konum'], 'field' => 'location'],
+        ];
+
+        $bestField = null;
+        $bestScore = 0;
+
+        foreach ($rules as $rule) {
+            foreach ($rule['needles'] as $needle) {
+                $needleKey = $this->headerComparisonKey($needle);
+
+                if ($needleKey === '') {
+                    continue;
+                }
+
+                if ($compare !== $needleKey && !str_contains($compare, $needleKey)) {
+                    continue;
+                }
+
+                $score = strlen($needleKey);
+
+                if ($score > $bestScore) {
+                    $bestField = $rule['field'];
+                    $bestScore = $score;
+                }
+            }
+        }
+
+        return $bestField;
+    }
+
+    /**
+     * @param array<string, array{key: string, label: string, needles: list<string>}> $registry
+     */
+    private function matchRegistrySubstrings(string $compare, array $registry): ?string
+    {
+        $bestField = null;
+        $bestScore = 0;
+
+        foreach ($registry as $entry) {
+            $fieldKey = $entry['key'];
+
+            if ($fieldKey === '') {
+                continue;
+            }
+
+            foreach ($entry['needles'] as $needle) {
+                if ($needle === '' || strlen($needle) < 2) {
+                    continue;
+                }
+
+                if ($compare === $needle || str_contains($compare, $needle)) {
+                    $score = strlen($needle);
+
+                    if ($score > $bestScore) {
+                        $bestField = $fieldKey;
+                        $bestScore = $score;
+                    }
+
+                    continue;
+                }
+
+                if (strlen($compare) >= 2 && str_contains($needle, $compare)) {
+                    $score = strlen($compare);
+
+                    if ($score > $bestScore) {
+                        $bestField = $fieldKey;
+                        $bestScore = $score;
+                    }
+                }
+            }
+        }
+
+        return $bestField;
+    }
+
+    /**
      * @param array<int|string, mixed> $columnMapping
      *
      * @return array<int, string>
@@ -1003,7 +1321,7 @@ class InventoryImportService
                 continue;
             }
 
-            if (!in_array($fieldKey, self::MAPPING_FIELD_KEYS, true)) {
+            if (!array_key_exists($fieldKey, $this->getMappingFieldRegistry())) {
                 continue;
             }
 
