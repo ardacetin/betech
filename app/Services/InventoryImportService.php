@@ -85,6 +85,8 @@ class InventoryImportService
         'demirbas_numarasi' => 'asset_tag',
         'inventory_number' => 'asset_tag',
         'tag' => 'asset_tag',
+        'stok_numarasi' => 'asset_tag',
+        'stok_no' => 'asset_tag',
         'personnel' => 'personnel',
         'personel' => 'personnel',
         'kullanici' => 'personnel',
@@ -105,6 +107,23 @@ class InventoryImportService
         'üretici' => 'brand',
     ];
 
+    /**
+     * GLPI official export columns stored under properties.custom_fields.
+     *
+     * @var array<string, string>
+     */
+    private const GLPI_CUSTOM_FIELD_ALIASES = [
+        'birim' => 'birim',
+        'grup' => 'grup',
+        'konum' => 'konum',
+        'son_guncelleme' => 'son_guncelleme',
+        'uygulama_ekleri_bilgisayar_ek_alanlar_mac_adresi_1' => 'mac_adresi_1',
+        'uygulama_ekleri_bilgisayar_ek_alanlar_mac_adresi_2' => 'mac_adresi_2',
+        'uygulama_ekleri_bilgisayar_ek_alanlar_eski_kullanici' => 'eski_kullanici',
+    ];
+
+    private const CUSTOM_FIELD_VALUE_PREFIX = 'custom_';
+
     public function __construct(
         private readonly Asset $assetModel,
         private readonly Category $categoryModel,
@@ -116,27 +135,33 @@ class InventoryImportService
     public static function templateCsvContent(): string
     {
         $headers = [
-            'Demirbaş No',
-            'Cihaz Adı',
+            'Ad',
+            'Birim',
+            'Son güncelleme',
+            'Grup',
+            'Konum',
+            'Üretici',
             'Model',
-            'Marka',
-            'Seri No',
             'Tür',
-            'Durum',
-            'Lokasyon',
-            'Bina',
-            'Zimmetli Kişi',
+            'Seri numarası',
+            'Stok numarası',
+            'Uygulama ekleri - Bilgisayar Ek Alanlar - Mac Adresi 1',
+            'Uygulama ekleri - Bilgisayar Ek Alanlar - Mac Adresi 2',
+            'Uygulama ekleri - Bilgisayar Ek Alanlar - Eski Kullanıcı',
         ];
         $example = [
-            'ENV-GLPI-001',
             'BT Departman Laptop',
-            'Latitude 5540',
+            'BT Birimi',
+            '2026-03-15 10:30:00',
+            'IT Envanter',
+            'Merkez Kampüs / IT Depo',
             'Dell',
-            'SN-GLPI-001',
+            'Latitude 5540',
             'Bilgisayar',
-            'deployed',
-            'IT Depo',
-            'Merkez Kampüs',
+            'SN-GLPI-001',
+            'ENV-GLPI-001',
+            '00:11:22:33:44:55',
+            '00:11:22:33:44:56',
             'ahmet.yilmaz@sirket.com',
         ];
 
@@ -622,6 +647,30 @@ class InventoryImportService
             $properties['model'] = $model;
         }
 
+        $customFields = is_array($properties['custom_fields'] ?? null)
+            ? $properties['custom_fields']
+            : [];
+
+        foreach ($values as $field => $rawValue) {
+            if (!is_string($field) || !str_starts_with($field, self::CUSTOM_FIELD_VALUE_PREFIX)) {
+                continue;
+            }
+
+            $customKey = substr($field, strlen(self::CUSTOM_FIELD_VALUE_PREFIX));
+            $customValue = trim($rawValue);
+
+            if ($customKey === '' || $customValue === '') {
+                continue;
+            }
+
+            $customFields[$customKey] = $customValue;
+        }
+
+        if ($customFields !== []) {
+            ksort($customFields);
+            $properties['custom_fields'] = $customFields;
+        }
+
         return $properties;
     }
 
@@ -759,11 +808,19 @@ class InventoryImportService
         foreach ($headers as $index => $header) {
             $normalized = $this->normalizeHeader((string) $header);
 
-            if ($normalized === '' || !isset(self::HEADER_ALIASES[$normalized])) {
+            if ($normalized === '') {
                 continue;
             }
 
-            $map[$index] = self::HEADER_ALIASES[$normalized];
+            if (isset(self::HEADER_ALIASES[$normalized])) {
+                $map[$index] = self::HEADER_ALIASES[$normalized];
+
+                continue;
+            }
+
+            if (isset(self::GLPI_CUSTOM_FIELD_ALIASES[$normalized])) {
+                $map[$index] = self::CUSTOM_FIELD_VALUE_PREFIX . self::GLPI_CUSTOM_FIELD_ALIASES[$normalized];
+            }
         }
 
         return $map;
@@ -824,10 +881,12 @@ class InventoryImportService
             'ü' => 'u',
             'ö' => 'o',
             'ç' => 'c',
+            'İ' => 'i',
         ]);
-        $normalized = str_replace([' ', '-'], '_', $normalized);
+        $normalized = preg_replace('/[\s\-–—]+/u', '_', $normalized) ?? $normalized;
+        $normalized = preg_replace('/_+/', '_', $normalized) ?? $normalized;
 
-        return $normalized;
+        return trim($normalized, '_');
     }
 
     private function normalizeStatus(string $status): ?string
