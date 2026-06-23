@@ -716,7 +716,7 @@ class AssetController
     {
         $assets = $this->assetModel->findAllForDashboard();
         $csv = $this->assetCsvImportService->exportToCsv($assets);
-        $filename = 'assets_export_' . date('Y-m-d') . '.csv';
+        $filename = 'standart_envanter_export_' . date('Y-m-d') . '.csv';
 
         $response->getBody()->write($csv);
 

@@ -69,6 +69,7 @@ class Asset
             'assets.updated_at',
             'categories.name(category_name)',
             'personnel.name(personnel_name)',
+            'personnel.email(personnel_email)',
             'locations.name(location_name)',
             'locations.building(location_building)',
         ], $where);
@@ -113,6 +114,7 @@ class Asset
             'assets.updated_at',
             'categories.name(category_name)',
             'personnel.name(personnel_name)',
+            'personnel.email(personnel_email)',
             'locations.name(location_name)',
             'locations.building(location_building)',
         ];
@@ -836,6 +838,10 @@ class Asset
 
         if (array_key_exists('personnel_name', $row) && $row['personnel_name'] === null) {
             $row['personnel_name'] = null;
+        }
+
+        if (array_key_exists('personnel_email', $row) && $row['personnel_email'] === null) {
+            $row['personnel_email'] = null;
         }
 
         if (array_key_exists('personnel_name', $row)) {

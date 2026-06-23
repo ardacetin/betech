@@ -63,20 +63,63 @@ class AssetCsvImportService
 
     public static function exportHeaders(): array
     {
-        return ['name', 'serial_number', 'category', 'status', 'location', 'building', 'asset_tag'];
+        return [
+            'Demirbaş No',
+            'Cihaz Adı',
+            'Model',
+            'Marka',
+            'Seri No',
+            'Tür',
+            'Durum',
+            'Lokasyon',
+            'Bina',
+            'Zimmetli Kişi',
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $asset
+     *
+     * @return list<string>
+     */
+    public static function mapAssetToExportRow(array $asset): array
+    {
+        $properties = is_array($asset['properties'] ?? null) ? $asset['properties'] : [];
+
+        $assignee = trim((string) ($asset['personnel_email'] ?? ''));
+
+        if ($assignee === '') {
+            $assignee = trim((string) ($asset['personnel_name'] ?? ''));
+        }
+
+        return [
+            (string) ($asset['asset_tag'] ?? ''),
+            (string) ($asset['name'] ?? ''),
+            (string) ($properties['model'] ?? ''),
+            (string) ($properties['brand'] ?? ''),
+            (string) ($asset['serial_number'] ?? ''),
+            (string) ($asset['category_name'] ?? ''),
+            (string) ($asset['status'] ?? ''),
+            (string) ($asset['location_name'] ?? ''),
+            (string) ($asset['location_building'] ?? ''),
+            $assignee,
+        ];
     }
 
     public static function templateCsvContent(): string
     {
         $headers = self::exportHeaders();
         $example = [
-            'Dell Latitude 5540',
-            'SN-ABC-12345',
-            'Laptop',
-            'ready',
+            'ENV-GLPI-001',
+            'BT Departman Laptop',
+            'Latitude 5540',
+            'Dell',
+            'SN-GLPI-001',
+            'Bilgisayar',
+            'deployed',
             'IT Depo',
             'Merkez Kampüs',
-            '',
+            'ahmet.yilmaz@sirket.com',
         ];
 
         return self::buildCsvLine($headers) . self::buildCsvLine($example);
@@ -90,15 +133,11 @@ class AssetCsvImportService
         $lines = [self::buildCsvLine(self::exportHeaders())];
 
         foreach ($assets as $asset) {
-            $lines[] = self::buildCsvLine([
-                (string) ($asset['name'] ?? ''),
-                (string) ($asset['serial_number'] ?? ''),
-                (string) ($asset['category_name'] ?? ''),
-                (string) ($asset['status'] ?? ''),
-                (string) ($asset['location_name'] ?? ''),
-                (string) ($asset['location_building'] ?? ''),
-                (string) ($asset['asset_tag'] ?? ''),
-            ]);
+            if (!is_array($asset)) {
+                continue;
+            }
+
+            $lines[] = self::buildCsvLine(self::mapAssetToExportRow($asset));
         }
 
         return "\xEF\xBB\xBF" . implode('', $lines);
