@@ -86,6 +86,10 @@ $sectionHeaderClass = 'mt-6 mb-2 px-3 text-[11px] font-bold uppercase tracking-w
             </svg>
             <span><?= htmlspecialchars(__('nav_knowledge_base'), ENT_QUOTES, 'UTF-8') ?></span>
         </button>
+        <?php endif; ?>
+
+        <?php if ($canAccessSettings): ?>
+        <div class="<?= $sectionHeaderClass ?>"><?= htmlspecialchars(__('nav_section_management'), ENT_QUOTES, 'UTF-8') ?></div>
         <button
             type="button"
             @click="activeView = 'reports'; fetchReports()"

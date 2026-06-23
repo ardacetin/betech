@@ -17,7 +17,7 @@ use App\Controllers\ConsumableController;
 use App\Controllers\KnowledgeBaseController;
 use App\Controllers\DashboardController;
 use App\Controllers\EndUserController;
-use App\Controllers\ReportsController;
+use App\Controllers\ReportController;
 use App\Controllers\TicketCategoryController;
 use App\Controllers\TicketController;
 use App\Controllers\HealthController;
@@ -189,7 +189,7 @@ $assetViewController = new AssetViewController($appConfig, $assetModel, $categor
 $assetTutanakController = new AssetTutanakController($assetModel, $settingModel, $personnelModel, $userModel, $userIntegrationFactory, $zimmetTutanakService, $viewRenderer, $sessionAuthService, $endUserContextService);
 $userController = new UserController($userIntegrationFactory, $personnelModel, $assetModel, $assetHistoryModel, $settingModel, $sessionAuthService, $clientIpResolver);
 $analyticsController = new AnalyticsController($analyticsService);
-$reportsController = new ReportsController($analyticsService);
+$reportController = new ReportController($analyticsService);
 $dashboardController = new DashboardController($analyticsService, $assetHistoryModel, $ipNetworkModel, $auditLogModel);
 $mailConfigResolver = new MailConfigResolver($settingModel);
 $mailService = new MailService($mailConfigResolver, $appLogger);
@@ -264,7 +264,7 @@ $app->group('', function ($group) use ($ticketController, $assetTutanakControlle
 
 $app->group('', function ($group) use (
     $analyticsController,
-    $reportsController,
+    $reportController,
     $dashboardController,
     $settingsController,
     $backupController,
@@ -282,7 +282,7 @@ $app->group('', function ($group) use (
     $inventoryImportController
 ): void {
     $group->get('/api/analytics/summary', [$analyticsController, 'summary']);
-    $group->get('/api/reports/helpdesk', [$reportsController, 'helpDesk']);
+    $group->get('/api/reports/helpdesk', [$reportController, 'helpDesk']);
     $group->get('/api/dashboard/stats', [$dashboardController, 'stats']);
     $group->get('/api/settings', [$settingsController, 'show']);
     $group->put('/api/settings', [$settingsController, 'update']);

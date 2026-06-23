@@ -165,7 +165,7 @@ class RoleMiddleware implements MiddlewareInterface
             [
                 'methods' => ['GET'],
                 'pattern' => '/api/reports/helpdesk',
-                'roles' => $operational,
+                'roles' => [User::ROLE_ADMIN],
             ],
             [
                 'methods' => ['GET'],

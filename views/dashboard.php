@@ -432,7 +432,7 @@ $i18nScript = json_encode([
     'list_pagination_info' => __('list_pagination_info'),
 ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
 ?>
-<div class="min-h-screen bg-gray-50" x-data="assetDashboard()" x-init="restoreDashboardView(); if (isEndUser) { initEndUserPortal(); } else if (canManageAssets) { fetchCategories(); fetchLocations(); fetchTicketCategories(); fetchLicenses(); fetchConsumables(); fetchTickets(); if (activeView === 'dashboard') { fetchDashboardStats(); } if (activeView === 'reports') { fetchReports(); } } this.isAssignLicenseModalOpen = false;">
+<div class="min-h-screen bg-gray-50" x-data="assetDashboard()" x-init="restoreDashboardView(); if (isEndUser) { initEndUserPortal(); } else if (canManageAssets) { fetchCategories(); fetchLocations(); fetchTicketCategories(); fetchLicenses(); fetchConsumables(); fetchTickets(); if (activeView === 'dashboard') { fetchDashboardStats(); } } if (canAccessSettings && activeView === 'reports') { fetchReports(); } this.isAssignLicenseModalOpen = false;">
     <div class="flex h-screen overflow-hidden bg-gray-50">
         <aside class="hidden h-full w-64 min-h-0 flex-shrink-0 flex-col border-r border-gray-200 bg-white lg:flex">
             <div class="flex h-16 shrink-0 items-center gap-3 border-b border-gray-200 px-5">
@@ -629,10 +629,10 @@ $i18nScript = json_encode([
                 <?php require __DIR__ . '/partials/consumables_panel.php'; ?>
                 <?php require __DIR__ . '/partials/knowledge_base_panel.php'; ?>
                 <?php require __DIR__ . '/partials/helpdesk_panel.php'; ?>
-                <?php require __DIR__ . '/partials/reports_panel.php'; ?>
                 <?php require __DIR__ . '/partials/ipam_panel.php'; ?>
                 <?php endif; ?>
                 <?php if ($canAccessSettings): ?>
+                <?php require __DIR__ . '/partials/admin_reports.php'; ?>
                 <?php require __DIR__ . '/partials/audit_logs_panel.php'; ?>
                 <?php require __DIR__ . '/partials/settings_panel.php'; ?>
                 <?php require __DIR__ . '/partials/categories_panel.php'; ?>
@@ -5318,7 +5318,7 @@ $i18nScript = json_encode([
                 }
             },
             async fetchReports() {
-                if (!this.canManageAssets) {
+                if (!this.canAccessSettings) {
                     return;
                 }
 
@@ -5326,9 +5326,7 @@ $i18nScript = json_encode([
                 this.reportsError = '';
 
                 try {
-                    const response = await fetch('/api/reports/helpdesk', {
-                        headers: { Accept: 'application/json' },
-                    });
+                    const response = await fetch('/api/reports/helpdesk', this.apiFetchInit('GET'));
                     const result = await this.parseApiResponse(response);
 
                     if (!response.ok) {

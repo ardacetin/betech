@@ -415,26 +415,67 @@ class InventoryImportService
 
         $deviceName = trim($values['device_name'] ?? '');
         $deviceModel = trim($values['device_model'] ?? '');
-        $name = $deviceName !== '' ? $deviceName : $deviceModel;
-
-        if ($name === '') {
-            $state['failed']++;
-            $state['errors'][] = ['row' => $rowNumber, 'message' => __('import_error_name_required')];
-
-            return;
-        }
-
-        $categoryName = trim($values['category'] ?? '');
-
-        if ($categoryName === '') {
-            $state['failed']++;
-            $state['errors'][] = ['row' => $rowNumber, 'message' => __('import_error_category_required')];
-
-            return;
-        }
-
         $serialNumber = trim($values['serial_number'] ?? '');
         $assetTag = trim($values['asset_tag'] ?? '');
+        $categoryName = trim($values['category'] ?? '');
+        $name = $deviceName !== '' ? $deviceName : $deviceModel;
+
+        if ($serialNumber === '' && $assetTag === '' && $name === '') {
+            $state['skipped']++;
+
+            return;
+        }
+
+        try {
+            $existingAsset = $this->resolveExistingAsset($serialNumber, $assetTag);
+        } catch (RuntimeException $exception) {
+            $state['failed']++;
+            $state['errors'][] = ['row' => $rowNumber, 'message' => $exception->getMessage()];
+
+            return;
+        }
+
+        if ($name === '' && $existingAsset !== null) {
+            $name = trim((string) ($existingAsset['name'] ?? ''));
+        }
+
+        if ($name === '') {
+            $state['skipped']++;
+            $state['warnings'][] = [
+                'row' => $rowNumber,
+                'message' => __('import_error_name_required'),
+            ];
+
+            return;
+        }
+
+        if ($categoryName === '') {
+            if ($existingAsset !== null) {
+                $categoryId = (int) ($existingAsset['category_id'] ?? 0);
+            } else {
+                $state['skipped']++;
+                $state['warnings'][] = [
+                    'row' => $rowNumber,
+                    'message' => __('import_error_category_required'),
+                ];
+
+                return;
+            }
+        } else {
+            try {
+                $categoryId = $this->resolveCategoryId(
+                    $categoryName,
+                    $state['categoryCache'],
+                    $state['createdCategories']
+                );
+            } catch (\Throwable $exception) {
+                $state['failed']++;
+                $state['errors'][] = ['row' => $rowNumber, 'message' => $exception->getMessage()];
+
+                return;
+            }
+        }
+
         $serialKey = $serialNumber !== '' ? mb_strtolower($serialNumber, 'UTF-8') : '';
         $tagKey = $assetTag !== '' ? mb_strtolower($assetTag, 'UTF-8') : '';
 
@@ -454,15 +495,6 @@ class InventoryImportService
                 'row' => $rowNumber,
                 'message' => sprintf(__('import_error_duplicate_tag'), $assetTag),
             ];
-
-            return;
-        }
-
-        try {
-            $existingAsset = $this->resolveExistingAsset($serialNumber, $assetTag);
-        } catch (RuntimeException $exception) {
-            $state['failed']++;
-            $state['errors'][] = ['row' => $rowNumber, 'message' => $exception->getMessage()];
 
             return;
         }
@@ -487,11 +519,6 @@ class InventoryImportService
         }
 
         try {
-            $categoryId = $this->resolveCategoryId(
-                $categoryName,
-                $state['categoryCache'],
-                $state['createdCategories']
-            );
             $locationId = $this->resolveLocationId(
                 trim($values['location'] ?? ''),
                 trim($values['building'] ?? ''),
@@ -536,29 +563,20 @@ class InventoryImportService
             $coreFields['personnel_id'] = $personnelId;
         }
 
+        if ($assetTag !== '') {
+            $coreFields['asset_tag'] = $assetTag;
+        }
+
         try {
-            if ($existingAsset !== null) {
-                if ($assetTag !== '') {
-                    if ($this->assetModel->assetTagExists($assetTag, (int) $existingAsset['id'])) {
-                        throw new RuntimeException(sprintf(__('import_error_duplicate_tag'), $assetTag));
-                    }
+            $result = $this->assetModel->upsertFromImport($existingAsset, $coreFields, $properties);
+            $asset = $result['asset'];
 
-                    $coreFields['asset_tag'] = $assetTag;
-                }
-
-                $asset = $this->assetModel->update((int) $existingAsset['id'], $coreFields, $properties);
-
-                if ($asset === null) {
-                    throw new RuntimeException(__('inventory_import_update_failed'));
-                }
-
-                $state['updated_assets'][] = (int) $asset['id'];
-                $state['updated']++;
-            } else {
-                $coreFields['asset_tag'] = $assetTag;
-                $asset = $this->assetModel->create($coreFields, $properties);
+            if ($result['created']) {
                 $state['created_assets'][] = (int) $asset['id'];
                 $state['imported']++;
+            } else {
+                $state['updated_assets'][] = (int) $asset['id'];
+                $state['updated']++;
             }
         } catch (\Throwable $exception) {
             $state['failed']++;

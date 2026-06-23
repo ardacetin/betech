@@ -579,6 +579,73 @@ class Asset
         return $this->normalizeRow($row);
     }
 
+    /**
+     * Create or update an asset matched by serial_number and/or asset_tag (GLPI import upsert).
+     *
+     * @param array<string, mixed>|null $existingAsset
+     * @param array<string, mixed> $coreFields
+     * @param array<string, mixed> $properties
+     *
+     * @return array{asset: array<string, mixed>, created: bool}
+     */
+    public function upsertFromImport(?array $existingAsset, array $coreFields, array $properties): array
+    {
+        if ($existingAsset !== null) {
+            $assetId = (int) $existingAsset['id'];
+            $assetTag = trim((string) ($coreFields['asset_tag'] ?? ''));
+
+            if ($assetTag !== '' && $this->assetTagExists($assetTag, $assetId)) {
+                throw new \RuntimeException(sprintf(__('import_error_duplicate_tag'), $assetTag));
+            }
+
+            $serialNumber = array_key_exists('serial_number', $coreFields)
+                ? trim((string) ($coreFields['serial_number'] ?? ''))
+                : '';
+
+            if ($serialNumber !== '' && $this->serialNumberExists($serialNumber, $assetId)) {
+                throw new \RuntimeException(sprintf(__('import_error_duplicate_serial_in_file'), $serialNumber));
+            }
+
+            if ($assetTag !== '') {
+                $coreFields['asset_tag'] = $assetTag;
+            } else {
+                unset($coreFields['asset_tag']);
+            }
+
+            $asset = $this->update($assetId, $coreFields, $properties);
+
+            if ($asset === null) {
+                throw new \RuntimeException(__('inventory_import_update_failed'));
+            }
+
+            return [
+                'asset' => $asset,
+                'created' => false,
+            ];
+        }
+
+        $assetTag = trim((string) ($coreFields['asset_tag'] ?? ''));
+
+        if ($assetTag === '') {
+            $coreFields['asset_tag'] = $this->generateNextAssetTag();
+        }
+
+        if ($this->assetTagExists((string) $coreFields['asset_tag'])) {
+            throw new \RuntimeException(sprintf(__('import_error_duplicate_tag'), (string) $coreFields['asset_tag']));
+        }
+
+        $serialNumber = trim((string) ($coreFields['serial_number'] ?? ''));
+
+        if ($serialNumber !== '' && $this->serialNumberExists($serialNumber)) {
+            throw new \RuntimeException(sprintf(__('import_error_duplicate_serial_in_file'), $serialNumber));
+        }
+
+        return [
+            'asset' => $this->create($coreFields, $properties),
+            'created' => true,
+        ];
+    }
+
     public function generateNextAssetTag(): string
     {
         $rows = $this->db()->select('assets', ['asset_tag'], [

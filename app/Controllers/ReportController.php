@@ -8,7 +8,7 @@ use App\Services\AnalyticsService;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 
-class ReportsController
+class ReportController
 {
     public function __construct(
         private readonly AnalyticsService $analyticsService
