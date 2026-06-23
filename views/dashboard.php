@@ -994,7 +994,7 @@ $i18nScript = json_encode([
                                                 class="w-full rounded-lg border border-zinc-200 bg-white px-2 py-1.5 text-xs text-zinc-700 focus:border-zinc-400 focus:outline-none"
                                             >
                                                 <template x-for="option in importFieldOptions" :key="importFieldOptionValue(option)">
-                                                    <option :value="importFieldOptionValue(option)" x-text="importFieldLabel(importFieldOptionValue(option))"></option>
+                                                    <option :value="importFieldOptionValue(option)" x-text="importFieldOptionLabel(option)"></option>
                                                 </template>
                                             </select>
                                         </td>
@@ -4082,6 +4082,13 @@ $i18nScript = json_encode([
 
                 return option ?? '';
             },
+            importFieldOptionLabel(option) {
+                if (option && typeof option === 'object' && option.label) {
+                    return String(option.label);
+                }
+
+                return this.importFieldLabel(this.importFieldOptionValue(option));
+            },
             importFieldLabel(fieldKey) {
                 if (!fieldKey) {
                     return window.__i18n.import_map_select || 'Seçin';
@@ -4132,41 +4139,7 @@ $i18nScript = json_encode([
                     return '';
                 }
 
-                if (compare.includes('uygulama ekleri')) {
-                    if (compare.includes('mac adresi 2') || compare.includes('mac address 2')) {
-                        return 'custom_mac_adresi_2';
-                    }
-
-                    if (compare.includes('mac adresi 1') || compare.includes('mac address 1')) {
-                        return 'custom_mac_adresi_1';
-                    }
-
-                    if (compare.includes('eski kullanici') || compare.includes('eski kullanıcı') || compare.includes('former user')) {
-                        return 'custom_eski_kullanici';
-                    }
-                }
-
-                if (compare.includes('birim grup')) {
-                    return 'custom_grup';
-                }
-
-                if (compare.includes('son guncelleme') || compare.includes('son güncelleme')) {
-                    return 'custom_son_guncelleme';
-                }
-
-                if (compare.includes('grup') || compare.includes('group')) {
-                    return 'custom_grup';
-                }
-
-                if (compare.includes('birim')) {
-                    return 'custom_birim';
-                }
-
-                if (compare.includes('konum')) {
-                    return 'location';
-                }
-
-                let bestField = '';
+                let bestValue = '';
                 let bestScore = 0;
                 const options = this.importFieldOptions || [];
 
@@ -4177,34 +4150,36 @@ $i18nScript = json_encode([
                         continue;
                     }
 
-                    const needles = option && typeof option === 'object' && Array.isArray(option.needles)
-                        ? option.needles
-                        : [];
+                    const label = this.importFieldOptionLabel(option);
+                    const normalizedLabel = this.normalizeImportHeaderKey(label);
 
-                    for (const needle of needles) {
-                        const normalizedNeedle = this.normalizeImportHeaderKey(needle);
+                    if (!normalizedLabel || normalizedLabel.length < 2) {
+                        continue;
+                    }
 
-                        if (!normalizedNeedle || normalizedNeedle.length < 2) {
-                            continue;
-                        }
+                    if (compare.includes(normalizedLabel) && normalizedLabel.length > bestScore) {
+                        bestValue = value;
+                        bestScore = normalizedLabel.length;
+                        continue;
+                    }
 
-                        if (compare === normalizedNeedle || compare.includes(normalizedNeedle)) {
-                            if (normalizedNeedle.length > bestScore) {
-                                bestField = value;
-                                bestScore = normalizedNeedle.length;
-                            }
-
-                            continue;
-                        }
-
-                        if (compare.length >= 2 && normalizedNeedle.includes(compare) && compare.length > bestScore) {
-                            bestField = value;
-                            bestScore = compare.length;
-                        }
+                    if (normalizedLabel.includes(compare) && compare.length > bestScore) {
+                        bestValue = value;
+                        bestScore = compare.length;
                     }
                 }
 
-                return bestField;
+                return bestValue;
+            },
+            resolveImportFieldSelection(header, backendMapped) {
+                const options = this.importFieldOptions || [];
+                const availableValues = options.map((option) => this.importFieldOptionValue(option));
+
+                if (backendMapped && availableValues.includes(backendMapped)) {
+                    return backendMapped;
+                }
+
+                return this.guessImportFieldFromHeader(header) || '';
             },
             buildImportColumnMapping() {
                 const mapping = {};
@@ -4262,7 +4237,7 @@ $i18nScript = json_encode([
                     this.importMappingColumns = (Array.isArray(data.columns) ? data.columns : []).map((column) => ({
                         index: column.index,
                         header: column.header,
-                        selected_field: column.mapped_field || this.guessImportFieldFromHeader(column.header) || '',
+                        selected_field: this.resolveImportFieldSelection(column.header, column.mapped_field || ''),
                     }));
                 } catch (error) {
                     this.importErrorMessage = window.__i18n.import_network_error;
