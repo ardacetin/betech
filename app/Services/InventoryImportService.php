@@ -141,33 +141,26 @@ CSV;
     private function importCsvContents(string $csvContent): array
     {
         $csvContent = $this->stripBom($csvContent);
-        $lines = preg_split('/\R/', $csvContent) ?? [];
 
-        if ($lines === []) {
+        if (trim($csvContent) === '') {
             throw new RuntimeException(__('import_csv_empty'));
         }
 
         $state = $this->newImportState();
         $headerSkipped = false;
+        $lineNumber = 0;
 
-        foreach ($lines as $index => $line) {
-            $lineNumber = $index + 1;
-            $trimmed = trim($line);
+        foreach ($this->iteratePhysicalCsvLines($csvContent) as $line) {
+            ++$lineNumber;
 
-            if ($trimmed === '') {
+            if (trim($line) === '') {
                 continue;
             }
 
-            $columns = str_getcsv($line, ',', '"', '\\');
-
-            if ($columns === [null] || $columns === false) {
-                continue;
-            }
-
-            $columns = $this->normalizeMasterSchemaColumns($columns);
+            $columns = $this->parseMasterSchemaCsvLine($line);
 
             if (!$headerSkipped) {
-                if (count($columns) < self::MASTER_SCHEMA_COLUMN_COUNT) {
+                if (substr_count($line, ',') < self::MASTER_SCHEMA_COLUMN_COUNT - 1) {
                     throw new RuntimeException(__('import_csv_invalid_headers'));
                 }
 
@@ -188,6 +181,67 @@ CSV;
         }
 
         return $this->finalizeImportState($state);
+    }
+
+    /**
+     * Read CSV content one physical line at a time (never merges lines due to open quotes).
+     *
+     * @return \Generator<int, string>
+     */
+    private function iteratePhysicalCsvLines(string $csvContent): \Generator
+    {
+        $stream = fopen('php://temp', 'r+');
+
+        if ($stream === false) {
+            throw new RuntimeException(__('inventory_import_temp_file_failed'));
+        }
+
+        try {
+            if (fwrite($stream, $csvContent) === false) {
+                throw new RuntimeException(__('inventory_import_temp_file_failed'));
+            }
+
+            rewind($stream);
+
+            while (($line = fgets($stream)) !== false) {
+                yield rtrim($line, "\r\n");
+            }
+        } finally {
+            fclose($stream);
+        }
+    }
+
+    /**
+     * Split one physical CSV line into exactly 10 columns without RFC4180 quote pairing.
+     *
+     * @return list<string>
+     */
+    private function parseMasterSchemaCsvLine(string $line): array
+    {
+        $rawColumns = explode(',', $line);
+        $columns = [];
+
+        for ($index = 0; $index < self::MASTER_SCHEMA_COLUMN_COUNT; ++$index) {
+            $columns[] = $this->unwrapCsvField((string) ($rawColumns[$index] ?? ''));
+        }
+
+        return $columns;
+    }
+
+    private function unwrapCsvField(string $field): string
+    {
+        $field = trim($field);
+
+        if ($field === '') {
+            return '';
+        }
+
+        if (strlen($field) >= 2 && $field[0] === '"' && substr($field, -1) === '"') {
+            $field = substr($field, 1, -1);
+            $field = str_replace('""', '"', $field);
+        }
+
+        return $this->sanitizeCellValue($field);
     }
 
     /**
