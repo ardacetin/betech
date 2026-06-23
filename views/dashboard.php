@@ -972,7 +972,7 @@ $i18nScript = json_encode([
 
                 <div
                     x-ref="importMappingTable"
-                    x-show="importMappingColumns.length > 0 && !importMappingLoading"
+                    x-show="importMappingRows.length > 0 && !importMappingLoading"
                     x-cloak
                     class="mt-5"
                 >
@@ -985,22 +985,25 @@ $i18nScript = json_encode([
                         <table class="min-w-full divide-y divide-zinc-200 text-left text-xs">
                             <thead class="sticky top-0 bg-zinc-50">
                                 <tr>
-                                    <th class="px-3 py-2 font-medium text-zinc-600"><?= htmlspecialchars(__('import_mapping_csv_column'), ENT_QUOTES, 'UTF-8') ?></th>
                                     <th class="px-3 py-2 font-medium text-zinc-600"><?= htmlspecialchars(__('import_mapping_system_field'), ENT_QUOTES, 'UTF-8') ?></th>
+                                    <th class="px-3 py-2 font-medium text-zinc-600"><?= htmlspecialchars(__('import_mapping_csv_column'), ENT_QUOTES, 'UTF-8') ?></th>
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-zinc-100 bg-white">
-                                <template x-for="(column, columnIndex) in importMappingColumns" :key="column.index ?? columnIndex">
-                                    <tr data-import-column-row :data-csv-header="column.header" :data-column-index="columnIndex">
-                                        <td class="px-3 py-2 align-top text-zinc-700" x-text="column.header"></td>
+                                <template x-for="(row, rowIndex) in importMappingRows" :key="row.fieldValue ?? rowIndex">
+                                    <tr data-import-mapping-row :data-system-field-label="row.label" :data-row-index="rowIndex">
+                                        <td class="px-3 py-2 align-top text-zinc-700" data-system-field-label x-text="row.label"></td>
                                         <td class="px-3 py-2 align-top">
                                             <select
-                                                data-import-field-select
-                                                x-model="column.selected_field"
+                                                data-import-csv-select
+                                                :name="'fields[' + row.fieldValue + ']'"
+                                                :id="'import-field-map-' + row.fieldValue"
+                                                x-model="row.selected_csv_index"
                                                 class="w-full rounded-lg border border-zinc-200 bg-white px-2 py-1.5 text-xs text-zinc-700 focus:border-zinc-400 focus:outline-none"
                                             >
-                                                <template x-for="option in importFieldOptions" :key="importFieldOptionValue(option)">
-                                                    <option :value="importFieldOptionValue(option)" x-text="importFieldOptionLabel(option)"></option>
+                                                <option value=""><?= htmlspecialchars(__('import_map_select'), ENT_QUOTES, 'UTF-8') ?></option>
+                                                <template x-for="csvColumn in importCsvHeaders" :key="csvColumn.index">
+                                                    <option :value="String(csvColumn.index)" x-text="csvColumn.header"></option>
                                                 </template>
                                             </select>
                                         </td>
@@ -2257,7 +2260,8 @@ $i18nScript = json_encode([
             importDragOver: false,
             importFile: null,
             importFileName: '',
-            importMappingColumns: [],
+            importCsvHeaders: [],
+            importMappingRows: [],
             importMappingLoading: false,
             importFieldOptions: [],
             importErrorMessage: '',
@@ -4063,7 +4067,8 @@ $i18nScript = json_encode([
                 this.importErrorMessage = '';
                 this.importSuccessMessage = '';
                 this.importResultErrors = [];
-                this.importMappingColumns = [];
+                this.importCsvHeaders = [];
+                this.importMappingRows = [];
                 this.importMappingLoading = false;
                 this.importFieldOptions = [];
                 this.isImportOpen = true;
@@ -4077,7 +4082,8 @@ $i18nScript = json_encode([
                 this.importDragOver = false;
                 this.importFile = null;
                 this.importFileName = '';
-                this.importMappingColumns = [];
+                this.importCsvHeaders = [];
+                this.importMappingRows = [];
                 this.importMappingLoading = false;
                 this.importFieldOptions = [];
             },
@@ -4141,43 +4147,49 @@ $i18nScript = json_encode([
             normalizeImportMatchKey(header) {
                 return this.normalizeImportHeaderKey(header).replace(/[^a-z0-9]/g, '');
             },
-            guessImportFieldFromHeader(header) {
-                const headerKey = this.normalizeImportMatchKey(header);
+            buildImportMappingRows() {
+                return (this.importFieldOptions || [])
+                    .filter((option) => this.importFieldOptionValue(option))
+                    .map((option) => ({
+                        fieldValue: this.importFieldOptionValue(option),
+                        label: this.importFieldOptionLabel(option),
+                        selected_csv_index: '',
+                    }));
+            },
+            autoMapImportRowsByLabel() {
+                const csvHeaders = this.importCsvHeaders || [];
 
-                if (!headerKey) {
-                    return '';
-                }
+                (this.importMappingRows || []).forEach((row) => {
+                    const systemKey = this.normalizeImportMatchKey(row.label);
 
-                let bestValue = '';
-                let bestScore = 0;
-                const options = this.importFieldOptions || [];
-
-                for (const option of options) {
-                    const value = this.importFieldOptionValue(option);
-
-                    if (!value) {
-                        continue;
+                    if (!systemKey) {
+                        return;
                     }
 
-                    const labelKey = this.normalizeImportMatchKey(this.importFieldOptionLabel(option));
+                    let bestIndex = '';
+                    let bestScore = 0;
 
-                    if (!labelKey || labelKey.length < 2) {
-                        continue;
-                    }
+                    csvHeaders.forEach((column) => {
+                        const headerKey = this.normalizeImportMatchKey(column.header);
 
-                    if (headerKey.includes(labelKey) && labelKey.length > bestScore) {
-                        bestValue = value;
-                        bestScore = labelKey.length;
-                        continue;
-                    }
+                        if (!headerKey) {
+                            return;
+                        }
 
-                    if (labelKey.includes(headerKey) && headerKey.length > bestScore) {
-                        bestValue = value;
-                        bestScore = headerKey.length;
-                    }
-                }
+                        if (headerKey.includes(systemKey) && systemKey.length > bestScore) {
+                            bestIndex = String(column.index);
+                            bestScore = systemKey.length;
+                            return;
+                        }
 
-                return bestValue;
+                        if (systemKey.length >= 2 && headerKey.includes(systemKey) && systemKey.length > bestScore) {
+                            bestIndex = String(column.index);
+                            bestScore = systemKey.length;
+                        }
+                    });
+
+                    row.selected_csv_index = bestIndex;
+                });
             },
             buildImportFieldOptionsFromPreview(fieldOptions, legacyFields) {
                 const merged = new Map();
@@ -4237,22 +4249,6 @@ $i18nScript = json_encode([
 
                 return legacyFields;
             },
-            resolveImportFieldSelection(header, backendMapped) {
-                const labelMatch = this.guessImportFieldFromHeader(header);
-
-                if (labelMatch) {
-                    return labelMatch;
-                }
-
-                const options = this.importFieldOptions || [];
-                const availableValues = options.map((option) => this.importFieldOptionValue(option));
-
-                if (backendMapped && availableValues.includes(backendMapped)) {
-                    return backendMapped;
-                }
-
-                return '';
-            },
             scheduleImportMappingDomSync() {
                 this.$nextTick(() => {
                     requestAnimationFrame(() => {
@@ -4271,71 +4267,65 @@ $i18nScript = json_encode([
                     return;
                 }
 
-                const rows = container.querySelectorAll('[data-import-column-row]');
+                const csvHeaders = this.importCsvHeaders || [];
+                const rows = container.querySelectorAll('[data-import-mapping-row]');
 
-                rows.forEach((row) => {
-                    const header = row.getAttribute('data-csv-header') || '';
-                    const columnIndex = Number.parseInt(row.getAttribute('data-column-index') || '-1', 10);
-                    const select = row.querySelector('select[data-import-field-select]');
+                rows.forEach((rowElement) => {
+                    const labelCell = rowElement.querySelector('[data-system-field-label]');
+                    const rawLabel = (labelCell?.textContent || rowElement.getAttribute('data-system-field-label') || '').trim();
+                    const systemKey = this.normalizeImportMatchKey(rawLabel);
+                    const select = rowElement.querySelector('select[data-import-csv-select]');
+                    const rowIndex = Number.parseInt(rowElement.getAttribute('data-row-index') || '-1', 10);
 
-                    if (!select || header === '') {
+                    if (!select || !systemKey) {
                         return;
                     }
 
-                    const headerKey = this.normalizeImportMatchKey(header);
-
-                    if (!headerKey) {
-                        return;
-                    }
-
-                    let bestIndex = -1;
+                    let bestValue = '';
                     let bestScore = 0;
 
-                    for (let index = 0; index < select.options.length; index += 1) {
-                        const option = select.options[index];
-                        const value = option.value;
+                    csvHeaders.forEach((column) => {
+                        const headerKey = this.normalizeImportMatchKey(column.header);
 
-                        if (!value) {
-                            continue;
+                        if (!headerKey) {
+                            return;
                         }
 
-                        const labelKey = this.normalizeImportMatchKey(option.text || option.label || '');
-
-                        if (!labelKey || labelKey.length < 2) {
-                            continue;
+                        if (headerKey.includes(systemKey) && systemKey.length > bestScore) {
+                            bestValue = String(column.index);
+                            bestScore = systemKey.length;
+                            return;
                         }
 
-                        if (headerKey.includes(labelKey) && labelKey.length > bestScore) {
-                            bestIndex = index;
-                            bestScore = labelKey.length;
-                            continue;
+                        if (systemKey.length >= 2 && headerKey.includes(systemKey) && systemKey.length > bestScore) {
+                            bestValue = String(column.index);
+                            bestScore = systemKey.length;
                         }
+                    });
 
-                        if (labelKey.includes(headerKey) && headerKey.length > bestScore) {
-                            bestIndex = index;
-                            bestScore = headerKey.length;
-                        }
-                    }
-
-                    if (bestIndex < 0) {
+                    if (bestValue === '') {
                         return;
                     }
 
-                    const matchedValue = select.options[bestIndex].value;
-                    select.selectedIndex = bestIndex;
+                    select.value = bestValue;
 
-                    if (Number.isInteger(columnIndex) && columnIndex >= 0 && this.importMappingColumns[columnIndex]) {
-                        this.importMappingColumns[columnIndex].selected_field = matchedValue;
+                    if (Number.isInteger(rowIndex) && rowIndex >= 0 && this.importMappingRows[rowIndex]) {
+                        this.importMappingRows[rowIndex].selected_csv_index = bestValue;
                     }
                 });
             },
             buildImportColumnMapping() {
                 const mapping = {};
 
-                (this.importMappingColumns || []).forEach((column) => {
-                    if (column?.selected_field) {
-                        mapping[column.index] = column.selected_field;
+                (this.importMappingRows || []).forEach((row) => {
+                    const csvIndex = row?.selected_csv_index;
+                    const fieldValue = row?.fieldValue;
+
+                    if (csvIndex === '' || csvIndex === null || csvIndex === undefined || !fieldValue) {
+                        return;
                     }
+
+                    mapping[csvIndex] = fieldValue;
                 });
 
                 return mapping;
@@ -4346,7 +4336,8 @@ $i18nScript = json_encode([
                 }
 
                 this.importMappingLoading = true;
-                this.importMappingColumns = [];
+                this.importCsvHeaders = [];
+                this.importMappingRows = [];
                 this.importFieldOptions = [];
 
                 const formData = new FormData();
@@ -4373,12 +4364,12 @@ $i18nScript = json_encode([
                     const fieldOptions = Array.isArray(data.field_options) ? data.field_options : [];
                     const legacyFields = Array.isArray(data.available_fields) ? data.available_fields : [];
                     this.importFieldOptions = this.buildImportFieldOptionsFromPreview(fieldOptions, legacyFields);
-
-                    this.importMappingColumns = (Array.isArray(data.columns) ? data.columns : []).map((column) => ({
+                    this.importCsvHeaders = (Array.isArray(data.columns) ? data.columns : []).map((column) => ({
                         index: column.index,
                         header: column.header,
-                        selected_field: this.resolveImportFieldSelection(column.header, column.mapped_field || ''),
                     }));
+                    this.importMappingRows = this.buildImportMappingRows();
+                    this.autoMapImportRowsByLabel();
                     this.scheduleImportMappingDomSync();
                 } catch (error) {
                     this.importErrorMessage = window.__i18n.import_network_error;
@@ -4393,7 +4384,8 @@ $i18nScript = json_encode([
                 this.importErrorMessage = '';
                 this.importSuccessMessage = '';
                 this.importResultErrors = [];
-                this.importMappingColumns = [];
+                this.importCsvHeaders = [];
+                this.importMappingRows = [];
                 this.importFieldOptions = [];
 
                 if (!file) {
