@@ -16,6 +16,13 @@ declare(strict_types=1);
         <div class="flex flex-wrap gap-2">
             <button
                 type="button"
+                x-show="ipamSubView === 'addresses' && selectedIpAddressCount >= 2"
+                x-cloak
+                @click="openBulkIpEditModal()"
+                class="inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-4 py-2.5 text-sm font-medium text-zinc-700 shadow-soft ring-1 ring-zinc-900/10 transition hover:bg-zinc-50"
+            ><?= htmlspecialchars(__('ipam_bulk_edit'), ENT_QUOTES, 'UTF-8') ?> <span class="rounded-full bg-zinc-900 px-2 py-0.5 text-xs text-white" x-text="selectedIpAddressCount"></span></button>
+            <button
+                type="button"
                 x-show="ipamSubView === 'addresses'"
                 x-cloak
                 @click="backToIpNetworks()"
@@ -121,6 +128,15 @@ declare(strict_types=1);
                 <table class="min-w-full divide-y divide-zinc-200 text-sm">
                     <thead class="bg-zinc-50">
                         <tr>
+                            <th class="w-10 px-3 py-2.5">
+                                <input
+                                    type="checkbox"
+                                    class="rounded border-zinc-300 text-zinc-900 focus:ring-zinc-500"
+                                    :checked="areAllFilteredIpAddressesSelected"
+                                    @change="toggleSelectAllIpAddresses($event.target.checked)"
+                                    aria-label="<?= htmlspecialchars(__('ipam_bulk_edit'), ENT_QUOTES, 'UTF-8') ?>"
+                                >
+                            </th>
                             <th class="px-4 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wide text-zinc-500"><?= htmlspecialchars(__('ipam_col_ip'), ENT_QUOTES, 'UTF-8') ?></th>
                             <th class="px-4 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wide text-zinc-500"><?= htmlspecialchars(__('ipam_col_status'), ENT_QUOTES, 'UTF-8') ?></th>
                             <th class="px-4 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wide text-zinc-500"><?= htmlspecialchars(__('ipam_col_hostname'), ENT_QUOTES, 'UTF-8') ?></th>
@@ -131,7 +147,15 @@ declare(strict_types=1);
                     </thead>
                     <tbody class="divide-y divide-zinc-100">
                         <template x-for="address in filteredIpAddresses" :key="address.id">
-                            <tr class="hover:bg-zinc-50/80">
+                            <tr class="hover:bg-zinc-50/80" :class="isIpAddressSelected(address.id) ? 'bg-zinc-50' : ''">
+                                <td class="px-3 py-2">
+                                    <input
+                                        type="checkbox"
+                                        class="rounded border-zinc-300 text-zinc-900 focus:ring-zinc-500"
+                                        :checked="isIpAddressSelected(address.id)"
+                                        @change="toggleIpAddressSelection(address.id, $event.target.checked)"
+                                    >
+                                </td>
                                 <td class="whitespace-nowrap px-4 py-2 font-mono text-zinc-900" x-text="address.ip_address"></td>
                                 <td class="px-4 py-2">
                                     <span class="inline-flex rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset" :class="ipAddressStatusClass(address.status)" x-text="ipAddressStatusLabel(address.status)"></span>
@@ -246,6 +270,7 @@ declare(strict_types=1);
                     <option value="reserved"><?= htmlspecialchars(__('ipam_status_reserved'), ENT_QUOTES, 'UTF-8') ?></option>
                     <option value="assigned"><?= htmlspecialchars(__('ipam_status_assigned'), ENT_QUOTES, 'UTF-8') ?></option>
                     <option value="dhcp"><?= htmlspecialchars(__('ipam_status_dhcp'), ENT_QUOTES, 'UTF-8') ?></option>
+                    <option value="broken"><?= htmlspecialchars(__('ipam_status_broken'), ENT_QUOTES, 'UTF-8') ?></option>
                 </select>
             </label>
             <label class="block">
@@ -311,5 +336,80 @@ declare(strict_types=1);
             <button type="button" @click="closeIpamImportModal()" class="rounded-xl border border-zinc-200 px-4 py-2.5 text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('cancel'), ENT_QUOTES, 'UTF-8') ?></button>
             <button type="button" @click="submitIpamImport()" :disabled="isIpamImportSubmitting || !ipamImportFile" class="rounded-xl bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white disabled:opacity-60"><?= htmlspecialchars(__('import_submit'), ENT_QUOTES, 'UTF-8') ?></button>
         </div>
+    </div>
+</div>
+
+<div
+    x-show="isIpBulkEditOpen"
+    x-cloak
+    class="fixed inset-0 z-50 flex items-center justify-center px-4"
+    @keydown.escape.window="closeBulkIpEditModal()"
+>
+    <div class="absolute inset-0 bg-zinc-900/40 backdrop-blur-sm" @click="closeBulkIpEditModal()"></div>
+    <div class="relative w-full max-w-xl rounded-2xl border border-zinc-200 bg-white shadow-soft">
+        <div class="border-b border-zinc-200 px-6 py-4">
+            <h3 class="text-lg font-semibold text-zinc-900"><?= htmlspecialchars(__('ipam_bulk_edit_title'), ENT_QUOTES, 'UTF-8') ?></h3>
+            <p class="mt-1 text-sm text-zinc-500"><?= htmlspecialchars(__('ipam_bulk_edit_subtitle'), ENT_QUOTES, 'UTF-8') ?></p>
+            <p class="mt-2 text-xs font-medium text-zinc-600" x-text="bulkIpEditSelectedCountLabel()"></p>
+        </div>
+        <form @submit.prevent="submitBulkIpEdit()" class="space-y-4 px-6 py-5">
+            <div class="rounded-xl border border-zinc-200 bg-zinc-50/70 p-4">
+                <label class="flex items-start gap-3">
+                    <input type="checkbox" x-model="ipBulkEditForm.applyStatus" class="mt-1 rounded border-zinc-300">
+                    <span class="flex-1">
+                        <span class="block text-sm font-medium text-zinc-800"><?= htmlspecialchars(__('ipam_bulk_edit_apply_status'), ENT_QUOTES, 'UTF-8') ?></span>
+                        <select
+                            x-model="ipBulkEditForm.status"
+                            :disabled="!ipBulkEditForm.applyStatus"
+                            class="mt-2 w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm disabled:bg-zinc-100 disabled:text-zinc-400"
+                        >
+                            <option value="available"><?= htmlspecialchars(__('ipam_bulk_edit_status_empty'), ENT_QUOTES, 'UTF-8') ?></option>
+                            <option value="assigned"><?= htmlspecialchars(__('ipam_bulk_edit_status_occupied'), ENT_QUOTES, 'UTF-8') ?></option>
+                            <option value="reserved"><?= htmlspecialchars(__('ipam_bulk_edit_status_reserved'), ENT_QUOTES, 'UTF-8') ?></option>
+                            <option value="broken"><?= htmlspecialchars(__('ipam_bulk_edit_status_broken'), ENT_QUOTES, 'UTF-8') ?></option>
+                        </select>
+                    </span>
+                </label>
+            </div>
+
+            <div class="rounded-xl border border-zinc-200 bg-zinc-50/70 p-4">
+                <label class="flex items-start gap-3">
+                    <input type="checkbox" x-model="ipBulkEditForm.applyNotes" class="mt-1 rounded border-zinc-300">
+                    <span class="flex-1">
+                        <span class="block text-sm font-medium text-zinc-800"><?= htmlspecialchars(__('ipam_bulk_edit_apply_notes'), ENT_QUOTES, 'UTF-8') ?></span>
+                        <textarea
+                            x-model="ipBulkEditForm.notes"
+                            rows="2"
+                            :disabled="!ipBulkEditForm.applyNotes"
+                            class="mt-2 w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm disabled:bg-zinc-100 disabled:text-zinc-400"
+                            placeholder="<?= htmlspecialchars(__('ipam_bulk_edit_notes'), ENT_QUOTES, 'UTF-8') ?>"
+                        ></textarea>
+                    </span>
+                </label>
+            </div>
+
+            <div class="rounded-xl border border-zinc-200 bg-zinc-50/70 p-4">
+                <label class="flex items-start gap-3">
+                    <input type="checkbox" x-model="ipBulkEditForm.applyDepartment" class="mt-1 rounded border-zinc-300">
+                    <span class="flex-1">
+                        <span class="block text-sm font-medium text-zinc-800"><?= htmlspecialchars(__('ipam_bulk_edit_apply_department'), ENT_QUOTES, 'UTF-8') ?></span>
+                        <input
+                            type="text"
+                            x-model="ipBulkEditForm.department"
+                            :disabled="!ipBulkEditForm.applyDepartment"
+                            class="mt-2 w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm disabled:bg-zinc-100 disabled:text-zinc-400"
+                            placeholder="<?= htmlspecialchars(__('ipam_bulk_edit_department'), ENT_QUOTES, 'UTF-8') ?>"
+                        >
+                    </span>
+                </label>
+            </div>
+
+            <p x-show="ipBulkEditFormError" x-cloak class="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700" x-text="ipBulkEditFormError"></p>
+
+            <div class="flex justify-end gap-3 border-t border-zinc-200 pt-4">
+                <button type="button" @click="closeBulkIpEditModal()" class="rounded-xl border border-zinc-200 px-4 py-2.5 text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('cancel'), ENT_QUOTES, 'UTF-8') ?></button>
+                <button type="submit" :disabled="isIpBulkEditSubmitting" class="rounded-xl bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white disabled:opacity-60"><?= htmlspecialchars(__('category_save'), ENT_QUOTES, 'UTF-8') ?></button>
+            </div>
+        </form>
     </div>
 </div>

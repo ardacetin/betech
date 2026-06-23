@@ -5,8 +5,11 @@ declare(strict_types=1);
 namespace App\Controllers;
 
 use App\Models\Asset;
+use App\Models\AuditLog;
 use App\Models\IpAddress;
 use App\Models\IpNetwork;
+use App\Services\AuditLogger;
+use App\Services\Auth\SessionAuthService;
 use App\Services\IpamCsvImportService;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
@@ -20,7 +23,9 @@ class IpNetworkController
         private readonly IpNetwork $ipNetworkModel,
         private readonly IpAddress $ipAddressModel,
         private readonly Asset $assetModel,
-        private readonly IpamCsvImportService $ipamCsvImportService
+        private readonly IpamCsvImportService $ipamCsvImportService,
+        private readonly SessionAuthService $sessionAuthService,
+        private readonly AuditLogger $auditLogger,
     ) {
     }
 
@@ -330,6 +335,119 @@ class IpNetworkController
             'message' => __('ipam_address_update_success'),
             'data' => $address,
         ]);
+    }
+
+    public function bulkUpdateAddresses(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
+    {
+        $payload = $this->resolvePayload($request);
+
+        if ($payload === null) {
+            return $this->jsonResponse($response, 400, [
+                'status' => 'error',
+                'message' => __('ipam_invalid_payload'),
+            ]);
+        }
+
+        $ids = $payload['ids'] ?? [];
+
+        if (!is_array($ids)) {
+            return $this->jsonResponse($response, 422, [
+                'status' => 'error',
+                'message' => __('ipam_bulk_update_ids_required'),
+            ]);
+        }
+
+        $fields = $payload['fields'] ?? [];
+
+        if (!is_array($fields)) {
+            return $this->jsonResponse($response, 422, [
+                'status' => 'error',
+                'message' => __('ipam_bulk_update_fields_required'),
+            ]);
+        }
+
+        $networkId = isset($payload['network_id']) ? (int) $payload['network_id'] : 0;
+
+        try {
+            $normalizedIds = array_values(array_unique(array_filter(
+                array_map(static fn (mixed $id): int => (int) $id, $ids),
+                static fn (int $id): bool => $id > 0
+            )));
+
+            if ($networkId > 0) {
+                $existing = $this->ipAddressModel->findByIds($normalizedIds);
+
+                foreach ($existing as $address) {
+                    if ((int) ($address['network_id'] ?? 0) !== $networkId) {
+                        return $this->jsonResponse($response, 422, [
+                            'status' => 'error',
+                            'message' => __('ipam_bulk_update_network_mismatch'),
+                        ]);
+                    }
+                }
+            }
+
+            $result = $this->ipAddressModel->bulkUpdate($normalizedIds, $fields);
+            $actorUserId = $this->sessionAuthService->userId();
+            $afterById = [];
+
+            foreach ($result['after'] as $afterRow) {
+                $afterById[(int) ($afterRow['id'] ?? 0)] = $afterRow;
+            }
+
+            foreach ($result['before'] as $beforeRow) {
+                $addressId = (int) ($beforeRow['id'] ?? 0);
+                $afterRow = $afterById[$addressId] ?? null;
+
+                if ($addressId <= 0 || $afterRow === null) {
+                    continue;
+                }
+
+                $this->auditLogger->logFromRequest(
+                    $request,
+                    $actorUserId,
+                    AuditLog::ACTION_UPDATED,
+                    AuditLog::ENTITY_IP_ADDRESS,
+                    $addressId,
+                    $this->auditSnapshot($beforeRow),
+                    $this->auditSnapshot($afterRow)
+                );
+            }
+        } catch (\InvalidArgumentException $exception) {
+            return $this->jsonResponse($response, 422, [
+                'status' => 'error',
+                'message' => $exception->getMessage(),
+            ]);
+        } catch (\Throwable) {
+            return $this->jsonResponse($response, 500, [
+                'status' => 'error',
+                'message' => __('ipam_bulk_update_error'),
+            ]);
+        }
+
+        return $this->jsonResponse($response, 200, [
+            'status' => 'success',
+            'message' => sprintf(__('ipam_bulk_update_success'), (int) $result['updated']),
+            'data' => [
+                'updated' => (int) $result['updated'],
+                'addresses' => $result['after'],
+            ],
+        ]);
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     *
+     * @return array<string, mixed>
+     */
+    private function auditSnapshot(array $row): array
+    {
+        return [
+            'ip_address' => (string) ($row['ip_address'] ?? ''),
+            'status' => (string) ($row['status'] ?? ''),
+            'notes' => $row['notes'] !== null ? (string) $row['notes'] : null,
+            'network_id' => (int) ($row['network_id'] ?? 0),
+        ];
     }
 
     public function networkImportTemplate(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface

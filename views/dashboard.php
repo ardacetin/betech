@@ -416,6 +416,15 @@ $i18nScript = json_encode([
     'ipam_status_reserved' => __('ipam_status_reserved'),
     'ipam_status_assigned' => __('ipam_status_assigned'),
     'ipam_status_dhcp' => __('ipam_status_dhcp'),
+    'ipam_status_broken' => __('ipam_status_broken'),
+    'ipam_bulk_edit' => __('ipam_bulk_edit'),
+    'ipam_bulk_edit_title' => __('ipam_bulk_edit_title'),
+    'ipam_bulk_edit_subtitle' => __('ipam_bulk_edit_subtitle'),
+    'ipam_bulk_edit_selected_count' => __('ipam_bulk_edit_selected_count'),
+    'ipam_bulk_edit_select_minimum' => __('ipam_bulk_edit_select_minimum'),
+    'ipam_bulk_edit_no_fields' => __('ipam_bulk_edit_no_fields'),
+    'ipam_bulk_update_success' => __('ipam_bulk_update_success'),
+    'audit_entity_ip_address' => __('audit_entity_ip_address'),
     'ipam_filter_all' => __('ipam_filter_all'),
     'ipam_import_success' => __('ipam_import_success'),
     'ipam_import_partial_success' => __('ipam_import_partial_success'),
@@ -2619,6 +2628,7 @@ $i18nScript = json_encode([
                 { value: 'assigned', label: window.__i18n.ipam_status_assigned },
                 { value: 'reserved', label: window.__i18n.ipam_status_reserved },
                 { value: 'dhcp', label: window.__i18n.ipam_status_dhcp },
+                { value: 'broken', label: window.__i18n.ipam_status_broken },
             ],
             isIpNetworkModalOpen: false,
             isIpNetworkSubmitting: false,
@@ -2644,6 +2654,18 @@ $i18nScript = json_encode([
                 notes: '',
             },
             ipAddressFormError: '',
+            selectedIpAddressIds: [],
+            isIpBulkEditOpen: false,
+            isIpBulkEditSubmitting: false,
+            ipBulkEditFormError: '',
+            ipBulkEditForm: {
+                applyStatus: true,
+                status: 'available',
+                applyNotes: false,
+                notes: '',
+                applyDepartment: false,
+                department: '',
+            },
             isIpamImportOpen: false,
             isIpamImportSubmitting: false,
             ipamImportType: 'networks',
@@ -5621,6 +5643,7 @@ $i18nScript = json_encode([
                 this.selectedIpNetwork = network;
                 this.ipamSubView = 'addresses';
                 this.ipAddressStatusFilter = 'all';
+                this.selectedIpAddressIds = [];
                 await this.fetchIpAddresses(network.id);
             },
             backToIpNetworks() {
@@ -5628,6 +5651,7 @@ $i18nScript = json_encode([
                 this.selectedIpNetwork = null;
                 this.ipAddresses = [];
                 this.ipAddressesError = '';
+                this.selectedIpAddressIds = [];
             },
             async fetchIpAddresses(networkId) {
                 this.ipAddressesLoading = true;
@@ -5670,6 +5694,7 @@ $i18nScript = json_encode([
                     reserved: window.__i18n.ipam_status_reserved,
                     assigned: window.__i18n.ipam_status_assigned,
                     dhcp: window.__i18n.ipam_status_dhcp,
+                    broken: window.__i18n.ipam_status_broken,
                 };
 
                 return map[status] || status;
@@ -5680,6 +5705,7 @@ $i18nScript = json_encode([
                     assigned: 'bg-rose-50 text-rose-700 ring-rose-600/20',
                     reserved: 'bg-amber-50 text-amber-700 ring-amber-600/20',
                     dhcp: 'bg-sky-50 text-sky-700 ring-sky-600/20',
+                    broken: 'bg-zinc-200 text-zinc-700 ring-zinc-400/30',
                 };
 
                 return map[status] || 'bg-zinc-100 text-zinc-700 ring-zinc-300';
@@ -5690,9 +5716,121 @@ $i18nScript = json_encode([
                     assigned: 'border-rose-200 bg-rose-50 text-rose-800',
                     reserved: 'border-amber-200 bg-amber-50 text-amber-800',
                     dhcp: 'border-sky-200 bg-sky-50 text-sky-800',
+                    broken: 'border-zinc-300 bg-zinc-100 text-zinc-700',
                 };
 
                 return map[status] || 'border-zinc-200 bg-white text-zinc-700';
+            },
+            isIpAddressSelected(addressId) {
+                return (this.selectedIpAddressIds || []).includes(Number(addressId));
+            },
+            toggleIpAddressSelection(addressId, checked) {
+                const id = Number(addressId);
+                const current = new Set((this.selectedIpAddressIds || []).map(Number));
+
+                if (checked) {
+                    current.add(id);
+                } else {
+                    current.delete(id);
+                }
+
+                this.selectedIpAddressIds = Array.from(current);
+            },
+            toggleSelectAllIpAddresses(checked) {
+                const visibleIds = (this.filteredIpAddresses || []).map((address) => Number(address.id));
+                const current = new Set((this.selectedIpAddressIds || []).map(Number));
+
+                if (checked) {
+                    visibleIds.forEach((id) => current.add(id));
+                } else {
+                    visibleIds.forEach((id) => current.delete(id));
+                }
+
+                this.selectedIpAddressIds = Array.from(current);
+            },
+            bulkIpEditSelectedCountLabel() {
+                const template = window.__i18n.ipam_bulk_edit_selected_count || '%d IP selected';
+
+                return template.replace('%d', String(this.selectedIpAddressCount || 0));
+            },
+            openBulkIpEditModal() {
+                if (this.selectedIpAddressCount < 2) {
+                    this.ipAddressesError = window.__i18n.ipam_bulk_edit_select_minimum;
+                    return;
+                }
+
+                this.ipBulkEditFormError = '';
+                this.ipBulkEditForm = {
+                    applyStatus: true,
+                    status: 'available',
+                    applyNotes: false,
+                    notes: '',
+                    applyDepartment: false,
+                    department: '',
+                };
+                this.isIpBulkEditOpen = true;
+            },
+            closeBulkIpEditModal() {
+                if (this.isIpBulkEditSubmitting) {
+                    return;
+                }
+
+                this.isIpBulkEditOpen = false;
+                this.ipBulkEditFormError = '';
+            },
+            async submitBulkIpEdit() {
+                if (this.selectedIpAddressCount < 2) {
+                    this.ipBulkEditFormError = window.__i18n.ipam_bulk_edit_select_minimum;
+                    return;
+                }
+
+                if (!this.ipBulkEditForm.applyStatus && !this.ipBulkEditForm.applyNotes && !this.ipBulkEditForm.applyDepartment) {
+                    this.ipBulkEditFormError = window.__i18n.ipam_bulk_edit_no_fields;
+                    return;
+                }
+
+                this.isIpBulkEditSubmitting = true;
+                this.ipBulkEditFormError = '';
+
+                try {
+                    const response = await fetch('/api/ip-addresses/bulk-update', this.apiFetchJsonInit('POST', {
+                        ids: this.selectedIpAddressIds,
+                        network_id: this.selectedIpNetwork?.id ?? null,
+                        fields: {
+                            status: {
+                                enabled: this.ipBulkEditForm.applyStatus,
+                                value: this.ipBulkEditForm.status,
+                            },
+                            notes: {
+                                enabled: this.ipBulkEditForm.applyNotes,
+                                value: this.ipBulkEditForm.notes,
+                            },
+                            department: {
+                                enabled: this.ipBulkEditForm.applyDepartment,
+                                value: this.ipBulkEditForm.department,
+                            },
+                        },
+                    }));
+                    const result = await response.json().catch(() => ({}));
+
+                    if (!response.ok) {
+                        this.ipBulkEditFormError = this.apiErrorMessage(result, window.__i18n.ipam_bulk_update_error);
+                        return;
+                    }
+
+                    this.isIpBulkEditOpen = false;
+                    this.selectedIpAddressIds = [];
+                    this.ipNetworksSuccessMessage = result.message || window.__i18n.ipam_bulk_update_success;
+
+                    if (this.selectedIpNetwork?.id) {
+                        await this.fetchIpAddresses(this.selectedIpNetwork.id);
+                        await this.fetchIpNetworks();
+                    }
+                } catch (error) {
+                    this.ipBulkEditFormError = window.__i18n.ipam_network_error;
+                } finally {
+                    this.isIpBulkEditSubmitting = false;
+                }
             },
             openIpNetworkModal(network = null) {
                 this.ipNetworkFormError = '';
@@ -6362,6 +6500,18 @@ $i18nScript = json_encode([
                 }
 
                 return this.ipAddresses.filter((address) => address.status === this.ipAddressStatusFilter);
+            },
+            get selectedIpAddressCount() {
+                return (this.selectedIpAddressIds || []).length;
+            },
+            get areAllFilteredIpAddressesSelected() {
+                const visible = this.filteredIpAddresses || [];
+
+                if (visible.length === 0) {
+                    return false;
+                }
+
+                return visible.every((address) => this.isIpAddressSelected(address.id));
             },
             setTicketStatusFilter(value) {
                 this.ticketStatusFilter = value;

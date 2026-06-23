@@ -207,7 +207,14 @@ $categoryController = new CategoryController($categoryModel, $sessionAuthService
 $locationController = new LocationController($locationModel);
 $ticketCategoryController = new TicketCategoryController($ticketCategoryModel);
 $licenseController = new LicenseController($licenseModel, $licenseFilterSchemaService);
-$ipNetworkController = new IpNetworkController($ipNetworkModel, $ipAddressModel, $assetModel, $ipamCsvImportService);
+$ipNetworkController = new IpNetworkController(
+    $ipNetworkModel,
+    $ipAddressModel,
+    $assetModel,
+    $ipamCsvImportService,
+    $sessionAuthService,
+    $auditLogger
+);
 $consumableController = new ConsumableController($consumableModel, $locationModel, $consumableFilterSchemaService);
 $knowledgeBaseController = new KnowledgeBaseController($knowledgeBaseArticleModel, $sessionAuthService, $appLogger);
 $ticketModel = new Ticket($databaseService);
@@ -324,6 +331,8 @@ $app->group('', function ($group) use (
     $group->get('/api/ip-networks/{id}/export', [$ipNetworkController, 'exportNetworkAddresses']);
     $group->post('/api/ip-networks/{id}/generate', [$ipNetworkController, 'generateAddresses']);
     $group->put('/api/ip-addresses/{id}', [$ipNetworkController, 'updateAddress']);
+    $group->post('/api/ip-addresses/bulk-update', [$ipNetworkController, 'bulkUpdateAddresses']);
+    $group->post('/admin/network/ip/bulk-update', [$ipNetworkController, 'bulkUpdateAddresses']);
     $group->get('/api/consumables', [$consumableController, 'index']);
     $group->post('/api/consumables', [$consumableController, 'store']);
     $group->get('/api/consumables/{id}', [$consumableController, 'show']);

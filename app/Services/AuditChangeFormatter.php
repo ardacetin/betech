@@ -180,6 +180,7 @@ class AuditChangeFormatter
             'category' => (string) ($values['name'] ?? ('#' . ($entityId ?? ''))),
             'setting' => (string) ($values['section'] ?? __('audit_entity_setting')),
             'user' => (string) ($values['email'] ?? $values['name'] ?? ('#' . ($entityId ?? ''))),
+            'ip_address' => (string) ($values['ip_address'] ?? ('#' . ($entityId ?? ''))),
             default => (string) ($entityId ?? '—'),
         };
     }
@@ -192,6 +193,7 @@ class AuditChangeFormatter
             'category' => __('audit_entity_category'),
             'setting' => __('audit_entity_setting'),
             'user' => __('audit_entity_user'),
+            'ip_address' => __('audit_entity_ip_address'),
             default => $entityType,
         };
     }

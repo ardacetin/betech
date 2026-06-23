@@ -133,6 +133,7 @@ class IpamCsvImportService
             IpAddress::STATUS_RESERVED => __('ipam_status_reserved'),
             IpAddress::STATUS_ASSIGNED => __('ipam_status_assigned'),
             IpAddress::STATUS_DHCP => __('ipam_status_dhcp'),
+            IpAddress::STATUS_BROKEN => __('ipam_status_broken'),
             default => $status,
         };
     }

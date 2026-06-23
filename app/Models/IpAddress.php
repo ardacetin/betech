@@ -13,6 +13,7 @@ class IpAddress
     public const STATUS_RESERVED = 'reserved';
     public const STATUS_ASSIGNED = 'assigned';
     public const STATUS_DHCP = 'dhcp';
+    public const STATUS_BROKEN = 'broken';
 
     /**
      * @var list<string>
@@ -22,6 +23,7 @@ class IpAddress
         self::STATUS_RESERVED,
         self::STATUS_ASSIGNED,
         self::STATUS_DHCP,
+        self::STATUS_BROKEN,
     ];
 
     public function __construct(
@@ -184,6 +186,153 @@ class IpAddress
         }
 
         return $this->findById($id);
+    }
+
+    /**
+     * @param list<int> $ids
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function findByIds(array $ids): array
+    {
+        $normalizedIds = array_values(array_unique(array_filter(
+            array_map(static fn (mixed $id): int => (int) $id, $ids),
+            static fn (int $id): bool => $id > 0
+        )));
+
+        if ($normalizedIds === []) {
+            return [];
+        }
+
+        $rows = $this->db()->select('ip_addresses', [
+            '[>]assets' => ['asset_id' => 'id'],
+        ], [
+            'ip_addresses.id',
+            'ip_addresses.network_id',
+            'ip_addresses.ip_address',
+            'ip_addresses.status',
+            'ip_addresses.asset_id',
+            'ip_addresses.hostname',
+            'ip_addresses.mac_address',
+            'ip_addresses.notes',
+            'ip_addresses.created_at',
+            'ip_addresses.updated_at',
+            'assets.asset_tag(asset_tag)',
+            'assets.name(asset_name)',
+        ], [
+            'ip_addresses.id' => $normalizedIds,
+            'ORDER' => [
+                'ip_addresses.ip_address' => 'ASC',
+            ],
+        ]);
+
+        if (!is_array($rows)) {
+            return [];
+        }
+
+        return array_map(fn (array $row): array => $this->normalizeRow($row), $rows);
+    }
+
+    /**
+     * @param list<int> $ids
+     * @param array<string, mixed> $fields
+     *
+     * @return array{
+     *     updated: int,
+     *     before: list<array<string, mixed>>,
+     *     after: list<array<string, mixed>>
+     * }
+     */
+    public function bulkUpdate(array $ids, array $fields): array
+    {
+        $normalizedIds = array_values(array_unique(array_filter(
+            array_map(static fn (mixed $id): int => (int) $id, $ids),
+            static fn (int $id): bool => $id > 0
+        )));
+
+        if ($normalizedIds === []) {
+            throw new \InvalidArgumentException(__('ipam_bulk_update_ids_required'));
+        }
+
+        $updates = $this->buildBulkUpdatePayload($fields);
+
+        if ($updates === []) {
+            throw new \InvalidArgumentException(__('ipam_bulk_update_fields_required'));
+        }
+
+        $before = $this->findByIds($normalizedIds);
+
+        if ($before === []) {
+            throw new \InvalidArgumentException(__('ipam_bulk_update_not_found'));
+        }
+
+        $foundIds = array_map(static fn (array $row): int => (int) ($row['id'] ?? 0), $before);
+        $missingIds = array_values(array_diff($normalizedIds, $foundIds));
+
+        if ($missingIds !== []) {
+            throw new \InvalidArgumentException(__('ipam_bulk_update_not_found'));
+        }
+
+        $this->db()->update('ip_addresses', $updates, ['id' => $normalizedIds]);
+
+        $after = $this->findByIds($normalizedIds);
+
+        return [
+            'updated' => count($after),
+            'before' => $before,
+            'after' => $after,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $fields
+     *
+     * @return array<string, mixed>
+     */
+    private function buildBulkUpdatePayload(array $fields): array
+    {
+        $updates = [];
+
+        $statusField = is_array($fields['status'] ?? null) ? $fields['status'] : null;
+
+        if ($statusField !== null && !empty($statusField['enabled'])) {
+            $status = strtolower(trim((string) ($statusField['value'] ?? '')));
+
+            if (!in_array($status, self::STATUSES, true)) {
+                throw new \InvalidArgumentException(__('ipam_invalid_status'));
+            }
+
+            $updates['status'] = $status;
+        }
+
+        $notesField = is_array($fields['notes'] ?? null) ? $fields['notes'] : null;
+        $departmentField = is_array($fields['department'] ?? null) ? $fields['department'] : null;
+        $notesEnabled = $notesField !== null && !empty($notesField['enabled']);
+        $departmentEnabled = $departmentField !== null && !empty($departmentField['enabled']);
+
+        if ($notesEnabled || $departmentEnabled) {
+            $parts = [];
+
+            if ($departmentEnabled) {
+                $department = trim((string) ($departmentField['value'] ?? ''));
+
+                if ($department !== '') {
+                    $parts[] = $department;
+                }
+            }
+
+            if ($notesEnabled) {
+                $notes = trim((string) ($notesField['value'] ?? ''));
+
+                if ($notes !== '') {
+                    $parts[] = $notes;
+                }
+            }
+
+            $updates['notes'] = $parts === [] ? null : implode("\n", $parts);
+        }
+
+        return $updates;
     }
 
     /**

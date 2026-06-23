@@ -273,6 +273,16 @@ class RoleMiddleware implements MiddlewareInterface
                 'roles' => $operational,
             ],
             [
+                'methods' => ['POST'],
+                'pattern' => '/api/ip-addresses/bulk-update',
+                'roles' => $operational,
+            ],
+            [
+                'methods' => ['POST'],
+                'pattern' => '/admin/network/ip/bulk-update',
+                'roles' => $operational,
+            ],
+            [
                 'methods' => ['GET'],
                 'pattern' => '/api/consumables',
                 'roles' => $operational,

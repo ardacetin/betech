@@ -22,6 +22,7 @@ class AuditLog
     public const ENTITY_CATEGORY = 'category';
     public const ENTITY_SETTING = 'setting';
     public const ENTITY_USER = 'user';
+    public const ENTITY_IP_ADDRESS = 'ip_address';
 
     public function __construct(
         private readonly DatabaseService $databaseService
