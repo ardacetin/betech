@@ -4825,7 +4825,9 @@ $i18nScript = json_encode([
 
                         return {
                             id,
-                            name: this.generateCustomFieldCode(field.label),
+                            name: field?.name && String(field.name).trim() !== ''
+                                ? String(field.name).trim()
+                                : this.generateCustomFieldCode(field.label),
                             label: String(field.label).trim(),
                             type: field.type || 'text',
                         };

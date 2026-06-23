@@ -27,7 +27,8 @@ class Asset
     ];
 
     public function __construct(
-        private readonly DatabaseService $databaseService
+        private readonly DatabaseService $databaseService,
+        private readonly AssetColumnSchemaService $columnSchemaService,
     ) {
     }
 
@@ -110,7 +111,7 @@ class Asset
      */
     public function getDistinctColumnValues(string $column): array
     {
-        if (!in_array($column, self::FLAT_COLUMNS, true)) {
+        if (!$this->columnSchemaService->isQueryableColumn($column)) {
             return [];
         }
 
@@ -410,7 +411,10 @@ class Asset
             $updateData['status'] = $status !== '' ? $status : 'ready';
         }
 
-        foreach (['model', 'brand', 'type', 'location', 'building', 'assigned_to', 'mac_address_1', 'mac_address_2'] as $nullableStringField) {
+        foreach (array_merge(
+            ['model', 'brand', 'type', 'location', 'building', 'assigned_to', 'mac_address_1', 'mac_address_2'],
+            array_diff($this->columnSchemaService->getWritableColumnNames(), self::FLAT_COLUMNS)
+        ) as $nullableStringField) {
             if (!array_key_exists($nullableStringField, $updateData)) {
                 continue;
             }
@@ -586,17 +590,7 @@ class Asset
      */
     private function filterFlatFields(array $fields): array
     {
-        $filtered = [];
-
-        foreach (self::FLAT_COLUMNS as $column) {
-            if (!array_key_exists($column, $fields)) {
-                continue;
-            }
-
-            $filtered[$column] = $fields[$column];
-        }
-
-        return $filtered;
+        return $this->columnSchemaService->filterWritableFields($fields);
     }
 
     /**

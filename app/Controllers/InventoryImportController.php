@@ -30,7 +30,7 @@ class InventoryImportController
     public function template(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
     {
         try {
-            $csv = InventoryImportService::templateCsvContent();
+            $csv = $this->inventoryImportService->templateCsvContent();
 
             $response->getBody()->write("\xEF\xBB\xBF" . $csv);
 

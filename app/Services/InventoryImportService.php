@@ -41,41 +41,15 @@ class InventoryImportService
         'outoforder' => 'broken',
     ];
 
-    /** Permanent corporate inventory CSV layout (12 columns, index 0-11). */
-    private const MASTER_SCHEMA_COLUMN_COUNT = 12;
-
-    private const MASTER_SCHEMA_TEMPLATE_CSV = <<<'CSV'
-Demirbaş No,"Cihaz Adı",Model,Marka,"Seri No",Tür,Durum,Lokasyon,Bina,"Zimmetli Kişi","Mac Adresi 1","Mac Adresi 2"
-ENV-GLPI-001,"BT Departman Laptop","Latitude 5540",Dell,SN-GLPI-001,Bilgisayar,deployed,"IT Depo","Merkez Kampüs",ahmet.yilmaz@sirket.com,AA:BB:CC:DD:EE:01,AA:BB:CC:DD:EE:02
-
-CSV;
-
-    /**
-     * @var array<int, string>
-     */
-    private const MASTER_SCHEMA_FIELD_BY_INDEX = [
-        0 => 'asset_tag',
-        1 => 'name',
-        2 => 'model',
-        3 => 'brand',
-        4 => 'serial_number',
-        5 => 'type',
-        6 => 'status',
-        7 => 'location',
-        8 => 'building',
-        9 => 'assigned_to',
-        10 => 'mac_address_1',
-        11 => 'mac_address_2',
-    ];
-
     public function __construct(
         private readonly Asset $assetModel,
+        private readonly AssetColumnSchemaService $columnSchemaService,
     ) {
     }
 
-    public static function templateCsvContent(): string
+    public function templateCsvContent(): string
     {
-        return self::MASTER_SCHEMA_TEMPLATE_CSV;
+        return $this->columnSchemaService->buildTemplateCsvContent();
     }
 
     /**
@@ -104,6 +78,8 @@ CSV;
         $extension = strtolower(pathinfo($originalFilename, PATHINFO_EXTENSION));
 
         try {
+            $this->columnSchemaService->ensureConfiguredCustomColumns();
+
             return match ($extension) {
                 'csv' => $this->importCsvContents($contents),
                 'xlsx', 'xls' => $this->importSpreadsheetContents($contents, $extension),
@@ -136,7 +112,7 @@ CSV;
         }
 
         $state = $this->newImportState();
-        $headerSkipped = false;
+        $columnIndexMap = null;
         $lineNumber = 0;
 
         foreach ($this->iteratePhysicalCsvLines($csvContent) as $line) {
@@ -146,26 +122,26 @@ CSV;
                 continue;
             }
 
-            $columns = $this->parseMasterSchemaCsvLine($line);
+            $columns = $this->parseCsvLine($line);
 
-            if (!$headerSkipped) {
-                if (substr_count($line, ',') < self::MASTER_SCHEMA_COLUMN_COUNT - 1) {
+            if ($columnIndexMap === null) {
+                $columnIndexMap = $this->columnSchemaService->buildHeaderColumnMap($columns);
+
+                if (!isset($columnIndexMap['asset_tag'])) {
                     throw new RuntimeException(__('import_csv_invalid_headers'));
                 }
-
-                $headerSkipped = true;
 
                 continue;
             }
 
             $this->processRow(
                 $lineNumber,
-                $this->mapMasterSchemaRowByIndex($columns),
+                $this->mapRowByColumnIndex($columns, $columnIndexMap),
                 $state
             );
         }
 
-        if (!$headerSkipped) {
+        if ($columnIndexMap === null) {
             throw new RuntimeException(__('import_csv_missing_headers'));
         }
 
@@ -201,16 +177,14 @@ CSV;
     /**
      * @return list<string>
      */
-    private function parseMasterSchemaCsvLine(string $line): array
+    private function parseCsvLine(string $line): array
     {
         $rawColumns = explode(',', $line);
-        $columns = [];
 
-        for ($index = 0; $index < self::MASTER_SCHEMA_COLUMN_COUNT; ++$index) {
-            $columns[] = $this->unwrapCsvField((string) ($rawColumns[$index] ?? ''));
-        }
-
-        return $columns;
+        return array_map(
+            fn (string $field): string => $this->unwrapCsvField($field),
+            $rawColumns
+        );
     }
 
     private function unwrapCsvField(string $field): string
@@ -286,7 +260,7 @@ CSV;
     private function importWorksheetRows(Worksheet $worksheet): array
     {
         $state = $this->newImportState();
-        $headerSkipped = false;
+        $columnIndexMap = null;
 
         foreach ($worksheet->getRowIterator() as $row) {
             $lineNumber = $row->getRowIndex();
@@ -300,26 +274,24 @@ CSV;
                 continue;
             }
 
-            $columns = $this->normalizeMasterSchemaColumns($columns);
+            if ($columnIndexMap === null) {
+                $columnIndexMap = $this->columnSchemaService->buildHeaderColumnMap($columns);
 
-            if (!$headerSkipped) {
-                if (count(array_filter($columns, static fn (string $value): bool => $value !== '')) < self::MASTER_SCHEMA_COLUMN_COUNT) {
+                if (!isset($columnIndexMap['asset_tag'])) {
                     throw new RuntimeException(__('import_csv_invalid_headers'));
                 }
-
-                $headerSkipped = true;
 
                 continue;
             }
 
             $this->processRow(
                 $lineNumber,
-                $this->mapMasterSchemaRowByIndex($columns),
+                $this->mapRowByColumnIndex($columns, $columnIndexMap),
                 $state
             );
         }
 
-        if (!$headerSkipped) {
+        if ($columnIndexMap === null) {
             throw new RuntimeException(__('import_csv_missing_headers'));
         }
 
@@ -327,33 +299,17 @@ CSV;
     }
 
     /**
-     * @param list<string|null> $columns
-     *
-     * @return list<string>
-     */
-    private function normalizeMasterSchemaColumns(array $columns): array
-    {
-        $normalized = [];
-
-        for ($index = 0; $index < self::MASTER_SCHEMA_COLUMN_COUNT; ++$index) {
-            $normalized[] = $this->sanitizeCellValue((string) ($columns[$index] ?? ''));
-        }
-
-        return $normalized;
-    }
-
-    /**
      * @param list<string> $columns
+     * @param array<string, int> $columnIndexMap
      *
      * @return array<string, string>
      */
-    private function mapMasterSchemaRowByIndex(array $columns): array
+    private function mapRowByColumnIndex(array $columns, array $columnIndexMap): array
     {
         $values = [];
 
-        for ($index = 0; $index < self::MASTER_SCHEMA_COLUMN_COUNT; ++$index) {
-            $parsedValue = $columns[$index] ?? '';
-            $fieldKey = self::MASTER_SCHEMA_FIELD_BY_INDEX[$index];
+        foreach ($columnIndexMap as $fieldKey => $index) {
+            $parsedValue = trim($columns[$index] ?? '');
 
             if ($parsedValue === '') {
                 continue;
@@ -474,7 +430,8 @@ CSV;
             return;
         }
 
-        $status = $this->normalizeStatus($values['status'] ?? '');
+        $statusInput = $values['status'] ?? '';
+        $status = $this->normalizeStatus($statusInput);
 
         if ($status === null) {
             $state['failed']++;
@@ -482,7 +439,7 @@ CSV;
                 'row' => $rowNumber,
                 'message' => sprintf(
                     __('import_error_invalid_status'),
-                    trim($values['status'] ?? '')
+                    trim($statusInput)
                 ),
             ];
 
@@ -498,17 +455,24 @@ CSV;
         $fields = [
             'asset_tag' => $assetTag,
             'name' => $name,
-            'model' => trim($values['model'] ?? ''),
-            'brand' => trim($values['brand'] ?? ''),
-            'serial_number' => $serialNumber,
-            'type' => trim($values['type'] ?? ''),
             'status' => $status,
-            'location' => trim($values['location'] ?? ''),
-            'building' => trim($values['building'] ?? ''),
-            'assigned_to' => $assignedTo,
-            'mac_address_1' => trim($values['mac_address_1'] ?? ''),
-            'mac_address_2' => trim($values['mac_address_2'] ?? ''),
         ];
+
+        foreach ($this->columnSchemaService->getWritableColumnNames() as $column) {
+            if (in_array($column, ['asset_tag', 'name', 'status'], true)) {
+                continue;
+            }
+
+            if (!array_key_exists($column, $values)) {
+                continue;
+            }
+
+            $fields[$column] = trim($values[$column]);
+        }
+
+        if ($assignedTo !== '') {
+            $fields['assigned_to'] = $assignedTo;
+        }
 
         try {
             $result = $this->assetModel->upsertFromImport($existingAsset, $fields);

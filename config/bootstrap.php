@@ -51,6 +51,7 @@ use App\Models\Personnel;
 use App\Models\User;
 use App\Services\AnalyticsService;
 use App\Services\AppLogger;
+use App\Services\AssetColumnSchemaService;
 use App\Services\AssetCsvImportService;
 use App\Services\AssetFilterSchemaService;
 use App\Services\AuditChangeFormatter;
@@ -139,7 +140,9 @@ $errorMiddleware->setDefaultErrorHandler($errorHandler);
 $errorMiddleware->setErrorHandler(HttpNotFoundException::class, $errorHandler);
 $errorMiddleware->setErrorHandler(HttpForbiddenException::class, $errorHandler);
 
-$assetModel = new Asset($databaseService);
+$settingModel = new Setting($databaseService);
+$assetColumnSchemaService = new AssetColumnSchemaService($databaseService, $settingModel);
+$assetModel = new Asset($databaseService, $assetColumnSchemaService);
 $assetHistoryModel = new AssetHistory($databaseService);
 $categoryModel = new Category($databaseService);
 $locationModel = new Location($databaseService);
@@ -151,16 +154,15 @@ $ipamCsvImportService = new IpamCsvImportService($ipNetworkModel, $ipAddressMode
 $consumableModel = new Consumable($databaseService);
 $knowledgeBaseArticleModel = new KnowledgeBaseArticle($databaseService);
 $ticketCategoryModel = new TicketCategory($databaseService);
-$settingModel = new Setting($databaseService);
 $userIntegrationFactory = new UserIntegrationFactory($databaseService, $settingModel);
 $qrCodeService = new QrCodeService($appConfig['url']);
 $analyticsService = new AnalyticsService($databaseService);
 $zimmetTutanakService = new ZimmetTutanakService();
-$assetCsvImportService = new AssetCsvImportService($assetModel, $categoryModel, $locationModel);
+$assetCsvImportService = new AssetCsvImportService($assetColumnSchemaService);
 $assetFilterSchemaService = new AssetFilterSchemaService();
 $licenseFilterSchemaService = new LicenseFilterSchemaService();
 $consumableFilterSchemaService = new ConsumableFilterSchemaService();
-$inventoryImportService = new InventoryImportService($assetModel);
+$inventoryImportService = new InventoryImportService($assetModel, $assetColumnSchemaService);
 $ldapAuthenticator = new LdapAuthenticator($settingModel);
 $auditLogModel = new AuditLog($databaseService);
 $auditChangeFormatter = new AuditChangeFormatter();
@@ -201,7 +203,8 @@ $settingsController = new SettingsController(
     $sessionAuthService,
     $userModel,
     $appConfig['url'],
-    $auditLogger
+    $auditLogger,
+    $assetColumnSchemaService
 );
 $categoryController = new CategoryController($categoryModel, $sessionAuthService, $auditLogger);
 $locationController = new LocationController($locationModel);

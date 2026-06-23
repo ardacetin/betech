@@ -4,29 +4,19 @@ declare(strict_types=1);
 
 namespace App\Services;
 
-use App\Models\Asset;
-
 class AssetCsvImportService
 {
+    public function __construct(
+        private readonly AssetColumnSchemaService $columnSchemaService,
+    ) {
+    }
+
     /**
      * @return list<string>
      */
-    public static function exportHeaders(): array
+    public function exportHeaders(): array
     {
-        return [
-            'Demirbaş No',
-            'Cihaz Adı',
-            'Model',
-            'Marka',
-            'Seri No',
-            'Tür',
-            'Durum',
-            'Lokasyon',
-            'Bina',
-            'Zimmetli Kişi',
-            'Mac Adresi 1',
-            'Mac Adresi 2',
-        ];
+        return array_column($this->columnSchemaService->buildExportSchema(), 'label');
     }
 
     /**
@@ -34,27 +24,20 @@ class AssetCsvImportService
      *
      * @return list<string>
      */
-    public static function mapAssetToExportRow(array $asset): array
+    public function mapAssetToExportRow(array $asset): array
     {
-        return [
-            (string) ($asset['asset_tag'] ?? ''),
-            (string) ($asset['name'] ?? ''),
-            (string) ($asset['model'] ?? ''),
-            (string) ($asset['brand'] ?? ''),
-            (string) ($asset['serial_number'] ?? ''),
-            (string) ($asset['type'] ?? ''),
-            (string) ($asset['status'] ?? ''),
-            (string) ($asset['location'] ?? ''),
-            (string) ($asset['building'] ?? ''),
-            (string) ($asset['assigned_to'] ?? ''),
-            (string) ($asset['mac_address_1'] ?? ''),
-            (string) ($asset['mac_address_2'] ?? ''),
-        ];
+        $row = [];
+
+        foreach ($this->columnSchemaService->buildExportSchema() as $definition) {
+            $row[] = (string) ($asset[$definition['column']] ?? '');
+        }
+
+        return $row;
     }
 
-    public static function templateCsvContent(): string
+    public function templateCsvContent(): string
     {
-        return InventoryImportService::templateCsvContent();
+        return $this->columnSchemaService->buildTemplateCsvContent();
     }
 
     /**
@@ -62,14 +45,16 @@ class AssetCsvImportService
      */
     public function exportToCsv(array $assets): string
     {
-        $lines = [self::buildCsvLine(self::exportHeaders())];
+        $this->columnSchemaService->ensureConfiguredCustomColumns();
+
+        $lines = [$this->buildCsvLine($this->exportHeaders())];
 
         foreach ($assets as $asset) {
             if (!is_array($asset)) {
                 continue;
             }
 
-            $lines[] = self::buildCsvLine(self::mapAssetToExportRow($asset));
+            $lines[] = $this->buildCsvLine($this->mapAssetToExportRow($asset));
         }
 
         return "\xEF\xBB\xBF" . implode('', $lines);
@@ -78,7 +63,7 @@ class AssetCsvImportService
     /**
      * @param list<string> $fields
      */
-    private static function buildCsvLine(array $fields): string
+    private function buildCsvLine(array $fields): string
     {
         $handle = fopen('php://temp', 'r+');
 

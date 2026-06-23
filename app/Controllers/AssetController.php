@@ -716,7 +716,7 @@ class AssetController
 
     public function importTemplate(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
     {
-        $csv = AssetCsvImportService::templateCsvContent();
+        $csv = $this->assetCsvImportService->templateCsvContent();
 
         $response->getBody()->write($csv);
 

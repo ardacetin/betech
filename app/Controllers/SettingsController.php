@@ -7,6 +7,7 @@ namespace App\Controllers;
 use App\Models\AuditLog;
 use App\Models\Setting;
 use App\Models\User;
+use App\Services\AssetColumnSchemaService;
 use App\Services\AuditLogger;
 use App\Services\Auth\SessionAuthService;
 use App\Services\Mail\MailConfigResolver;
@@ -31,7 +32,8 @@ class SettingsController
         private readonly SessionAuthService $sessionAuthService,
         private readonly User $userModel,
         private readonly string $appUrl,
-        private readonly AuditLogger $auditLogger
+        private readonly AuditLogger $auditLogger,
+        private readonly AssetColumnSchemaService $assetColumnSchemaService,
     ) {
     }
 
@@ -107,7 +109,21 @@ class SettingsController
         }
 
         if (array_key_exists('custom_fields', $payload)) {
-            $this->settingModel->setJson('custom_fields', $this->normalizeCustomFields($payload['custom_fields']));
+            $normalizedCustomFields = $this->normalizeCustomFields($payload['custom_fields']);
+            $previousCustomFields = is_array($beforeSettings['custom_fields'] ?? null)
+                ? $beforeSettings['custom_fields']
+                : [];
+
+            try {
+                $this->assetColumnSchemaService->syncCustomFieldColumns($normalizedCustomFields, $previousCustomFields);
+            } catch (\RuntimeException $exception) {
+                return $this->jsonResponse($response, 422, [
+                    'status' => 'error',
+                    'message' => $exception->getMessage(),
+                ]);
+            }
+
+            $this->settingModel->setJson('custom_fields', $normalizedCustomFields);
         }
 
         if (array_key_exists('ldap_config', $payload) && is_array($payload['ldap_config'])) {
@@ -402,13 +418,23 @@ class SettingsController
                 $type = 'text';
             }
 
-            $name = custom_field_code_from_label($label);
-            $baseName = $name;
-            $suffix = 2;
+            $existingName = trim((string) ($field['name'] ?? ''));
 
-            while (in_array($name, $usedNames, true)) {
-                $name = $baseName . '_' . $suffix;
-                ++$suffix;
+            if ($existingName !== '' && $this->assetColumnSchemaService->isValidCustomColumnName($existingName)) {
+                $name = $existingName;
+            } else {
+                $name = custom_field_code_from_label($label);
+                $baseName = $name;
+                $suffix = 2;
+
+                while (
+                    in_array($name, $usedNames, true)
+                    || array_key_exists($name, AssetColumnSchemaService::NATIVE_COLUMN_LABELS)
+                    || in_array($name, AssetColumnSchemaService::SYSTEM_COLUMNS, true)
+                ) {
+                    $name = $baseName . '_' . $suffix;
+                    ++$suffix;
+                }
             }
 
             $usedNames[] = $name;

@@ -16,9 +16,9 @@ class AssetFilterSchemaService
      */
     public function buildDefinitions(array $categories = [], array $globalCustomFields = []): array
     {
-        unset($categories, $globalCustomFields);
+        unset($categories);
 
-        return [
+        $definitions = [
             $this->coreTextField('asset_tag', 'col_asset_tag', 'assets.asset_tag'),
             $this->coreTextField('name', 'col_name', 'assets.name'),
             $this->coreTextField('model', 'col_model', 'assets.model'),
@@ -40,6 +40,31 @@ class AssetFilterSchemaService
             $this->coreTextField('mac_address_1', 'label_mac_address_1', 'assets.mac_address_1'),
             $this->coreTextField('mac_address_2', 'label_mac_address_2', 'assets.mac_address_2'),
         ];
+
+        foreach ($globalCustomFields as $field) {
+            if (!is_array($field)) {
+                continue;
+            }
+
+            $name = trim((string) ($field['name'] ?? ''));
+            $label = trim((string) ($field['label'] ?? ''));
+
+            if ($name === '' || $label === '') {
+                continue;
+            }
+
+            $definitions[] = [
+                'name' => $name,
+                'label' => $label,
+                'type' => 'text',
+                'input' => 'text',
+                'match' => 'partial',
+                'column' => 'assets.' . $name,
+                'options_source' => 'column_distinct',
+            ];
+        }
+
+        return $definitions;
     }
 
     /**
