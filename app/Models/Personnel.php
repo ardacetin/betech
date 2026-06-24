@@ -433,8 +433,28 @@ class Personnel
                 $idPlaceholders
             );
 
-            $db->query($sql, [...$params, ...$ids]);
+            $db->query($sql, $this->normalizePositionalBindParameters([...$params, ...$ids]));
         }
+    }
+
+    /**
+     * Medoo binds parameters by array key; PDO positional placeholders require 1-based indexes.
+     *
+     * @param list<mixed> $values
+     *
+     * @return array<int, mixed>
+     */
+    private function normalizePositionalBindParameters(array $values): array
+    {
+        $normalized = [];
+        $position = 1;
+
+        foreach ($values as $value) {
+            $normalized[$position] = $value;
+            ++$position;
+        }
+
+        return $normalized;
     }
 
     /**
@@ -955,7 +975,15 @@ class Personnel
             return [];
         }
 
-        $placeholders = implode(',', array_fill(0, count($personnelIds), '?'));
+        $bind = [];
+        $placeholderParts = [];
+
+        foreach ($personnelIds as $index => $personnelId) {
+            $placeholder = ':personnel_id_' . $index;
+            $placeholderParts[] = $placeholder;
+            $bind[$placeholder] = $personnelId;
+        }
+
         $statement = $this->db()->query(
             'SELECT p.id AS personnel_id, COUNT(a.id) AS asset_count
              FROM personnel p
@@ -963,9 +991,9 @@ class Personnel
                  LOWER(TRIM(a.assigned_to)) = LOWER(TRIM(p.email))
                  OR LOWER(TRIM(a.assigned_to)) = LOWER(TRIM(p.name))
              )
-             WHERE p.id IN (' . $placeholders . ')
+             WHERE p.id IN (' . implode(', ', $placeholderParts) . ')
              GROUP BY p.id',
-            $personnelIds
+            $bind
         );
 
         if ($statement === false) {
