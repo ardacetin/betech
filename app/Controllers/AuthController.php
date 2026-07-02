@@ -13,6 +13,7 @@ use App\Services\AppLogger;
 use App\Services\AuditLogger;
 use App\Services\ClientIpResolver;
 use App\Services\LoginAttemptService;
+use App\Services\TurnstileVerifier;
 use App\Services\Translator;
 use App\Services\ViewRenderer;
 use Psr\Http\Message\ResponseInterface;
@@ -32,7 +33,8 @@ class AuthController
         private readonly LdapAuthenticator $ldapAuthenticator,
         private readonly ViewRenderer $viewRenderer,
         private readonly AuditLogger $auditLogger,
-        private readonly AppLogger $appLogger
+        private readonly AppLogger $appLogger,
+        private readonly TurnstileVerifier $turnstileVerifier
     ) {
     }
 
@@ -90,6 +92,21 @@ class AuthController
         $identifier = trim((string) ($payload['identifier'] ?? $payload['username'] ?? ''));
         $password = trim((string) ($payload['password'] ?? $_POST['password'] ?? ''));
         $redirectTarget = $this->sanitizeRedirect((string) ($payload['redirect'] ?? ''));
+        $turnstileToken = trim((string) ($payload['cf-turnstile-response'] ?? $_POST['cf-turnstile-response'] ?? ''));
+
+        if ($turnstileToken === '') {
+            $this->logFailedLogin($clientIp, $identifier, 'turnstile_missing', false, 'form');
+
+            return $this->redirectWithError($response, 'login_turnstile_missing', $redirectTarget);
+        }
+
+        $remoteIp = trim((string) ($request->getServerParams()['REMOTE_ADDR'] ?? $clientIp));
+
+        if (!$this->turnstileVerifier->verify($turnstileToken, $remoteIp)) {
+            $this->logFailedLogin($clientIp, $identifier, 'turnstile_failed', false, 'form');
+
+            return $this->redirectWithError($response, 'login_turnstile_failed', $redirectTarget);
+        }
 
         return $this->completeLdapLogin($response, $clientIp, $identifier, $password, $redirectTarget, 'form');
     }
@@ -282,6 +299,8 @@ class AuthController
             'login_missing_credentials' => __('login_missing_credentials'),
             'login_ldap_failed' => __('login_ldap_failed'),
             'login_provider_disabled' => __('login_provider_disabled'),
+            'login_turnstile_missing' => __('login_turnstile_missing'),
+            'login_turnstile_failed' => __('login_turnstile_failed'),
             default => '',
         };
     }

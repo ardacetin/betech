@@ -85,6 +85,7 @@ use App\Services\Mail\TicketNotificationService;
 use App\Services\QualityDocumentStorageService;
 use App\Services\QrCodeService;
 use App\Services\Translator;
+use App\Services\TurnstileVerifier;
 use App\Services\ViewRenderer;
 use App\Services\ZimmetTutanakService;
 use Dotenv\Dotenv;
@@ -99,6 +100,8 @@ $dotenv->safeLoad();
 
 $appConfig = require $rootPath . '/config/app.php';
 $databaseConfig = require $rootPath . '/config/database.php';
+/** @var array<string, string> $turnstileConfig */
+$turnstileConfig = require $rootPath . '/config/turnstile.php';
 
 $isHttps = request_is_https();
 
@@ -199,6 +202,7 @@ $ldapAuthenticator = new LdapAuthenticator($settingModel);
 $auditLogModel = new AuditLog($databaseService);
 $auditChangeFormatter = new AuditChangeFormatter();
 $auditLogger = new AuditLogger($auditLogModel, $auditChangeFormatter, $clientIpResolver);
+$turnstileVerifier = new TurnstileVerifier($turnstileConfig['secret_key'] ?? '');
 $inventoryImportController = new InventoryImportController(
     $inventoryImportService,
     $assetHistoryModel,
@@ -216,7 +220,8 @@ $inventoryImportController = new InventoryImportController(
         $ldapAuthenticator,
         $viewRenderer,
         $auditLogger,
-        $appLogger
+        $appLogger,
+        $turnstileVerifier
     );
 $healthController = new HealthController($appConfig, $assetModel, $assetTypeModel, $categoryModel, $viewRenderer, $qrCodeService, $analyticsService, $settingModel, $userModel, $personnelModel, $sessionAuthService, $endUserContextService, $locationModel, $assetFilterSchemaService, $licenseModel, $licenseFilterSchemaService, $consumableModel, $consumableFilterSchemaService, $assetCustomFieldModel, $assetTypeTableService);
 $assetController = new AssetController($assetModel, $assetHistoryModel, $userIntegrationFactory, $personnelModel, $userModel, $locationModel, $categoryModel, $assetCsvImportService, $inventoryImportService, $sessionAuthService, $clientIpResolver, $endUserContextService, $auditLogger, $assetFilterSchemaService, $settingModel, $assetCustomFieldModel, $assetTypeTableService);

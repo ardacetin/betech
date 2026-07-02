@@ -68,6 +68,8 @@ declare(strict_types=1);
                 >
             </label>
 
+            <div class="cf-turnstile text-center my-4" data-sitekey="0x4AAAAAACLf0FH4wQScyWEe" data-theme="light"></div>
+
             <button
                 type="submit"
                 class="mt-2 w-full rounded-xl bg-zinc-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-zinc-900/20"
@@ -79,5 +81,6 @@ declare(strict_types=1);
 
     <p class="mt-8 text-xs text-zinc-400"><?= htmlspecialchars(__('login_footer'), ENT_QUOTES, 'UTF-8') ?></p>
 </div>
+<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
 </body>
 </html>

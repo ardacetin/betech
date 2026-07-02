@@ -850,6 +850,8 @@ return [
     'login_missing_credentials' => 'Kullanıcı adı ve parola gereklidir.',
     'login_ldap_failed' => 'LDAP kimlik doğrulaması başarısız.',
     'login_provider_disabled' => 'Seçilen giriş yöntemi etkin değil.',
+    'login_turnstile_missing' => 'Güvenlik doğrulaması eksik.',
+    'login_turnstile_failed' => 'Güvenlik doğrulaması başarısız oldu, lütfen tekrar deneyin.',
     'login_oauth_denied' => 'Kurumsal oturum açma işlemi iptal edildi.',
     'login_oauth_not_configured' => 'Kurumsal oturum açma henüz yapılandırılmadı.',
     'login_corporate_account_not_found' => 'Kurumsal hesap bulunamadı.',

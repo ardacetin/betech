@@ -1252,6 +1252,8 @@ return [
     'audit_field_ldap_config' => 'LDAP Configuration',
     'audit_field_google_config' => 'Google Configuration',
     'audit_field_login_config' => 'Login Configuration',
+    'login_turnstile_missing' => 'Güvenlik doğrulaması eksik.',
+    'login_turnstile_failed' => 'Güvenlik doğrulaması başarısız oldu, lütfen tekrar deneyin.',
     'audit_field_custom_fields' => 'Custom Fields',
     'audit_field_zimmet_template' => 'Handover Template',
     'audit_field_active_auth_driver' => 'Auth Driver',
