@@ -324,34 +324,27 @@ class Asset
         $pdo = $this->db()->pdo;
 
         if ($pdo->inTransaction()) {
-            return $this->executeDeleteCascade($assetId);
+            return $this->executeDeleteCascade($this->db(), $assetId);
         }
 
-        $pdo->beginTransaction();
+        $deleted = false;
 
-        try {
-            $deleted = $this->executeDeleteCascade($assetId);
-            $pdo->commit();
+        $this->db()->action(function (Medoo $db) use ($assetId, &$deleted): void {
+            $deleted = $this->executeDeleteCascade($db, $assetId);
+        });
 
-            return $deleted;
-        } catch (\Throwable $exception) {
-            if ($pdo->inTransaction()) {
-                $pdo->rollBack();
-            }
-
-            throw $exception;
-        }
+        return $deleted;
     }
 
-    private function executeDeleteCascade(int $assetId): bool
+    private function executeDeleteCascade(Medoo $db, int $assetId): bool
     {
-        if (!$this->db()->has('assets', ['id' => $assetId])) {
+        if (!$db->has('assets', ['id' => $assetId])) {
             return false;
         }
 
         $timestamp = date('Y-m-d H:i:s');
 
-        $this->db()->update('ip_addresses', [
+        $db->update('ip_addresses', [
             'asset_id' => null,
             'updated_at' => $timestamp,
         ], [
@@ -359,7 +352,7 @@ class Asset
         ]);
 
         if ($this->tableExists('license_assignments')) {
-            $this->db()->update('license_assignments', [
+            $db->update('license_assignments', [
                 'asset_id' => null,
             ], [
                 'asset_id' => $assetId,
@@ -367,7 +360,7 @@ class Asset
         }
 
         if ($this->tableExists('tickets')) {
-            $this->db()->update('tickets', [
+            $db->update('tickets', [
                 'asset_id' => null,
             ], [
                 'asset_id' => $assetId,
@@ -375,16 +368,16 @@ class Asset
         }
 
         if ($this->tableExists('maintenance_logs')) {
-            $this->db()->delete('maintenance_logs', [
+            $db->delete('maintenance_logs', [
                 'asset_id' => $assetId,
             ]);
         }
 
-        $this->db()->delete('asset_histories', [
+        $db->delete('asset_histories', [
             'asset_id' => $assetId,
         ]);
 
-        $this->db()->delete('assets', [
+        $db->delete('assets', [
             'id' => $assetId,
         ]);
 
