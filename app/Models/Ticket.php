@@ -8,10 +8,20 @@ use App\Models\AssetRegistry;
 use App\Models\AssetsGlobalRegistry;
 use App\Services\DatabaseService;
 use App\Services\ListPagination;
+use App\Services\SortQuery;
 use Medoo\Medoo;
 
 class Ticket
 {
+    /** @var array<string, string> */
+    public const SORTABLE_COLUMNS = [
+        'created_at' => 'tickets.created_at',
+        'subject' => 'tickets.subject',
+        'status' => 'tickets.status',
+        'ticket_number' => 'tickets.ticket_number',
+        'priority' => 'tickets.priority',
+        'id' => 'tickets.id',
+    ];
     public const STATUS_OPEN = 'open';
     public const STATUS_IN_PROGRESS = 'in_progress';
     public const STATUS_RESOLVED = 'resolved';
@@ -57,9 +67,10 @@ class Ticket
         ?string $status = null,
         ?string $priority = null,
         int $page = 1,
-        ?string $scope = null
+        ?string $scope = null,
+        ?array $order = null
     ): array {
-        return $this->paginateList(null, $status, $priority, $page, $scope);
+        return $this->paginateList(null, $status, $priority, $page, $scope, $order);
     }
 
     /**
@@ -73,9 +84,10 @@ class Ticket
         ?string $status = null,
         ?string $priority = null,
         int $page = 1,
-        ?string $scope = null
+        ?string $scope = null,
+        ?array $order = null
     ): array {
-        return $this->paginateList($personnelId, $status, $priority, $page, $scope);
+        return $this->paginateList($personnelId, $status, $priority, $page, $scope, $order);
     }
 
     /**
@@ -393,14 +405,32 @@ class Ticket
     }
 
     /**
+     * @param array<string, mixed> $queryParams
+     *
+     * @return array<string, 'ASC'|'DESC'>
+     */
+    public function buildSortOrderFromQuery(array $queryParams): array
+    {
+        return SortQuery::parseMapped(
+            $queryParams,
+            self::SORTABLE_COLUMNS,
+            ['created_at' => 'DESC', 'id' => 'DESC']
+        )['order'];
+    }
+
+    /**
      * @param array<string, mixed> $conditions
      *
      * @return list<array<string, mixed>>
      */
-    private function selectRows(array $conditions = [], ?int $limit = null, ?int $offset = null): array
-    {
+    private function selectRows(
+        array $conditions = [],
+        ?int $limit = null,
+        ?int $offset = null,
+        ?array $order = null
+    ): array {
         $options = [
-            'ORDER' => [
+            'ORDER' => $order ?? [
                 'tickets.created_at' => 'DESC',
                 'tickets.id' => 'DESC',
             ],
@@ -691,7 +721,8 @@ class Ticket
         ?string $status,
         ?string $priority,
         int $page,
-        ?string $scope = null
+        ?string $scope = null,
+        ?array $order = null
     ): array {
         $selectConditions = $this->buildSelectConditions($personnelId, $status, $priority, $scope);
         $countConditions = $this->buildCountConditions($personnelId, $status, $priority, $scope);
@@ -701,7 +732,8 @@ class Ticket
         $rows = $this->selectRows(
             $selectConditions,
             $perPage,
-            ListPagination::offset($page, $perPage)
+            ListPagination::offset($page, $perPage),
+            $order
         );
 
         return [

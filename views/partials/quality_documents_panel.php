@@ -41,11 +41,31 @@ declare(strict_types=1);
             <table class="min-w-full divide-y divide-zinc-200 text-sm">
                 <thead class="bg-zinc-50">
                     <tr>
-                        <th class="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-zinc-500"><?= htmlspecialchars(__('quality_documents_col_title'), ENT_QUOTES, 'UTF-8') ?></th>
-                        <th class="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-zinc-500"><?= htmlspecialchars(__('quality_documents_col_upload_date'), ENT_QUOTES, 'UTF-8') ?></th>
-                        <th class="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-zinc-500"><?= htmlspecialchars(__('quality_documents_col_file_size'), ENT_QUOTES, 'UTF-8') ?></th>
-                        <th class="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-zinc-500"><?= htmlspecialchars(__('quality_documents_col_uploaded_by'), ENT_QUOTES, 'UTF-8') ?></th>
-                        <th class="px-4 py-2 text-right text-[11px] font-semibold uppercase tracking-wide text-zinc-500"><?= htmlspecialchars(__('col_actions'), ENT_QUOTES, 'UTF-8') ?></th>
+                        <th class="whitespace-nowrap px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
+                            <button type="button" @click="setDocumentsSort('title')" class="inline-flex items-center gap-1.5 rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-zinc-400/50">
+                                <span><?= htmlspecialchars(__('quality_documents_col_title'), ENT_QUOTES, 'UTF-8') ?></span>
+                                <span class="inline-flex shrink-0 text-[10px] leading-none" :class="sortIndicatorClasses(documentsSort, 'title')" x-text="sortIndicatorSymbol(documentsSort, 'title')" aria-hidden="true"></span>
+                            </button>
+                        </th>
+                        <th class="whitespace-nowrap px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
+                            <button type="button" @click="setDocumentsSort('created_at')" class="inline-flex items-center gap-1.5 rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-zinc-400/50">
+                                <span><?= htmlspecialchars(__('quality_documents_col_upload_date'), ENT_QUOTES, 'UTF-8') ?></span>
+                                <span class="inline-flex shrink-0 text-[10px] leading-none" :class="sortIndicatorClasses(documentsSort, 'created_at')" x-text="sortIndicatorSymbol(documentsSort, 'created_at')" aria-hidden="true"></span>
+                            </button>
+                        </th>
+                        <th class="whitespace-nowrap px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
+                            <button type="button" @click="setDocumentsSort('file_size')" class="inline-flex items-center gap-1.5 rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-zinc-400/50">
+                                <span><?= htmlspecialchars(__('quality_documents_col_file_size'), ENT_QUOTES, 'UTF-8') ?></span>
+                                <span class="inline-flex shrink-0 text-[10px] leading-none" :class="sortIndicatorClasses(documentsSort, 'file_size')" x-text="sortIndicatorSymbol(documentsSort, 'file_size')" aria-hidden="true"></span>
+                            </button>
+                        </th>
+                        <th class="whitespace-nowrap px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
+                            <button type="button" @click="setDocumentsSort('uploaded_by')" class="inline-flex items-center gap-1.5 rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-zinc-400/50">
+                                <span><?= htmlspecialchars(__('quality_documents_col_uploaded_by'), ENT_QUOTES, 'UTF-8') ?></span>
+                                <span class="inline-flex shrink-0 text-[10px] leading-none" :class="sortIndicatorClasses(documentsSort, 'uploaded_by')" x-text="sortIndicatorSymbol(documentsSort, 'uploaded_by')" aria-hidden="true"></span>
+                            </button>
+                        </th>
+                        <th class="whitespace-nowrap px-4 py-2 text-right text-[11px] font-semibold uppercase tracking-wide text-zinc-500"><?= htmlspecialchars(__('col_actions'), ENT_QUOTES, 'UTF-8') ?></th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-zinc-100">
@@ -85,6 +105,16 @@ declare(strict_types=1);
                 </tbody>
             </table>
         </div>
+        <?php
+        $listPagination = [
+            'pagination' => 'documentsPagination',
+            'loading' => 'qualityDocumentsLoading',
+            'goToPage' => 'goToDocumentsPage',
+            'pageNumbers' => 'documentsPageNumbers',
+            'label' => 'resolveDocumentsPaginationLabel',
+        ];
+        require __DIR__ . '/list_pagination.php';
+        ?>
     </div>
 
     <div

@@ -18,6 +18,7 @@ use App\Services\AssetFilterSchemaService;
 use App\Services\AssetTypeTableService;
 use App\Services\InventoryImportService;
 use App\Services\ListPagination;
+use App\Services\SortQuery;
 use App\Services\AuditLogger;
 use App\Services\Auth\SessionAuthService;
 use App\Services\Auth\UserIntegrationFactory;
@@ -108,12 +109,14 @@ class AssetController
 
         $activeFilters = $this->assetFilterSchemaService->parseRequestFilters($request->getQueryParams());
         $page = ListPagination::parsePage($request->getQueryParams());
+        $sortOrder = $this->assetModel->buildSortOrderFromQuery($request->getQueryParams(), $assetTypeId);
         $result = $this->assetModel->findPaginatedForDashboard(
             $activeFilters,
             $filterDefinitions,
             $page,
             ListPagination::PAGE_SIZE,
-            $assetTypeId
+            $assetTypeId,
+            $sortOrder
         );
 
         return $this->jsonResponse($response, 200, [

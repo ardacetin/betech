@@ -100,8 +100,21 @@ $assetActiveFilters = $assetActiveFilters ?? [];
                                 <th
                                     class="whitespace-nowrap px-3 py-1.5"
                                     :class="index === 0 ? 'sticky left-0 z-20 w-[22%] min-w-[10rem] border-r border-slate-100 bg-zinc-50' : 'w-[12%]'"
-                                    x-text="column.label"
-                                ></th>
+                                >
+                                    <button
+                                        type="button"
+                                        @click="setInventorySort(column.column)"
+                                        class="group inline-flex w-full items-center gap-1.5 rounded-md text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-zinc-400/50"
+                                    >
+                                        <span x-text="column.label"></span>
+                                        <span
+                                            class="inline-flex shrink-0 text-[10px] leading-none"
+                                            :class="sortIndicatorClasses(inventorySort, column.column)"
+                                            x-text="sortIndicatorSymbol(inventorySort, column.column)"
+                                            aria-hidden="true"
+                                        ></span>
+                                    </button>
+                                </th>
                             </template>
                             <th class="w-[10%] whitespace-nowrap px-3 py-1.5"><?= htmlspecialchars(__('col_actions'), ENT_QUOTES, 'UTF-8') ?></th>
                         </tr>

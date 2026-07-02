@@ -40,6 +40,7 @@ class TicketController
         }
 
         $page = ListPagination::parsePage($query);
+        $sortOrder = $this->ticketModel->buildSortOrderFromQuery($query);
 
         if ($this->endUserContextService->isEndUser()) {
             $personnelId = $this->endUserContextService->resolvePersonnelId();
@@ -56,7 +57,7 @@ class TicketController
                 ? null
                 : $statusParam;
 
-            $result = $this->ticketModel->findPaginatedByPersonnelId($personnelId, $status, $priority, $page);
+            $result = $this->ticketModel->findPaginatedByPersonnelId($personnelId, $status, $priority, $page, null, $sortOrder);
 
             return $this->jsonResponse($response, 200, [
                 'status' => 'success',
@@ -66,7 +67,7 @@ class TicketController
         }
 
         [$status, $scope] = $this->resolveAdminTicketListFilters($statusParam);
-        $result = $this->ticketModel->findPaginated($status, $priority, $page, $scope);
+        $result = $this->ticketModel->findPaginated($status, $priority, $page, $scope, $sortOrder);
 
         return $this->jsonResponse($response, 200, [
             'status' => 'success',

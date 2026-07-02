@@ -109,6 +109,13 @@ $assetTypesJson = json_encode($assetTypes, JSON_THROW_ON_ERROR | JSON_UNESCAPED_
 $assetSchemaJson = $assetSchemaJson ?? '[]';
 $assetPagination = $assetPagination ?? ['page' => 1, 'per_page' => 50, 'total' => 0, 'total_pages' => 1];
 $assetPaginationJson = json_encode($assetPagination, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
+$initialListSortColumn = trim((string) ($_GET['sort'] ?? ''));
+$initialListSortColumn = preg_match('/^[A-Za-z0-9_]+$/', $initialListSortColumn) ? $initialListSortColumn : '';
+$initialListSortDirection = strtolower(trim((string) ($_GET['direction'] ?? ''))) === 'asc' ? 'asc' : 'desc';
+$initialInventorySortJson = json_encode([
+    'column' => $initialListSortColumn,
+    'direction' => $initialListSortColumn !== '' ? $initialListSortDirection : '',
+], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
 
 $licenseFilterDefinitions = $licenseFilterDefinitions ?? [];
 $licenseActiveFilters = $licenseActiveFilters ?? [];
@@ -511,7 +518,7 @@ $i18nScript = json_encode([
     'list_pagination_info' => __('list_pagination_info'),
 ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
 ?>
-<div class="min-h-screen bg-gray-50" x-data="assetDashboard()" x-init="parseInventoryRoute(); parseDocumentsRoute(); restoreDashboardView(); if (isEndUser) { initEndUserPortal(); } else if (canManageAssets) { fetchCategories(); fetchLocations(); fetchTicketCategories(); fetchLicenses(); fetchConsumables(); fetchTickets(); if (activeView === 'dashboard') { fetchDashboardStats(); } } if (canAccessSettings && activeView === 'reports') { fetchReports(); } if (canAccessSettings && activeView === 'documents') { fetchQualityDocuments(); } this.isAssignLicenseModalOpen = false;">
+<div class="min-h-screen bg-gray-50" x-data="assetDashboard()" x-init="parseInventoryRoute(); parseDocumentsRoute(); parseListSortFromUrl(); restoreDashboardView(); if (isEndUser) { initEndUserPortal(); } else if (canManageAssets) { fetchCategories(); fetchLocations(); fetchTicketCategories(); fetchLicenses(); fetchConsumables(); fetchTickets(); if (activeView === 'dashboard') { fetchDashboardStats(); } } if (canAccessSettings && activeView === 'reports') { fetchReports(); } if (canAccessSettings && activeView === 'documents') { fetchQualityDocuments(); } this.isAssignLicenseModalOpen = false;">
     <div class="flex h-screen overflow-hidden bg-gray-50">
         <aside class="hidden h-full w-64 min-h-0 flex-shrink-0 flex-col border-r border-gray-200 bg-white lg:flex">
             <div class="flex h-16 shrink-0 items-center gap-3 border-b border-gray-200 px-5">
@@ -2437,6 +2444,11 @@ $i18nScript = json_encode([
             assetFiltersError: '',
             inventoryPage: <?= (int) ($assetPagination['page'] ?? 1) ?>,
             inventoryPagination: <?= $assetPaginationJson ?>,
+            inventorySort: <?= $initialInventorySortJson ?>,
+            ticketsSort: { column: '', direction: '' },
+            documentsSort: { column: '', direction: '' },
+            documentsPage: 1,
+            documentsPagination: { page: 1, per_page: 50, total: 0, total_pages: 1 },
             isEditOpen: false,
             isDetailOpen: false,
             isTransferOpen: false,
@@ -3023,6 +3035,95 @@ $i18nScript = json_encode([
                 if (path === '/documents' || path === '/documents.php' || path.endsWith('/documents.php')) {
                     this.activeView = 'documents';
                 }
+            },
+            parseListSortFromUrl() {
+                const params = new URLSearchParams(window.location.search);
+                const sort = (params.get('sort') || '').trim();
+                const direction = params.get('direction') === 'asc' ? 'asc' : 'desc';
+
+                if (!sort) {
+                    return;
+                }
+
+                const path = window.location.pathname;
+                const sortState = { column: sort, direction };
+
+                if (path === '/documents' || path === '/documents.php' || path.endsWith('/documents.php') || this.activeView === 'documents') {
+                    this.documentsSort = sortState;
+                    return;
+                }
+
+                if (path.match(/^\/inventory\/([^/]+)\/?$/) || this.activeView === 'assets') {
+                    this.inventorySort = sortState;
+                }
+            },
+            normalizeSortDirection(value) {
+                return String(value || '').toLowerCase() === 'asc' ? 'asc' : 'desc';
+            },
+            appendSortQueryParams(params, sortState) {
+                const column = String(sortState?.column || '').trim();
+
+                if (column === '') {
+                    return;
+                }
+
+                params.set('sort', column);
+                params.set('direction', this.normalizeSortDirection(sortState?.direction || 'asc'));
+            },
+            resolveNextSortState(currentColumn, currentDirection, clickedColumn) {
+                const activeColumn = String(currentColumn || '').trim();
+                const activeDirection = this.normalizeSortDirection(currentDirection);
+                const targetColumn = String(clickedColumn || '').trim();
+
+                if (activeColumn !== targetColumn || activeDirection !== 'asc') {
+                    return { column: targetColumn, direction: 'asc' };
+                }
+
+                return { column: targetColumn, direction: 'desc' };
+            },
+            isSortedColumn(sortState, column) {
+                return String(sortState?.column || '') === String(column || '');
+            },
+            sortIndicatorClasses(sortState, column) {
+                if (!this.isSortedColumn(sortState, column)) {
+                    return 'text-zinc-300';
+                }
+
+                return 'text-zinc-900 font-semibold';
+            },
+            sortIndicatorSymbol(sortState, column) {
+                if (!this.isSortedColumn(sortState, column)) {
+                    return '↕';
+                }
+
+                return this.normalizeSortDirection(sortState.direction) === 'asc' ? '↑' : '↓';
+            },
+            setInventorySort(column) {
+                this.inventorySort = this.resolveNextSortState(
+                    this.inventorySort?.column,
+                    this.inventorySort?.direction,
+                    column
+                );
+                this.inventoryPage = 1;
+                this.fetchInventoryList(false);
+            },
+            setTicketsSort(column) {
+                this.ticketsSort = this.resolveNextSortState(
+                    this.ticketsSort?.column,
+                    this.ticketsSort?.direction,
+                    column
+                );
+                this.ticketsPage = 1;
+                this.fetchTickets();
+            },
+            setDocumentsSort(column) {
+                this.documentsSort = this.resolveNextSortState(
+                    this.documentsSort?.column,
+                    this.documentsSort?.direction,
+                    column
+                );
+                this.documentsPage = 1;
+                this.fetchQualityDocuments(false);
             },
             inventoryGridColumns() {
                 const defaults = ['name', 'model', 'brand', 'serial_number', 'type', 'status', 'assigned_to'];
@@ -4615,6 +4716,8 @@ $i18nScript = json_encode([
                         params.append(`filter[${name}]`, trimmed);
                     }
                 });
+
+                this.appendSortQueryParams(params, this.inventorySort);
 
                 return params.toString();
             },
@@ -6337,16 +6440,26 @@ $i18nScript = json_encode([
                     this.reportsLoading = false;
                 }
             },
-            async fetchQualityDocuments() {
+            async fetchQualityDocuments(resetPage = false) {
                 if (!this.canAccessSettings) {
                     return;
+                }
+
+                if (resetPage) {
+                    this.documentsPage = 1;
                 }
 
                 this.qualityDocumentsLoading = true;
                 this.qualityDocumentsError = '';
 
+                const params = new URLSearchParams();
+                params.set('page', String(this.documentsPage || 1));
+                this.appendSortQueryParams(params, this.documentsSort);
+                const query = params.toString();
+                const url = query ? `/api/quality-documents?${query}` : '/api/quality-documents';
+
                 try {
-                    const response = await fetch('/api/quality-documents', this.apiFetchInit('GET'));
+                    const response = await fetch(url, this.apiFetchInit('GET'));
                     const result = await this.parseApiResponse(response);
 
                     if (!response.ok) {
@@ -6355,11 +6468,41 @@ $i18nScript = json_encode([
                     }
 
                     this.qualityDocuments = Array.isArray(result.data) ? result.data : [];
+                    this.documentsPagination = result.pagination || this.defaultListPagination();
+                    this.documentsPage = Number(this.documentsPagination.page || 1);
+
+                    if (this.activeView === 'documents') {
+                        const nextUrl = new URL(window.location.href);
+                        nextUrl.pathname = '/documents.php';
+                        nextUrl.search = query ? `?${query}` : '';
+                        window.history.replaceState({}, '', `${nextUrl.pathname}${nextUrl.search}`);
+                    }
                 } catch (error) {
                     this.qualityDocumentsError = window.__i18n.helpdesk_network_error;
                 } finally {
                     this.qualityDocumentsLoading = false;
                 }
+            },
+            documentsPageNumbers() {
+                return this.listPaginationWindow(this.documentsPagination);
+            },
+            resolveDocumentsPaginationLabel() {
+                return this.resolveListPaginationLabel(this.documentsPagination);
+            },
+            goToDocumentsPage(page) {
+                const targetPage = Number(page);
+
+                if (
+                    Number.isNaN(targetPage)
+                    || targetPage < 1
+                    || targetPage > Number(this.documentsPagination.total_pages || 1)
+                    || targetPage === this.documentsPagination.page
+                ) {
+                    return;
+                }
+
+                this.documentsPage = targetPage;
+                this.fetchQualityDocuments(false);
             },
             openQualityDocumentModal() {
                 this.qualityDocumentForm = {
@@ -7579,6 +7722,7 @@ $i18nScript = json_encode([
                         page: String(this.ticketsPage),
                         status: String(this.ticketStatusFilter || 'active'),
                     });
+                    this.appendSortQueryParams(params, this.ticketsSort);
 
                     const response = await fetch(`/api/tickets?${params.toString()}`, {
                         headers: { Accept: 'application/json' },

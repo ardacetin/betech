@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace App\Models;
 
 use App\Services\DatabaseService;
+use App\Services\ListPagination;
 use App\Services\QualityDocumentStorageService;
+use App\Services\SortQuery;
 use InvalidArgumentException;
 use Medoo\Medoo;
 use RuntimeException;
@@ -13,6 +15,15 @@ use RuntimeException;
 class QualityDocument
 {
     private const TABLE = 'quality_documents';
+
+    /** @var array<string, string> */
+    public const SORTABLE_COLUMNS = [
+        'title' => 'quality_documents.title',
+        'created_at' => 'quality_documents.created_at',
+        'file_size' => 'quality_documents.file_size',
+        'uploaded_by' => 'personnel.name',
+        'id' => 'quality_documents.id',
+    ];
 
     public function __construct(
         private readonly DatabaseService $databaseService,
@@ -25,6 +36,42 @@ class QualityDocument
      */
     public function findAll(): array
     {
+        return $this->findPaginated(1, ListPagination::PAGE_SIZE)['data'];
+    }
+
+    /**
+     * @param array<string, mixed> $queryParams
+     *
+     * @return array<string, 'ASC'|'DESC'>
+     */
+    public function buildSortOrderFromQuery(array $queryParams): array
+    {
+        return SortQuery::parseMapped(
+            $queryParams,
+            self::SORTABLE_COLUMNS,
+            ['created_at' => 'DESC', 'id' => 'DESC']
+        )['order'];
+    }
+
+    /**
+     * @return array{
+     *     data: list<array<string, mixed>>,
+     *     pagination: array{page: int, per_page: int, total: int, total_pages: int}
+     * }
+     */
+    public function findPaginated(int $page = 1, int $perPage = ListPagination::PAGE_SIZE, ?array $order = null): array
+    {
+        $page = max(1, $page);
+        $perPage = max(1, $perPage);
+        $total = (int) $this->db()->count(self::TABLE);
+        $selectOptions = [
+            'ORDER' => $order ?? [
+                self::TABLE . '.created_at' => 'DESC',
+                self::TABLE . '.id' => 'DESC',
+            ],
+            'LIMIT' => [ListPagination::offset($page, $perPage), $perPage],
+        ];
+
         $rows = $this->db()->select(self::TABLE, [
             '[>]personnel' => ['uploaded_by' => 'id'],
         ], [
@@ -36,16 +83,15 @@ class QualityDocument
             self::TABLE . '.uploaded_by',
             self::TABLE . '.created_at',
             'personnel.name(uploaded_by_name)',
-        ], [
-            'ORDER' => [
-                self::TABLE . '.created_at' => 'DESC',
-            ],
-        ]);
+        ], $selectOptions);
 
-        return array_map(
-            fn (array $row): array => $this->normalizeRow($row),
-            $rows
-        );
+        return [
+            'data' => array_map(
+                fn (array $row): array => $this->normalizeRow($row),
+                $rows
+            ),
+            'pagination' => ListPagination::meta($page, $total, $perPage),
+        ];
     }
 
     /**

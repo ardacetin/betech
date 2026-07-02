@@ -11,6 +11,7 @@ use App\Services\AssetColumnSchemaService;
 use App\Services\AssetTypeTableService;
 use App\Services\DatabaseService;
 use App\Services\ListPagination;
+use App\Services\SortQuery;
 use Medoo\Medoo;
 
 class Asset
@@ -98,7 +99,8 @@ class Asset
         array $filterDefinitions = [],
         int $page = 1,
         int $perPage = ListPagination::PAGE_SIZE,
-        ?int $assetTypeId = null
+        ?int $assetTypeId = null,
+        ?array $order = null
     ): array {
         $where = $this->buildDashboardFilterWhere($filters, $filterDefinitions, $assetTypeId);
         $tableName = $this->resolveTableName($assetTypeId);
@@ -107,7 +109,7 @@ class Asset
         $countWhere = $where === [] ? null : $where;
         $total = (int) $this->db()->count($tableName, $countWhere);
         $selectWhere = $where;
-        $selectWhere['ORDER'] = ['id' => 'DESC'];
+        $selectWhere['ORDER'] = $order ?? ['id' => 'DESC'];
         $selectWhere['LIMIT'] = [ListPagination::offset($page, $perPage), $perPage];
 
         $rows = $this->db()->select($tableName, '*', $selectWhere);
@@ -119,6 +121,27 @@ class Asset
             ),
             'pagination' => ListPagination::meta($page, $total, $perPage),
         ];
+    }
+
+    /**
+     * @param array<string, mixed> $queryParams
+     *
+     * @return array<string, 'ASC'|'DESC'>
+     */
+    public function buildSortOrderFromQuery(array $queryParams, ?int $assetTypeId = null): array
+    {
+        return SortQuery::parse($queryParams, $this->resolveSortableColumns($assetTypeId), ['id' => 'DESC'])['order'];
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function resolveSortableColumns(?int $assetTypeId = null): array
+    {
+        return array_values(array_unique(array_merge(
+            AssetColumnSchemaService::SYSTEM_COLUMNS,
+            $this->columnSchemaService->listAssetsTableColumns($assetTypeId)
+        )));
     }
 
     /**

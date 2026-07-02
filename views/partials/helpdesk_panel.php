@@ -64,15 +64,40 @@ declare(strict_types=1);
         <table class="min-w-full divide-y divide-zinc-200">
             <thead class="bg-zinc-50">
                 <tr>
-                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500"><?= htmlspecialchars(__('col_ticket_number'), ENT_QUOTES, 'UTF-8') ?></th>
-                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500"><?= htmlspecialchars(__('col_ticket_subject'), ENT_QUOTES, 'UTF-8') ?></th>
-                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500"><?= htmlspecialchars(__('col_ticket_category'), ENT_QUOTES, 'UTF-8') ?></th>
-                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500"><?= htmlspecialchars(__('col_ticket_requester'), ENT_QUOTES, 'UTF-8') ?></th>
-                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500"><?= htmlspecialchars(__('col_ticket_asset'), ENT_QUOTES, 'UTF-8') ?></th>
-                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500"><?= htmlspecialchars(__('col_ticket_priority'), ENT_QUOTES, 'UTF-8') ?></th>
-                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500"><?= htmlspecialchars(__('col_ticket_status'), ENT_QUOTES, 'UTF-8') ?></th>
-                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500"><?= htmlspecialchars(__('col_ticket_created'), ENT_QUOTES, 'UTF-8') ?></th>
-                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500"><?= htmlspecialchars(__('col_actions'), ENT_QUOTES, 'UTF-8') ?></th>
+                    <th class="whitespace-nowrap px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500">
+                        <button type="button" @click="setTicketsSort('ticket_number')" class="inline-flex items-center gap-1.5 rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-zinc-400/50">
+                            <span><?= htmlspecialchars(__('col_ticket_number'), ENT_QUOTES, 'UTF-8') ?></span>
+                            <span class="inline-flex shrink-0 text-[10px] leading-none" :class="sortIndicatorClasses(ticketsSort, 'ticket_number')" x-text="sortIndicatorSymbol(ticketsSort, 'ticket_number')" aria-hidden="true"></span>
+                        </button>
+                    </th>
+                    <th class="whitespace-nowrap px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500">
+                        <button type="button" @click="setTicketsSort('subject')" class="inline-flex items-center gap-1.5 rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-zinc-400/50">
+                            <span><?= htmlspecialchars(__('col_ticket_subject'), ENT_QUOTES, 'UTF-8') ?></span>
+                            <span class="inline-flex shrink-0 text-[10px] leading-none" :class="sortIndicatorClasses(ticketsSort, 'subject')" x-text="sortIndicatorSymbol(ticketsSort, 'subject')" aria-hidden="true"></span>
+                        </button>
+                    </th>
+                    <th class="whitespace-nowrap px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500"><?= htmlspecialchars(__('col_ticket_category'), ENT_QUOTES, 'UTF-8') ?></th>
+                    <th class="whitespace-nowrap px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500"><?= htmlspecialchars(__('col_ticket_requester'), ENT_QUOTES, 'UTF-8') ?></th>
+                    <th class="whitespace-nowrap px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500"><?= htmlspecialchars(__('col_ticket_asset'), ENT_QUOTES, 'UTF-8') ?></th>
+                    <th class="whitespace-nowrap px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500">
+                        <button type="button" @click="setTicketsSort('priority')" class="inline-flex items-center gap-1.5 rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-zinc-400/50">
+                            <span><?= htmlspecialchars(__('col_ticket_priority'), ENT_QUOTES, 'UTF-8') ?></span>
+                            <span class="inline-flex shrink-0 text-[10px] leading-none" :class="sortIndicatorClasses(ticketsSort, 'priority')" x-text="sortIndicatorSymbol(ticketsSort, 'priority')" aria-hidden="true"></span>
+                        </button>
+                    </th>
+                    <th class="whitespace-nowrap px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500">
+                        <button type="button" @click="setTicketsSort('status')" class="inline-flex items-center gap-1.5 rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-zinc-400/50">
+                            <span><?= htmlspecialchars(__('col_ticket_status'), ENT_QUOTES, 'UTF-8') ?></span>
+                            <span class="inline-flex shrink-0 text-[10px] leading-none" :class="sortIndicatorClasses(ticketsSort, 'status')" x-text="sortIndicatorSymbol(ticketsSort, 'status')" aria-hidden="true"></span>
+                        </button>
+                    </th>
+                    <th class="whitespace-nowrap px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500">
+                        <button type="button" @click="setTicketsSort('created_at')" class="inline-flex items-center gap-1.5 rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-zinc-400/50">
+                            <span><?= htmlspecialchars(__('col_ticket_created'), ENT_QUOTES, 'UTF-8') ?></span>
+                            <span class="inline-flex shrink-0 text-[10px] leading-none" :class="sortIndicatorClasses(ticketsSort, 'created_at')" x-text="sortIndicatorSymbol(ticketsSort, 'created_at')" aria-hidden="true"></span>
+                        </button>
+                    </th>
+                    <th class="whitespace-nowrap px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500"><?= htmlspecialchars(__('col_actions'), ENT_QUOTES, 'UTF-8') ?></th>
                 </tr>
             </thead>
             <tbody class="divide-y divide-zinc-200">

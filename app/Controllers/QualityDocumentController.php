@@ -9,6 +9,7 @@ use App\Models\QualityDocument;
 use App\Services\AppLogger;
 use App\Services\AuditLogger;
 use App\Services\Auth\SessionAuthService;
+use App\Services\ListPagination;
 use App\Services\QualityDocumentStorageService;
 use InvalidArgumentException;
 use Psr\Http\Message\ResponseInterface;
@@ -31,9 +32,15 @@ class QualityDocumentController
     public function index(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
     {
         try {
+            $query = $request->getQueryParams();
+            $page = ListPagination::parsePage($query);
+            $sortOrder = $this->qualityDocumentModel->buildSortOrderFromQuery($query);
+            $result = $this->qualityDocumentModel->findPaginated($page, ListPagination::PAGE_SIZE, $sortOrder);
+
             return $this->jsonResponse($response, 200, [
                 'status' => 'success',
-                'data' => $this->qualityDocumentModel->findAll(),
+                'data' => $result['data'],
+                'pagination' => $result['pagination'],
             ]);
         } catch (Throwable $exception) {
             $this->logger->error('quality_documents.index.failed', [

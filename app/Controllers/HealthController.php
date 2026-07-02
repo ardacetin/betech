@@ -157,12 +157,14 @@ class HealthController
             );
             $assetActiveFilters = $this->assetFilterSchemaService->parseRequestFilters($request->getQueryParams());
             $assetPage = ListPagination::parsePage($request->getQueryParams());
+            $assetSortOrder = $this->assetModel->buildSortOrderFromQuery($request->getQueryParams(), $activeAssetTypeId);
             $assetListResult = $this->assetModel->findPaginatedForDashboard(
                 $assetActiveFilters,
                 $assetFilterDefinitions,
                 $assetPage,
                 ListPagination::PAGE_SIZE,
-                $activeAssetTypeId
+                $activeAssetTypeId,
+                $assetSortOrder
             );
             $assets = $assetListResult['data'];
             $assetPagination = $assetListResult['pagination'];
