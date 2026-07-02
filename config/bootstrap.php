@@ -17,6 +17,7 @@ use App\Controllers\AssetViewController;
 use App\Controllers\AuthController;
 use App\Controllers\ConsumableController;
 use App\Controllers\KnowledgeBaseController;
+use App\Controllers\QualityDocumentController;
 use App\Controllers\DashboardController;
 use App\Controllers\EndUserController;
 use App\Controllers\ReportController;
@@ -46,6 +47,7 @@ use App\Models\AuditLog;
 use App\Models\Category;
 use App\Models\Consumable;
 use App\Models\KnowledgeBaseArticle;
+use App\Models\QualityDocument;
 use App\Models\IpAddress;
 use App\Models\IpNetwork;
 use App\Models\License;
@@ -80,6 +82,7 @@ use App\Services\LoginAttemptService;
 use App\Services\Mail\MailConfigResolver;
 use App\Services\Mail\MailService;
 use App\Services\Mail\TicketNotificationService;
+use App\Services\QualityDocumentStorageService;
 use App\Services\QrCodeService;
 use App\Services\Translator;
 use App\Services\ViewRenderer;
@@ -180,6 +183,8 @@ $ipAddressModel = new IpAddress($databaseService);
 $ipamCsvImportService = new IpamCsvImportService($ipNetworkModel, $ipAddressModel, $assetModel, $ipAddressGenerator);
 $consumableModel = new Consumable($databaseService);
 $knowledgeBaseArticleModel = new KnowledgeBaseArticle($databaseService);
+$qualityDocumentStorageService = new QualityDocumentStorageService($rootPath);
+$qualityDocumentModel = new QualityDocument($databaseService, $qualityDocumentStorageService);
 $ticketCategoryModel = new TicketCategory($databaseService);
 $userIntegrationFactory = new UserIntegrationFactory($databaseService, $settingModel);
 $qrCodeService = new QrCodeService($appConfig['url']);
@@ -264,6 +269,13 @@ $ipNetworkController = new IpNetworkController(
 );
 $consumableController = new ConsumableController($consumableModel, $locationModel, $consumableFilterSchemaService);
 $knowledgeBaseController = new KnowledgeBaseController($knowledgeBaseArticleModel, $sessionAuthService, $appLogger);
+$qualityDocumentController = new QualityDocumentController(
+    $qualityDocumentModel,
+    $qualityDocumentStorageService,
+    $sessionAuthService,
+    $auditLogger,
+    $appLogger
+);
 $ticketModel = new Ticket($databaseService, $assetsGlobalRegistryModel, $assetRegistryModel);
 $ticketNotificationService = new TicketNotificationService(
     $mailService,
@@ -300,6 +312,7 @@ $app->get('/logout', [$authController, 'logout']);
 $app->get('/unauthorized', [$authController, 'showUnauthorized']);
 $app->get('/', [$healthController, 'index']);
 $app->get('/inventory/{typeId}', [$healthController, 'inventorySection']);
+$app->get('/documents', [$healthController, 'documents']);
 $app->get('/assets/view/{id}', [$assetViewController, 'show']);
 
 $app->group('', function ($group) use ($endUserController): void {
@@ -334,6 +347,7 @@ $app->group('', function ($group) use (
     $ipNetworkController,
     $consumableController,
     $knowledgeBaseController,
+    $qualityDocumentController,
     $ticketController,
     $userController,
     $assetController,
@@ -409,6 +423,10 @@ $app->group('', function ($group) use (
     $group->get('/api/knowledge-base/{id}', [$knowledgeBaseController, 'show']);
     $group->put('/api/knowledge-base/{id}', [$knowledgeBaseController, 'update']);
     $group->delete('/api/knowledge-base/{id}', [$knowledgeBaseController, 'destroy']);
+    $group->get('/api/quality-documents', [$qualityDocumentController, 'index']);
+    $group->post('/api/quality-documents', [$qualityDocumentController, 'store']);
+    $group->get('/api/quality-documents/{id}/download', [$qualityDocumentController, 'download']);
+    $group->delete('/api/quality-documents/{id}', [$qualityDocumentController, 'destroy']);
     $group->put('/api/tickets/{id}', [$ticketController, 'update']);
     $group->delete('/api/tickets/{id}', [$ticketController, 'destroy']);
     $group->get('/api/assets/{id}/licenses', [$licenseController, 'forAsset']);

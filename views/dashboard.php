@@ -104,6 +104,7 @@ if ($activeAssetTypeId <= 0 && $assetTypes !== []) {
 }
 
 $forceAssetsView = (bool) ($forceAssetsView ?? false);
+$initialActiveView = is_string($initialActiveView ?? null) ? trim((string) $initialActiveView) : null;
 $assetTypesJson = json_encode($assetTypes, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
 $assetSchemaJson = $assetSchemaJson ?? '[]';
 $assetPagination = $assetPagination ?? ['page' => 1, 'per_page' => 50, 'total' => 0, 'total_pages' => 1];
@@ -357,6 +358,14 @@ $i18nScript = json_encode([
     'ticket_category_delete_success' => __('ticket_category_delete_success'),
     'ticket_category_delete_confirm' => __('ticket_category_delete_confirm'),
     'reports_fetch_error' => __('reports_fetch_error'),
+    'quality_documents_fetch_error' => __('quality_documents_fetch_error'),
+    'quality_document_upload_success' => __('quality_document_upload_success'),
+    'quality_document_upload_error' => __('quality_document_upload_error'),
+    'quality_document_file_missing' => __('quality_document_file_missing'),
+    'quality_document_title_required' => __('quality_document_title_required'),
+    'quality_document_delete_success' => __('quality_document_delete_success'),
+    'quality_document_delete_error' => __('quality_document_delete_error'),
+    'quality_document_delete_confirm' => __('quality_document_delete_confirm'),
     'ticket_comment_create_success' => __('ticket_comment_create_success'),
     'ticket_comment_create_error' => __('ticket_comment_create_error'),
     'helpdesk_filter_all' => __('helpdesk_filter_all'),
@@ -502,7 +511,7 @@ $i18nScript = json_encode([
     'list_pagination_info' => __('list_pagination_info'),
 ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
 ?>
-<div class="min-h-screen bg-gray-50" x-data="assetDashboard()" x-init="parseInventoryRoute(); restoreDashboardView(); if (isEndUser) { initEndUserPortal(); } else if (canManageAssets) { fetchCategories(); fetchLocations(); fetchTicketCategories(); fetchLicenses(); fetchConsumables(); fetchTickets(); if (activeView === 'dashboard') { fetchDashboardStats(); } } if (canAccessSettings && activeView === 'reports') { fetchReports(); } this.isAssignLicenseModalOpen = false;">
+<div class="min-h-screen bg-gray-50" x-data="assetDashboard()" x-init="parseInventoryRoute(); parseDocumentsRoute(); restoreDashboardView(); if (isEndUser) { initEndUserPortal(); } else if (canManageAssets) { fetchCategories(); fetchLocations(); fetchTicketCategories(); fetchLicenses(); fetchConsumables(); fetchTickets(); if (activeView === 'dashboard') { fetchDashboardStats(); } } if (canAccessSettings && activeView === 'reports') { fetchReports(); } if (canAccessSettings && activeView === 'documents') { fetchQualityDocuments(); } this.isAssignLicenseModalOpen = false;">
     <div class="flex h-screen overflow-hidden bg-gray-50">
         <aside class="hidden h-full w-64 min-h-0 flex-shrink-0 flex-col border-r border-gray-200 bg-white lg:flex">
             <div class="flex h-16 shrink-0 items-center gap-3 border-b border-gray-200 px-5">
@@ -703,6 +712,7 @@ $i18nScript = json_encode([
                 <?php endif; ?>
                 <?php if ($canAccessSettings): ?>
                 <?php require __DIR__ . '/partials/admin_reports.php'; ?>
+                <?php require __DIR__ . '/partials/quality_documents_panel.php'; ?>
                 <?php require __DIR__ . '/partials/audit_logs_panel.php'; ?>
                 <?php require __DIR__ . '/partials/settings_panel.php'; ?>
                 <?php require __DIR__ . '/partials/categories_panel.php'; ?>
@@ -2345,7 +2355,9 @@ $i18nScript = json_encode([
 
     function assetDashboard() {
         return {
-            activeView: <?= $isEndUser ? "'knowledge_base'" : ($forceAssetsView ? "'assets'" : ($canManageAssets ? "'dashboard'" : "'assets'")) ?>,
+            activeView: <?= $initialActiveView !== null && $initialActiveView !== ''
+                ? json_encode($initialActiveView, JSON_THROW_ON_ERROR)
+                : ($isEndUser ? "'knowledge_base'" : ($forceAssetsView ? "'assets'" : ($canManageAssets ? "'dashboard'" : "'assets'"))) ?>,
             activeAssetTypeId: <?= $activeAssetTypeId ?>,
             assetManagementOpen: <?= ($forceAssetsView || !$canManageAssets) ? 'true' : 'false' ?>,
             assetTypes: <?= $assetTypesJson ?>,
@@ -2535,6 +2547,17 @@ $i18nScript = json_encode([
             reportsStats: null,
             reportsLoading: false,
             reportsError: '',
+            qualityDocuments: [],
+            qualityDocumentsLoading: false,
+            qualityDocumentsError: '',
+            qualityDocumentsSuccessMessage: '',
+            isQualityDocumentModalOpen: false,
+            isQualityDocumentSubmitting: false,
+            qualityDocumentForm: {
+                title: '',
+                file: null,
+            },
+            qualityDocumentFormError: '',
             licenses: [],
             licensesLoading: false,
             licensesError: '',
@@ -2994,6 +3017,13 @@ $i18nScript = json_encode([
                     this.assetManagementOpen = true;
                 }
             },
+            parseDocumentsRoute() {
+                const path = window.location.pathname;
+
+                if (path === '/documents' || path === '/documents.php' || path.endsWith('/documents.php')) {
+                    this.activeView = 'documents';
+                }
+            },
             inventoryGridColumns() {
                 const defaults = ['name', 'model', 'brand', 'serial_number', 'type', 'status', 'assigned_to'];
                 const schema = Array.isArray(this.inventorySchema) ? this.inventorySchema : [];
@@ -3168,6 +3198,10 @@ $i18nScript = json_encode([
 
                     if (this.activeView === 'reports') {
                         this.fetchReports();
+                    }
+
+                    if (this.activeView === 'documents' && this.canAccessSettings) {
+                        this.fetchQualityDocuments();
                     }
 
                     if (this.activeView === 'ipam') {
@@ -6302,6 +6336,124 @@ $i18nScript = json_encode([
                 } finally {
                     this.reportsLoading = false;
                 }
+            },
+            async fetchQualityDocuments() {
+                if (!this.canAccessSettings) {
+                    return;
+                }
+
+                this.qualityDocumentsLoading = true;
+                this.qualityDocumentsError = '';
+
+                try {
+                    const response = await fetch('/api/quality-documents', this.apiFetchInit('GET'));
+                    const result = await this.parseApiResponse(response);
+
+                    if (!response.ok) {
+                        this.qualityDocumentsError = this.apiErrorMessage(result, window.__i18n.quality_documents_fetch_error);
+                        return;
+                    }
+
+                    this.qualityDocuments = Array.isArray(result.data) ? result.data : [];
+                } catch (error) {
+                    this.qualityDocumentsError = window.__i18n.helpdesk_network_error;
+                } finally {
+                    this.qualityDocumentsLoading = false;
+                }
+            },
+            openQualityDocumentModal() {
+                this.qualityDocumentForm = {
+                    title: '',
+                    file: null,
+                };
+                this.qualityDocumentFormError = '';
+                this.qualityDocumentsSuccessMessage = '';
+                this.isQualityDocumentModalOpen = true;
+            },
+            closeQualityDocumentModal() {
+                if (this.isQualityDocumentSubmitting) {
+                    return;
+                }
+
+                this.isQualityDocumentModalOpen = false;
+            },
+            async submitQualityDocumentForm() {
+                if (!this.qualityDocumentForm.title?.trim()) {
+                    this.qualityDocumentFormError = window.__i18n.quality_document_title_required;
+                    return;
+                }
+
+                if (!this.qualityDocumentForm.file) {
+                    this.qualityDocumentFormError = window.__i18n.quality_document_file_missing;
+                    return;
+                }
+
+                this.isQualityDocumentSubmitting = true;
+                this.qualityDocumentFormError = '';
+                this.qualityDocumentsSuccessMessage = '';
+
+                const formData = new FormData();
+                formData.append('title', this.qualityDocumentForm.title.trim());
+                formData.append('file', this.qualityDocumentForm.file);
+
+                try {
+                    const requestInit = this.apiFetchInit('POST');
+                    const response = await fetch('/api/quality-documents', {
+                        method: 'POST',
+                        headers: requestInit.headers,
+                        body: formData,
+                    });
+                    const result = await this.parseApiResponse(response);
+
+                    if (!response.ok) {
+                        this.qualityDocumentFormError = this.apiErrorMessage(result, window.__i18n.quality_document_upload_error);
+                        return;
+                    }
+
+                    this.isQualityDocumentModalOpen = false;
+                    this.qualityDocumentsSuccessMessage = this.apiErrorMessage(result, window.__i18n.quality_document_upload_success);
+                    await this.fetchQualityDocuments();
+                } catch (error) {
+                    this.qualityDocumentFormError = window.__i18n.helpdesk_network_error;
+                } finally {
+                    this.isQualityDocumentSubmitting = false;
+                }
+            },
+            async deleteQualityDocument(document) {
+                if (!document?.id || !window.confirm(window.__i18n.quality_document_delete_confirm)) {
+                    return;
+                }
+
+                this.qualityDocumentsSuccessMessage = '';
+                this.qualityDocumentsError = '';
+
+                try {
+                    const response = await fetch(`/api/quality-documents/${document.id}`, this.apiFetchInit('DELETE'));
+                    const result = await this.parseApiResponse(response);
+
+                    if (!response.ok) {
+                        this.qualityDocumentsError = this.apiErrorMessage(result, window.__i18n.quality_document_delete_error);
+                        return;
+                    }
+
+                    this.qualityDocumentsSuccessMessage = this.apiErrorMessage(result, window.__i18n.quality_document_delete_success);
+                    await this.fetchQualityDocuments();
+                } catch (error) {
+                    this.qualityDocumentsError = window.__i18n.helpdesk_network_error;
+                }
+            },
+            formatQualityDocumentDate(value) {
+                if (!value) {
+                    return '—';
+                }
+
+                const date = new Date(String(value).replace(' ', 'T'));
+
+                if (Number.isNaN(date.getTime())) {
+                    return String(value);
+                }
+
+                return date.toLocaleString(window.__i18n.locale || 'tr-TR');
             },
             async fetchLicenses(resetPage = false) {
                 if (!this.canManageAssets || this.licensesLoading) {

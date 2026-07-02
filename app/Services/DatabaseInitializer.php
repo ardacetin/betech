@@ -109,6 +109,10 @@ class DatabaseInitializer
                     $warnings[] = $warning;
                 }
 
+                foreach ($this->patchQualityDocuments($connection) as $warning) {
+                    $warnings[] = $warning;
+                }
+
                 foreach ($this->patchAuditLogs($connection) as $warning) {
                     $warnings[] = $warning;
                 }
@@ -1020,6 +1024,31 @@ class DatabaseInitializer
     private function getKnowledgeBaseTableMigrationPath(): string
     {
         return dirname($this->schemaPath) . '/migrations/018_create_knowledge_base_articles.sql';
+    }
+
+    /**
+     * @param object $connection Medoo instance
+     *
+     * @return list<string>
+     */
+    private function patchQualityDocuments(object $connection): array
+    {
+        $warnings = [];
+
+        if (!$this->tableExists($connection, 'personnel')) {
+            return $warnings;
+        }
+
+        if (!$this->tableExists($connection, 'quality_documents')) {
+            $migrationPath = dirname($this->schemaPath) . '/migrations/026_create_quality_documents.sql';
+
+            if (is_readable($migrationPath)) {
+                $this->applySqlFile($connection, $migrationPath);
+                $warnings[] = 'Self-healed database: created quality_documents table.';
+            }
+        }
+
+        return $warnings;
     }
 
     /**

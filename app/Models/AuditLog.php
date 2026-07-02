@@ -26,6 +26,7 @@ class AuditLog
     public const ENTITY_SETTING = 'setting';
     public const ENTITY_USER = 'user';
     public const ENTITY_IP_ADDRESS = 'ip_address';
+    public const ENTITY_QUALITY_DOCUMENT = 'quality_document';
 
     public function __construct(
         private readonly DatabaseService $databaseService

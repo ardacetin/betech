@@ -68,7 +68,19 @@ class HealthController
             $request,
             $response,
             $typeId,
-            false
+            false,
+            null
+        );
+    }
+
+    public function documents(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
+    {
+        return $this->renderDashboard(
+            $request,
+            $response,
+            null,
+            false,
+            'documents'
         );
     }
 
@@ -86,7 +98,8 @@ class HealthController
             $request,
             $response,
             $typeId,
-            true
+            true,
+            null
         );
     }
 
@@ -94,7 +107,8 @@ class HealthController
         ServerRequestInterface $request,
         ResponseInterface $response,
         ?int $requestedAssetTypeId,
-        bool $forceAssetsView
+        bool $forceAssetsView,
+        ?string $initialActiveView = null
     ): ResponseInterface {
         $userId = $this->sessionAuthService->userId() ?? 0;
         $role = $this->sessionAuthService->role();
@@ -238,6 +252,7 @@ class HealthController
             'assetTypesJson' => json_encode($assetTypes, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE),
             'activeAssetTypeId' => $activeAssetTypeId ?? 0,
             'forceAssetsView' => $forceAssetsView,
+            'initialActiveView' => $initialActiveView,
             'assetSchemaJson' => json_encode(
                 $activeAssetTypeId !== null
                     ? $this->assetTypeTableService->buildSchemaDefinition(

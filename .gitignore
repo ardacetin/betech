@@ -7,6 +7,9 @@ composer.phar
 !/backups/.htaccess
 /storage/backups/*
 !/storage/backups/.htaccess
+/storage/documents/*
+!/storage/documents/.htaccess
+!/storage/documents/.gitkeep
 
 # IDE and editor files
 /.vscode/
