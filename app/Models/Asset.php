@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Models\AssetRegistry;
 use App\Services\AssetColumnSchemaService;
+use App\Services\AssetTypeTableService;
 use App\Services\DatabaseService;
 use App\Services\ListPagination;
 use Medoo\Medoo;
@@ -30,6 +32,8 @@ class Asset
     public function __construct(
         private readonly DatabaseService $databaseService,
         private readonly AssetColumnSchemaService $columnSchemaService,
+        private readonly AssetTypeTableService $assetTypeTableService,
+        private readonly AssetRegistry $assetRegistry,
     ) {
     }
 
@@ -65,9 +69,10 @@ class Asset
         ?int $assetTypeId = null
     ): array {
         $where = $this->buildDashboardFilterWhere($filters, $filterDefinitions, $assetTypeId);
-        $where['ORDER'] = ['assets.id' => 'DESC'];
+        $tableName = $this->resolveTableName($assetTypeId);
+        $where['ORDER'] = ['id' => 'DESC'];
 
-        $rows = $this->db()->select('assets', '*', $where);
+        $rows = $this->db()->select($tableName, '*', $where);
 
         return array_map(
             fn (array $row): array => $this->normalizeRow($row),
@@ -92,15 +97,16 @@ class Asset
         ?int $assetTypeId = null
     ): array {
         $where = $this->buildDashboardFilterWhere($filters, $filterDefinitions, $assetTypeId);
+        $tableName = $this->resolveTableName($assetTypeId);
         $page = max(1, $page);
         $perPage = ListPagination::PAGE_SIZE;
         $countWhere = $where === [] ? null : $where;
-        $total = (int) $this->db()->count('assets', $countWhere);
+        $total = (int) $this->db()->count($tableName, $countWhere);
         $selectWhere = $where;
-        $selectWhere['ORDER'] = ['assets.id' => 'DESC'];
+        $selectWhere['ORDER'] = ['id' => 'DESC'];
         $selectWhere['LIMIT'] = [ListPagination::offset($page, $perPage), $perPage];
 
-        $rows = $this->db()->select('assets', '*', $selectWhere);
+        $rows = $this->db()->select($tableName, '*', $selectWhere);
 
         return [
             'data' => array_map(
@@ -116,22 +122,20 @@ class Asset
      */
     public function getDistinctColumnValues(string $column, ?int $assetTypeId = null): array
     {
-        if (!$this->columnSchemaService->isQueryableColumn($column)) {
+        if (!$this->columnSchemaService->isQueryableColumn($column, $assetTypeId)) {
             return [];
         }
 
+        $tableName = $this->resolveTableName($assetTypeId);
         $conditions = [
             $column . '[!]' => null,
             'ORDER' => [$column => 'ASC'],
         ];
 
-        if ($assetTypeId !== null && $assetTypeId > 0) {
-            $conditions['asset_type_id'] = $assetTypeId;
-        }
-
-        $rows = $this->db()->select('assets', [$column], $conditions);
+        $rows = $this->db()->select($tableName, [$column], $conditions);
 
         $values = [];
+        $seen = [];
 
         foreach ($rows as $row) {
             $value = trim((string) ($row[$column] ?? ''));
@@ -159,10 +163,6 @@ class Asset
         ?int $assetTypeId = null
     ): array {
         $conditions = [];
-
-        if ($assetTypeId !== null && $assetTypeId > 0) {
-            $conditions['asset_type_id'] = $assetTypeId;
-        }
 
         if ($filters === [] || $filterDefinitions === []) {
             return $conditions === [] ? [] : ['AND' => $conditions];
@@ -198,6 +198,7 @@ class Asset
 
             $match = (string) ($definition['match'] ?? 'partial');
             $column = isset($definition['column']) ? (string) $definition['column'] : '';
+            $column = str_starts_with($column, 'assets.') ? substr($column, 7) : $column;
 
             if ($column === '') {
                 continue;
@@ -236,6 +237,17 @@ class Asset
 
     public function findById(int $assetId): ?array
     {
+        $typeId = $this->assetRegistry->resolveTypeId($assetId);
+
+        if ($typeId !== null) {
+            $tableName = $this->resolveTableName($typeId);
+            $row = $this->db()->get($tableName, '*', ['id' => $assetId]);
+
+            if (is_array($row) && $row !== []) {
+                return $this->normalizeRow($row, $typeId);
+            }
+        }
+
         $row = $this->db()->get('assets', '*', ['id' => $assetId]);
 
         return $row === null ? null : $this->normalizeRow($row);
@@ -393,6 +405,15 @@ class Asset
             'asset_id' => $assetId,
         ]);
 
+        $typeId = $this->assetRegistry->resolveTypeId($assetId);
+
+        if ($typeId !== null) {
+            $tableName = $this->resolveTableName($typeId);
+            $db->delete($tableName, ['id' => $assetId]);
+        }
+
+        $this->assetRegistry->unregister($assetId);
+
         $db->delete('assets', [
             'id' => $assetId,
         ]);
@@ -437,17 +458,13 @@ class Asset
      */
     public function create(array $fields, ?int $assetTypeId = null): array
     {
-        $insert = $this->filterFlatFields($fields);
-
-        if ($assetTypeId !== null && $assetTypeId > 0) {
-            $insert['asset_type_id'] = $assetTypeId;
-        } elseif (!isset($insert['asset_type_id'])) {
-            $insert['asset_type_id'] = 1;
-        }
+        $typeId = $assetTypeId !== null && $assetTypeId > 0 ? $assetTypeId : 1;
+        $tableName = $this->resolveTableName($typeId);
+        $insert = $this->filterFlatFields($fields, $typeId);
         $assetTag = trim((string) ($insert['asset_tag'] ?? ''));
 
         if ($assetTag === '') {
-            $assetTag = $this->generateNextAssetTag();
+            $assetTag = $this->generateNextAssetTag($typeId);
         }
 
         $insert['asset_tag'] = $assetTag;
@@ -459,16 +476,19 @@ class Asset
 
         $insert['status'] = trim((string) ($insert['status'] ?? 'ready')) ?: 'ready';
 
-        $this->db()->insert('assets', $insert);
+        $this->db()->insert($tableName, $insert);
 
-        $insertedId = $this->db()->id();
-        $row = $this->db()->get('assets', '*', ['id' => $insertedId]);
+        $insertedId = (int) $this->db()->id();
+        $this->assetRegistry->register($insertedId, $typeId);
+        $row = $this->db()->get($tableName, '*', ['id' => $insertedId]);
 
         if ($row === null) {
             throw new \RuntimeException('Asset was inserted but could not be retrieved.');
         }
 
-        return $this->normalizeRow($row);
+        $this->syncLegacyAssetRow($typeId, $row);
+
+        return $this->normalizeRow($row, $typeId);
     }
 
     /**
@@ -478,16 +498,25 @@ class Asset
      */
     public function update(int $assetId, array $fields): ?array
     {
-        $existing = $this->db()->get('assets', '*', ['id' => $assetId]);
+        $typeId = $this->assetRegistry->resolveTypeId($assetId);
+        $tableName = $typeId !== null ? $this->resolveTableName($typeId) : 'assets';
+        $existing = $this->db()->get($tableName, '*', ['id' => $assetId]);
 
         if ($existing === null) {
-            return null;
+            $existing = $this->db()->get('assets', '*', ['id' => $assetId]);
+
+            if ($existing === null) {
+                return null;
+            }
+
+            $tableName = 'assets';
+            $typeId = (int) ($existing['asset_type_id'] ?? 0);
         }
 
-        $updateData = $this->filterFlatFields($fields);
+        $updateData = $this->filterFlatFields($fields, $typeId > 0 ? $typeId : null);
 
         if ($updateData === []) {
-            return $this->normalizeRow($existing);
+            return $this->normalizeRow($existing, $typeId > 0 ? $typeId : null);
         }
 
         if (array_key_exists('asset_tag', $updateData)) {
@@ -510,7 +539,7 @@ class Asset
 
         foreach (array_merge(
             ['model', 'brand', 'type', 'location', 'building', 'assigned_to', 'mac_address_1', 'mac_address_2'],
-            array_diff($this->columnSchemaService->getWritableColumnNames(), self::FLAT_COLUMNS)
+            array_diff($this->columnSchemaService->getWritableColumnNames($typeId > 0 ? $typeId : null), self::FLAT_COLUMNS)
         ) as $nullableStringField) {
             if (!array_key_exists($nullableStringField, $updateData)) {
                 continue;
@@ -523,22 +552,33 @@ class Asset
 
         $updateData['updated_at'] = date('Y-m-d H:i:s');
 
-        $this->db()->update('assets', $updateData, ['id' => $assetId]);
+        $this->db()->update($tableName, $updateData, ['id' => $assetId]);
 
-        $row = $this->db()->get('assets', '*', ['id' => $assetId]);
+        $row = $this->db()->get($tableName, '*', ['id' => $assetId]);
 
-        return $row === null ? null : $this->normalizeRow($row);
+        if ($row === null) {
+            return null;
+        }
+
+        if ($typeId !== null && $typeId > 0) {
+            $this->syncLegacyAssetRow($typeId, $row);
+        }
+
+        return $this->normalizeRow($row, $typeId > 0 ? $typeId : null);
     }
 
-    public function assetTagExists(string $assetTag, ?int $ignoreAssetId = null): bool
+    public function assetTagExists(string $assetTag, ?int $ignoreAssetId = null, ?int $assetTypeId = null): bool
     {
+        $tableName = $assetTypeId !== null && $assetTypeId > 0
+            ? $this->resolveTableName($assetTypeId)
+            : 'assets';
         $conditions = ['asset_tag' => $assetTag];
 
         if ($ignoreAssetId !== null) {
             $conditions['id[!]'] = $ignoreAssetId;
         }
 
-        return $this->db()->has('assets', $conditions);
+        return $this->db()->has($tableName, $conditions);
     }
 
     /**
@@ -572,16 +612,16 @@ class Asset
             return null;
         }
 
-        $row = $this->db()->get('assets', '*', [
+        $tableName = $this->resolveTableName($assetTypeId);
+        $row = $this->db()->get($tableName, '*', [
             'asset_tag' => $trimmed,
-            'asset_type_id' => $assetTypeId,
         ]);
 
         if (!is_array($row) || $row === []) {
             return null;
         }
 
-        return $this->normalizeRow($row);
+        return $this->normalizeRow($row, $assetTypeId);
     }
 
     public function serialNumberExists(string $serialNumber, ?int $ignoreAssetId = null): bool
@@ -635,14 +675,15 @@ class Asset
             $assetTypeId = (int) $existingAsset['asset_type_id'];
         }
 
-        $fields = $this->filterFlatFields($fields);
+        $fields = $this->filterFlatFields($fields, $assetTypeId > 0 ? $assetTypeId : null);
 
         $assetTag = trim((string) ($fields['asset_tag'] ?? ''));
 
         if ($existingAsset !== null) {
             $assetId = (int) $existingAsset['id'];
+            $existingTypeId = (int) ($existingAsset['asset_type_id'] ?? $assetTypeId);
 
-            if ($assetTag !== '' && $this->assetTagExists($assetTag, $assetId)) {
+            if ($assetTag !== '' && $this->assetTagExists($assetTag, $assetId, $existingTypeId > 0 ? $existingTypeId : null)) {
                 throw new \RuntimeException(sprintf(__('import_error_duplicate_tag'), $assetTag));
             }
 
@@ -668,7 +709,7 @@ class Asset
             $fields['asset_tag'] = $this->generateNextAssetTag();
         }
 
-        if ($this->assetTagExists((string) ($fields['asset_tag'] ?? ''))) {
+        if ($this->assetTagExists((string) ($fields['asset_tag'] ?? ''), null, $assetTypeId > 0 ? $assetTypeId : null)) {
             throw new \RuntimeException(sprintf(__('import_error_duplicate_tag'), (string) $fields['asset_tag']));
         }
 
@@ -684,9 +725,12 @@ class Asset
         ];
     }
 
-    public function generateNextAssetTag(): string
+    public function generateNextAssetTag(?int $assetTypeId = null): string
     {
-        $rows = $this->db()->select('assets', ['asset_tag'], [
+        $tableName = $assetTypeId !== null && $assetTypeId > 0
+            ? $this->resolveTableName($assetTypeId)
+            : 'assets';
+        $rows = $this->db()->select($tableName, ['asset_tag'], [
             'ORDER' => ['id' => 'ASC'],
         ]);
 
@@ -705,7 +749,7 @@ class Asset
         do {
             $maxNumber++;
             $candidate = sprintf('ENV-%04d', $maxNumber);
-        } while ($this->assetTagExists($candidate));
+        } while ($this->assetTagExists($candidate, null, $assetTypeId));
 
         return $candidate;
     }
@@ -715,9 +759,69 @@ class Asset
      *
      * @return array<string, mixed>
      */
-    private function filterFlatFields(array $fields): array
+    private function filterFlatFields(array $fields, ?int $assetTypeId = null): array
     {
-        return $this->columnSchemaService->filterWritableFields($fields);
+        return $this->columnSchemaService->filterWritableFields($fields, $assetTypeId);
+    }
+
+    private function resolveTableName(?int $assetTypeId): string
+    {
+        return $this->columnSchemaService->resolveTableName($assetTypeId);
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     */
+    private function syncLegacyAssetRow(int $assetTypeId, array $row): void
+    {
+        if (!$this->tableExists('assets') || !$this->columnExists('assets', 'asset_type_id')) {
+            return;
+        }
+
+        $assetId = (int) ($row['id'] ?? 0);
+
+        if ($assetId <= 0) {
+            return;
+        }
+
+        $legacy = [
+            'asset_type_id' => $assetTypeId,
+            'asset_tag' => (string) ($row['asset_tag'] ?? ''),
+            'name' => (string) ($row['name'] ?? ''),
+            'status' => (string) ($row['status'] ?? 'ready'),
+            'serial_number' => $row['serial_number'] ?? null,
+            'assigned_to' => $row['assigned_to'] ?? null,
+            'updated_at' => date('Y-m-d H:i:s'),
+        ];
+
+        if ($this->db()->has('assets', ['id' => $assetId])) {
+            $this->db()->update('assets', $legacy, ['id' => $assetId]);
+
+            return;
+        }
+
+        $legacy['id'] = $assetId;
+        $legacy['created_at'] = $row['created_at'] ?? date('Y-m-d H:i:s');
+        $this->db()->insert('assets', $legacy);
+    }
+
+    private function columnExists(string $tableName, string $columnName): bool
+    {
+        $statement = $this->db()->query(
+            'SELECT COUNT(*) AS total
+            FROM information_schema.COLUMNS
+            WHERE TABLE_SCHEMA = DATABASE()
+              AND TABLE_NAME = ' . $this->db()->quote($tableName) . '
+              AND COLUMN_NAME = ' . $this->db()->quote($columnName)
+        );
+
+        if ($statement === false) {
+            return false;
+        }
+
+        $row = $statement->fetch();
+
+        return (int) ($row['total'] ?? 0) > 0;
     }
 
     /**
@@ -725,13 +829,15 @@ class Asset
      *
      * @return array<string, mixed>
      */
-    private function normalizeRow(array $row): array
+    private function normalizeRow(array $row, ?int $assetTypeId = null): array
     {
         if (isset($row['id'])) {
             $row['id'] = (int) $row['id'];
         }
 
-        if (isset($row['asset_type_id'])) {
+        if ($assetTypeId !== null && $assetTypeId > 0) {
+            $row['asset_type_id'] = $assetTypeId;
+        } elseif (isset($row['asset_type_id'])) {
             $row['asset_type_id'] = (int) $row['asset_type_id'];
         }
 

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Controllers;
 
 use App\Models\Asset;
+use App\Models\AssetCustomField;
 use App\Models\AssetType;
 use App\Models\Category;
 use App\Models\Consumable;
@@ -15,6 +16,7 @@ use App\Models\Personnel;
 use App\Models\User;
 use App\Services\AnalyticsService;
 use App\Services\AssetFilterSchemaService;
+use App\Services\AssetTypeTableService;
 use App\Services\ConsumableFilterSchemaService;
 use App\Services\LicenseFilterSchemaService;
 use App\Services\ListPagination;
@@ -50,17 +52,22 @@ class HealthController
         private readonly LicenseFilterSchemaService $licenseFilterSchemaService,
         private readonly Consumable $consumableModel,
         private readonly ConsumableFilterSchemaService $consumableFilterSchemaService,
+        private readonly AssetCustomField $assetCustomFieldModel,
+        private readonly AssetTypeTableService $assetTypeTableService,
     ) {
     }
 
     public function index(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
     {
-        $typeId = (int) ($request->getQueryParams()['type'] ?? 0);
+        $typeIdentifier = trim((string) ($request->getQueryParams()['type'] ?? ''));
+        $typeId = $typeIdentifier !== ''
+            ? $this->assetTypeTableService->resolveTypeIdFromIdentifier($typeIdentifier)
+            : null;
 
         return $this->renderDashboard(
             $request,
             $response,
-            $typeId > 0 ? $typeId : null,
+            $typeId,
             false
         );
     }
@@ -70,12 +77,15 @@ class HealthController
         ResponseInterface $response,
         array $args
     ): ResponseInterface {
-        $typeId = (int) ($args['typeId'] ?? 0);
+        $typeIdentifier = trim((string) ($args['typeId'] ?? ''));
+        $typeId = $typeIdentifier !== ''
+            ? $this->assetTypeTableService->resolveTypeIdFromIdentifier($typeIdentifier)
+            : null;
 
         return $this->renderDashboard(
             $request,
             $response,
-            $typeId > 0 ? $typeId : null,
+            $typeId,
             true
         );
     }
@@ -112,7 +122,16 @@ class HealthController
             $locations = $this->locationModel->findAll();
             $analytics = $this->analyticsService->getDashboardStats();
             $settings = $this->settingModel->getAdminBundle();
-            $globalCustomFields = is_array($settings['custom_fields'] ?? null) ? $settings['custom_fields'] : [];
+            $globalCustomFields = $activeAssetTypeId !== null
+                ? array_map(
+                    static fn (array $field): array => [
+                        'name' => (string) ($field['column_name'] ?? ''),
+                        'label' => (string) ($field['label'] ?? ''),
+                        'type' => (string) ($field['field_type'] ?? 'varchar'),
+                    ],
+                    $this->assetCustomFieldModel->findByAssetTypeId($activeAssetTypeId)
+                )
+                : (is_array($settings['custom_fields'] ?? null) ? $settings['custom_fields'] : []);
 
             $assetFilterDefinitions = $this->assetFilterSchemaService->buildDefinitions($categories, $globalCustomFields);
             $assetFilterDefinitions = $this->assetFilterSchemaService->resolveOptions(
@@ -219,6 +238,15 @@ class HealthController
             'assetTypesJson' => json_encode($assetTypes, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE),
             'activeAssetTypeId' => $activeAssetTypeId ?? 0,
             'forceAssetsView' => $forceAssetsView,
+            'assetSchemaJson' => json_encode(
+                $activeAssetTypeId !== null
+                    ? $this->assetTypeTableService->buildSchemaDefinition(
+                        $activeAssetTypeId,
+                        $this->assetCustomFieldModel->findByAssetTypeId($activeAssetTypeId)
+                    )
+                    : [],
+                JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE
+            ),
         ]);
 
         $response->getBody()->write($html);

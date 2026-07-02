@@ -6,6 +6,7 @@ namespace App\Controllers;
 
 use App\Models\AssetHistory;
 use App\Models\AuditLog;
+use App\Services\AssetTypeTableService;
 use App\Services\AuditLogger;
 use App\Services\Auth\SessionAuthService;
 use App\Services\InventoryImportService;
@@ -23,6 +24,7 @@ class InventoryImportController
         private readonly AssetHistory $assetHistoryModel,
         private readonly SessionAuthService $sessionAuthService,
         private readonly AuditLogger $auditLogger,
+        private readonly AssetTypeTableService $assetTypeTableService,
         private readonly bool $exposeDebugDetails = false,
     ) {
     }
@@ -30,7 +32,11 @@ class InventoryImportController
     public function template(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
     {
         try {
-            $csv = $this->inventoryImportService->templateCsvContent();
+            $typeIdentifier = trim((string) ($request->getQueryParams()['type'] ?? ''));
+            $typeId = $typeIdentifier !== ''
+                ? $this->assetTypeTableService->resolveTypeIdFromIdentifier($typeIdentifier)
+                : null;
+            $csv = $this->inventoryImportService->templateCsvContent($typeId);
 
             $response->getBody()->write("\xEF\xBB\xBF" . $csv);
 
@@ -70,11 +76,14 @@ class InventoryImportController
 
             $originalFilename = $file->getClientFilename() ?? 'import.csv';
             $contents = (string) $file->getStream()->getContents();
-            $typeId = (int) ($request->getQueryParams()['type'] ?? 0);
+            $typeIdentifier = trim((string) ($request->getQueryParams()['type'] ?? ''));
+            $typeId = $typeIdentifier !== ''
+                ? $this->assetTypeTableService->resolveTypeIdFromIdentifier($typeIdentifier)
+                : null;
             $result = $this->inventoryImportService->importFromUploadedFile(
                 $contents,
                 $originalFilename,
-                $typeId > 0 ? $typeId : null
+                $typeId
             );
 
             $actorUserId = $this->sessionAuthService->userId();

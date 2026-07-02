@@ -49,9 +49,9 @@ class InventoryImportService
     ) {
     }
 
-    public function templateCsvContent(): string
+    public function templateCsvContent(?int $assetTypeId = null): string
     {
-        return $this->columnSchemaService->buildTemplateCsvContent();
+        return $this->columnSchemaService->buildTemplateCsvContent($assetTypeId);
     }
 
     public static function buildResultMessage(int $insertedCount, int $updatedCount, int $failed): string
@@ -102,7 +102,7 @@ class InventoryImportService
 
             $extension = strtolower(pathinfo($originalFilename, PATHINFO_EXTENSION));
 
-            $this->columnSchemaService->ensureConfiguredCustomColumns();
+            $this->columnSchemaService->ensureConfiguredCustomColumns([], $this->activeAssetTypeId);
 
             return match ($extension) {
                 'csv' => $this->importCsvContents($contents),
@@ -153,7 +153,7 @@ class InventoryImportService
             $columns = $this->parseCsvLine($line);
 
             if ($columnIndexMap === null) {
-                $columnIndexMap = $this->columnSchemaService->buildHeaderColumnMap($columns);
+                $columnIndexMap = $this->columnSchemaService->buildHeaderColumnMap($columns, $this->activeAssetTypeId);
 
                 if (!isset($columnIndexMap['asset_tag'])) {
                     throw new RuntimeException(__('import_csv_invalid_headers'));
@@ -308,7 +308,7 @@ class InventoryImportService
             }
 
             if ($columnIndexMap === null) {
-                $columnIndexMap = $this->columnSchemaService->buildHeaderColumnMap($columns);
+                $columnIndexMap = $this->columnSchemaService->buildHeaderColumnMap($columns, $this->activeAssetTypeId);
 
                 if (!isset($columnIndexMap['asset_tag'])) {
                     throw new RuntimeException(__('import_csv_invalid_headers'));

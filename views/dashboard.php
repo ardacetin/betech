@@ -105,6 +105,7 @@ if ($activeAssetTypeId <= 0 && $assetTypes !== []) {
 
 $forceAssetsView = (bool) ($forceAssetsView ?? false);
 $assetTypesJson = json_encode($assetTypes, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
+$assetSchemaJson = $assetSchemaJson ?? '[]';
 $assetPagination = $assetPagination ?? ['page' => 1, 'per_page' => 50, 'total' => 0, 'total_pages' => 1];
 $assetPaginationJson = json_encode($assetPagination, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
 
@@ -275,6 +276,16 @@ $i18nScript = json_encode([
     'asset_type_update_error' => __('asset_type_update_error'),
     'asset_type_delete_error' => __('asset_type_delete_error'),
     'asset_type_delete_confirm' => __('asset_type_delete_confirm'),
+    'asset_type_invalid_id' => __('asset_type_invalid_id'),
+    'asset_custom_fields_fetch_error' => __('asset_custom_fields_fetch_error'),
+    'asset_custom_fields_network_error' => __('asset_custom_fields_network_error'),
+    'asset_custom_field_create_success' => __('asset_custom_field_create_success'),
+    'asset_custom_field_update_success' => __('asset_custom_field_update_success'),
+    'asset_custom_field_delete_success' => __('asset_custom_field_delete_success'),
+    'asset_custom_field_create_error' => __('asset_custom_field_create_error'),
+    'asset_custom_field_update_error' => __('asset_custom_field_update_error'),
+    'asset_custom_field_delete_error' => __('asset_custom_field_delete_error'),
+    'asset_custom_field_delete_confirm' => __('asset_custom_field_delete_confirm'),
     'nav_assets' => __('nav_assets'),
     'locations_fetch_error' => __('locations_fetch_error'),
     'locations_network_error' => __('locations_network_error'),
@@ -687,6 +698,7 @@ $i18nScript = json_encode([
                 <?php require __DIR__ . '/partials/settings_panel.php'; ?>
                 <?php require __DIR__ . '/partials/categories_panel.php'; ?>
                 <?php require __DIR__ . '/partials/asset_types_panel.php'; ?>
+                <?php require __DIR__ . '/partials/asset_custom_fields_panel.php'; ?>
                 <?php require __DIR__ . '/partials/locations_panel.php'; ?>
                 <?php require __DIR__ . '/partials/ticket_categories_panel.php'; ?>
                 <?php endif; ?>
@@ -865,6 +877,21 @@ $i18nScript = json_encode([
                                 <span class="mb-1 block text-xs font-medium text-zinc-700"><?= htmlspecialchars(__('label_mac_address_2'), ENT_QUOTES, 'UTF-8') ?></span>
                                 <input x-model="editForm.mac_address_2" type="text" class="w-full rounded-lg border border-zinc-300 px-3 py-2 font-mono text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4">
                             </label>
+
+                            <div class="sm:col-span-2" x-show="inventoryCustomFieldColumns().length > 0" x-cloak>
+                                <div class="grid gap-3 sm:grid-cols-2">
+                                    <template x-for="field in inventoryCustomFieldColumns()" :key="field.column">
+                                        <label class="block">
+                                            <span class="mb-1 block text-xs font-medium text-zinc-700" x-text="field.label"></span>
+                                            <input
+                                                x-model="editForm[field.column]"
+                                                type="text"
+                                                class="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4"
+                                            >
+                                        </label>
+                                    </template>
+                                </div>
+                            </div>
 
                             <div class="border-t border-zinc-200 pt-3">
                                 <h4 class="text-xs font-semibold text-zinc-900"><?= htmlspecialchars(__('label_assign_user'), ENT_QUOTES, 'UTF-8') ?></h4>
@@ -1415,6 +1442,80 @@ $i18nScript = json_encode([
                     >
                         <span x-show="isAssetTypeSubmitting"><?= htmlspecialchars(__('saving'), ENT_QUOTES, 'UTF-8') ?></span>
                         <span x-show="!isAssetTypeSubmitting"><?= htmlspecialchars(__('save'), ENT_QUOTES, 'UTF-8') ?></span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div
+        x-show="isAssetCustomFieldModalOpen"
+        x-cloak
+        class="fixed inset-0 z-[60] flex items-center justify-center px-4"
+        @keydown.escape.window="closeAssetCustomFieldModal()"
+    >
+        <div class="absolute inset-0 bg-zinc-900/40 backdrop-blur-sm" @click="closeAssetCustomFieldModal()"></div>
+
+        <div class="relative w-full max-w-lg rounded-2xl border border-zinc-200 bg-white shadow-soft">
+            <div class="flex items-center justify-between border-b border-zinc-200 px-6 py-4">
+                <div>
+                    <h3 class="text-lg font-semibold text-zinc-900" x-text="editingAssetCustomFieldId ? '<?= htmlspecialchars(__('action_edit_asset_custom_field'), ENT_QUOTES, 'UTF-8') ?>' : '<?= htmlspecialchars(__('add_asset_custom_field'), ENT_QUOTES, 'UTF-8') ?>'"></h3>
+                    <p class="mt-1 text-sm text-zinc-500"><?= htmlspecialchars(__('asset_custom_fields_modal_subtitle'), ENT_QUOTES, 'UTF-8') ?></p>
+                </div>
+                <button type="button" @click="closeAssetCustomFieldModal()" class="rounded-lg p-2 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600">&times;</button>
+            </div>
+
+            <form @submit.prevent="submitAssetCustomFieldForm" class="px-6 py-5 space-y-4">
+                <label class="block">
+                    <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('asset_custom_field_label'), ENT_QUOTES, 'UTF-8') ?></span>
+                    <input
+                        type="text"
+                        x-model="assetCustomFieldForm.label"
+                        required
+                        class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4"
+                    >
+                </label>
+
+                <label class="block">
+                    <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('asset_custom_field_type_label'), ENT_QUOTES, 'UTF-8') ?></span>
+                    <select
+                        x-model="assetCustomFieldForm.field_type"
+                        class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4"
+                    >
+                        <option value="varchar"><?= htmlspecialchars(__('asset_custom_field_type_varchar'), ENT_QUOTES, 'UTF-8') ?></option>
+                        <option value="text"><?= htmlspecialchars(__('asset_custom_field_type_text'), ENT_QUOTES, 'UTF-8') ?></option>
+                        <option value="number"><?= htmlspecialchars(__('asset_custom_field_type_number'), ENT_QUOTES, 'UTF-8') ?></option>
+                        <option value="dropdown"><?= htmlspecialchars(__('asset_custom_field_type_dropdown'), ENT_QUOTES, 'UTF-8') ?></option>
+                    </select>
+                </label>
+
+                <label class="block" x-show="assetCustomFieldForm.field_type === 'dropdown'" x-cloak>
+                    <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('asset_custom_field_options_label'), ENT_QUOTES, 'UTF-8') ?></span>
+                    <input
+                        type="text"
+                        x-model="assetCustomFieldForm.options"
+                        placeholder="<?= htmlspecialchars(__('asset_custom_field_options_placeholder'), ENT_QUOTES, 'UTF-8') ?>"
+                        class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4"
+                    >
+                </label>
+
+                <p x-show="assetCustomFieldFormError" x-cloak class="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700" x-text="assetCustomFieldFormError"></p>
+
+                <div class="flex justify-end gap-3 border-t border-zinc-200 pt-5">
+                    <button
+                        type="button"
+                        @click="closeAssetCustomFieldModal()"
+                        class="rounded-xl border border-zinc-200 px-4 py-2.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
+                    >
+                        <?= htmlspecialchars(__('cancel'), ENT_QUOTES, 'UTF-8') ?>
+                    </button>
+                    <button
+                        type="submit"
+                        :disabled="isAssetCustomFieldSubmitting"
+                        class="inline-flex items-center gap-2 rounded-xl bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                        <span x-show="isAssetCustomFieldSubmitting"><?= htmlspecialchars(__('saving'), ENT_QUOTES, 'UTF-8') ?></span>
+                        <span x-show="!isAssetCustomFieldSubmitting"><?= htmlspecialchars(__('save'), ENT_QUOTES, 'UTF-8') ?></span>
                     </button>
                 </div>
             </form>
@@ -2184,6 +2285,7 @@ $i18nScript = json_encode([
             activeAssetTypeId: <?= $activeAssetTypeId ?>,
             assetManagementOpen: <?= ($forceAssetsView || !$canManageAssets) ? 'true' : 'false' ?>,
             assetTypes: <?= $assetTypesJson ?>,
+            inventorySchema: <?= is_string($assetSchemaJson) ? $assetSchemaJson : '[]' ?>,
             dashboardStats: null,
             dashboardLoading: false,
             dashboardError: '',
@@ -2310,6 +2412,22 @@ $i18nScript = json_encode([
                 name: '',
             },
             assetTypeFormError: '',
+            selectedAssetFieldTypeId: null,
+            assetTypeCustomFields: [],
+            assetCustomFieldsLoading: false,
+            assetCustomFieldsError: '',
+            assetCustomFieldsSuccessMessage: '',
+            isAssetCustomFieldModalOpen: false,
+            isAssetCustomFieldSubmitting: false,
+            editingAssetCustomFieldId: null,
+            assetCustomFieldForm: {
+                id: null,
+                label: '',
+                field_type: 'varchar',
+                options: '',
+                sort_order: 0,
+            },
+            assetCustomFieldFormError: '',
             locations: [],
             locationsLoading: false,
             locationsError: '',
@@ -2783,13 +2901,66 @@ $i18nScript = json_encode([
                 }));
             },
             parseInventoryRoute() {
-                const match = window.location.pathname.match(/^\/inventory\/(\d+)\/?$/);
+                const match = window.location.pathname.match(/^\/inventory\/([^/]+)\/?$/);
 
                 if (match) {
-                    this.activeAssetTypeId = Number(match[1]);
+                    const identifier = decodeURIComponent(match[1]);
+                    const bySlug = (this.assetTypes || []).find((type) => String(type.slug) === identifier);
+                    const byId = (this.assetTypes || []).find((type) => String(type.id) === identifier);
+
+                    this.activeAssetTypeId = Number((bySlug || byId)?.id || identifier);
                     this.activeView = 'assets';
                     this.assetManagementOpen = true;
                 }
+            },
+            inventoryGridColumns() {
+                const defaults = ['name', 'model', 'brand', 'serial_number', 'type', 'status', 'assigned_to'];
+                const schema = Array.isArray(this.inventorySchema) ? this.inventorySchema : [];
+                const columns = schema
+                    .filter((column) => defaults.includes(column.column) || column.is_custom)
+                    .slice(0, 8);
+
+                if (columns.length === 0) {
+                    return defaults.map((column) => ({
+                        column,
+                        label: column,
+                        is_custom: false,
+                    }));
+                }
+
+                return columns;
+            },
+            resolveInventoryCellValue(asset, columnName) {
+                const value = asset?.[columnName];
+
+                if (columnName === 'status') {
+                    return this.translateInventoryStatus(value);
+                }
+
+                return value && String(value).trim() !== '' ? String(value) : '—';
+            },
+            async fetchAssetTypeSchema() {
+                if (!this.activeAssetTypeId) {
+                    return;
+                }
+
+                const activeType = (this.assetTypes || []).find((type) => Number(type.id) === Number(this.activeAssetTypeId));
+                const identifier = activeType?.slug || this.activeAssetTypeId;
+
+                try {
+                    const response = await fetch(`/api/asset-types/${encodeURIComponent(identifier)}/schema`, this.apiFetchInit('GET'));
+                    const result = await response.json().catch(() => ({}));
+
+                    if (response.ok && Array.isArray(result?.data?.columns)) {
+                        this.inventorySchema = result.data.columns;
+                    }
+                } catch (error) {
+                    this.inventorySchema = Array.isArray(this.inventorySchema) ? this.inventorySchema : [];
+                }
+            },
+            inventoryCustomFieldColumns() {
+                return (Array.isArray(this.inventorySchema) ? this.inventorySchema : [])
+                    .filter((column) => column.is_custom);
             },
             activeAssetTypeName() {
                 const current = (this.assetTypes || []).find(
@@ -2809,8 +2980,10 @@ $i18nScript = json_encode([
                 this.activeView = 'assets';
                 this.assetManagementOpen = true;
                 this.inventoryPage = 1;
-                this.fetchInventoryList(true);
-                window.history.replaceState({}, '', `/inventory/${targetTypeId}`);
+                this.fetchAssetTypeSchema().then(() => this.fetchInventoryList(true));
+                const activeType = (this.assetTypes || []).find((type) => Number(type.id) === targetTypeId);
+                const pathIdentifier = activeType?.slug || String(targetTypeId);
+                window.history.replaceState({}, '', `/inventory/${encodeURIComponent(pathIdentifier)}`);
                 this.persistDashboardView();
             },
             restoreDashboardView() {
@@ -2863,6 +3036,13 @@ $i18nScript = json_encode([
 
                     if (this.activeView === 'settings' && this.settingsTab === 'asset_types') {
                         this.fetchAssetTypes();
+                    }
+
+                    if (this.activeView === 'settings' && this.settingsTab === 'asset_fields') {
+                        this.fetchAssetTypes().then(() => {
+                            this.selectedAssetFieldTypeId = this.selectedAssetFieldTypeId || this.activeAssetTypeId || (this.assetTypes[0]?.id ?? null);
+                            this.fetchAssetTypeCustomFields();
+                        });
                     }
 
                     if (this.activeView === 'settings' && this.settingsTab === 'locations') {
@@ -4357,7 +4537,8 @@ $i18nScript = json_encode([
                     const nextUrl = new URL(window.location.href);
 
                     if (this.activeView === 'assets' && this.activeAssetTypeId) {
-                        nextUrl.pathname = `/inventory/${this.activeAssetTypeId}`;
+                        const activeType = (this.assetTypes || []).find((type) => Number(type.id) === Number(this.activeAssetTypeId));
+                        nextUrl.pathname = `/inventory/${encodeURIComponent(activeType?.slug || this.activeAssetTypeId)}`;
                         const filterQuery = new URLSearchParams(query);
                         filterQuery.delete('type');
                         const remaining = filterQuery.toString();
@@ -4477,6 +4658,9 @@ $i18nScript = json_encode([
                     mac_address_1: asset.mac_address_1 || '',
                     mac_address_2: asset.mac_address_2 || '',
                 };
+                this.inventoryCustomFieldColumns().forEach((field) => {
+                    this.editForm[field.column] = asset[field.column] || '';
+                });
                 this.resetUserSearch();
 
                 if (asset.assigned_to || asset.user_name) {
@@ -4834,6 +5018,10 @@ $i18nScript = json_encode([
 
                 ['model', 'brand', 'serial_number', 'type', 'location', 'building', 'mac_address_1', 'mac_address_2'].forEach((field) => {
                     payload[field] = String(this.editForm[field] || '').trim();
+                });
+
+                this.inventoryCustomFieldColumns().forEach((field) => {
+                    payload[field.column] = String(this.editForm[field.column] || '').trim();
                 });
 
                 if (this.selectedUser?.id) {
@@ -5376,6 +5564,189 @@ $i18nScript = json_encode([
                     this.persistDashboardView();
                 } catch (error) {
                     this.assetTypesError = window.__i18n.asset_types_network_error;
+                }
+            },
+            async fetchAssetTypeCustomFields() {
+                if (!this.canAccessSettings) {
+                    return;
+                }
+
+                const typeId = Number(this.selectedAssetFieldTypeId);
+
+                if (!Number.isInteger(typeId) || typeId <= 0) {
+                    this.assetTypeCustomFields = [];
+                    return;
+                }
+
+                this.assetCustomFieldsLoading = true;
+                this.assetCustomFieldsError = '';
+
+                try {
+                    const response = await fetch(`/api/asset-types/${typeId}/custom-fields`, {
+                        headers: {
+                            'Accept': 'application/json',
+                        },
+                    });
+                    const result = await response.json().catch(() => ({}));
+
+                    if (!response.ok) {
+                        this.assetCustomFieldsError = result.message || window.__i18n.asset_custom_fields_fetch_error;
+                        this.assetTypeCustomFields = [];
+                        return;
+                    }
+
+                    this.assetTypeCustomFields = Array.isArray(result.data) ? result.data : [];
+                } catch (error) {
+                    this.assetCustomFieldsError = window.__i18n.asset_custom_fields_network_error;
+                    this.assetTypeCustomFields = [];
+                } finally {
+                    this.assetCustomFieldsLoading = false;
+                }
+            },
+            openAssetCustomFieldModal(field = null) {
+                this.assetCustomFieldFormError = '';
+                this.assetCustomFieldsSuccessMessage = '';
+
+                const fieldId = field?.id != null ? Number(field.id) : null;
+                this.editingAssetCustomFieldId = Number.isInteger(fieldId) && fieldId > 0 ? fieldId : null;
+
+                if (this.editingAssetCustomFieldId) {
+                    this.assetCustomFieldForm.id = this.editingAssetCustomFieldId;
+                    this.assetCustomFieldForm.label = field?.label || '';
+                    this.assetCustomFieldForm.field_type = field?.field_type || 'varchar';
+                    this.assetCustomFieldForm.options = Array.isArray(field?.options) ? field.options.join(', ') : '';
+                    this.assetCustomFieldForm.sort_order = Number(field?.sort_order || 0);
+                } else {
+                    this.assetCustomFieldForm.id = null;
+                    this.assetCustomFieldForm.label = '';
+                    this.assetCustomFieldForm.field_type = 'varchar';
+                    this.assetCustomFieldForm.options = '';
+                    this.assetCustomFieldForm.sort_order = 0;
+                }
+
+                this.isAssetCustomFieldModalOpen = true;
+            },
+            closeAssetCustomFieldModal() {
+                if (this.isAssetCustomFieldSubmitting) {
+                    return;
+                }
+
+                this.isAssetCustomFieldModalOpen = false;
+                this.editingAssetCustomFieldId = null;
+                this.assetCustomFieldForm.id = null;
+                this.assetCustomFieldFormError = '';
+            },
+            async submitAssetCustomFieldForm() {
+                const typeId = Number(this.selectedAssetFieldTypeId);
+
+                if (!Number.isInteger(typeId) || typeId <= 0) {
+                    this.assetCustomFieldFormError = window.__i18n.asset_type_invalid_id;
+                    return;
+                }
+
+                this.isAssetCustomFieldSubmitting = true;
+                this.assetCustomFieldFormError = '';
+
+                const payload = {
+                    label: this.assetCustomFieldForm.label.trim(),
+                    field_type: this.assetCustomFieldForm.field_type,
+                    options: this.assetCustomFieldForm.options,
+                    sort_order: Number(this.assetCustomFieldForm.sort_order || 0),
+                };
+                const fieldId = this.editingAssetCustomFieldId
+                    ? Number(this.editingAssetCustomFieldId)
+                    : Number(this.assetCustomFieldForm.id);
+                const isEdit = Number.isInteger(fieldId) && fieldId > 0;
+                const url = isEdit
+                    ? `/api/asset-types/custom-fields/${fieldId}`
+                    : `/api/asset-types/${typeId}/custom-fields`;
+                const method = isEdit ? 'PUT' : 'POST';
+
+                if (isEdit) {
+                    payload.id = fieldId;
+                }
+
+                try {
+                    const response = await fetch(url, {
+                        method,
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json',
+                        },
+                        body: JSON.stringify(payload),
+                    });
+                    const result = await response.json().catch(() => ({}));
+
+                    if (!response.ok) {
+                        this.assetCustomFieldFormError = this.apiErrorMessage(
+                            result,
+                            isEdit ? window.__i18n.asset_custom_field_update_error : window.__i18n.asset_custom_field_create_error
+                        );
+                        return;
+                    }
+
+                    this.isAssetCustomFieldModalOpen = false;
+                    this.editingAssetCustomFieldId = null;
+                    this.assetCustomFieldForm.id = null;
+                    this.assetCustomFieldsSuccessMessage = this.apiErrorMessage(
+                        result,
+                        isEdit ? window.__i18n.asset_custom_field_update_success : window.__i18n.asset_custom_field_create_success
+                    );
+                    await this.fetchAssetTypeCustomFields();
+
+                    if (Number(this.activeAssetTypeId) === typeId) {
+                        await this.fetchAssetTypeSchema();
+                    }
+                } catch (error) {
+                    this.assetCustomFieldFormError = window.__i18n.asset_custom_fields_network_error;
+                } finally {
+                    this.isAssetCustomFieldSubmitting = false;
+                }
+            },
+            async deleteAssetCustomField(field) {
+                if (!field?.id) {
+                    return;
+                }
+
+                const confirmed = window.confirm(
+                    (window.__i18n.asset_custom_field_delete_confirm || '').replace('%s', field.label || '')
+                );
+
+                if (!confirmed) {
+                    return;
+                }
+
+                this.assetCustomFieldsError = '';
+                this.assetCustomFieldsSuccessMessage = '';
+
+                try {
+                    const response = await fetch(`/api/asset-types/custom-fields/${field.id}`, {
+                        method: 'DELETE',
+                        headers: {
+                            'Accept': 'application/json',
+                        },
+                    });
+                    const result = await response.json().catch(() => ({}));
+
+                    if (!response.ok) {
+                        this.assetCustomFieldsError = this.apiErrorMessage(
+                            result,
+                            window.__i18n.asset_custom_field_delete_error
+                        );
+                        return;
+                    }
+
+                    this.assetCustomFieldsSuccessMessage = this.apiErrorMessage(
+                        result,
+                        window.__i18n.asset_custom_field_delete_success
+                    );
+                    await this.fetchAssetTypeCustomFields();
+
+                    if (Number(this.activeAssetTypeId) === Number(this.selectedAssetFieldTypeId)) {
+                        await this.fetchAssetTypeSchema();
+                    }
+                } catch (error) {
+                    this.assetCustomFieldsError = window.__i18n.asset_custom_fields_network_error;
                 }
             },
             async fetchLocations() {

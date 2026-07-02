@@ -4,13 +4,15 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Services\AssetTypeTableService;
 use App\Services\DatabaseService;
 use Medoo\Medoo;
 
 class AssetType
 {
     public function __construct(
-        private readonly DatabaseService $databaseService
+        private readonly DatabaseService $databaseService,
+        private readonly AssetTypeTableService $assetTypeTableService,
     ) {
     }
 
@@ -62,6 +64,27 @@ class AssetType
     }
 
     /**
+     * @return array<string, mixed>|null
+     */
+    public function findBySlug(string $slug): ?array
+    {
+        $row = $this->db()->get('asset_types', [
+            'id',
+            'name',
+            'slug',
+            'sort_order',
+        ], [
+            'slug' => trim($slug),
+        ]);
+
+        if (!is_array($row) || $row === []) {
+            return null;
+        }
+
+        return $this->normalizeRow($row);
+    }
+
+    /**
      * @return array<string, mixed>
      */
     public function create(string $name, int $sortOrder = 0): array
@@ -89,6 +112,8 @@ class AssetType
         if ($created === null) {
             throw new \RuntimeException(__('asset_type_create_error'));
         }
+
+        $this->assetTypeTableService->createTableForSlug((string) $created['slug']);
 
         return $created;
     }
@@ -129,7 +154,13 @@ class AssetType
             'id' => $id,
         ]);
 
-        return $this->findById($id);
+        $updated = $this->findById($id);
+
+        if ($updated !== null) {
+            $this->assetTypeTableService->createTableForSlug((string) $updated['slug']);
+        }
+
+        return $updated;
     }
 
     public function delete(int $id): bool
@@ -144,15 +175,34 @@ class AssetType
             throw new \RuntimeException(__('asset_type_delete_in_use'));
         }
 
+        $slug = (string) ($existing['slug'] ?? '');
+
         $this->db()->delete('asset_types', [
             'id' => $id,
         ]);
+
+        if ($slug !== '') {
+            $this->assetTypeTableService->dropTableForSlug($slug);
+        }
 
         return $this->findById($id) === null;
     }
 
     public function countAssets(int $assetTypeId): int
     {
+        try {
+            $tableName = $this->assetTypeTableService->tableNameForTypeId($assetTypeId);
+
+            if ($this->assetTypeTableService->tableExists($tableName)) {
+                return $this->assetTypeTableService->countRows($tableName);
+            }
+        } catch (\Throwable) {
+        }
+
+        if (!$this->db()->has('assets', ['asset_type_id' => $assetTypeId])) {
+            return 0;
+        }
+
         return (int) $this->db()->count('assets', [
             'asset_type_id' => $assetTypeId,
         ]);

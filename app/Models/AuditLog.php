@@ -21,6 +21,8 @@ class AuditLog
     public const ENTITY_TICKET = 'ticket';
     public const ENTITY_CATEGORY = 'category';
     public const ENTITY_ASSET_TYPE = 'asset_type';
+    public const ENTITY_ASSET_CUSTOM_FIELD = 'asset_custom_field';
+    public const ENTITY_ASSET_COMPONENT = 'asset_component';
     public const ENTITY_SETTING = 'setting';
     public const ENTITY_USER = 'user';
     public const ENTITY_IP_ADDRESS = 'ip_address';

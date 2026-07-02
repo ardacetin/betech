@@ -7,6 +7,7 @@ namespace App\Controllers;
 use App\Models\Asset;
 use App\Models\AssetHistory;
 use App\Models\AuditLog;
+use App\Models\AssetCustomField;
 use App\Models\Category;
 use App\Models\Location;
 use App\Models\Personnel;
@@ -14,6 +15,7 @@ use App\Models\Setting;
 use App\Models\User;
 use App\Services\AssetCsvImportService;
 use App\Services\AssetFilterSchemaService;
+use App\Services\AssetTypeTableService;
 use App\Services\InventoryImportService;
 use App\Services\ListPagination;
 use App\Services\AuditLogger;
@@ -57,7 +59,32 @@ class AssetController
         private readonly AuditLogger $auditLogger,
         private readonly AssetFilterSchemaService $assetFilterSchemaService,
         private readonly Setting $settingModel,
+        private readonly AssetCustomField $assetCustomFieldModel,
+        private readonly AssetTypeTableService $assetTypeTableService,
     ) {
+    }
+
+    public function schema(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
+    {
+        $assetTypeId = $this->resolveAssetTypeId($request);
+
+        if ($assetTypeId === null) {
+            return $this->jsonResponse($response, 400, [
+                'status' => 'error',
+                'message' => __('asset_type_invalid_id'),
+            ]);
+        }
+
+        $customFields = $this->assetCustomFieldModel->findByAssetTypeId($assetTypeId);
+
+        return $this->jsonResponse($response, 200, [
+            'status' => 'success',
+            'data' => [
+                'asset_type_id' => $assetTypeId,
+                'columns' => $this->assetTypeTableService->buildSchemaDefinition($assetTypeId, $customFields),
+                'custom_fields' => $customFields,
+            ],
+        ]);
     }
 
     public function index(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
@@ -65,10 +92,12 @@ class AssetController
         $categories = $this->categoryModel->findAll();
         $locations = $this->locationModel->findAll();
         $settings = $this->settingModel->getAdminBundle();
-        $globalCustomFields = is_array($settings['custom_fields'] ?? null) ? $settings['custom_fields'] : [];
+        $assetTypeId = $this->resolveAssetTypeId($request);
+        $globalCustomFields = $assetTypeId !== null
+            ? $this->mapCustomFieldsForFilters($this->assetCustomFieldModel->findByAssetTypeId($assetTypeId))
+            : (is_array($settings['custom_fields'] ?? null) ? $settings['custom_fields'] : []);
 
         $filterDefinitions = $this->assetFilterSchemaService->buildDefinitions($categories, $globalCustomFields);
-        $assetTypeId = $this->resolveAssetTypeId($request);
         $filterDefinitions = $this->assetFilterSchemaService->resolveOptions(
             $filterDefinitions,
             $this->assetModel,
@@ -751,7 +780,7 @@ class AssetController
         $assetTypeId = $this->resolveAssetTypeId($request);
         $activeFilters = $this->assetFilterSchemaService->parseRequestFilters($request->getQueryParams());
         $assets = $this->assetModel->findAllForDashboard($activeFilters, $filterDefinitions, $assetTypeId);
-        $csv = $this->assetCsvImportService->exportToCsv($assets);
+        $csv = $this->assetCsvImportService->exportToCsv($assets, $assetTypeId);
         $filename = 'standart_envanter_export_' . date('Y-m-d') . '.csv';
 
         $response->getBody()->write($csv);
@@ -1122,23 +1151,57 @@ class AssetController
     private function resolveAssetTypeId(ServerRequestInterface $request): ?int
     {
         $queryParams = $request->getQueryParams();
-        $typeId = (int) ($queryParams['type'] ?? 0);
+        $typeIdentifier = trim((string) ($queryParams['type'] ?? ''));
 
-        if ($typeId > 0) {
-            return $typeId;
+        if ($typeIdentifier !== '') {
+            $resolved = $this->assetTypeTableService->resolveTypeIdFromIdentifier($typeIdentifier);
+
+            if ($resolved !== null) {
+                return $resolved;
+            }
         }
 
         $parsedBody = $request->getParsedBody();
 
         if (is_array($parsedBody)) {
-            $bodyTypeId = (int) ($parsedBody['asset_type_id'] ?? $parsedBody['type'] ?? 0);
+            $bodyTypeId = (int) ($parsedBody['asset_type_id'] ?? 0);
 
             if ($bodyTypeId > 0) {
                 return $bodyTypeId;
             }
+
+            $bodyTypeSlug = trim((string) ($parsedBody['type'] ?? ''));
+
+            if ($bodyTypeSlug !== '') {
+                $resolved = $this->assetTypeTableService->resolveTypeIdFromIdentifier($bodyTypeSlug);
+
+                if ($resolved !== null) {
+                    return $resolved;
+                }
+            }
         }
 
         return null;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $customFields
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function mapCustomFieldsForFilters(array $customFields): array
+    {
+        $mapped = [];
+
+        foreach ($customFields as $field) {
+            $mapped[] = [
+                'name' => (string) ($field['column_name'] ?? ''),
+                'label' => (string) ($field['label'] ?? ''),
+                'type' => (string) ($field['field_type'] ?? 'varchar'),
+            ];
+        }
+
+        return $mapped;
     }
 
     /**

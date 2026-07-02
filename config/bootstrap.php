@@ -10,6 +10,8 @@ use App\Controllers\CategoryController;
 use App\Controllers\IpNetworkController;
 use App\Controllers\LicenseController;
 use App\Controllers\LocationController;
+use App\Controllers\AssetComponentController;
+use App\Controllers\AssetCustomFieldController;
 use App\Controllers\AssetTypeController;
 use App\Controllers\AssetViewController;
 use App\Controllers\AuthController;
@@ -35,6 +37,9 @@ use App\Middleware\RateLimitMiddleware;
 use App\Middleware\RoleMiddleware;
 use App\Middleware\SecurityHeadersMiddleware;
 use App\Models\Asset;
+use App\Models\AssetComponent;
+use App\Models\AssetCustomField;
+use App\Models\AssetRegistry;
 use App\Models\AssetType;
 use App\Models\AssetHistory;
 use App\Models\AuditLog;
@@ -52,7 +57,7 @@ use App\Models\Personnel;
 use App\Models\User;
 use App\Services\AnalyticsService;
 use App\Services\AppLogger;
-use App\Services\AssetColumnSchemaService;
+use App\Services\AssetTypeTableService;
 use App\Services\AssetCsvImportService;
 use App\Services\AssetFilterSchemaService;
 use App\Services\AuditChangeFormatter;
@@ -142,9 +147,18 @@ $errorMiddleware->setErrorHandler(HttpNotFoundException::class, $errorHandler);
 $errorMiddleware->setErrorHandler(HttpForbiddenException::class, $errorHandler);
 
 $settingModel = new Setting($databaseService);
-$assetColumnSchemaService = new AssetColumnSchemaService($databaseService, $settingModel);
-$assetModel = new Asset($databaseService, $assetColumnSchemaService);
-$assetTypeModel = new AssetType($databaseService);
+$assetTypeTableService = new AssetTypeTableService($databaseService);
+$assetTypeModel = new AssetType($databaseService, $assetTypeTableService);
+$assetRegistryModel = new AssetRegistry($databaseService);
+$assetCustomFieldModel = new AssetCustomField($databaseService, $assetTypeTableService, $assetTypeModel);
+$assetComponentModel = new AssetComponent($databaseService, $assetTypeModel);
+$assetColumnSchemaService = new AssetColumnSchemaService(
+    $databaseService,
+    $settingModel,
+    $assetTypeTableService,
+    $assetCustomFieldModel
+);
+$assetModel = new Asset($databaseService, $assetColumnSchemaService, $assetTypeTableService, $assetRegistryModel);
 $assetHistoryModel = new AssetHistory($databaseService);
 $categoryModel = new Category($databaseService);
 $locationModel = new Location($databaseService);
@@ -174,6 +188,7 @@ $inventoryImportController = new InventoryImportController(
     $assetHistoryModel,
     $sessionAuthService,
     $auditLogger,
+    $assetTypeTableService,
     $displayErrorDetails
 );
     $authController = new AuthController(
@@ -187,8 +202,8 @@ $inventoryImportController = new InventoryImportController(
         $auditLogger,
         $appLogger
     );
-$healthController = new HealthController($appConfig, $assetModel, $assetTypeModel, $categoryModel, $viewRenderer, $qrCodeService, $analyticsService, $settingModel, $userModel, $personnelModel, $sessionAuthService, $endUserContextService, $locationModel, $assetFilterSchemaService, $licenseModel, $licenseFilterSchemaService, $consumableModel, $consumableFilterSchemaService);
-$assetController = new AssetController($assetModel, $assetHistoryModel, $userIntegrationFactory, $personnelModel, $userModel, $locationModel, $categoryModel, $assetCsvImportService, $inventoryImportService, $sessionAuthService, $clientIpResolver, $endUserContextService, $auditLogger, $assetFilterSchemaService, $settingModel);
+$healthController = new HealthController($appConfig, $assetModel, $assetTypeModel, $categoryModel, $viewRenderer, $qrCodeService, $analyticsService, $settingModel, $userModel, $personnelModel, $sessionAuthService, $endUserContextService, $locationModel, $assetFilterSchemaService, $licenseModel, $licenseFilterSchemaService, $consumableModel, $consumableFilterSchemaService, $assetCustomFieldModel, $assetTypeTableService);
+$assetController = new AssetController($assetModel, $assetHistoryModel, $userIntegrationFactory, $personnelModel, $userModel, $locationModel, $categoryModel, $assetCsvImportService, $inventoryImportService, $sessionAuthService, $clientIpResolver, $endUserContextService, $auditLogger, $assetFilterSchemaService, $settingModel, $assetCustomFieldModel, $assetTypeTableService);
 $assetViewController = new AssetViewController($appConfig, $assetModel, $viewRenderer);
 $assetTutanakController = new AssetTutanakController($assetModel, $settingModel, $personnelModel, $userModel, $userIntegrationFactory, $zimmetTutanakService, $viewRenderer, $sessionAuthService, $endUserContextService);
 $userController = new UserController($userIntegrationFactory, $personnelModel, $assetModel, $assetHistoryModel, $settingModel, $sessionAuthService, $clientIpResolver);
@@ -210,6 +225,20 @@ $settingsController = new SettingsController(
 );
 $categoryController = new CategoryController($categoryModel, $sessionAuthService, $auditLogger);
 $assetTypeController = new AssetTypeController($assetTypeModel, $sessionAuthService, $auditLogger);
+$assetCustomFieldController = new AssetCustomFieldController(
+    $assetCustomFieldModel,
+    $assetTypeModel,
+    $assetTypeTableService,
+    $sessionAuthService,
+    $auditLogger
+);
+$assetComponentController = new AssetComponentController(
+    $assetComponentModel,
+    $assetTypeModel,
+    $assetTypeTableService,
+    $sessionAuthService,
+    $auditLogger
+);
 $locationController = new LocationController($locationModel);
 $ticketCategoryController = new TicketCategoryController($ticketCategoryModel);
 $licenseController = new LicenseController($licenseModel, $licenseFilterSchemaService);
@@ -285,6 +314,8 @@ $app->group('', function ($group) use (
     $auditLogController,
     $categoryController,
     $assetTypeController,
+    $assetCustomFieldController,
+    $assetComponentController,
     $locationController,
     $ticketCategoryController,
     $licenseController,
@@ -314,6 +345,15 @@ $app->group('', function ($group) use (
     $group->post('/api/asset-types', [$assetTypeController, 'store']);
     $group->put('/api/asset-types/{id}', [$assetTypeController, 'update']);
     $group->delete('/api/asset-types/{id}', [$assetTypeController, 'destroy']);
+    $group->get('/api/asset-types/{typeId}/schema', [$assetCustomFieldController, 'schema']);
+    $group->get('/api/asset-types/{typeId}/custom-fields', [$assetCustomFieldController, 'index']);
+    $group->post('/api/asset-types/{typeId}/custom-fields', [$assetCustomFieldController, 'store']);
+    $group->put('/api/asset-types/custom-fields/{id}', [$assetCustomFieldController, 'update']);
+    $group->delete('/api/asset-types/custom-fields/{id}', [$assetCustomFieldController, 'destroy']);
+    $group->get('/api/asset-types/{typeId}/components', [$assetComponentController, 'index']);
+    $group->post('/api/asset-types/{typeId}/components', [$assetComponentController, 'store']);
+    $group->put('/api/asset-types/components/{id}', [$assetComponentController, 'update']);
+    $group->delete('/api/asset-types/components/{id}', [$assetComponentController, 'destroy']);
     $group->get('/api/locations', [$locationController, 'index']);
     $group->post('/api/locations', [$locationController, 'store']);
     $group->put('/api/locations/{id}', [$locationController, 'update']);
@@ -369,6 +409,7 @@ $app->group('', function ($group) use (
     $group->put('/api/personnel/{id}/role', [$userController, 'updatePersonnelRole']);
     $group->post('/api/assets', [$assetController, 'store']);
     $group->get('/api/assets', [$assetController, 'index']);
+    $group->get('/api/assets/schema', [$assetController, 'schema']);
     $group->get('/api/assets/import/template', [$assetController, 'importTemplate']);
     $group->get('/api/assets/export', [$assetController, 'exportCsv']);
     $group->post('/api/assets/import', [$assetController, 'importCsv']);

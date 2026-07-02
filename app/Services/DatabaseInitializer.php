@@ -85,6 +85,10 @@ class DatabaseInitializer
                     $warnings[] = $warning;
                 }
 
+                foreach ($this->patchDynamicAssetTypeTables($connection) as $warning) {
+                    $warnings[] = $warning;
+                }
+
                 foreach ($this->patchSoftwareLicenseManagement($connection) as $warning) {
                     $warnings[] = $warning;
                 }
@@ -870,6 +874,39 @@ class DatabaseInitializer
     private function getAssetTypesMigrationPath(): string
     {
         return dirname($this->schemaPath) . '/migrations/022_create_asset_types.sql';
+    }
+
+    /**
+     * @param object $connection Medoo instance
+     *
+     * @return list<string>
+     */
+    private function patchDynamicAssetTypeTables(object $connection): array
+    {
+        $warnings = [];
+
+        if (!$this->assetsTableExists($connection) || !$this->tableExists($connection, 'asset_types')) {
+            return $warnings;
+        }
+
+        $migrationPath = dirname($this->schemaPath) . '/migrations/023_dynamic_asset_type_tables.sql';
+
+        if (!$this->tableExists($connection, 'asset_custom_fields') && is_readable($migrationPath)) {
+            $this->applySqlFile($connection, $migrationPath);
+            $warnings[] = 'Applied migration: dynamic asset type metadata tables (custom fields, components, registry).';
+        }
+
+        $assetTypeMigrationService = new AssetTypeMigrationService(
+            $this->databaseService,
+            new \App\Models\AssetType($this->databaseService, new AssetTypeTableService($this->databaseService)),
+            new AssetTypeTableService($this->databaseService)
+        );
+
+        foreach ($assetTypeMigrationService->ensurePerTypeTablesAndMigrateLegacyData() as $warning) {
+            $warnings[] = $warning;
+        }
+
+        return $warnings;
     }
 
     /**

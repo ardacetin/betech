@@ -96,19 +96,19 @@ $assetActiveFilters = $assetActiveFilters ?? [];
                 <table class="w-full table-fixed divide-y divide-slate-200">
                     <thead class="bg-zinc-50">
                         <tr class="text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                            <th class="sticky left-0 z-20 w-[22%] min-w-[10rem] whitespace-nowrap border-r border-slate-100 bg-zinc-50 px-3 py-1.5"><?= htmlspecialchars(__('col_name'), ENT_QUOTES, 'UTF-8') ?></th>
-                            <th class="w-[12%] whitespace-nowrap px-3 py-1.5"><?= htmlspecialchars(__('col_model'), ENT_QUOTES, 'UTF-8') ?></th>
-                            <th class="w-[10%] whitespace-nowrap px-3 py-1.5"><?= htmlspecialchars(__('col_brand'), ENT_QUOTES, 'UTF-8') ?></th>
-                            <th class="w-[12%] whitespace-nowrap px-3 py-1.5"><?= htmlspecialchars(__('label_serial_number'), ENT_QUOTES, 'UTF-8') ?></th>
-                            <th class="w-[10%] whitespace-nowrap px-3 py-1.5"><?= htmlspecialchars(__('col_category'), ENT_QUOTES, 'UTF-8') ?></th>
-                            <th class="w-[10%] whitespace-nowrap px-3 py-1.5"><?= htmlspecialchars(__('col_status'), ENT_QUOTES, 'UTF-8') ?></th>
-                            <th class="w-[14%] whitespace-nowrap px-3 py-1.5"><?= htmlspecialchars(__('col_assigned_user'), ENT_QUOTES, 'UTF-8') ?></th>
+                            <template x-for="(column, index) in inventoryGridColumns()" :key="column.column">
+                                <th
+                                    class="whitespace-nowrap px-3 py-1.5"
+                                    :class="index === 0 ? 'sticky left-0 z-20 w-[22%] min-w-[10rem] border-r border-slate-100 bg-zinc-50' : 'w-[12%]'"
+                                    x-text="column.label"
+                                ></th>
+                            </template>
                             <th class="w-[10%] whitespace-nowrap px-3 py-1.5"><?= htmlspecialchars(__('col_actions'), ENT_QUOTES, 'UTF-8') ?></th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-slate-100 bg-white text-xs text-slate-600">
                         <tr x-show="!assetFiltersLoading && inventoryAssets.length === 0" x-cloak>
-                            <td colspan="8" class="px-4 py-8 text-center text-sm text-slate-500">
+                            <td :colspan="inventoryGridColumns().length + 1" class="px-4 py-8 text-center text-sm text-slate-500">
                                 <span x-show="hasActiveAssetFilters()" x-cloak><?= htmlspecialchars(__('inventory_assets_empty_filtered'), ENT_QUOTES, 'UTF-8') ?></span>
                                 <span x-show="!hasActiveAssetFilters()" x-cloak>
                                     <?= htmlspecialchars(__('empty_assets_prefix'), ENT_QUOTES, 'UTF-8') ?>
@@ -122,33 +122,24 @@ $assetActiveFilters = $assetActiveFilters ?? [];
                                 class="group cursor-pointer hover:bg-zinc-50/80"
                                 @click="openInventoryAssetModal(asset)"
                             >
-                                <td
-                                    class="sticky left-0 z-10 max-w-[180px] truncate whitespace-nowrap border-r border-slate-100 bg-white px-3 py-1.5 text-sm font-medium text-slate-900 group-hover:bg-zinc-50/80"
-                                    :title="String(asset.name || '')"
-                                >
-                                    <span x-text="asset.name"></span>
-                                </td>
-                                <td class="max-w-[180px] truncate whitespace-nowrap px-3 py-1.5" :title="String(asset.model || '')" x-text="asset.model || '—'"></td>
-                                <td class="max-w-[180px] truncate whitespace-nowrap px-3 py-1.5" :title="String(asset.brand || '')" x-text="asset.brand || '—'"></td>
-                                <td class="max-w-[180px] truncate whitespace-nowrap px-3 py-1.5 font-mono" :title="String(asset.serial_number || '')" x-text="asset.serial_number || '—'"></td>
-                                <td class="whitespace-nowrap px-3 py-1.5">
-                                    <span
-                                        class="inline-flex max-w-[180px] truncate rounded border border-slate-200 bg-slate-100 px-1.5 py-0.5 text-[11px] font-medium text-slate-700"
-                                        :title="String(asset.type || asset.category_name || '')"
-                                        x-text="asset.type || asset.category_name || '—'"
-                                    ></span>
-                                </td>
-                                <td class="whitespace-nowrap px-3 py-1.5">
-                                    <span
-                                        class="inline-flex rounded-full px-2 py-0.5 text-[11px] font-medium"
-                                        :class="inventoryStatusClass(asset.status)"
-                                        x-text="translateInventoryStatus(asset.status)"
-                                    ></span>
-                                </td>
-                                <td class="max-w-[180px] truncate whitespace-nowrap px-3 py-1.5" :title="String(asset.assigned_to || asset.user_name || '')">
-                                    <span x-show="asset.assigned_to || asset.user_name" x-text="asset.assigned_to || asset.user_name"></span>
-                                    <span x-show="!(asset.assigned_to || asset.user_name)" class="text-slate-400"><?= htmlspecialchars(__('not_assigned'), ENT_QUOTES, 'UTF-8') ?></span>
-                                </td>
+                                <template x-for="(column, index) in inventoryGridColumns()" :key="`${asset.id}-${column.column}`">
+                                    <td
+                                        class="max-w-[180px] truncate whitespace-nowrap px-3 py-1.5"
+                                        :class="index === 0 ? 'sticky left-0 z-10 border-r border-slate-100 bg-white text-sm font-medium text-slate-900 group-hover:bg-zinc-50/80' : ''"
+                                        :title="String(asset[column.column] || '')"
+                                    >
+                                        <template x-if="column.column === 'status'">
+                                            <span
+                                                class="inline-flex rounded-full px-2 py-0.5 text-[11px] font-medium"
+                                                :class="inventoryStatusClass(asset.status)"
+                                                x-text="translateInventoryStatus(asset.status)"
+                                            ></span>
+                                        </template>
+                                        <template x-if="column.column !== 'status'">
+                                            <span x-text="resolveInventoryCellValue(asset, column.column)"></span>
+                                        </template>
+                                    </td>
+                                </template>
                                 <td class="whitespace-nowrap px-3 py-1.5" @click.stop>
                                     <div class="flex flex-wrap gap-1">
                                         <?php if ($canManageAssets): ?>

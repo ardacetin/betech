@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Models\AssetCustomField;
 use App\Models\Setting;
 use Medoo\Medoo;
 use PDOException;
@@ -34,12 +35,14 @@ class AssetColumnSchemaService
         'mac_address_2' => 'Mac Adresi 2',
     ];
 
-    /** @var list<string>|null */
-    private ?array $tableColumnsCache = null;
+    /** @var array<string, list<string>> */
+    private array $tableColumnsCache = [];
 
     public function __construct(
         private readonly DatabaseService $databaseService,
         private readonly Setting $settingModel,
+        private readonly AssetTypeTableService $assetTypeTableService,
+        private readonly AssetCustomField $assetCustomFieldModel,
     ) {
     }
 
@@ -54,8 +57,20 @@ class AssetColumnSchemaService
     /**
      * @return list<array{id: int, name: string, label: string, type: string}>
      */
-    public function getActiveCustomFields(): array
+    public function getActiveCustomFields(?int $assetTypeId = null): array
     {
+        if ($assetTypeId !== null && $assetTypeId > 0) {
+            return array_map(
+                static fn (array $field): array => [
+                    'id' => (int) ($field['id'] ?? 0),
+                    'name' => (string) ($field['column_name'] ?? ''),
+                    'label' => (string) ($field['label'] ?? ''),
+                    'type' => (string) ($field['field_type'] ?? 'varchar'),
+                ],
+                $this->assetCustomFieldModel->findByAssetTypeId($assetTypeId)
+            );
+        }
+
         $settings = $this->settingModel->getAdminBundle();
         $customFields = $settings['custom_fields'] ?? [];
 
@@ -91,13 +106,27 @@ class AssetColumnSchemaService
     /**
      * @return list<string>
      */
-    public function listAssetsTableColumns(): array
+    public function listAssetsTableColumns(?int $assetTypeId = null): array
     {
-        if ($this->tableColumnsCache !== null) {
-            return $this->tableColumnsCache;
+        $tableName = $this->resolveTableName($assetTypeId);
+        $cacheKey = $tableName;
+
+        if (isset($this->tableColumnsCache[$cacheKey])) {
+            return $this->tableColumnsCache[$cacheKey];
         }
 
-        $statement = $this->db()->query('SHOW COLUMNS FROM `assets`');
+        if ($tableName === 'assets') {
+            $statement = $this->db()->query('SHOW COLUMNS FROM `assets`');
+        } else {
+            if (!$this->assetTypeTableService->tableExists($tableName)) {
+                return [];
+            }
+
+            $columns = $this->assetTypeTableService->listTableColumns($tableName);
+            $this->tableColumnsCache[$cacheKey] = $columns;
+
+            return $columns;
+        }
 
         if ($statement === false) {
             throw new RuntimeException('Unable to read assets table schema.');
@@ -113,18 +142,18 @@ class AssetColumnSchemaService
             }
         }
 
-        $this->tableColumnsCache = $columns;
+        $this->tableColumnsCache[$cacheKey] = $columns;
 
         return $columns;
     }
 
-    public function columnExists(string $columnName): bool
+    public function columnExists(string $columnName, ?int $assetTypeId = null): bool
     {
         if (!$this->isValidColumnIdentifier($columnName)) {
             return false;
         }
 
-        return in_array($columnName, $this->listAssetsTableColumns(), true);
+        return in_array($columnName, $this->listAssetsTableColumns($assetTypeId), true);
     }
 
     public function isValidCustomColumnName(string $columnName): bool
@@ -143,41 +172,45 @@ class AssetColumnSchemaService
     /**
      * @return list<string>
      */
-    public function getWritableColumnNames(): array
+    public function getWritableColumnNames(?int $assetTypeId = null): array
     {
-        $tableColumns = $this->listAssetsTableColumns();
-        $allowed = array_merge($this->nativeColumns(), array_column($this->getActiveCustomFields(), 'name'));
+        $tableColumns = $this->listAssetsTableColumns($assetTypeId);
+        $allowed = array_merge($this->nativeColumns(), array_column($this->getActiveCustomFields($assetTypeId), 'name'));
         $allowed = array_values(array_unique($allowed));
 
         return array_values(array_intersect($allowed, $tableColumns));
     }
 
-    public function isQueryableColumn(string $column): bool
+    public function isQueryableColumn(string $column, ?int $assetTypeId = null): bool
     {
         if (in_array($column, self::SYSTEM_COLUMNS, true)) {
             return false;
         }
 
-        return in_array($column, $this->listAssetsTableColumns(), true);
+        return in_array($column, $this->listAssetsTableColumns($assetTypeId), true);
     }
 
     /**
      * @param list<array{id: int, name: string, label: string, type: string}> $normalizedFields
      * @param list<array{id: int, name: string, label: string, type: string}> $previousFields
      */
-    public function syncCustomFieldColumns(array $normalizedFields, array $previousFields = []): void
+    public function syncCustomFieldColumns(array $normalizedFields, array $previousFields = [], ?int $assetTypeId = null): void
     {
         unset($previousFields);
 
-        $this->ensureConfiguredCustomColumns($normalizedFields);
+        $this->ensureConfiguredCustomColumns($normalizedFields, $assetTypeId);
     }
 
     /**
      * @param list<array{id: int, name: string, label: string, type: string}> $customFields
      */
-    public function ensureConfiguredCustomColumns(array $customFields = []): void
+    public function ensureConfiguredCustomColumns(array $customFields = [], ?int $assetTypeId = null): void
     {
-        $fields = $customFields !== [] ? $customFields : $this->getActiveCustomFields();
+        $fields = $customFields !== [] ? $customFields : $this->getActiveCustomFields($assetTypeId);
+
+        if ($assetTypeId !== null && $assetTypeId > 0) {
+            return;
+        }
 
         foreach ($fields as $field) {
             $name = trim((string) ($field['name'] ?? ''));
@@ -190,10 +223,16 @@ class AssetColumnSchemaService
         }
     }
 
-    public function ensureColumnExists(string $columnName): bool
+    public function ensureColumnExists(string $columnName, ?int $assetTypeId = null): bool
     {
         if (!$this->isValidCustomColumnName($columnName)) {
             throw new RuntimeException(sprintf('Invalid custom field column name: %s', $columnName));
+        }
+
+        if ($assetTypeId !== null && $assetTypeId > 0) {
+            $tableName = $this->assetTypeTableService->tableNameForTypeId($assetTypeId);
+
+            return $this->assetTypeTableService->addColumn($tableName, $columnName);
         }
 
         if ($this->columnExists($columnName)) {
@@ -209,7 +248,7 @@ class AssetColumnSchemaService
             $this->db()->query($sql);
         } catch (PDOException $exception) {
             if ($this->isDuplicateColumnError($exception)) {
-                $this->tableColumnsCache = null;
+                unset($this->tableColumnsCache['assets']);
 
                 return true;
             }
@@ -221,7 +260,7 @@ class AssetColumnSchemaService
             );
         }
 
-        $this->tableColumnsCache = null;
+        unset($this->tableColumnsCache['assets']);
 
         return true;
     }
@@ -229,14 +268,14 @@ class AssetColumnSchemaService
     /**
      * @return list<array{column: string, label: string}>
      */
-    public function buildExportSchema(): array
+    public function buildExportSchema(?int $assetTypeId = null): array
     {
-        $this->ensureConfiguredCustomColumns();
+        $this->ensureConfiguredCustomColumns([], $assetTypeId);
 
         $schema = [];
 
         foreach (self::NATIVE_COLUMN_LABELS as $column => $label) {
-            if ($this->columnExists($column)) {
+            if ($this->columnExists($column, $assetTypeId)) {
                 $schema[] = [
                     'column' => $column,
                     'label' => $label,
@@ -244,8 +283,8 @@ class AssetColumnSchemaService
             }
         }
 
-        foreach ($this->getActiveCustomFields() as $field) {
-            if (!$this->columnExists($field['name'])) {
+        foreach ($this->getActiveCustomFields($assetTypeId) as $field) {
+            if (!$this->columnExists($field['name'], $assetTypeId)) {
                 continue;
             }
 
@@ -258,9 +297,9 @@ class AssetColumnSchemaService
         return $schema;
     }
 
-    public function buildTemplateCsvContent(): string
+    public function buildTemplateCsvContent(?int $assetTypeId = null): string
     {
-        $headers = array_column($this->buildExportSchema(), 'label');
+        $headers = array_column($this->buildExportSchema($assetTypeId), 'label');
         $sampleValues = [
             'ENV-GLPI-001',
             'BT Departman Laptop',
@@ -276,7 +315,7 @@ class AssetColumnSchemaService
             'AA:BB:CC:DD:EE:02',
         ];
 
-        $schema = $this->buildExportSchema();
+        $schema = $this->buildExportSchema($assetTypeId);
         $row = [];
 
         foreach ($schema as $index => $definition) {
@@ -291,12 +330,12 @@ class AssetColumnSchemaService
      *
      * @return array<string, int>
      */
-    public function buildHeaderColumnMap(array $headers): array
+    public function buildHeaderColumnMap(array $headers, ?int $assetTypeId = null): array
     {
         $map = [];
 
         foreach ($headers as $index => $header) {
-            $column = $this->resolveHeaderToColumn($header);
+            $column = $this->resolveHeaderToColumn($header, $assetTypeId);
 
             if ($column === null || isset($map[$column])) {
                 continue;
@@ -308,7 +347,7 @@ class AssetColumnSchemaService
         return $map;
     }
 
-    public function resolveHeaderToColumn(string $header): ?string
+    public function resolveHeaderToColumn(string $header, ?int $assetTypeId = null): ?string
     {
         $trimmed = trim($header);
 
@@ -328,7 +367,7 @@ class AssetColumnSchemaService
             }
         }
 
-        foreach ($this->getActiveCustomFields() as $field) {
+        foreach ($this->getActiveCustomFields($assetTypeId) as $field) {
             if (
                 $this->normalizeHeaderKey($field['label']) === $normalizedHeader
                 || $this->normalizeHeaderKey($field['name']) === $normalizedHeader
@@ -340,7 +379,7 @@ class AssetColumnSchemaService
 
         $generated = custom_field_code_from_label($trimmed);
 
-        if ($this->columnExists($generated)) {
+        if ($this->columnExists($generated, $assetTypeId)) {
             return $generated;
         }
 
@@ -352,9 +391,9 @@ class AssetColumnSchemaService
      *
      * @return array<string, mixed>
      */
-    public function filterWritableFields(array $fields): array
+    public function filterWritableFields(array $fields, ?int $assetTypeId = null): array
     {
-        $writable = array_flip($this->getWritableColumnNames());
+        $writable = array_flip($this->getWritableColumnNames($assetTypeId));
         $filtered = [];
 
         foreach ($fields as $key => $value) {
@@ -366,6 +405,25 @@ class AssetColumnSchemaService
         }
 
         return $filtered;
+    }
+
+    public function resolveTableName(?int $assetTypeId): string
+    {
+        if ($assetTypeId === null || $assetTypeId <= 0) {
+            return 'assets';
+        }
+
+        try {
+            $tableName = $this->assetTypeTableService->tableNameForTypeId($assetTypeId);
+
+            if ($this->assetTypeTableService->tableExists($tableName)) {
+                return $tableName;
+            }
+        } catch (RuntimeException) {
+            return 'assets';
+        }
+
+        return 'assets';
     }
 
     private function db(): Medoo
