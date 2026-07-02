@@ -2311,7 +2311,7 @@ $i18nScript = json_encode([
             },
             knowledgeBaseFormError: '',
             publishedKnowledgeBase: [],
-            publishedKnowledgeBaseSearchQuery: '',
+            searchQuery: '',
             publishedKnowledgeBaseLoading: false,
             publishedKnowledgeBaseError: '',
             tickets: [],
@@ -6216,7 +6216,7 @@ $i18nScript = json_encode([
                     }
 
                     this.publishedKnowledgeBase = Array.isArray(result.data) ? result.data : [];
-                    this.publishedKnowledgeBaseSearchQuery = '';
+                    this.searchQuery = '';
                 } catch (error) {
                     this.publishedKnowledgeBaseError = window.__i18n.portal_knowledge_base_error;
                     this.publishedKnowledgeBase = [];
@@ -6237,20 +6237,21 @@ $i18nScript = json_encode([
 
                 return date.toLocaleString();
             },
-            matchesPublishedKnowledgeBaseArticle(article) {
-                const query = String(this.publishedKnowledgeBaseSearchQuery || '').trim().toLocaleLowerCase('tr-TR');
+            kbArticleMatchesSearch(article) {
+                const query = String(this.searchQuery || '').trim().toLocaleLowerCase('tr-TR');
 
                 if (query === '') {
                     return true;
                 }
 
                 const title = String(article?.title || '').toLocaleLowerCase('tr-TR');
+                const category = String(article?.category || 'Genel').toLocaleLowerCase('tr-TR');
                 const content = String(article?.content || '').toLocaleLowerCase('tr-TR');
 
-                return title.includes(query) || content.includes(query);
+                return title.includes(query) || category.includes(query) || content.includes(query);
             },
-            filteredPublishedKnowledgeBase() {
-                return (this.publishedKnowledgeBase || []).filter((article) => this.matchesPublishedKnowledgeBaseArticle(article));
+            kbHasVisiblePublishedArticles() {
+                return (this.publishedKnowledgeBase || []).some((article) => this.kbArticleMatchesSearch(article));
             },
             openKnowledgeBaseModal(article = null) {
                 this.knowledgeBaseForm = {

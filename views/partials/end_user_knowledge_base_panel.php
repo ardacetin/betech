@@ -18,8 +18,8 @@ declare(strict_types=1);
         </svg>
         <input
             type="search"
-            x-model="publishedKnowledgeBaseSearchQuery"
-            placeholder="<?= htmlspecialchars(__('portal_knowledge_base_search_placeholder'), ENT_QUOTES, 'UTF-8') ?>"
+            x-model="searchQuery"
+            placeholder="Soru, içerik veya kategori ara..."
             class="w-full rounded-2xl border border-zinc-200 bg-white py-3.5 pl-12 pr-4 text-sm text-zinc-900 shadow-sm outline-none ring-zinc-900/10 transition placeholder:text-zinc-400 focus:border-zinc-300 focus:ring-4"
         >
     </div>
@@ -36,7 +36,7 @@ declare(strict_types=1);
         <?= htmlspecialchars(__('portal_knowledge_base_empty'), ENT_QUOTES, 'UTF-8') ?>
     </p>
     <p
-        x-show="!publishedKnowledgeBaseLoading && !publishedKnowledgeBaseError && publishedKnowledgeBase.length > 0 && filteredPublishedKnowledgeBase().length === 0"
+        x-show="!publishedKnowledgeBaseLoading && !publishedKnowledgeBaseError && publishedKnowledgeBase.length > 0 && searchQuery.trim() !== '' && !kbHasVisiblePublishedArticles()"
         x-cloak
         class="rounded-xl border border-dashed border-zinc-200 bg-zinc-50 px-4 py-8 text-sm text-zinc-500"
     >
@@ -44,14 +44,15 @@ declare(strict_types=1);
     </p>
 
     <div
-        x-show="!publishedKnowledgeBaseLoading && filteredPublishedKnowledgeBase().length > 0"
+        x-show="!publishedKnowledgeBaseLoading && publishedKnowledgeBase.length > 0"
         x-cloak
         class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3"
     >
-        <template x-for="article in filteredPublishedKnowledgeBase()" :key="article.id">
+        <template x-for="article in publishedKnowledgeBase" :key="article.id">
             <article
                 x-data="{ isOpen: false }"
                 class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm transition-shadow hover:shadow-md"
+                :class="{ 'hidden': searchQuery.trim() !== '' && !kbArticleMatchesSearch(article) }"
             >
                 <div
                     @click="isOpen = !isOpen"
@@ -62,7 +63,13 @@ declare(strict_types=1);
                     @keydown.enter.prevent="isOpen = !isOpen"
                     @keydown.space.prevent="isOpen = !isOpen"
                 >
-                    <h3 class="text-base font-semibold leading-snug text-gray-900" x-text="article.title"></h3>
+                    <div class="min-w-0 space-y-2">
+                        <span
+                            class="inline-flex items-center rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs font-medium text-zinc-600"
+                            x-text="article.category || 'Genel'"
+                        ></span>
+                        <h3 class="text-base font-semibold leading-snug text-gray-900" x-text="article.title"></h3>
+                    </div>
                     <svg
                         class="mt-0.5 h-5 w-5 shrink-0 text-gray-400 transition-transform duration-200"
                         :class="isOpen ? 'rotate-180' : 'rotate-0'"
