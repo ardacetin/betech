@@ -951,6 +951,8 @@ return [
     'helpdesk_view_board' => 'Pano',
     'helpdesk_board_empty_column' => 'Talep yok',
     'helpdesk_filter_all' => 'Tümü',
+    'helpdesk_filter_active' => 'Aktif Talepler',
+    'helpdesk_filter_closed' => 'Kapalı Talepler',
     'add_ticket' => 'Yeni Talep',
     'edit_ticket' => 'Talebi Düzenle',
     'modal_ticket_subtitle' => 'Personel ve isteğe bağlı envanter bağlantılı destek talebi oluşturun.',

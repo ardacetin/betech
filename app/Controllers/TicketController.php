@@ -32,12 +32,8 @@ class TicketController
     public function index(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
     {
         $query = $request->getQueryParams();
-        $status = isset($query['status']) ? (string) $query['status'] : null;
+        $statusParam = isset($query['status']) ? strtolower(trim((string) $query['status'])) : null;
         $priority = isset($query['priority']) ? (string) $query['priority'] : null;
-
-        if ($status === 'all') {
-            $status = null;
-        }
 
         if ($priority === 'all') {
             $priority = null;
@@ -52,9 +48,13 @@ class TicketController
                 return $this->jsonResponse($response, 200, [
                     'status' => 'success',
                     'data' => [],
-                    'pagination' => ListPagination::meta(1, 0),
+                    'pagination' => ListPagination::meta(1, 0, ListPagination::TICKET_PAGE_SIZE),
                 ]);
             }
+
+            $status = $statusParam === 'all' || $statusParam === null || $statusParam === ''
+                ? null
+                : $statusParam;
 
             $result = $this->ticketModel->findPaginatedByPersonnelId($personnelId, $status, $priority, $page);
 
@@ -65,7 +65,8 @@ class TicketController
             ]);
         }
 
-        $result = $this->ticketModel->findPaginated($status, $priority, $page);
+        [$status, $scope] = $this->resolveAdminTicketListFilters($statusParam);
+        $result = $this->ticketModel->findPaginated($status, $priority, $page, $scope);
 
         return $this->jsonResponse($response, 200, [
             'status' => 'success',
@@ -478,6 +479,23 @@ class TicketController
         $name = trim((string) ($user['name'] ?? ''));
 
         return $name !== '' ? $name : __('ticket_comment_system_author');
+    }
+
+    /**
+     * @return array{0: ?string, 1: ?string}
+     */
+    private function resolveAdminTicketListFilters(?string $statusParam): array
+    {
+        if ($statusParam === null || $statusParam === '') {
+            return [null, 'active'];
+        }
+
+        return match ($statusParam) {
+            'active' => [null, 'active'],
+            'all' => [null, null],
+            'closed' => [Ticket::STATUS_CLOSED, null],
+            default => [$statusParam, null],
+        };
     }
 
     /**

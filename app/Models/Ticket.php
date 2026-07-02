@@ -49,9 +49,13 @@ class Ticket
      *     pagination: array{page: int, per_page: int, total: int, total_pages: int}
      * }
      */
-    public function findPaginated(?string $status = null, ?string $priority = null, int $page = 1): array
-    {
-        return $this->paginateList(null, $status, $priority, $page);
+    public function findPaginated(
+        ?string $status = null,
+        ?string $priority = null,
+        int $page = 1,
+        ?string $scope = null
+    ): array {
+        return $this->paginateList(null, $status, $priority, $page, $scope);
     }
 
     /**
@@ -64,9 +68,10 @@ class Ticket
         int $personnelId,
         ?string $status = null,
         ?string $priority = null,
-        int $page = 1
+        int $page = 1,
+        ?string $scope = null
     ): array {
-        return $this->paginateList($personnelId, $status, $priority, $page);
+        return $this->paginateList($personnelId, $status, $priority, $page, $scope);
     }
 
     /**
@@ -646,12 +651,13 @@ class Ticket
         ?int $personnelId,
         ?string $status,
         ?string $priority,
-        int $page
+        int $page,
+        ?string $scope = null
     ): array {
-        $selectConditions = $this->buildSelectConditions($personnelId, $status, $priority);
-        $countConditions = $this->buildCountConditions($personnelId, $status, $priority);
+        $selectConditions = $this->buildSelectConditions($personnelId, $status, $priority, $scope);
+        $countConditions = $this->buildCountConditions($personnelId, $status, $priority, $scope);
         $page = max(1, $page);
-        $perPage = ListPagination::PAGE_SIZE;
+        $perPage = ListPagination::TICKET_PAGE_SIZE;
         $total = (int) $this->db()->count('tickets', $countConditions);
         $rows = $this->selectRows(
             $selectConditions,
@@ -668,15 +674,21 @@ class Ticket
     /**
      * @return array<string, mixed>
      */
-    private function buildCountConditions(?int $personnelId, ?string $status, ?string $priority): array
-    {
+    private function buildCountConditions(
+        ?int $personnelId,
+        ?string $status,
+        ?string $priority,
+        ?string $scope = null
+    ): array {
         $conditions = [];
 
         if ($personnelId !== null) {
             $conditions['personnel_id'] = $personnelId;
         }
 
-        if ($status !== null && $status !== '') {
+        if ($scope === 'active') {
+            $conditions['status[!]'] = [self::STATUS_CLOSED, self::STATUS_RESOLVED];
+        } elseif ($status !== null && $status !== '') {
             $conditions['status'] = $this->normalizeStatus($status);
         }
 
@@ -690,15 +702,21 @@ class Ticket
     /**
      * @return array<string, mixed>
      */
-    private function buildSelectConditions(?int $personnelId, ?string $status, ?string $priority): array
-    {
+    private function buildSelectConditions(
+        ?int $personnelId,
+        ?string $status,
+        ?string $priority,
+        ?string $scope = null
+    ): array {
         $conditions = [];
 
         if ($personnelId !== null) {
             $conditions['tickets.personnel_id'] = $personnelId;
         }
 
-        if ($status !== null && $status !== '') {
+        if ($scope === 'active') {
+            $conditions['tickets.status[!]'] = [self::STATUS_CLOSED, self::STATUS_RESOLVED];
+        } elseif ($status !== null && $status !== '') {
             $conditions['tickets.status'] = $this->normalizeStatus($status);
         }
 

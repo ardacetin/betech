@@ -8,6 +8,8 @@ final class ListPagination
 {
     public const PAGE_SIZE = 50;
 
+    public const TICKET_PAGE_SIZE = 20;
+
     /**
      * @param array<string, mixed> $queryParams
      */

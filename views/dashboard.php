@@ -321,6 +321,8 @@ $i18nScript = json_encode([
     'ticket_comment_create_success' => __('ticket_comment_create_success'),
     'ticket_comment_create_error' => __('ticket_comment_create_error'),
     'helpdesk_filter_all' => __('helpdesk_filter_all'),
+    'helpdesk_filter_active' => __('helpdesk_filter_active'),
+    'helpdesk_filter_closed' => __('helpdesk_filter_closed'),
     'ticket_status_open' => __('ticket_status_open'),
     'ticket_status_in_progress' => __('ticket_status_in_progress'),
     'ticket_status_resolved' => __('ticket_status_resolved'),
@@ -2319,15 +2321,13 @@ $i18nScript = json_encode([
             ticketsError: '',
             ticketsSuccessMessage: '',
             ticketsPage: 1,
-            ticketsPagination: { page: 1, per_page: 50, total: 0, total_pages: 1 },
+            ticketsPagination: { page: 1, per_page: 20, total: 0, total_pages: 1 },
             ticketLayout: 'table',
-            ticketStatusFilter: 'all',
+            ticketStatusFilter: 'active',
             ticketStatusFilters: [
+                { value: 'active', label: window.__i18n.helpdesk_filter_active },
+                { value: 'closed', label: window.__i18n.helpdesk_filter_closed },
                 { value: 'all', label: window.__i18n.helpdesk_filter_all },
-                { value: 'open', label: window.__i18n.ticket_status_open },
-                { value: 'in_progress', label: window.__i18n.ticket_status_in_progress },
-                { value: 'resolved', label: window.__i18n.ticket_status_resolved },
-                { value: 'closed', label: window.__i18n.ticket_status_closed },
             ],
             ticketBoardColumns: [
                 { status: 'open', label: window.__i18n.ticket_status_open },
@@ -6338,12 +6338,8 @@ $i18nScript = json_encode([
                     this.knowledgeBaseError = window.__i18n.kb_network_error;
                 }
             },
-            get filteredTickets() {
-                if (this.ticketStatusFilter === 'all') {
-                    return this.tickets;
-                }
-
-                return this.tickets.filter((ticket) => ticket.status === this.ticketStatusFilter);
+            ticketsForStatus(status) {
+                return this.tickets.filter((ticket) => ticket.status === status);
             },
             get filteredIpAddresses() {
                 if (this.ipAddressStatusFilter === 'all') {
@@ -6389,9 +6385,6 @@ $i18nScript = json_encode([
 
                 this.ticketsPage = targetPage;
                 this.fetchTickets();
-            },
-            ticketsForStatus(status) {
-                return this.filteredTickets.filter((ticket) => ticket.status === status);
             },
             resolveTicketStatus(status) {
                 const map = {
@@ -6461,11 +6454,8 @@ $i18nScript = json_encode([
                 try {
                     const params = new URLSearchParams({
                         page: String(this.ticketsPage),
+                        status: String(this.ticketStatusFilter || 'active'),
                     });
-
-                    if (this.ticketStatusFilter !== 'all') {
-                        params.set('status', this.ticketStatusFilter);
-                    }
 
                     const response = await fetch(`/api/tickets?${params.toString()}`, {
                         headers: { Accept: 'application/json' },

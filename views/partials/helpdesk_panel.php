@@ -34,13 +34,13 @@ declare(strict_types=1);
         </div>
     </div>
 
-    <div class="flex flex-wrap gap-2">
+    <div class="inline-flex rounded-2xl border border-zinc-200 bg-white p-1 shadow-soft">
         <template x-for="filter in ticketStatusFilters" :key="filter.value">
             <button
                 type="button"
                 @click="setTicketStatusFilter(filter.value)"
-                class="rounded-full px-3 py-1.5 text-xs font-medium ring-1 ring-inset transition"
-                :class="ticketStatusFilter === filter.value ? 'bg-zinc-900 text-white ring-zinc-900' : 'bg-white text-zinc-600 ring-zinc-200 hover:bg-zinc-50'"
+                class="rounded-xl px-4 py-2 text-sm font-medium transition"
+                :class="ticketStatusFilter === filter.value ? 'bg-zinc-900 text-white shadow-sm' : 'text-zinc-600 hover:bg-zinc-50'"
                 x-text="filter.label"
             ></button>
         </template>
@@ -53,14 +53,14 @@ declare(strict_types=1);
     <p x-show="ticketsSuccessMessage" x-cloak class="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700" x-text="ticketsSuccessMessage"></p>
 
     <p
-        x-show="!ticketsLoading && !ticketsError && filteredTickets.length === 0"
+        x-show="!ticketsLoading && !ticketsError && tickets.length === 0"
         x-cloak
         class="rounded-xl border border-dashed border-zinc-200 bg-zinc-50 px-4 py-8 text-sm text-zinc-500"
     >
         <?= htmlspecialchars(__('helpdesk_empty'), ENT_QUOTES, 'UTF-8') ?>
     </p>
 
-    <div x-show="!ticketsLoading && filteredTickets.length > 0 && ticketLayout === 'table'" x-cloak class="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-soft">
+    <div x-show="!ticketsLoading && tickets.length > 0 && ticketLayout === 'table'" x-cloak class="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-soft">
         <table class="min-w-full divide-y divide-zinc-200">
             <thead class="bg-zinc-50">
                 <tr>
@@ -76,7 +76,7 @@ declare(strict_types=1);
                 </tr>
             </thead>
             <tbody class="divide-y divide-zinc-200">
-                <template x-for="ticket in filteredTickets" :key="ticket.id">
+                <template x-for="ticket in tickets" :key="ticket.id">
                     <tr class="hover:bg-zinc-50/80">
                         <td class="px-6 py-4 text-sm font-medium tabular-nums text-zinc-900" x-text="ticket.ticket_number"></td>
                         <td class="px-6 py-4">
@@ -115,9 +115,19 @@ declare(strict_types=1);
                 </template>
             </tbody>
         </table>
+        <?php
+        $listPagination = [
+            'pagination' => 'ticketsPagination',
+            'loading' => 'ticketsLoading',
+            'goToPage' => 'goToTicketsPage',
+            'pageNumbers' => 'ticketsPageNumbers',
+            'label' => 'resolveTicketsPaginationLabel',
+        ];
+        require __DIR__ . '/list_pagination.php';
+        ?>
     </div>
 
-    <div x-show="!ticketsLoading && filteredTickets.length > 0 && ticketLayout === 'board'" x-cloak class="grid gap-4 xl:grid-cols-4">
+    <div x-show="!ticketsLoading && tickets.length > 0 && ticketLayout === 'board'" x-cloak class="grid gap-4 xl:grid-cols-4">
         <template x-for="column in ticketBoardColumns" :key="column.status">
             <div class="rounded-2xl border border-zinc-200 bg-zinc-50/80 p-4">
                 <div class="mb-4 flex items-center justify-between gap-2">
@@ -159,6 +169,8 @@ declare(strict_types=1);
         'pageNumbers' => 'ticketsPageNumbers',
         'label' => 'resolveTicketsPaginationLabel',
     ];
-    require __DIR__ . '/list_pagination.php';
     ?>
+    <div x-show="!ticketsLoading && tickets.length > 0 && ticketLayout === 'board'" x-cloak class="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-soft">
+        <?php require __DIR__ . '/list_pagination.php'; ?>
+    </div>
 </section>
