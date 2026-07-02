@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Controllers;
 
 use App\Models\Asset;
+use App\Models\AssetType;
 use App\Models\Category;
 use App\Models\Consumable;
 use App\Models\License;
@@ -33,6 +34,7 @@ class HealthController
     public function __construct(
         private readonly array $appConfig,
         private readonly Asset $assetModel,
+        private readonly AssetType $assetTypeModel,
         private readonly Category $categoryModel,
         private readonly ViewRenderer $viewRenderer,
         private readonly QrCodeService $qrCodeService,
@@ -53,6 +55,37 @@ class HealthController
 
     public function index(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
     {
+        $typeId = (int) ($request->getQueryParams()['type'] ?? 0);
+
+        return $this->renderDashboard(
+            $request,
+            $response,
+            $typeId > 0 ? $typeId : null,
+            false
+        );
+    }
+
+    public function inventorySection(
+        ServerRequestInterface $request,
+        ResponseInterface $response,
+        array $args
+    ): ResponseInterface {
+        $typeId = (int) ($args['typeId'] ?? 0);
+
+        return $this->renderDashboard(
+            $request,
+            $response,
+            $typeId > 0 ? $typeId : null,
+            true
+        );
+    }
+
+    private function renderDashboard(
+        ServerRequestInterface $request,
+        ResponseInterface $response,
+        ?int $requestedAssetTypeId,
+        bool $forceAssetsView
+    ): ResponseInterface {
         $userId = $this->sessionAuthService->userId() ?? 0;
         $role = $this->sessionAuthService->role();
         $isEndUser = $this->userModel->isEndUserRole($role);
@@ -67,6 +100,12 @@ class HealthController
         $hasPersonnelProfile = $personnelProfile !== null;
         $userName = trim((string) ($personnelProfile['name'] ?? $currentUser['name'] ?? ''));
         $userEmail = trim((string) ($personnelProfile['email'] ?? $currentUserEmail));
+        $assetTypes = $isEndUser ? [] : $this->assetTypeModel->findAll();
+        $activeAssetTypeId = $requestedAssetTypeId;
+
+        if (!$isEndUser && $activeAssetTypeId === null && $assetTypes !== []) {
+            $activeAssetTypeId = (int) ($assetTypes[0]['id'] ?? 0);
+        }
 
         if ($canManageAssets) {
             $categories = $this->categoryModel->findAll();
@@ -80,14 +119,17 @@ class HealthController
                 $assetFilterDefinitions,
                 $this->assetModel,
                 $categories,
-                $locations
+                $locations,
+                $activeAssetTypeId
             );
             $assetActiveFilters = $this->assetFilterSchemaService->parseRequestFilters($request->getQueryParams());
             $assetPage = ListPagination::parsePage($request->getQueryParams());
             $assetListResult = $this->assetModel->findPaginatedForDashboard(
                 $assetActiveFilters,
                 $assetFilterDefinitions,
-                $assetPage
+                $assetPage,
+                ListPagination::PAGE_SIZE,
+                $activeAssetTypeId
             );
             $assets = $assetListResult['data'];
             $assetPagination = $assetListResult['pagination'];
@@ -173,6 +215,10 @@ class HealthController
             ),
             'personnel' => $personnelRows,
             'personnelJson' => json_encode($personnelRows, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE),
+            'assetTypes' => $assetTypes,
+            'assetTypesJson' => json_encode($assetTypes, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE),
+            'activeAssetTypeId' => $activeAssetTypeId ?? 0,
+            'forceAssetsView' => $forceAssetsView,
         ]);
 
         $response->getBody()->write($html);

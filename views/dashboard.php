@@ -96,6 +96,15 @@ foreach ($assetFilterDefinitions as $filterDefinition) {
 $assetFilterFieldsJson = json_encode($assetFilterDefinitions, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
 $initialAssetFiltersJson = json_encode($initialAssetFilters, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
 $inventoryAssetsJson = json_encode($canManageAssets ? $assets : [], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
+$assetTypes = $assetTypes ?? [];
+$activeAssetTypeId = (int) ($activeAssetTypeId ?? 0);
+
+if ($activeAssetTypeId <= 0 && $assetTypes !== []) {
+    $activeAssetTypeId = (int) ($assetTypes[0]['id'] ?? 1);
+}
+
+$forceAssetsView = (bool) ($forceAssetsView ?? false);
+$assetTypesJson = json_encode($assetTypes, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
 $assetPagination = $assetPagination ?? ['page' => 1, 'per_page' => 50, 'total' => 0, 'total_pages' => 1];
 $assetPaginationJson = json_encode($assetPagination, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
 
@@ -257,6 +266,16 @@ $i18nScript = json_encode([
     'category_delete_confirm' => __('category_delete_confirm'),
     'category_delete_in_use' => __('category_delete_in_use'),
     'category_field_count' => __('category_field_count'),
+    'asset_types_fetch_error' => __('asset_types_fetch_error'),
+    'asset_types_network_error' => __('asset_types_network_error'),
+    'asset_type_create_success' => __('asset_type_create_success'),
+    'asset_type_update_success' => __('asset_type_update_success'),
+    'asset_type_delete_success' => __('asset_type_delete_success'),
+    'asset_type_create_error' => __('asset_type_create_error'),
+    'asset_type_update_error' => __('asset_type_update_error'),
+    'asset_type_delete_error' => __('asset_type_delete_error'),
+    'asset_type_delete_confirm' => __('asset_type_delete_confirm'),
+    'nav_assets' => __('nav_assets'),
     'locations_fetch_error' => __('locations_fetch_error'),
     'locations_network_error' => __('locations_network_error'),
     'location_create_success' => __('location_create_success'),
@@ -463,7 +482,7 @@ $i18nScript = json_encode([
     'list_pagination_info' => __('list_pagination_info'),
 ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
 ?>
-<div class="min-h-screen bg-gray-50" x-data="assetDashboard()" x-init="restoreDashboardView(); if (isEndUser) { initEndUserPortal(); } else if (canManageAssets) { fetchCategories(); fetchLocations(); fetchTicketCategories(); fetchLicenses(); fetchConsumables(); fetchTickets(); if (activeView === 'dashboard') { fetchDashboardStats(); } } if (canAccessSettings && activeView === 'reports') { fetchReports(); } this.isAssignLicenseModalOpen = false;">
+<div class="min-h-screen bg-gray-50" x-data="assetDashboard()" x-init="parseInventoryRoute(); restoreDashboardView(); if (isEndUser) { initEndUserPortal(); } else if (canManageAssets) { fetchCategories(); fetchLocations(); fetchTicketCategories(); fetchLicenses(); fetchConsumables(); fetchTickets(); if (activeView === 'dashboard') { fetchDashboardStats(); } } if (canAccessSettings && activeView === 'reports') { fetchReports(); } this.isAssignLicenseModalOpen = false;">
     <div class="flex h-screen overflow-hidden bg-gray-50">
         <aside class="hidden h-full w-64 min-h-0 flex-shrink-0 flex-col border-r border-gray-200 bg-white lg:flex">
             <div class="flex h-16 shrink-0 items-center gap-3 border-b border-gray-200 px-5">
@@ -667,6 +686,7 @@ $i18nScript = json_encode([
                 <?php require __DIR__ . '/partials/audit_logs_panel.php'; ?>
                 <?php require __DIR__ . '/partials/settings_panel.php'; ?>
                 <?php require __DIR__ . '/partials/categories_panel.php'; ?>
+                <?php require __DIR__ . '/partials/asset_types_panel.php'; ?>
                 <?php require __DIR__ . '/partials/locations_panel.php'; ?>
                 <?php require __DIR__ . '/partials/ticket_categories_panel.php'; ?>
                 <?php endif; ?>
@@ -1347,6 +1367,57 @@ $i18nScript = json_encode([
                     <span x-show="!isTransferSubmitting"><?= htmlspecialchars(__('transfer_submit'), ENT_QUOTES, 'UTF-8') ?></span>
                 </button>
             </div>
+        </div>
+    </div>
+
+    <div
+        x-show="isAssetTypeModalOpen"
+        x-cloak
+        class="fixed inset-0 z-[60] flex items-center justify-center px-4"
+        @keydown.escape.window="closeAssetTypeModal()"
+    >
+        <div class="absolute inset-0 bg-zinc-900/40 backdrop-blur-sm" @click="closeAssetTypeModal()"></div>
+
+        <div class="relative w-full max-w-lg rounded-2xl border border-zinc-200 bg-white shadow-soft">
+            <div class="flex items-center justify-between border-b border-zinc-200 px-6 py-4">
+                <div>
+                    <h3 class="text-lg font-semibold text-zinc-900" x-text="editingAssetTypeId ? '<?= htmlspecialchars(__('action_edit_asset_type'), ENT_QUOTES, 'UTF-8') ?>' : '<?= htmlspecialchars(__('add_asset_type'), ENT_QUOTES, 'UTF-8') ?>'"></h3>
+                    <p class="mt-1 text-sm text-zinc-500"><?= htmlspecialchars(__('asset_types_modal_subtitle'), ENT_QUOTES, 'UTF-8') ?></p>
+                </div>
+                <button type="button" @click="closeAssetTypeModal()" class="rounded-lg p-2 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600">&times;</button>
+            </div>
+
+            <form @submit.prevent="submitAssetTypeForm" class="px-6 py-5">
+                <label class="block">
+                    <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('asset_type_name_label'), ENT_QUOTES, 'UTF-8') ?></span>
+                    <input
+                        type="text"
+                        x-model="assetTypeForm.name"
+                        required
+                        class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4"
+                    >
+                </label>
+
+                <p x-show="assetTypeFormError" x-cloak class="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700" x-text="assetTypeFormError"></p>
+
+                <div class="mt-6 flex justify-end gap-3 border-t border-zinc-200 pt-5">
+                    <button
+                        type="button"
+                        @click="closeAssetTypeModal()"
+                        class="rounded-xl border border-zinc-200 px-4 py-2.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
+                    >
+                        <?= htmlspecialchars(__('cancel'), ENT_QUOTES, 'UTF-8') ?>
+                    </button>
+                    <button
+                        type="submit"
+                        :disabled="isAssetTypeSubmitting"
+                        class="inline-flex items-center gap-2 rounded-xl bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                        <span x-show="isAssetTypeSubmitting"><?= htmlspecialchars(__('saving'), ENT_QUOTES, 'UTF-8') ?></span>
+                        <span x-show="!isAssetTypeSubmitting"><?= htmlspecialchars(__('save'), ENT_QUOTES, 'UTF-8') ?></span>
+                    </button>
+                </div>
+            </form>
         </div>
     </div>
 
@@ -2109,7 +2180,10 @@ $i18nScript = json_encode([
 
     function assetDashboard() {
         return {
-            activeView: <?= $isEndUser ? "'knowledge_base'" : ($canManageAssets ? "'dashboard'" : "'assets'") ?>,
+            activeView: <?= $isEndUser ? "'knowledge_base'" : ($forceAssetsView ? "'assets'" : ($canManageAssets ? "'dashboard'" : "'assets'")) ?>,
+            activeAssetTypeId: <?= $activeAssetTypeId ?>,
+            assetManagementOpen: <?= ($forceAssetsView || !$canManageAssets) ? 'true' : 'false' ?>,
+            assetTypes: <?= $assetTypesJson ?>,
             dashboardStats: null,
             dashboardLoading: false,
             dashboardError: '',
@@ -2136,6 +2210,7 @@ $i18nScript = json_encode([
                 ipam: <?= json_encode(__('ipam_page_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 settings: <?= json_encode(__('settings_page_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 categories: <?= json_encode(__('categories_page_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
+                asset_types: <?= json_encode(__('asset_types_page_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 locations: <?= json_encode(__('locations_page_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 ticket_categories: <?= json_encode(__('ticket_categories_page_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 personnel: <?= json_encode(__('personnel_page_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
@@ -2156,6 +2231,7 @@ $i18nScript = json_encode([
                 ipam: <?= json_encode(__('ipam_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 settings: <?= json_encode(__('settings_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 categories: <?= json_encode(__('categories_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
+                asset_types: <?= json_encode(__('asset_types_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 locations: <?= json_encode(__('locations_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 ticket_categories: <?= json_encode(__('ticket_categories_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 personnel: <?= json_encode(__('personnel_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
@@ -2223,6 +2299,17 @@ $i18nScript = json_encode([
                 fields: [],
             },
             categoryFormError: '',
+            assetTypesLoading: false,
+            assetTypesError: '',
+            assetTypesSuccessMessage: '',
+            isAssetTypeModalOpen: false,
+            isAssetTypeSubmitting: false,
+            editingAssetTypeId: null,
+            assetTypeForm: {
+                id: null,
+                name: '',
+            },
+            assetTypeFormError: '',
             locations: [],
             locationsLoading: false,
             locationsError: '',
@@ -2651,6 +2738,7 @@ $i18nScript = json_encode([
                     const tabTitles = {
                         general: this.pageTitles.settings,
                         categories: this.pageTitles.categories,
+                        asset_types: this.pageTitles.asset_types,
                         locations: this.pageTitles.locations,
                         ticket_categories: this.pageTitles.ticket_categories,
                         smtp: this.pageTitles.smtp,
@@ -2660,6 +2748,10 @@ $i18nScript = json_encode([
                     return tabTitles[this.settingsTab] || this.pageTitles.settings;
                 }
 
+                if (this.activeView === 'assets') {
+                    return this.activeAssetTypeName();
+                }
+
                 return this.pageTitles[this.activeView] || (this.isEndUser ? this.pageTitles.knowledge_base : this.pageTitles.assets);
             },
             resolvePageSubtitle() {
@@ -2667,6 +2759,7 @@ $i18nScript = json_encode([
                     const tabSubtitles = {
                         general: this.pageSubtitles.settings,
                         categories: this.pageSubtitles.categories,
+                        asset_types: this.pageSubtitles.asset_types,
                         locations: this.pageSubtitles.locations,
                         ticket_categories: this.pageSubtitles.ticket_categories,
                         smtp: this.pageSubtitles.smtp,
@@ -2686,7 +2779,39 @@ $i18nScript = json_encode([
                 sessionStorage.setItem('betechDashboardView', JSON.stringify({
                     activeView: this.activeView,
                     settingsTab: this.settingsTab,
+                    activeAssetTypeId: this.activeAssetTypeId,
                 }));
+            },
+            parseInventoryRoute() {
+                const match = window.location.pathname.match(/^\/inventory\/(\d+)\/?$/);
+
+                if (match) {
+                    this.activeAssetTypeId = Number(match[1]);
+                    this.activeView = 'assets';
+                    this.assetManagementOpen = true;
+                }
+            },
+            activeAssetTypeName() {
+                const current = (this.assetTypes || []).find(
+                    (assetType) => Number(assetType.id) === Number(this.activeAssetTypeId)
+                );
+
+                return current?.name || window.__i18n.nav_assets;
+            },
+            openAssetSection(typeId) {
+                const targetTypeId = Number(typeId);
+
+                if (!Number.isInteger(targetTypeId) || targetTypeId <= 0) {
+                    return;
+                }
+
+                this.activeAssetTypeId = targetTypeId;
+                this.activeView = 'assets';
+                this.assetManagementOpen = true;
+                this.inventoryPage = 1;
+                this.fetchInventoryList(true);
+                window.history.replaceState({}, '', `/inventory/${targetTypeId}`);
+                this.persistDashboardView();
             },
             restoreDashboardView() {
                 const raw = sessionStorage.getItem('betechDashboardView');
@@ -2706,6 +2831,10 @@ $i18nScript = json_encode([
 
                     if (saved.settingsTab) {
                         this.settingsTab = saved.settingsTab;
+                    }
+
+                    if (saved.activeAssetTypeId) {
+                        this.activeAssetTypeId = Number(saved.activeAssetTypeId);
                     }
 
                     if (this.isEndUser) {
@@ -2730,6 +2859,10 @@ $i18nScript = json_encode([
 
                     if (this.activeView === 'settings' && this.settingsTab === 'categories') {
                         this.fetchCategories();
+                    }
+
+                    if (this.activeView === 'settings' && this.settingsTab === 'asset_types') {
+                        this.fetchAssetTypes();
                     }
 
                     if (this.activeView === 'settings' && this.settingsTab === 'locations') {
@@ -3651,7 +3784,8 @@ $i18nScript = json_encode([
                 window.open(`/api/assets/${assetId}/tutanak`, '_blank', 'noopener,noreferrer');
             },
             exportAssets() {
-                window.location.href = '/api/assets/export';
+                const typeQuery = this.activeAssetTypeId ? `?type=${this.activeAssetTypeId}` : '';
+                window.location.href = `/api/assets/export${typeQuery}`;
             },
             openAssignModal(asset) {
                 if (asset?.assigned_to) {
@@ -4156,6 +4290,10 @@ $i18nScript = json_encode([
                 const params = new URLSearchParams();
                 params.set('page', String(page ?? this.inventoryPage ?? 1));
 
+                if (this.activeAssetTypeId) {
+                    params.set('type', String(this.activeAssetTypeId));
+                }
+
                 Object.entries(this.assetFilters || {}).forEach(([name, value]) => {
                     const trimmed = String(value || '').trim();
 
@@ -4217,7 +4355,17 @@ $i18nScript = json_encode([
                     this.syncInventoryAssetOptions();
 
                     const nextUrl = new URL(window.location.href);
-                    nextUrl.search = query ? `?${query}` : '';
+
+                    if (this.activeView === 'assets' && this.activeAssetTypeId) {
+                        nextUrl.pathname = `/inventory/${this.activeAssetTypeId}`;
+                        const filterQuery = new URLSearchParams(query);
+                        filterQuery.delete('type');
+                        const remaining = filterQuery.toString();
+                        nextUrl.search = remaining ? `?${remaining}` : '';
+                    } else {
+                        nextUrl.search = query ? `?${query}` : '';
+                    }
+
                     window.history.replaceState({}, '', nextUrl.toString());
                 } catch (error) {
                     this.assetFiltersError = window.__i18n.inventory_filter_error;
@@ -4268,7 +4416,7 @@ $i18nScript = json_encode([
                 const requestInit = this.apiFetchInit('POST');
 
                 try {
-                    const response = await fetch('/api/inventory/import', {
+                    const response = await fetch(`/api/inventory/import?type=${this.activeAssetTypeId || 1}`, {
                         method: 'POST',
                         headers: requestInit.headers,
                         body: formData,
@@ -4660,6 +4808,7 @@ $i18nScript = json_encode([
                 const payload = {
                     name: this.form.name.trim(),
                     status: this.form.status,
+                    asset_type_id: Number(this.activeAssetTypeId || 1),
                 };
 
                 ['model', 'brand', 'serial_number', 'type', 'location', 'building', 'mac_address_1', 'mac_address_2'].forEach((field) => {
@@ -5081,6 +5230,152 @@ $i18nScript = json_encode([
                     this.persistDashboardView();
                 } catch (error) {
                     this.categoriesError = window.__i18n.categories_network_error;
+                }
+            },
+            async fetchAssetTypes() {
+                if (!this.canAccessSettings) {
+                    return;
+                }
+
+                this.assetTypesLoading = true;
+                this.assetTypesError = '';
+
+                try {
+                    const response = await fetch('/api/asset-types', {
+                        headers: {
+                            'Accept': 'application/json',
+                        },
+                    });
+                    const result = await response.json().catch(() => ({}));
+
+                    if (!response.ok) {
+                        this.assetTypesError = result.message || window.__i18n.asset_types_fetch_error;
+                        return;
+                    }
+
+                    this.assetTypes = Array.isArray(result.data) ? result.data : [];
+                } catch (error) {
+                    this.assetTypesError = window.__i18n.asset_types_network_error;
+                } finally {
+                    this.assetTypesLoading = false;
+                }
+            },
+            openAssetTypeModal(assetType = null) {
+                this.assetTypeFormError = '';
+                this.assetTypesSuccessMessage = '';
+
+                const assetTypeId = assetType?.id != null ? Number(assetType.id) : null;
+                this.editingAssetTypeId = Number.isInteger(assetTypeId) && assetTypeId > 0 ? assetTypeId : null;
+
+                if (this.editingAssetTypeId) {
+                    this.assetTypeForm.id = this.editingAssetTypeId;
+                    this.assetTypeForm.name = assetType?.name || '';
+                } else {
+                    this.assetTypeForm.id = null;
+                    this.assetTypeForm.name = '';
+                }
+
+                this.isAssetTypeModalOpen = true;
+            },
+            closeAssetTypeModal() {
+                if (this.isAssetTypeSubmitting) {
+                    return;
+                }
+
+                this.isAssetTypeModalOpen = false;
+                this.editingAssetTypeId = null;
+                this.assetTypeForm.id = null;
+                this.assetTypeFormError = '';
+            },
+            async submitAssetTypeForm() {
+                this.isAssetTypeSubmitting = true;
+                this.assetTypeFormError = '';
+
+                const payload = {
+                    name: this.assetTypeForm.name.trim(),
+                };
+                const assetTypeId = this.editingAssetTypeId
+                    ? Number(this.editingAssetTypeId)
+                    : Number(this.assetTypeForm.id);
+                const isEdit = Number.isInteger(assetTypeId) && assetTypeId > 0;
+                const url = isEdit ? `/api/asset-types/${assetTypeId}` : '/api/asset-types';
+                const method = isEdit ? 'PUT' : 'POST';
+
+                try {
+                    const response = await fetch(url, {
+                        method,
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json',
+                        },
+                        body: JSON.stringify(payload),
+                    });
+                    const result = await response.json().catch(() => ({}));
+
+                    if (!response.ok) {
+                        this.assetTypeFormError = this.apiErrorMessage(
+                            result,
+                            isEdit ? window.__i18n.asset_type_update_error : window.__i18n.asset_type_create_error
+                        );
+                        return;
+                    }
+
+                    this.isAssetTypeModalOpen = false;
+                    this.editingAssetTypeId = null;
+                    this.assetTypeForm.id = null;
+                    this.assetTypesSuccessMessage = this.apiErrorMessage(
+                        result,
+                        isEdit ? window.__i18n.asset_type_update_success : window.__i18n.asset_type_create_success
+                    );
+                    await this.fetchAssetTypes();
+                    this.persistDashboardView();
+                } catch (error) {
+                    this.assetTypeFormError = window.__i18n.asset_types_network_error;
+                } finally {
+                    this.isAssetTypeSubmitting = false;
+                }
+            },
+            async deleteAssetType(assetType) {
+                if (!assetType?.id) {
+                    return;
+                }
+
+                const confirmed = window.confirm(
+                    (window.__i18n.asset_type_delete_confirm || '').replace('%s', assetType.name || '')
+                );
+
+                if (!confirmed) {
+                    return;
+                }
+
+                this.assetTypesError = '';
+                this.assetTypesSuccessMessage = '';
+
+                try {
+                    const response = await fetch(`/api/asset-types/${assetType.id}`, {
+                        method: 'DELETE',
+                        headers: {
+                            'Accept': 'application/json',
+                        },
+                    });
+                    const result = await response.json().catch(() => ({}));
+
+                    if (!response.ok) {
+                        this.assetTypesError = this.apiErrorMessage(
+                            result,
+                            window.__i18n.asset_type_delete_error
+                        );
+                        return;
+                    }
+
+                    this.assetTypesSuccessMessage = this.apiErrorMessage(
+                        result,
+                        window.__i18n.asset_type_delete_success
+                    );
+                    await this.fetchAssetTypes();
+                    this.persistDashboardView();
+                } catch (error) {
+                    this.assetTypesError = window.__i18n.asset_types_network_error;
                 }
             },
             async fetchLocations() {

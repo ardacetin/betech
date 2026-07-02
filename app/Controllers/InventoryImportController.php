@@ -70,7 +70,12 @@ class InventoryImportController
 
             $originalFilename = $file->getClientFilename() ?? 'import.csv';
             $contents = (string) $file->getStream()->getContents();
-            $result = $this->inventoryImportService->importFromUploadedFile($contents, $originalFilename);
+            $typeId = (int) ($request->getQueryParams()['type'] ?? 0);
+            $result = $this->inventoryImportService->importFromUploadedFile(
+                $contents,
+                $originalFilename,
+                $typeId > 0 ? $typeId : null
+            );
 
             $actorUserId = $this->sessionAuthService->userId();
 

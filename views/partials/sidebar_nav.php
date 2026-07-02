@@ -7,7 +7,10 @@ declare(strict_types=1);
  * @var bool $canManageAssets
  * @var bool $canAccessPersonnel
  * @var bool $canAccessSettings
+ * @var list<array<string, mixed>> $assetTypes
  */
+
+$assetTypes = $assetTypes ?? [];
 
 $sectionHeaderClass = 'mt-6 mb-2 px-3 text-[11px] font-bold uppercase tracking-wider text-gray-400';
 
@@ -104,17 +107,42 @@ $sectionHeaderClass = 'mt-6 mb-2 px-3 text-[11px] font-bold uppercase tracking-w
         <?php endif; ?>
 
         <div class="<?= $sectionHeaderClass ?>"><?= htmlspecialchars(__('nav_section_asset_management'), ENT_QUOTES, 'UTF-8') ?></div>
-        <button
-            type="button"
-            @click="activeView = 'assets'"
-            class="group flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900"
-            :class="activeView === 'assets' ? 'bg-gray-900 font-semibold text-white shadow-sm hover:bg-gray-900 hover:text-white' : ''"
-        >
-            <svg class="h-5 w-5 flex-shrink-0 text-gray-400 transition-colors group-hover:text-gray-500" :class="activeView === 'assets' ? 'text-white group-hover:text-white' : ''" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M21 7.5l-9-5.25L3 7.5m18 0l-9 5.25m9-5.25v9l-9 5.25M3 7.5l9 5.25M3 7.5v9l9 5.25m0-9v9"></path>
-            </svg>
-            <span><?= htmlspecialchars(__('nav_assets'), ENT_QUOTES, 'UTF-8') ?></span>
-        </button>
+        <div class="space-y-1">
+            <button
+                type="button"
+                @click="assetManagementOpen = !assetManagementOpen"
+                class="group flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900"
+                :class="activeView === 'assets' ? 'bg-gray-100 text-gray-900' : ''"
+            >
+                <svg class="h-5 w-5 flex-shrink-0 text-gray-400 transition-colors group-hover:text-gray-500" :class="activeView === 'assets' ? 'text-gray-700 group-hover:text-gray-700' : ''" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M21 7.5l-9-5.25L3 7.5m18 0l-9 5.25m9-5.25v9l-9 5.25M3 7.5l9 5.25M3 7.5v9l9 5.25m0-9v9"></path>
+                </svg>
+                <span class="flex-1 text-left"><?= htmlspecialchars(__('nav_asset_management'), ENT_QUOTES, 'UTF-8') ?></span>
+                <svg
+                    class="h-4 w-4 flex-shrink-0 text-gray-400 transition-transform"
+                    :class="assetManagementOpen ? 'rotate-180' : ''"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke-width="1.5"
+                    stroke="currentColor"
+                    aria-hidden="true"
+                >
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5"></path>
+                </svg>
+            </button>
+            <div x-show="assetManagementOpen" x-cloak class="ml-4 space-y-1 border-l border-gray-200 pl-3">
+                <?php foreach ($assetTypes as $assetType): ?>
+                <button
+                    type="button"
+                    @click="openAssetSection(<?= (int) ($assetType['id'] ?? 0) ?>)"
+                    class="group flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900"
+                    :class="activeView === 'assets' && Number(activeAssetTypeId) === <?= (int) ($assetType['id'] ?? 0) ?> ? 'bg-gray-900 font-semibold text-white shadow-sm hover:bg-gray-900 hover:text-white' : ''"
+                >
+                    <span class="truncate"><?= htmlspecialchars((string) ($assetType['name'] ?? ''), ENT_QUOTES, 'UTF-8') ?></span>
+                </button>
+                <?php endforeach; ?>
+            </div>
+        </div>
         <?php if ($canManageAssets): ?>
         <button
             type="button"

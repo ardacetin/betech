@@ -10,7 +10,7 @@ use App\Controllers\CategoryController;
 use App\Controllers\IpNetworkController;
 use App\Controllers\LicenseController;
 use App\Controllers\LocationController;
-use App\Controllers\AssetTutanakController;
+use App\Controllers\AssetTypeController;
 use App\Controllers\AssetViewController;
 use App\Controllers\AuthController;
 use App\Controllers\ConsumableController;
@@ -35,6 +35,7 @@ use App\Middleware\RateLimitMiddleware;
 use App\Middleware\RoleMiddleware;
 use App\Middleware\SecurityHeadersMiddleware;
 use App\Models\Asset;
+use App\Models\AssetType;
 use App\Models\AssetHistory;
 use App\Models\AuditLog;
 use App\Models\Category;
@@ -143,6 +144,7 @@ $errorMiddleware->setErrorHandler(HttpForbiddenException::class, $errorHandler);
 $settingModel = new Setting($databaseService);
 $assetColumnSchemaService = new AssetColumnSchemaService($databaseService, $settingModel);
 $assetModel = new Asset($databaseService, $assetColumnSchemaService);
+$assetTypeModel = new AssetType($databaseService);
 $assetHistoryModel = new AssetHistory($databaseService);
 $categoryModel = new Category($databaseService);
 $locationModel = new Location($databaseService);
@@ -185,7 +187,7 @@ $inventoryImportController = new InventoryImportController(
         $auditLogger,
         $appLogger
     );
-$healthController = new HealthController($appConfig, $assetModel, $categoryModel, $viewRenderer, $qrCodeService, $analyticsService, $settingModel, $userModel, $personnelModel, $sessionAuthService, $endUserContextService, $locationModel, $assetFilterSchemaService, $licenseModel, $licenseFilterSchemaService, $consumableModel, $consumableFilterSchemaService);
+$healthController = new HealthController($appConfig, $assetModel, $assetTypeModel, $categoryModel, $viewRenderer, $qrCodeService, $analyticsService, $settingModel, $userModel, $personnelModel, $sessionAuthService, $endUserContextService, $locationModel, $assetFilterSchemaService, $licenseModel, $licenseFilterSchemaService, $consumableModel, $consumableFilterSchemaService);
 $assetController = new AssetController($assetModel, $assetHistoryModel, $userIntegrationFactory, $personnelModel, $userModel, $locationModel, $categoryModel, $assetCsvImportService, $inventoryImportService, $sessionAuthService, $clientIpResolver, $endUserContextService, $auditLogger, $assetFilterSchemaService, $settingModel);
 $assetViewController = new AssetViewController($appConfig, $assetModel, $viewRenderer);
 $assetTutanakController = new AssetTutanakController($assetModel, $settingModel, $personnelModel, $userModel, $userIntegrationFactory, $zimmetTutanakService, $viewRenderer, $sessionAuthService, $endUserContextService);
@@ -207,6 +209,7 @@ $settingsController = new SettingsController(
     $assetColumnSchemaService
 );
 $categoryController = new CategoryController($categoryModel, $sessionAuthService, $auditLogger);
+$assetTypeController = new AssetTypeController($assetTypeModel, $sessionAuthService, $auditLogger);
 $locationController = new LocationController($locationModel);
 $ticketCategoryController = new TicketCategoryController($ticketCategoryModel);
 $licenseController = new LicenseController($licenseModel, $licenseFilterSchemaService);
@@ -255,6 +258,7 @@ $app->post('/api/login', [$authController, 'apiLogin']);
 $app->get('/logout', [$authController, 'logout']);
 $app->get('/unauthorized', [$authController, 'showUnauthorized']);
 $app->get('/', [$healthController, 'index']);
+$app->get('/inventory/{typeId}', [$healthController, 'inventorySection']);
 $app->get('/assets/view/{id}', [$assetViewController, 'show']);
 
 $app->group('', function ($group) use ($endUserController): void {
@@ -280,6 +284,7 @@ $app->group('', function ($group) use (
     $backupController,
     $auditLogController,
     $categoryController,
+    $assetTypeController,
     $locationController,
     $ticketCategoryController,
     $licenseController,
@@ -305,6 +310,10 @@ $app->group('', function ($group) use (
     $group->post('/api/categories', [$categoryController, 'store']);
     $group->put('/api/categories/{id}', [$categoryController, 'update']);
     $group->delete('/api/categories/{id}', [$categoryController, 'destroy']);
+    $group->get('/api/asset-types', [$assetTypeController, 'index']);
+    $group->post('/api/asset-types', [$assetTypeController, 'store']);
+    $group->put('/api/asset-types/{id}', [$assetTypeController, 'update']);
+    $group->delete('/api/asset-types/{id}', [$assetTypeController, 'destroy']);
     $group->get('/api/locations', [$locationController, 'index']);
     $group->post('/api/locations', [$locationController, 'store']);
     $group->put('/api/locations/{id}', [$locationController, 'update']);

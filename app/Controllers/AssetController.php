@@ -68,16 +68,24 @@ class AssetController
         $globalCustomFields = is_array($settings['custom_fields'] ?? null) ? $settings['custom_fields'] : [];
 
         $filterDefinitions = $this->assetFilterSchemaService->buildDefinitions($categories, $globalCustomFields);
+        $assetTypeId = $this->resolveAssetTypeId($request);
         $filterDefinitions = $this->assetFilterSchemaService->resolveOptions(
             $filterDefinitions,
             $this->assetModel,
             $categories,
-            $locations
+            $locations,
+            $assetTypeId
         );
 
         $activeFilters = $this->assetFilterSchemaService->parseRequestFilters($request->getQueryParams());
         $page = ListPagination::parsePage($request->getQueryParams());
-        $result = $this->assetModel->findPaginatedForDashboard($activeFilters, $filterDefinitions, $page);
+        $result = $this->assetModel->findPaginatedForDashboard(
+            $activeFilters,
+            $filterDefinitions,
+            $page,
+            ListPagination::PAGE_SIZE,
+            $assetTypeId
+        );
 
         return $this->jsonResponse($response, 200, [
             'status' => 'success',
@@ -86,6 +94,7 @@ class AssetController
             'meta' => [
                 'total' => $result['pagination']['total'],
                 'filters' => $activeFilters,
+                'asset_type_id' => $assetTypeId,
             ],
         ]);
     }
@@ -116,7 +125,7 @@ class AssetController
         $coreFields = $this->normalizeCoreFields($coreFields);
 
         try {
-            $asset = $this->assetModel->create($coreFields);
+            $asset = $this->assetModel->create($coreFields, $this->resolveAssetTypeId($request));
             $this->logAssetCreation($request, $asset, $coreFields);
             $this->auditLogger->logFromRequest(
                 $request,
@@ -734,7 +743,14 @@ class AssetController
 
     public function exportCsv(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
     {
-        $assets = $this->assetModel->findAllForDashboard();
+        $categories = $this->categoryModel->findAll();
+        $locations = $this->locationModel->findAll();
+        $settings = $this->settingModel->getAdminBundle();
+        $globalCustomFields = is_array($settings['custom_fields'] ?? null) ? $settings['custom_fields'] : [];
+        $filterDefinitions = $this->assetFilterSchemaService->buildDefinitions($categories, $globalCustomFields);
+        $assetTypeId = $this->resolveAssetTypeId($request);
+        $activeFilters = $this->assetFilterSchemaService->parseRequestFilters($request->getQueryParams());
+        $assets = $this->assetModel->findAllForDashboard($activeFilters, $filterDefinitions, $assetTypeId);
         $csv = $this->assetCsvImportService->exportToCsv($assets);
         $filename = 'standart_envanter_export_' . date('Y-m-d') . '.csv';
 
@@ -784,7 +800,12 @@ class AssetController
         }
 
         $originalFilename = $file->getClientFilename() ?? 'import.csv';
-        $result = $this->inventoryImportService->importFromUploadedFile($csvContent, $originalFilename);
+        $assetTypeId = $this->resolveAssetTypeId($request);
+        $result = $this->inventoryImportService->importFromUploadedFile(
+            $csvContent,
+            $originalFilename,
+            $assetTypeId
+        );
         $actorUserId = $this->actorUserId();
 
         foreach ($result['created_assets'] as $assetId) {
@@ -1096,6 +1117,28 @@ class AssetController
         }
 
         return $building . ' / ' . $name;
+    }
+
+    private function resolveAssetTypeId(ServerRequestInterface $request): ?int
+    {
+        $queryParams = $request->getQueryParams();
+        $typeId = (int) ($queryParams['type'] ?? 0);
+
+        if ($typeId > 0) {
+            return $typeId;
+        }
+
+        $parsedBody = $request->getParsedBody();
+
+        if (is_array($parsedBody)) {
+            $bodyTypeId = (int) ($parsedBody['asset_type_id'] ?? $parsedBody['type'] ?? 0);
+
+            if ($bodyTypeId > 0) {
+                return $bodyTypeId;
+            }
+        }
+
+        return null;
     }
 
     /**

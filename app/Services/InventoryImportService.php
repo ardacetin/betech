@@ -13,6 +13,8 @@ class InventoryImportService
 {
     private const MAX_FILE_BYTES = 10 * 1024 * 1024;
 
+    private ?int $activeAssetTypeId = null;
+
     private const KNOWN_STATUSES = ['ready', 'deployed', 'storage', 'broken'];
 
     private const STATUS_ALIASES = [
@@ -82,19 +84,24 @@ class InventoryImportService
      *     updated_assets: list<int>
      * }
      */
-    public function importFromUploadedFile(string $contents, string $originalFilename): array
-    {
-        if (trim($contents) === '') {
-            return $this->emptyResultWithError(0, __('import_csv_empty'));
-        }
-
-        if (strlen($contents) > self::MAX_FILE_BYTES) {
-            return $this->emptyResultWithError(0, __('import_file_too_large'));
-        }
-
-        $extension = strtolower(pathinfo($originalFilename, PATHINFO_EXTENSION));
+    public function importFromUploadedFile(
+        string $contents,
+        string $originalFilename,
+        ?int $assetTypeId = null
+    ): array {
+        $this->activeAssetTypeId = $assetTypeId !== null && $assetTypeId > 0 ? $assetTypeId : null;
 
         try {
+            if (trim($contents) === '') {
+                return $this->emptyResultWithError(0, __('import_csv_empty'));
+            }
+
+            if (strlen($contents) > self::MAX_FILE_BYTES) {
+                return $this->emptyResultWithError(0, __('import_file_too_large'));
+            }
+
+            $extension = strtolower(pathinfo($originalFilename, PATHINFO_EXTENSION));
+
             $this->columnSchemaService->ensureConfiguredCustomColumns();
 
             return match ($extension) {
@@ -104,6 +111,8 @@ class InventoryImportService
             };
         } catch (RuntimeException $exception) {
             return $this->emptyResultWithError(0, $exception->getMessage());
+        } finally {
+            $this->activeAssetTypeId = null;
         }
     }
 
@@ -420,7 +429,9 @@ class InventoryImportService
             return;
         }
 
-        $existingAsset = $this->assetModel->findByAssetTag($assetTag);
+        $existingAsset = $this->activeAssetTypeId !== null
+            ? $this->assetModel->findByAssetTagInSection($assetTag, $this->activeAssetTypeId)
+            : $this->assetModel->findByAssetTag($assetTag);
 
         if ($name === '' && $existingAsset !== null) {
             $name = trim((string) ($existingAsset['name'] ?? ''));
@@ -502,6 +513,10 @@ class InventoryImportService
 
         if ($assignedTo !== '') {
             $fields['assigned_to'] = $assignedTo;
+        }
+
+        if ($this->activeAssetTypeId !== null) {
+            $fields['asset_type_id'] = $this->activeAssetTypeId;
         }
 
         try {

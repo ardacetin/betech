@@ -74,14 +74,21 @@ class AssetFilterSchemaService
      *
      * @return list<array<string, mixed>>
      */
-    public function resolveOptions(array $definitions, Asset $assetModel, array $categories = [], array $locations = []): array
-    {
+    public function resolveOptions(
+        array $definitions,
+        Asset $assetModel,
+        array $categories = [],
+        array $locations = [],
+        ?int $assetTypeId = null
+    ): array {
         unset($categories, $locations);
 
-        return array_map(function (array $definition) use ($assetModel): array {
+        return array_map(function (array $definition) use ($assetModel, $assetTypeId): array {
             if (($definition['options_source'] ?? '') === 'column_distinct') {
                 $column = ltrim((string) ($definition['column'] ?? ''), 'assets.');
-                $definition['options'] = $this->buildSelectOptions($assetModel->getDistinctColumnValues($column));
+                $definition['options'] = $this->buildSelectOptions(
+                    $assetModel->getDistinctColumnValues($column, $assetTypeId)
+                );
             }
 
             if (isset($definition['options']) && is_array($definition['options'])) {

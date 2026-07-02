@@ -59,9 +59,12 @@ class Asset
      *
      * @return list<array<string, mixed>>
      */
-    public function findAllForDashboard(array $filters = [], array $filterDefinitions = []): array
-    {
-        $where = $this->buildDashboardFilterWhere($filters, $filterDefinitions);
+    public function findAllForDashboard(
+        array $filters = [],
+        array $filterDefinitions = [],
+        ?int $assetTypeId = null
+    ): array {
+        $where = $this->buildDashboardFilterWhere($filters, $filterDefinitions, $assetTypeId);
         $where['ORDER'] = ['assets.id' => 'DESC'];
 
         $rows = $this->db()->select('assets', '*', $where);
@@ -85,9 +88,10 @@ class Asset
         array $filters = [],
         array $filterDefinitions = [],
         int $page = 1,
-        int $perPage = ListPagination::PAGE_SIZE
+        int $perPage = ListPagination::PAGE_SIZE,
+        ?int $assetTypeId = null
     ): array {
-        $where = $this->buildDashboardFilterWhere($filters, $filterDefinitions);
+        $where = $this->buildDashboardFilterWhere($filters, $filterDefinitions, $assetTypeId);
         $page = max(1, $page);
         $perPage = ListPagination::PAGE_SIZE;
         $countWhere = $where === [] ? null : $where;
@@ -110,19 +114,24 @@ class Asset
     /**
      * @return list<string>
      */
-    public function getDistinctColumnValues(string $column): array
+    public function getDistinctColumnValues(string $column, ?int $assetTypeId = null): array
     {
         if (!$this->columnSchemaService->isQueryableColumn($column)) {
             return [];
         }
 
-        $rows = $this->db()->select('assets', [$column], [
+        $conditions = [
             $column . '[!]' => null,
             'ORDER' => [$column => 'ASC'],
-        ]);
+        ];
+
+        if ($assetTypeId !== null && $assetTypeId > 0) {
+            $conditions['asset_type_id'] = $assetTypeId;
+        }
+
+        $rows = $this->db()->select('assets', [$column], $conditions);
 
         $values = [];
-        $seen = [];
 
         foreach ($rows as $row) {
             $value = trim((string) ($row[$column] ?? ''));
@@ -144,10 +153,19 @@ class Asset
      *
      * @return array<string, mixed>
      */
-    private function buildDashboardFilterWhere(array $filters, array $filterDefinitions): array
-    {
+    private function buildDashboardFilterWhere(
+        array $filters,
+        array $filterDefinitions,
+        ?int $assetTypeId = null
+    ): array {
+        $conditions = [];
+
+        if ($assetTypeId !== null && $assetTypeId > 0) {
+            $conditions['asset_type_id'] = $assetTypeId;
+        }
+
         if ($filters === [] || $filterDefinitions === []) {
-            return [];
+            return $conditions === [] ? [] : ['AND' => $conditions];
         }
 
         $definitionMap = [];
@@ -159,8 +177,6 @@ class Asset
                 $definitionMap[$name] = $definition;
             }
         }
-
-        $conditions = [];
 
         foreach ($filters as $name => $value) {
             if (is_object($value) || is_array($value)) {
@@ -419,9 +435,15 @@ class Asset
      *
      * @return array<string, mixed>
      */
-    public function create(array $fields): array
+    public function create(array $fields, ?int $assetTypeId = null): array
     {
         $insert = $this->filterFlatFields($fields);
+
+        if ($assetTypeId !== null && $assetTypeId > 0) {
+            $insert['asset_type_id'] = $assetTypeId;
+        } elseif (!isset($insert['asset_type_id'])) {
+            $insert['asset_type_id'] = 1;
+        }
         $assetTag = trim((string) ($insert['asset_tag'] ?? ''));
 
         if ($assetTag === '') {
@@ -539,6 +561,29 @@ class Asset
         return $this->normalizeRow($row);
     }
 
+    /**
+     * @return array<string, mixed>|null
+     */
+    public function findByAssetTagInSection(string $assetTag, int $assetTypeId): ?array
+    {
+        $trimmed = trim($assetTag);
+
+        if ($trimmed === '' || $assetTypeId <= 0) {
+            return null;
+        }
+
+        $row = $this->db()->get('assets', '*', [
+            'asset_tag' => $trimmed,
+            'asset_type_id' => $assetTypeId,
+        ]);
+
+        if (!is_array($row) || $row === []) {
+            return null;
+        }
+
+        return $this->normalizeRow($row);
+    }
+
     public function serialNumberExists(string $serialNumber, ?int $ignoreAssetId = null): bool
     {
         $trimmed = trim($serialNumber);
@@ -584,7 +629,14 @@ class Asset
      */
     public function upsertFromImport(?array $existingAsset, array $fields): array
     {
+        $assetTypeId = isset($fields['asset_type_id']) ? (int) $fields['asset_type_id'] : 0;
+
+        if ($assetTypeId <= 0 && isset($existingAsset['asset_type_id'])) {
+            $assetTypeId = (int) $existingAsset['asset_type_id'];
+        }
+
         $fields = $this->filterFlatFields($fields);
+
         $assetTag = trim((string) ($fields['asset_tag'] ?? ''));
 
         if ($existingAsset !== null) {
@@ -627,7 +679,7 @@ class Asset
         }
 
         return [
-            'asset' => $this->create($fields),
+            'asset' => $this->create($fields, $assetTypeId > 0 ? $assetTypeId : null),
             'created' => true,
         ];
     }
@@ -677,6 +729,10 @@ class Asset
     {
         if (isset($row['id'])) {
             $row['id'] = (int) $row['id'];
+        }
+
+        if (isset($row['asset_type_id'])) {
+            $row['asset_type_id'] = (int) $row['asset_type_id'];
         }
 
         $row['type'] = trim((string) ($row['type'] ?? ''));

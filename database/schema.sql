@@ -58,8 +58,30 @@ CREATE TABLE IF NOT EXISTS locations (
     KEY idx_locations_name (name)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS asset_types (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    name VARCHAR(255) NOT NULL,
+    slug VARCHAR(255) NOT NULL,
+    sort_order INT UNSIGNED NOT NULL DEFAULT 0,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_asset_types_slug (slug),
+    KEY idx_asset_types_sort_order (sort_order)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT INTO asset_types (id, name, slug, sort_order) VALUES
+    (1, 'Bilgisayarlar', 'bilgisayarlar', 1),
+    (2, 'Monitörler', 'monitorler', 2),
+    (3, 'Yazıcılar', 'yazicilar', 3)
+ON DUPLICATE KEY UPDATE
+    name = VALUES(name),
+    slug = VALUES(slug),
+    sort_order = VALUES(sort_order);
+
 CREATE TABLE IF NOT EXISTS assets (
     id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    asset_type_id BIGINT UNSIGNED NOT NULL DEFAULT 1,
     asset_tag VARCHAR(64) NOT NULL,
     name VARCHAR(255) NOT NULL,
     model VARCHAR(255) DEFAULT NULL,
@@ -76,11 +98,15 @@ CREATE TABLE IF NOT EXISTS assets (
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
     UNIQUE KEY uq_assets_asset_tag (asset_tag),
+    KEY idx_assets_asset_type_id (asset_type_id),
     KEY idx_assets_serial_number (serial_number),
     KEY idx_assets_status (status),
     KEY idx_assets_type (type),
     KEY idx_assets_location (location),
-    KEY idx_assets_assigned_to (assigned_to)
+    KEY idx_assets_assigned_to (assigned_to),
+    CONSTRAINT fk_assets_asset_type
+        FOREIGN KEY (asset_type_id) REFERENCES asset_types (id)
+        ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS asset_histories (

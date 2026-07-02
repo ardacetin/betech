@@ -81,6 +81,10 @@ class DatabaseInitializer
                     $warnings[] = $warning;
                 }
 
+                foreach ($this->patchAssetTypes($connection) as $warning) {
+                    $warnings[] = $warning;
+                }
+
                 foreach ($this->patchSoftwareLicenseManagement($connection) as $warning) {
                     $warnings[] = $warning;
                 }
@@ -821,6 +825,51 @@ class DatabaseInitializer
         $warnings[] = 'Applied migration: flattened assets schema to native inventory columns.';
 
         return $warnings;
+    }
+
+    /**
+     * @param object $connection Medoo instance
+     *
+     * @return list<string>
+     */
+    private function patchAssetTypes(object $connection): array
+    {
+        $warnings = [];
+
+        if (!$this->assetsTableExists($connection)) {
+            return $warnings;
+        }
+
+        if (!$this->tableExists($connection, 'asset_types')) {
+            $migrationPath = $this->getAssetTypesMigrationPath();
+
+            if (!is_readable($migrationPath)) {
+                $warnings[] = 'Asset types migration is missing or unreadable.';
+
+                return $warnings;
+            }
+
+            $this->applySqlFile($connection, $migrationPath);
+            $warnings[] = 'Applied migration: created asset_types and assets.asset_type_id.';
+
+            return $warnings;
+        }
+
+        if (!$this->columnExists($connection, 'assets', 'asset_type_id')) {
+            $migrationPath = $this->getAssetTypesMigrationPath();
+
+            if (is_readable($migrationPath)) {
+                $this->applySqlFile($connection, $migrationPath);
+                $warnings[] = 'Applied migration: added assets.asset_type_id column.';
+            }
+        }
+
+        return $warnings;
+    }
+
+    private function getAssetTypesMigrationPath(): string
+    {
+        return dirname($this->schemaPath) . '/migrations/022_create_asset_types.sql';
     }
 
     /**

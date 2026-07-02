@@ -19,7 +19,7 @@ $assetActiveFilters = $assetActiveFilters ?? [];
         <div class="border-b border-zinc-200 px-4 py-3">
             <div class="flex flex-col gap-2 lg:flex-row lg:items-end lg:justify-between">
                 <div>
-                    <h2 class="text-base font-semibold text-zinc-900"><?= htmlspecialchars(__('inventory_title'), ENT_QUOTES, 'UTF-8') ?></h2>
+                    <h2 class="text-base font-semibold text-zinc-900" x-text="activeAssetTypeName()"></h2>
                     <p class="mt-0.5 text-xs text-zinc-500"><?= htmlspecialchars(__('inventory_subtitle'), ENT_QUOTES, 'UTF-8') ?></p>
                 </div>
                 <p x-show="inventoryPagination.total > 0" x-cloak class="text-xs text-zinc-500">
