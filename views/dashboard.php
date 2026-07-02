@@ -286,6 +286,15 @@ $i18nScript = json_encode([
     'asset_custom_field_update_error' => __('asset_custom_field_update_error'),
     'asset_custom_field_delete_error' => __('asset_custom_field_delete_error'),
     'asset_custom_field_delete_confirm' => __('asset_custom_field_delete_confirm'),
+    'asset_components_fetch_error' => __('asset_components_fetch_error'),
+    'asset_components_network_error' => __('asset_components_network_error'),
+    'asset_component_create_success' => __('asset_component_create_success'),
+    'asset_component_update_success' => __('asset_component_update_success'),
+    'asset_component_delete_success' => __('asset_component_delete_success'),
+    'asset_component_create_error' => __('asset_component_create_error'),
+    'asset_component_update_error' => __('asset_component_update_error'),
+    'asset_component_delete_error' => __('asset_component_delete_error'),
+    'asset_component_delete_confirm' => __('asset_component_delete_confirm'),
     'nav_assets' => __('nav_assets'),
     'locations_fetch_error' => __('locations_fetch_error'),
     'locations_network_error' => __('locations_network_error'),
@@ -699,6 +708,7 @@ $i18nScript = json_encode([
                 <?php require __DIR__ . '/partials/categories_panel.php'; ?>
                 <?php require __DIR__ . '/partials/asset_types_panel.php'; ?>
                 <?php require __DIR__ . '/partials/asset_custom_fields_panel.php'; ?>
+                <?php require __DIR__ . '/partials/asset_components_panel.php'; ?>
                 <?php require __DIR__ . '/partials/locations_panel.php'; ?>
                 <?php require __DIR__ . '/partials/ticket_categories_panel.php'; ?>
                 <?php endif; ?>
@@ -878,9 +888,9 @@ $i18nScript = json_encode([
                                 <input x-model="editForm.mac_address_2" type="text" class="w-full rounded-lg border border-zinc-300 px-3 py-2 font-mono text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4">
                             </label>
 
-                            <div class="sm:col-span-2" x-show="inventoryCustomFieldColumns().length > 0" x-cloak>
+                            <div class="sm:col-span-2" x-show="inventoryExtensionColumns().length > 0" x-cloak>
                                 <div class="grid gap-3 sm:grid-cols-2">
-                                    <template x-for="field in inventoryCustomFieldColumns()" :key="field.column">
+                                    <template x-for="field in inventoryExtensionColumns()" :key="field.column">
                                         <label class="block">
                                             <span class="mb-1 block text-xs font-medium text-zinc-700" x-text="field.label"></span>
                                             <input
@@ -1484,7 +1494,9 @@ $i18nScript = json_encode([
                     >
                         <option value="varchar"><?= htmlspecialchars(__('asset_custom_field_type_varchar'), ENT_QUOTES, 'UTF-8') ?></option>
                         <option value="text"><?= htmlspecialchars(__('asset_custom_field_type_text'), ENT_QUOTES, 'UTF-8') ?></option>
-                        <option value="number"><?= htmlspecialchars(__('asset_custom_field_type_number'), ENT_QUOTES, 'UTF-8') ?></option>
+                        <option value="int"><?= htmlspecialchars(__('asset_custom_field_type_int'), ENT_QUOTES, 'UTF-8') ?></option>
+                        <option value="date"><?= htmlspecialchars(__('asset_custom_field_type_date'), ENT_QUOTES, 'UTF-8') ?></option>
+                        <option value="decimal"><?= htmlspecialchars(__('asset_custom_field_type_decimal'), ENT_QUOTES, 'UTF-8') ?></option>
                         <option value="dropdown"><?= htmlspecialchars(__('asset_custom_field_type_dropdown'), ENT_QUOTES, 'UTF-8') ?></option>
                     </select>
                 </label>
@@ -1516,6 +1528,58 @@ $i18nScript = json_encode([
                     >
                         <span x-show="isAssetCustomFieldSubmitting"><?= htmlspecialchars(__('saving'), ENT_QUOTES, 'UTF-8') ?></span>
                         <span x-show="!isAssetCustomFieldSubmitting"><?= htmlspecialchars(__('save'), ENT_QUOTES, 'UTF-8') ?></span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div
+        x-show="isAssetComponentModalOpen"
+        x-cloak
+        class="fixed inset-0 z-[60] flex items-center justify-center px-4"
+        @keydown.escape.window="closeAssetComponentModal()"
+    >
+        <div class="absolute inset-0 bg-zinc-900/40 backdrop-blur-sm" @click="closeAssetComponentModal()"></div>
+
+        <div class="relative w-full max-w-lg rounded-2xl border border-zinc-200 bg-white shadow-soft">
+            <div class="flex items-center justify-between border-b border-zinc-200 px-6 py-4">
+                <div>
+                    <h3 class="text-lg font-semibold text-zinc-900" x-text="editingAssetComponentId ? '<?= htmlspecialchars(__('action_edit_asset_component'), ENT_QUOTES, 'UTF-8') ?>' : '<?= htmlspecialchars(__('add_asset_component'), ENT_QUOTES, 'UTF-8') ?>'"></h3>
+                    <p class="mt-1 text-sm text-zinc-500"><?= htmlspecialchars(__('asset_components_modal_subtitle'), ENT_QUOTES, 'UTF-8') ?></p>
+                </div>
+                <button type="button" @click="closeAssetComponentModal()" class="rounded-lg p-2 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600">&times;</button>
+            </div>
+
+            <form @submit.prevent="submitAssetComponentForm" class="space-y-4 px-6 py-5">
+                <label class="block">
+                    <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('asset_component_name_label'), ENT_QUOTES, 'UTF-8') ?></span>
+                    <input
+                        type="text"
+                        x-model="assetComponentForm.name"
+                        required
+                        class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4"
+                    >
+                </label>
+
+                <label class="block">
+                    <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('asset_component_description_label'), ENT_QUOTES, 'UTF-8') ?></span>
+                    <textarea
+                        x-model="assetComponentForm.description"
+                        rows="3"
+                        class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4"
+                    ></textarea>
+                </label>
+
+                <p x-show="assetComponentFormError" x-cloak class="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700" x-text="assetComponentFormError"></p>
+
+                <div class="flex justify-end gap-3 border-t border-zinc-200 pt-5">
+                    <button type="button" @click="closeAssetComponentModal()" class="rounded-xl border border-zinc-200 px-4 py-2.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50">
+                        <?= htmlspecialchars(__('cancel'), ENT_QUOTES, 'UTF-8') ?>
+                    </button>
+                    <button type="submit" :disabled="isAssetComponentSubmitting" class="inline-flex items-center gap-2 rounded-xl bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60">
+                        <span x-show="isAssetComponentSubmitting"><?= htmlspecialchars(__('saving'), ENT_QUOTES, 'UTF-8') ?></span>
+                        <span x-show="!isAssetComponentSubmitting"><?= htmlspecialchars(__('save'), ENT_QUOTES, 'UTF-8') ?></span>
                     </button>
                 </div>
             </form>
@@ -2428,6 +2492,21 @@ $i18nScript = json_encode([
                 sort_order: 0,
             },
             assetCustomFieldFormError: '',
+            selectedAssetComponentTypeId: null,
+            assetTypeComponents: [],
+            assetComponentsLoading: false,
+            assetComponentsError: '',
+            assetComponentsSuccessMessage: '',
+            isAssetComponentModalOpen: false,
+            isAssetComponentSubmitting: false,
+            editingAssetComponentId: null,
+            assetComponentForm: {
+                id: null,
+                name: '',
+                description: '',
+                sort_order: 0,
+            },
+            assetComponentFormError: '',
             locations: [],
             locationsLoading: false,
             locationsError: '',
@@ -2831,6 +2910,8 @@ $i18nScript = json_encode([
             portalAssets: [],
             portalAssetsLoading: false,
             portalAssetsError: '',
+            isPortalAssetDetailOpen: false,
+            portalAssetDetail: null,
             portalTickets: [],
             portalTicketsLoading: false,
             portalTicketsError: '',
@@ -2917,7 +2998,7 @@ $i18nScript = json_encode([
                 const defaults = ['name', 'model', 'brand', 'serial_number', 'type', 'status', 'assigned_to'];
                 const schema = Array.isArray(this.inventorySchema) ? this.inventorySchema : [];
                 const columns = schema
-                    .filter((column) => defaults.includes(column.column) || column.is_custom)
+                    .filter((column) => defaults.includes(column.column) || column.is_custom || column.is_component)
                     .slice(0, 8);
 
                 if (columns.length === 0) {
@@ -2961,6 +3042,10 @@ $i18nScript = json_encode([
             inventoryCustomFieldColumns() {
                 return (Array.isArray(this.inventorySchema) ? this.inventorySchema : [])
                     .filter((column) => column.is_custom);
+            },
+            inventoryExtensionColumns() {
+                return (Array.isArray(this.inventorySchema) ? this.inventorySchema : [])
+                    .filter((column) => column.is_custom || column.is_component);
             },
             activeAssetTypeName() {
                 const current = (this.assetTypes || []).find(
@@ -3042,6 +3127,13 @@ $i18nScript = json_encode([
                         this.fetchAssetTypes().then(() => {
                             this.selectedAssetFieldTypeId = this.selectedAssetFieldTypeId || this.activeAssetTypeId || (this.assetTypes[0]?.id ?? null);
                             this.fetchAssetTypeCustomFields();
+                        });
+                    }
+
+                    if (this.activeView === 'settings' && this.settingsTab === 'asset_components') {
+                        this.fetchAssetTypes().then(() => {
+                            this.selectedAssetComponentTypeId = this.selectedAssetComponentTypeId || this.activeAssetTypeId || (this.assetTypes[0]?.id ?? null);
+                            this.fetchAssetTypeComponents();
                         });
                     }
 
@@ -3156,6 +3248,14 @@ $i18nScript = json_encode([
                 } finally {
                     this.portalAssetsLoading = false;
                 }
+            },
+            openPortalAssetDetail(asset) {
+                this.portalAssetDetail = asset || null;
+                this.isPortalAssetDetailOpen = asset != null;
+            },
+            closePortalAssetDetail() {
+                this.isPortalAssetDetailOpen = false;
+                this.portalAssetDetail = null;
             },
             async fetchPortalTickets() {
                 if (!this.isEndUser) {
@@ -4658,7 +4758,7 @@ $i18nScript = json_encode([
                     mac_address_1: asset.mac_address_1 || '',
                     mac_address_2: asset.mac_address_2 || '',
                 };
-                this.inventoryCustomFieldColumns().forEach((field) => {
+                this.inventoryExtensionColumns().forEach((field) => {
                     this.editForm[field.column] = asset[field.column] || '';
                 });
                 this.resetUserSearch();
@@ -5020,7 +5120,7 @@ $i18nScript = json_encode([
                     payload[field] = String(this.editForm[field] || '').trim();
                 });
 
-                this.inventoryCustomFieldColumns().forEach((field) => {
+                this.inventoryExtensionColumns().forEach((field) => {
                     payload[field.column] = String(this.editForm[field.column] || '').trim();
                 });
 
@@ -5747,6 +5847,182 @@ $i18nScript = json_encode([
                     }
                 } catch (error) {
                     this.assetCustomFieldsError = window.__i18n.asset_custom_fields_network_error;
+                }
+            },
+            async fetchAssetTypeComponents() {
+                if (!this.canAccessSettings) {
+                    return;
+                }
+
+                const typeId = Number(this.selectedAssetComponentTypeId);
+
+                if (!Number.isInteger(typeId) || typeId <= 0) {
+                    this.assetTypeComponents = [];
+                    return;
+                }
+
+                this.assetComponentsLoading = true;
+                this.assetComponentsError = '';
+
+                try {
+                    const response = await fetch(`/api/asset-types/${typeId}/components`, {
+                        headers: { 'Accept': 'application/json' },
+                    });
+                    const result = await response.json().catch(() => ({}));
+
+                    if (!response.ok) {
+                        this.assetComponentsError = result.message || window.__i18n.asset_components_fetch_error;
+                        this.assetTypeComponents = [];
+                        return;
+                    }
+
+                    this.assetTypeComponents = Array.isArray(result.data) ? result.data : [];
+                } catch (error) {
+                    this.assetComponentsError = window.__i18n.asset_components_network_error;
+                    this.assetTypeComponents = [];
+                } finally {
+                    this.assetComponentsLoading = false;
+                }
+            },
+            openAssetComponentModal(component = null) {
+                this.assetComponentFormError = '';
+                this.assetComponentsSuccessMessage = '';
+
+                const componentId = component?.id != null ? Number(component.id) : null;
+                this.editingAssetComponentId = Number.isInteger(componentId) && componentId > 0 ? componentId : null;
+
+                if (this.editingAssetComponentId) {
+                    this.assetComponentForm.id = this.editingAssetComponentId;
+                    this.assetComponentForm.name = component?.name || '';
+                    this.assetComponentForm.description = component?.description || '';
+                    this.assetComponentForm.sort_order = Number(component?.sort_order || 0);
+                } else {
+                    this.assetComponentForm.id = null;
+                    this.assetComponentForm.name = '';
+                    this.assetComponentForm.description = '';
+                    this.assetComponentForm.sort_order = 0;
+                }
+
+                this.isAssetComponentModalOpen = true;
+            },
+            closeAssetComponentModal() {
+                if (this.isAssetComponentSubmitting) {
+                    return;
+                }
+
+                this.isAssetComponentModalOpen = false;
+                this.editingAssetComponentId = null;
+                this.assetComponentForm.id = null;
+                this.assetComponentFormError = '';
+            },
+            async submitAssetComponentForm() {
+                const typeId = Number(this.selectedAssetComponentTypeId);
+
+                if (!Number.isInteger(typeId) || typeId <= 0) {
+                    this.assetComponentFormError = window.__i18n.asset_type_invalid_id;
+                    return;
+                }
+
+                this.isAssetComponentSubmitting = true;
+                this.assetComponentFormError = '';
+
+                const payload = {
+                    name: this.assetComponentForm.name.trim(),
+                    description: this.assetComponentForm.description.trim(),
+                    sort_order: Number(this.assetComponentForm.sort_order || 0),
+                };
+                const componentId = this.editingAssetComponentId
+                    ? Number(this.editingAssetComponentId)
+                    : Number(this.assetComponentForm.id);
+                const isEdit = Number.isInteger(componentId) && componentId > 0;
+                const url = isEdit
+                    ? `/api/asset-types/components/${componentId}`
+                    : `/api/asset-types/${typeId}/components`;
+                const method = isEdit ? 'PUT' : 'POST';
+
+                if (isEdit) {
+                    payload.id = componentId;
+                }
+
+                try {
+                    const response = await fetch(url, {
+                        method,
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json',
+                        },
+                        body: JSON.stringify(payload),
+                    });
+                    const result = await response.json().catch(() => ({}));
+
+                    if (!response.ok) {
+                        this.assetComponentFormError = this.apiErrorMessage(
+                            result,
+                            isEdit ? window.__i18n.asset_component_update_error : window.__i18n.asset_component_create_error
+                        );
+                        return;
+                    }
+
+                    this.isAssetComponentModalOpen = false;
+                    this.editingAssetComponentId = null;
+                    this.assetComponentForm.id = null;
+                    this.assetComponentsSuccessMessage = this.apiErrorMessage(
+                        result,
+                        isEdit ? window.__i18n.asset_component_update_success : window.__i18n.asset_component_create_success
+                    );
+                    await this.fetchAssetTypeComponents();
+
+                    if (Number(this.activeAssetTypeId) === typeId) {
+                        await this.fetchAssetTypeSchema();
+                    }
+                } catch (error) {
+                    this.assetComponentFormError = window.__i18n.asset_components_network_error;
+                } finally {
+                    this.isAssetComponentSubmitting = false;
+                }
+            },
+            async deleteAssetComponent(component) {
+                if (!component?.id) {
+                    return;
+                }
+
+                const confirmed = window.confirm(
+                    (window.__i18n.asset_component_delete_confirm || '').replace('%s', component.name || '')
+                );
+
+                if (!confirmed) {
+                    return;
+                }
+
+                this.assetComponentsError = '';
+                this.assetComponentsSuccessMessage = '';
+
+                try {
+                    const response = await fetch(`/api/asset-types/components/${component.id}`, {
+                        method: 'DELETE',
+                        headers: { 'Accept': 'application/json' },
+                    });
+                    const result = await response.json().catch(() => ({}));
+
+                    if (!response.ok) {
+                        this.assetComponentsError = this.apiErrorMessage(
+                            result,
+                            window.__i18n.asset_component_delete_error
+                        );
+                        return;
+                    }
+
+                    this.assetComponentsSuccessMessage = this.apiErrorMessage(
+                        result,
+                        window.__i18n.asset_component_delete_success
+                    );
+                    await this.fetchAssetTypeComponents();
+
+                    if (Number(this.activeAssetTypeId) === Number(this.selectedAssetComponentTypeId)) {
+                        await this.fetchAssetTypeSchema();
+                    }
+                } catch (error) {
+                    this.assetComponentsError = window.__i18n.asset_components_network_error;
                 }
             },
             async fetchLocations() {

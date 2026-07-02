@@ -896,10 +896,40 @@ class DatabaseInitializer
             $warnings[] = 'Applied migration: dynamic asset type metadata tables (custom fields, components, registry).';
         }
 
+        $componentColumnMigration = dirname($this->schemaPath) . '/migrations/024_asset_components_column_name.sql';
+
+        if ($this->tableExists($connection, 'asset_components')
+            && !$this->columnExists($connection, 'asset_components', 'column_name')
+            && is_readable($componentColumnMigration)) {
+            $this->applySqlFile($connection, $componentColumnMigration);
+            $warnings[] = 'Applied migration: asset component column_name tracking.';
+        }
+
+        $guardrailsMigration = dirname($this->schemaPath) . '/migrations/025_polymorphic_asset_guardrails.sql';
+
+        if (is_readable($guardrailsMigration)) {
+            if (!$this->tableExists($connection, 'assets_global_registry')) {
+                $this->applySqlFile($connection, $guardrailsMigration);
+                $warnings[] = 'Applied migration: polymorphic asset guardrails and global registry.';
+            } elseif (!$this->columnExists($connection, 'asset_custom_fields', 'is_active')) {
+                $this->applySqlFile($connection, $guardrailsMigration);
+                $warnings[] = 'Applied migration: custom field soft deactivation and ticket asset_type.';
+            } elseif ($this->tableExists($connection, 'tickets')
+                && !$this->columnExists($connection, 'tickets', 'asset_type')) {
+                $this->applySqlFile($connection, $guardrailsMigration);
+                $warnings[] = 'Applied migration: ticket polymorphic asset_type column.';
+            }
+        }
+
+        $ddlGuard = new DdlIdentifierGuard();
+        $assetTypeTableService = new AssetTypeTableService($this->databaseService, $ddlGuard);
+        $assetTypeModel = new \App\Models\AssetType($this->databaseService, $assetTypeTableService, $ddlGuard);
+        $assetsGlobalRegistry = new \App\Models\AssetsGlobalRegistry($this->databaseService);
         $assetTypeMigrationService = new AssetTypeMigrationService(
             $this->databaseService,
-            new \App\Models\AssetType($this->databaseService, new AssetTypeTableService($this->databaseService)),
-            new AssetTypeTableService($this->databaseService)
+            $assetTypeModel,
+            $assetTypeTableService,
+            $assetsGlobalRegistry
         );
 
         foreach ($assetTypeMigrationService->ensurePerTypeTablesAndMigrateLegacyData() as $warning) {

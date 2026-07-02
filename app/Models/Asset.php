@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Models;
 
 use App\Models\AssetRegistry;
+use App\Models\AssetsGlobalRegistry;
+use App\Models\AssetType;
 use App\Services\AssetColumnSchemaService;
 use App\Services\AssetTypeTableService;
 use App\Services\DatabaseService;
@@ -34,6 +36,8 @@ class Asset
         private readonly AssetColumnSchemaService $columnSchemaService,
         private readonly AssetTypeTableService $assetTypeTableService,
         private readonly AssetRegistry $assetRegistry,
+        private readonly AssetsGlobalRegistry $assetsGlobalRegistry,
+        private readonly AssetType $assetTypeModel,
     ) {
     }
 
@@ -286,17 +290,40 @@ class Asset
             return [];
         }
 
-        $rows = $this->findByAssignedReferences(
-            trim((string) ($person['email'] ?? '')),
-            trim((string) ($person['name'] ?? ''))
-        );
+        $email = trim((string) ($person['email'] ?? ''));
+        $name = trim((string) ($person['name'] ?? ''));
 
-        usort(
-            $rows,
-            static fn (array $left, array $right): int => ((int) ($right['id'] ?? 0)) <=> ((int) ($left['id'] ?? 0))
-        );
+        if ($this->assetsGlobalRegistry->tableExists()) {
+            $registryRows = $this->assetsGlobalRegistry->findByAssignedReferences($email, $name);
+            $rows = [];
 
-        return $rows;
+            foreach ($registryRows as $registryRow) {
+                $assetId = (int) ($registryRow['id'] ?? 0);
+
+                if ($assetId <= 0) {
+                    continue;
+                }
+
+                $asset = $this->findById($assetId);
+
+                if ($asset !== null) {
+                    $asset['asset_type_slug'] = (string) ($registryRow['asset_type_slug'] ?? $registryRow['asset_type'] ?? '');
+                    $asset['asset_type_name'] = $this->resolveAssetTypeName($asset['asset_type_slug']);
+                    $rows[] = $asset;
+                }
+            }
+
+            return $rows;
+        }
+
+        $rows = $this->findByAssignedReferences($email, $name);
+
+        return array_map(function (array $row): array {
+            $row['asset_type_slug'] = $this->resolveAssetTypeSlug((int) ($row['asset_type_id'] ?? 0));
+            $row['asset_type_name'] = $this->resolveAssetTypeName($row['asset_type_slug']);
+
+            return $row;
+        }, $rows);
     }
 
     /**
@@ -390,6 +417,7 @@ class Asset
         if ($this->tableExists('tickets')) {
             $db->update('tickets', [
                 'asset_id' => null,
+                'asset_type' => null,
             ], [
                 'asset_id' => $assetId,
             ]);
@@ -413,6 +441,7 @@ class Asset
         }
 
         $this->assetRegistry->unregister($assetId);
+        $this->assetsGlobalRegistry->unregister($assetId);
 
         $db->delete('assets', [
             'id' => $assetId,
@@ -487,6 +516,7 @@ class Asset
         }
 
         $this->syncLegacyAssetRow($typeId, $row);
+        $this->syncGlobalRegistry($typeId, $row);
 
         return $this->normalizeRow($row, $typeId);
     }
@@ -563,6 +593,8 @@ class Asset
         if ($typeId !== null && $typeId > 0) {
             $this->syncLegacyAssetRow($typeId, $row);
         }
+
+        $this->syncGlobalRegistry($typeId > 0 ? $typeId : (int) ($row['asset_type_id'] ?? 0), $row);
 
         return $this->normalizeRow($row, $typeId > 0 ? $typeId : null);
     }
@@ -853,5 +885,47 @@ class Asset
         $row['brand'] = trim((string) ($row['brand'] ?? ''));
 
         return $row;
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     */
+    private function syncGlobalRegistry(int $assetTypeId, array $row): void
+    {
+        $assetId = (int) ($row['id'] ?? 0);
+
+        if ($assetId <= 0) {
+            return;
+        }
+
+        $slug = $this->resolveAssetTypeSlug($assetTypeId);
+
+        if ($slug === '') {
+            return;
+        }
+
+        $this->assetsGlobalRegistry->sync($assetId, $slug, $row);
+    }
+
+    private function resolveAssetTypeSlug(int $assetTypeId): string
+    {
+        if ($assetTypeId <= 0) {
+            return '';
+        }
+
+        $assetType = $this->assetTypeModel->findById($assetTypeId);
+
+        return trim((string) ($assetType['slug'] ?? ''));
+    }
+
+    private function resolveAssetTypeName(string $slug): string
+    {
+        if ($slug === '') {
+            return '';
+        }
+
+        $assetType = $this->assetTypeModel->findBySlug($slug);
+
+        return trim((string) ($assetType['name'] ?? $slug));
     }
 }

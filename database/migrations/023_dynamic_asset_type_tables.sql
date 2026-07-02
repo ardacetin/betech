@@ -36,6 +36,7 @@ CREATE TABLE IF NOT EXISTS asset_components (
     asset_type_id BIGINT UNSIGNED NOT NULL,
     name VARCHAR(255) NOT NULL,
     slug VARCHAR(64) NOT NULL,
+    column_name VARCHAR(64) NOT NULL DEFAULT '',
     description TEXT NULL,
     sort_order INT UNSIGNED NOT NULL DEFAULT 0,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,

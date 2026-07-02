@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Models\AssetRegistry;
+use App\Models\AssetsGlobalRegistry;
 use App\Services\DatabaseService;
 use App\Services\ListPagination;
 use Medoo\Medoo;
@@ -21,7 +23,9 @@ class Ticket
     public const PRIORITY_CRITICAL = 'critical';
 
     public function __construct(
-        private readonly DatabaseService $databaseService
+        private readonly DatabaseService $databaseService,
+        private readonly AssetsGlobalRegistry $assetsGlobalRegistry,
+        private readonly AssetRegistry $assetRegistry,
     ) {
     }
 
@@ -185,12 +189,15 @@ class Ticket
         $this->assertPersonnelExists($personnelId);
         $this->assertAssetExists($assetId);
 
+        $assetTypeSlug = $this->resolveAssetTypeSlug($assetId);
+
         $payload = [
             'ticket_number' => $this->generateTicketNumber(),
             'subject' => $this->normalizeSubject($subject),
             'description' => $this->normalizeDescription($description),
             'personnel_id' => $personnelId,
             'asset_id' => $assetId,
+            'asset_type' => $assetTypeSlug,
             'status' => self::STATUS_OPEN,
             'priority' => $this->normalizePriority($priority),
             'created_by_user_id' => $createdByUserId,
@@ -248,6 +255,7 @@ class Ticket
             $assetId = $this->normalizeOptionalAssetId($fields['asset_id']);
             $this->assertAssetExists($assetId);
             $update['asset_id'] = $assetId;
+            $update['asset_type'] = $this->resolveAssetTypeSlug($assetId);
         }
 
         if (array_key_exists('status', $fields)) {
@@ -408,7 +416,7 @@ class Ticket
 
         return $this->db()->select('tickets', [
             '[>]personnel' => ['personnel_id' => 'id'],
-            '[>]assets' => ['asset_id' => 'id'],
+            '[>]assets_global_registry' => ['asset_id' => 'id'],
             '[>]ticket_categories' => ['category_id' => 'id'],
             '[>]users(assigned)' => ['assigned_user_id' => 'id'],
             '[>]users(creator)' => ['created_by_user_id' => 'id'],
@@ -419,6 +427,7 @@ class Ticket
             'tickets.description',
             'tickets.personnel_id',
             'tickets.asset_id',
+            'tickets.asset_type',
             'tickets.status',
             'tickets.priority',
             'tickets.category_id',
@@ -430,8 +439,8 @@ class Ticket
             'personnel.name(personnel_name)',
             'personnel.email(personnel_email)',
             'personnel.department(personnel_department)',
-            'assets.asset_tag',
-            'assets.name(asset_name)',
+            'assets_global_registry.asset_tag',
+            'assets_global_registry.name(asset_name)',
             'ticket_categories.name(category_name)',
             'ticket_categories.color_code(category_color)',
             'assigned.name(assigned_user_name)',
@@ -462,6 +471,7 @@ class Ticket
         $row['id'] = (int) $row['id'];
         $row['personnel_id'] = (int) $row['personnel_id'];
         $row['asset_id'] = $row['asset_id'] !== null ? (int) $row['asset_id'] : null;
+        $row['asset_type'] = trim((string) ($row['asset_type'] ?? '')) ?: null;
         $row['assigned_user_id'] = $row['assigned_user_id'] !== null ? (int) $row['assigned_user_id'] : null;
         $row['created_by_user_id'] = $row['created_by_user_id'] !== null ? (int) $row['created_by_user_id'] : null;
         $row['category_id'] = $row['category_id'] !== null ? (int) $row['category_id'] : null;
@@ -600,9 +610,38 @@ class Ticket
             return;
         }
 
-        if (!$this->db()->has('assets', ['id' => $assetId])) {
-            throw new \InvalidArgumentException(__('ticket_asset_not_found'));
+        if ($this->assetRegistry->resolveTypeId($assetId) !== null) {
+            return;
         }
+
+        if ($this->db()->has('assets', ['id' => $assetId])) {
+            return;
+        }
+
+        throw new \InvalidArgumentException(__('ticket_asset_not_found'));
+    }
+
+    private function resolveAssetTypeSlug(?int $assetId): ?string
+    {
+        if ($assetId === null || $assetId <= 0) {
+            return null;
+        }
+
+        $slug = $this->assetsGlobalRegistry->resolveTypeSlug($assetId);
+
+        if ($slug !== null && $slug !== '') {
+            return $slug;
+        }
+
+        $typeId = $this->assetRegistry->resolveTypeId($assetId);
+
+        if ($typeId === null) {
+            return null;
+        }
+
+        $row = $this->db()->get('asset_types', 'slug', ['id' => $typeId]);
+
+        return is_array($row) ? trim((string) ($row['slug'] ?? '')) ?: null : null;
     }
 
     private function assertUserExists(?int $userId): void

@@ -39,7 +39,7 @@ use App\Middleware\SecurityHeadersMiddleware;
 use App\Models\Asset;
 use App\Models\AssetComponent;
 use App\Models\AssetCustomField;
-use App\Models\AssetRegistry;
+use App\Models\AssetsGlobalRegistry;
 use App\Models\AssetType;
 use App\Models\AssetHistory;
 use App\Models\AuditLog;
@@ -57,6 +57,7 @@ use App\Models\Personnel;
 use App\Models\User;
 use App\Services\AnalyticsService;
 use App\Services\AppLogger;
+use App\Services\DdlIdentifierGuard;
 use App\Services\AssetTypeTableService;
 use App\Services\AssetCsvImportService;
 use App\Services\AssetFilterSchemaService;
@@ -147,18 +148,28 @@ $errorMiddleware->setErrorHandler(HttpNotFoundException::class, $errorHandler);
 $errorMiddleware->setErrorHandler(HttpForbiddenException::class, $errorHandler);
 
 $settingModel = new Setting($databaseService);
-$assetTypeTableService = new AssetTypeTableService($databaseService);
-$assetTypeModel = new AssetType($databaseService, $assetTypeTableService);
+$ddlIdentifierGuard = new DdlIdentifierGuard();
+$assetTypeTableService = new AssetTypeTableService($databaseService, $ddlIdentifierGuard);
+$assetTypeModel = new AssetType($databaseService, $assetTypeTableService, $ddlIdentifierGuard);
 $assetRegistryModel = new AssetRegistry($databaseService);
-$assetCustomFieldModel = new AssetCustomField($databaseService, $assetTypeTableService, $assetTypeModel);
-$assetComponentModel = new AssetComponent($databaseService, $assetTypeModel);
+$assetsGlobalRegistryModel = new AssetsGlobalRegistry($databaseService);
+$assetCustomFieldModel = new AssetCustomField($databaseService, $assetTypeTableService, $assetTypeModel, $ddlIdentifierGuard);
+$assetComponentModel = new AssetComponent($databaseService, $assetTypeModel, $assetTypeTableService);
 $assetColumnSchemaService = new AssetColumnSchemaService(
     $databaseService,
     $settingModel,
     $assetTypeTableService,
-    $assetCustomFieldModel
+    $assetCustomFieldModel,
+    $assetComponentModel
 );
-$assetModel = new Asset($databaseService, $assetColumnSchemaService, $assetTypeTableService, $assetRegistryModel);
+$assetModel = new Asset(
+    $databaseService,
+    $assetColumnSchemaService,
+    $assetTypeTableService,
+    $assetRegistryModel,
+    $assetsGlobalRegistryModel,
+    $assetTypeModel
+);
 $assetHistoryModel = new AssetHistory($databaseService);
 $categoryModel = new Category($databaseService);
 $locationModel = new Location($databaseService);
@@ -227,6 +238,7 @@ $categoryController = new CategoryController($categoryModel, $sessionAuthService
 $assetTypeController = new AssetTypeController($assetTypeModel, $sessionAuthService, $auditLogger);
 $assetCustomFieldController = new AssetCustomFieldController(
     $assetCustomFieldModel,
+    $assetComponentModel,
     $assetTypeModel,
     $assetTypeTableService,
     $sessionAuthService,
@@ -252,7 +264,7 @@ $ipNetworkController = new IpNetworkController(
 );
 $consumableController = new ConsumableController($consumableModel, $locationModel, $consumableFilterSchemaService);
 $knowledgeBaseController = new KnowledgeBaseController($knowledgeBaseArticleModel, $sessionAuthService, $appLogger);
-$ticketModel = new Ticket($databaseService);
+$ticketModel = new Ticket($databaseService, $assetsGlobalRegistryModel, $assetRegistryModel);
 $ticketNotificationService = new TicketNotificationService(
     $mailService,
     $mailConfigResolver,

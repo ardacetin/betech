@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Services\AssetTypeTableService;
 use App\Services\DatabaseService;
 use Medoo\Medoo;
 
@@ -12,6 +13,7 @@ class AssetComponent
     public function __construct(
         private readonly DatabaseService $databaseService,
         private readonly AssetType $assetTypeModel,
+        private readonly AssetTypeTableService $assetTypeTableService,
     ) {
     }
 
@@ -58,7 +60,9 @@ class AssetComponent
      */
     public function create(int $assetTypeId, string $name, string $description = '', int $sortOrder = 0): array
     {
-        if ($this->assetTypeModel->findById($assetTypeId) === null) {
+        $assetType = $this->assetTypeModel->findById($assetTypeId);
+
+        if ($assetType === null) {
             throw new \InvalidArgumentException(__('asset_type_not_found'));
         }
 
@@ -69,6 +73,9 @@ class AssetComponent
         }
 
         $slug = $this->ensureUniqueSlug($assetTypeId, $this->generateSlug($trimmedName));
+        $columnName = $this->uniqueColumnName($assetTypeId, $this->generateColumnName($trimmedName));
+        $tableName = $this->assetTypeTableService->createTableForSlug((string) $assetType['slug']);
+        $this->assetTypeTableService->addColumn($tableName, $columnName);
 
         if ($sortOrder <= 0) {
             $sortOrder = $this->nextSortOrder($assetTypeId);
@@ -78,6 +85,7 @@ class AssetComponent
             'asset_type_id' => $assetTypeId,
             'name' => $trimmedName,
             'slug' => $slug,
+            'column_name' => $columnName,
             'description' => trim($description) !== '' ? trim($description) : null,
             'sort_order' => $sortOrder,
         ]);
@@ -144,88 +152,22 @@ class AssetComponent
             return false;
         }
 
-        $this->db()->delete('asset_component_values', [
-            'component_id' => $id,
-        ]);
+        $assetTypeId = (int) ($existing['asset_type_id'] ?? 0);
+        $columnName = trim((string) ($existing['column_name'] ?? ''));
+
+        if ($columnName !== '' && $assetTypeId > 0) {
+            try {
+                $tableName = $this->assetTypeTableService->tableNameForTypeId($assetTypeId);
+                $this->assetTypeTableService->dropColumn($tableName, $columnName);
+            } catch (\Throwable) {
+            }
+        }
 
         $this->db()->delete('asset_components', [
             'id' => $id,
         ]);
 
         return $this->findById($id) === null;
-    }
-
-    /**
-     * @return array<string, string>
-     */
-    public function getValuesForAsset(int $assetTypeId, int $assetId): array
-    {
-        $rows = $this->db()->select('asset_component_values', [
-            'component_id',
-            'value',
-        ], [
-            'asset_type_id' => $assetTypeId,
-            'asset_id' => $assetId,
-        ]);
-
-        $values = [];
-
-        foreach ($rows as $row) {
-            $values[(string) ($row['component_id'] ?? '')] = (string) ($row['value'] ?? '');
-        }
-
-        return $values;
-    }
-
-    /**
-     * @param array<int|string, string|null> $valuesByComponentId
-     */
-    public function syncValuesForAsset(int $assetTypeId, int $assetId, array $valuesByComponentId): void
-    {
-        foreach ($valuesByComponentId as $componentId => $value) {
-            $componentId = (int) $componentId;
-
-            if ($componentId <= 0) {
-                continue;
-            }
-
-            $trimmedValue = trim((string) ($value ?? ''));
-
-            if ($trimmedValue === '') {
-                $this->db()->delete('asset_component_values', [
-                    'asset_type_id' => $assetTypeId,
-                    'asset_id' => $assetId,
-                    'component_id' => $componentId,
-                ]);
-
-                continue;
-            }
-
-            $existing = $this->db()->get('asset_component_values', 'id', [
-                'asset_type_id' => $assetTypeId,
-                'asset_id' => $assetId,
-                'component_id' => $componentId,
-            ]);
-
-            if ($existing !== null) {
-                $this->db()->update('asset_component_values', [
-                    'value' => $trimmedValue,
-                ], [
-                    'asset_type_id' => $assetTypeId,
-                    'asset_id' => $assetId,
-                    'component_id' => $componentId,
-                ]);
-
-                continue;
-            }
-
-            $this->db()->insert('asset_component_values', [
-                'asset_type_id' => $assetTypeId,
-                'asset_id' => $assetId,
-                'component_id' => $componentId,
-                'value' => $trimmedValue,
-            ]);
-        }
     }
 
     private function nextSortOrder(int $assetTypeId): int
@@ -250,6 +192,46 @@ class AssetComponent
         $slug = trim($slug, '-');
 
         return $slug !== '' ? $slug : 'component';
+    }
+
+    private function generateColumnName(string $name): string
+    {
+        $base = custom_field_code_from_label($name);
+
+        return str_starts_with($base, 'comp_') ? $base : 'comp_' . $base;
+    }
+
+    private function uniqueColumnName(int $assetTypeId, string $baseName): string
+    {
+        $name = $baseName !== '' ? $baseName : 'comp_field';
+        $suffix = 2;
+
+        while ($this->columnNameExists($assetTypeId, $name)
+            || in_array($name, AssetTypeTableService::BASE_COLUMNS, true)) {
+            $name = $baseName . '_' . $suffix;
+            ++$suffix;
+        }
+
+        return $name;
+    }
+
+    private function columnNameExists(int $assetTypeId, string $columnName): bool
+    {
+        if ($this->db()->has('asset_components', [
+            'asset_type_id' => $assetTypeId,
+            'column_name' => $columnName,
+        ])) {
+            return true;
+        }
+
+        if ($this->db()->has('asset_custom_fields', [
+            'asset_type_id' => $assetTypeId,
+            'column_name' => $columnName,
+        ])) {
+            return true;
+        }
+
+        return false;
     }
 
     private function ensureUniqueSlug(int $assetTypeId, string $baseSlug, ?int $ignoreId = null): string
@@ -296,6 +278,10 @@ class AssetComponent
 
         if (isset($row['sort_order'])) {
             $row['sort_order'] = (int) $row['sort_order'];
+        }
+
+        if (trim((string) ($row['column_name'] ?? '')) === '' && trim((string) ($row['name'] ?? '')) !== '') {
+            $row['column_name'] = $this->generateColumnName((string) $row['name']);
         }
 
         return $row;

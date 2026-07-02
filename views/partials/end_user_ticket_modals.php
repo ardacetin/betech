@@ -122,3 +122,57 @@ $adminLabelClass = 'mb-1.5 block text-sm font-medium text-zinc-700';
     class="fixed inset-x-0 top-4 z-[70] mx-auto max-w-md rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-center text-sm font-medium text-emerald-700 shadow-soft"
     x-text="portalToastMessage"
 ></p>
+
+<div
+    x-show="isPortalAssetDetailOpen"
+    x-cloak
+    class="fixed inset-0 z-[60] flex items-center justify-center px-4"
+    @keydown.escape.window="closePortalAssetDetail()"
+>
+    <div class="absolute inset-0 bg-zinc-900/40 backdrop-blur-sm" @click="closePortalAssetDetail()"></div>
+    <div class="relative w-full max-w-4xl rounded-2xl border border-zinc-200 bg-white shadow-soft">
+        <div class="flex items-center justify-between border-b border-zinc-200 px-6 py-4">
+            <div>
+                <p class="text-xs font-medium uppercase tracking-wide text-zinc-400" x-text="portalAssetDetail?.asset_tag"></p>
+                <h3 class="mt-1 text-lg font-semibold text-zinc-900" x-text="portalAssetDetail?.name"></h3>
+            </div>
+            <button type="button" @click="closePortalAssetDetail()" class="rounded-lg p-2 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600">&times;</button>
+        </div>
+        <div class="grid gap-4 px-6 py-5 sm:grid-cols-2">
+            <div>
+                <p class="text-xs font-medium uppercase tracking-wide text-zinc-400"><?= htmlspecialchars(__('col_asset_type_name'), ENT_QUOTES, 'UTF-8') ?></p>
+                <p class="mt-1 text-sm text-zinc-900" x-text="portalAssetDetail?.asset_type_name || '—'"></p>
+            </div>
+            <div>
+                <p class="text-xs font-medium uppercase tracking-wide text-zinc-400"><?= htmlspecialchars(__('col_serial_number'), ENT_QUOTES, 'UTF-8') ?></p>
+                <p class="mt-1 font-mono text-sm text-zinc-900" x-text="portalAssetDetail?.serial_number || '—'"></p>
+            </div>
+            <div>
+                <p class="text-xs font-medium uppercase tracking-wide text-zinc-400"><?= htmlspecialchars(__('col_status'), ENT_QUOTES, 'UTF-8') ?></p>
+                <p class="mt-1">
+                    <span class="inline-flex rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-inset" :class="portalAssetStatusClass(portalAssetDetail?.status)" x-text="portalAssetStatusLabel(portalAssetDetail?.status)"></span>
+                </p>
+            </div>
+            <div>
+                <p class="text-xs font-medium uppercase tracking-wide text-zinc-400"><?= htmlspecialchars(__('label_model'), ENT_QUOTES, 'UTF-8') ?></p>
+                <p class="mt-1 text-sm text-zinc-900" x-text="portalAssetDetail?.model || '—'"></p>
+            </div>
+            <div>
+                <p class="text-xs font-medium uppercase tracking-wide text-zinc-400"><?= htmlspecialchars(__('label_brand'), ENT_QUOTES, 'UTF-8') ?></p>
+                <p class="mt-1 text-sm text-zinc-900" x-text="portalAssetDetail?.brand || '—'"></p>
+            </div>
+            <div>
+                <p class="text-xs font-medium uppercase tracking-wide text-zinc-400"><?= htmlspecialchars(__('col_location'), ENT_QUOTES, 'UTF-8') ?></p>
+                <p class="mt-1 text-sm text-zinc-900" x-text="portalAssetDetail?.location || '—'"></p>
+            </div>
+        </div>
+        <div class="flex flex-wrap justify-end gap-3 border-t border-zinc-200 px-6 py-4">
+            <button type="button" @click="printTutanak(portalAssetDetail?.id)" class="rounded-xl border border-zinc-200 px-4 py-2.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50">
+                <?= htmlspecialchars(__('action_print_tutanak'), ENT_QUOTES, 'UTF-8') ?>
+            </button>
+            <button type="button" @click="openPortalTicketModalForAsset(portalAssetDetail); closePortalAssetDetail()" class="rounded-xl bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-zinc-800">
+                <?= htmlspecialchars(__('portal_report_issue'), ENT_QUOTES, 'UTF-8') ?>
+            </button>
+        </div>
+    </div>
+</div>

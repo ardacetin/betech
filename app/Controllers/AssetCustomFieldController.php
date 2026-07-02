@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Controllers;
 
+use App\Models\AssetComponent;
 use App\Models\AssetCustomField;
 use App\Models\AssetType;
 use App\Models\AuditLog;
@@ -17,6 +18,7 @@ class AssetCustomFieldController
 {
     public function __construct(
         private readonly AssetCustomField $assetCustomFieldModel,
+        private readonly AssetComponent $assetComponentModel,
         private readonly AssetType $assetTypeModel,
         private readonly AssetTypeTableService $assetTypeTableService,
         private readonly SessionAuthService $sessionAuthService,
@@ -260,7 +262,8 @@ class AssetCustomFieldController
         }
 
         $customFields = $this->assetCustomFieldModel->findByAssetTypeId($assetTypeId);
-        $schema = $this->assetTypeTableService->buildSchemaDefinition($assetTypeId, $customFields);
+        $components = $this->assetComponentModel->findByAssetTypeId($assetTypeId);
+        $schema = $this->assetTypeTableService->buildSchemaDefinition($assetTypeId, $customFields, $components);
         $tableName = $this->assetTypeTableService->tableNameForTypeId($assetTypeId);
 
         return $this->jsonResponse($response, 200, [
@@ -270,6 +273,7 @@ class AssetCustomFieldController
                 'table' => $tableName,
                 'columns' => $schema,
                 'custom_fields' => $customFields,
+                'components' => $components,
             ],
         ]);
     }

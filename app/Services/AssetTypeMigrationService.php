@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services;
 
 use App\Models\AssetType;
+use App\Models\AssetsGlobalRegistry;
 
 class AssetTypeMigrationService
 {
@@ -12,6 +13,7 @@ class AssetTypeMigrationService
         private readonly DatabaseService $databaseService,
         private readonly AssetType $assetTypeModel,
         private readonly AssetTypeTableService $assetTypeTableService,
+        private readonly ?AssetsGlobalRegistry $assetsGlobalRegistry = null,
     ) {
     }
 
@@ -42,6 +44,63 @@ class AssetTypeMigrationService
             }
 
             $this->migrateLegacyRowsForType($typeId, $tableName, $warnings);
+        }
+
+        foreach ($this->backfillGlobalRegistry() as $warning) {
+            $warnings[] = $warning;
+        }
+
+        return $warnings;
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function backfillGlobalRegistry(): array
+    {
+        $warnings = [];
+
+        if ($this->assetsGlobalRegistry === null || !$this->assetsGlobalRegistry->tableExists()) {
+            return $warnings;
+        }
+
+        $connection = $this->databaseService->getConnection();
+        $synced = 0;
+
+        foreach ($this->assetTypeModel->findAll() as $assetType) {
+            $typeId = (int) ($assetType['id'] ?? 0);
+            $slug = trim((string) ($assetType['slug'] ?? ''));
+
+            if ($typeId <= 0 || $slug === '') {
+                continue;
+            }
+
+            $tableName = $this->assetTypeTableService->tableNameForSlug($slug);
+
+            if (!$this->tableExists($tableName)) {
+                continue;
+            }
+
+            $rows = $connection->select($tableName, '*');
+
+            foreach ($rows as $row) {
+                if (!is_array($row)) {
+                    continue;
+                }
+
+                $assetId = (int) ($row['id'] ?? 0);
+
+                if ($assetId <= 0) {
+                    continue;
+                }
+
+                $this->assetsGlobalRegistry->sync($assetId, $slug, $row);
+                ++$synced;
+            }
+        }
+
+        if ($synced > 0) {
+            $warnings[] = sprintf('Synchronized %d asset row(s) into assets_global_registry.', $synced);
         }
 
         return $warnings;

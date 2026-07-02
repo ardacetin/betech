@@ -6,6 +6,7 @@ namespace App\Models;
 
 use App\Services\AssetTypeTableService;
 use App\Services\DatabaseService;
+use App\Services\DdlIdentifierGuard;
 use JsonException;
 use Medoo\Medoo;
 
@@ -15,6 +16,7 @@ class AssetCustomField
         private readonly DatabaseService $databaseService,
         private readonly AssetTypeTableService $assetTypeTableService,
         private readonly AssetType $assetTypeModel,
+        private readonly DdlIdentifierGuard $ddlIdentifierGuard,
     ) {
     }
 
@@ -26,17 +28,23 @@ class AssetCustomField
     /**
      * @return list<array<string, mixed>>
      */
-    public function findByAssetTypeId(int $assetTypeId): array
+    public function findByAssetTypeId(int $assetTypeId, bool $activeOnly = true): array
     {
+        $conditions = [
+            'asset_type_id' => $assetTypeId,
+            'ORDER' => [
+                'sort_order' => 'ASC',
+                'label' => 'ASC',
+            ],
+        ];
+
+        if ($activeOnly && $this->hasIsActiveColumn()) {
+            $conditions['is_active'] = 1;
+        }
+
         return array_map(
             fn (array $row): array => $this->normalizeRow($row),
-            $this->db()->select('asset_custom_fields', '*', [
-                'asset_type_id' => $assetTypeId,
-                'ORDER' => [
-                    'sort_order' => 'ASC',
-                    'label' => 'ASC',
-                ],
-            ])
+            $this->db()->select('asset_custom_fields', '*', $conditions)
         );
     }
 
@@ -80,7 +88,10 @@ class AssetCustomField
             throw new \InvalidArgumentException(__('asset_custom_field_label_required'));
         }
 
-        $columnName = $this->uniqueColumnName($assetTypeId, custom_field_code_from_label($trimmedLabel));
+        $columnName = $this->uniqueColumnName(
+            $assetTypeId,
+            $this->ddlIdentifierGuard->columnNameFromLabel($trimmedLabel)
+        );
         $tableName = $this->assetTypeTableService->createTableForSlug((string) $assetType['slug']);
         $this->assetTypeTableService->addColumn($tableName, $columnName, $fieldType);
 
@@ -88,14 +99,20 @@ class AssetCustomField
             $sortOrder = $this->nextSortOrder($assetTypeId);
         }
 
-        $this->db()->insert('asset_custom_fields', [
+        $insert = [
             'asset_type_id' => $assetTypeId,
             'label' => $trimmedLabel,
             'column_name' => $columnName,
             'field_type' => $this->normalizeFieldType($fieldType),
             'options' => $this->encodeOptions($options),
             'sort_order' => $sortOrder,
-        ]);
+        ];
+
+        if ($this->hasIsActiveColumn()) {
+            $insert['is_active'] = 1;
+        }
+
+        $this->db()->insert('asset_custom_fields', $insert);
 
         $created = $this->findById((int) $this->db()->id());
 
@@ -155,12 +172,16 @@ class AssetCustomField
             return false;
         }
 
-        $assetTypeId = (int) ($existing['asset_type_id'] ?? 0);
-        $columnName = (string) ($existing['column_name'] ?? '');
-        $tableName = $this->assetTypeTableService->tableNameForTypeId($assetTypeId);
+        if ($this->hasIsActiveColumn()) {
+            $this->db()->update('asset_custom_fields', [
+                'is_active' => 0,
+            ], [
+                'id' => $id,
+            ]);
 
-        if ($columnName !== '') {
-            $this->assetTypeTableService->dropColumn($tableName, $columnName);
+            $updated = $this->findById($id);
+
+            return is_array($updated) && (int) ($updated['is_active'] ?? 1) === 0;
         }
 
         $this->db()->delete('asset_custom_fields', [
@@ -168,6 +189,29 @@ class AssetCustomField
         ]);
 
         return $this->findById($id) === null;
+    }
+
+    private function hasIsActiveColumn(): bool
+    {
+        static $cached = null;
+
+        if ($cached !== null) {
+            return $cached;
+        }
+
+        $statement = $this->db()->query(
+            "SHOW COLUMNS FROM `asset_custom_fields` LIKE 'is_active'"
+        );
+
+        if ($statement === false) {
+            $cached = false;
+
+            return false;
+        }
+
+        $cached = $statement->fetch() !== false;
+
+        return $cached;
     }
 
     private function nextSortOrder(int $assetTypeId): int
@@ -181,12 +225,12 @@ class AssetCustomField
 
     private function uniqueColumnName(int $assetTypeId, string $baseName): string
     {
-        $name = $baseName !== '' ? $baseName : 'custom_field';
+        $name = $this->ddlIdentifierGuard->assertSafeIdentifier($baseName !== '' ? $baseName : 'custom_field', 'column');
         $suffix = 2;
 
         while ($this->columnNameExists($assetTypeId, $name)
             || in_array($name, AssetTypeTableService::BASE_COLUMNS, true)) {
-            $name = $baseName . '_' . $suffix;
+            $name = $this->ddlIdentifierGuard->assertSafeIdentifier($baseName . '_' . $suffix, 'column');
             ++$suffix;
         }
 
@@ -205,8 +249,8 @@ class AssetCustomField
     {
         $normalized = mb_strtolower(trim($fieldType), 'UTF-8');
 
-        return in_array($normalized, ['varchar', 'text', 'number', 'dropdown'], true)
-            ? $normalized
+        return in_array($normalized, ['varchar', 'text', 'int', 'date', 'decimal', 'number', 'dropdown'], true)
+            ? ($normalized === 'number' ? 'int' : $normalized)
             : 'varchar';
     }
 
@@ -253,6 +297,10 @@ class AssetCustomField
 
         if (isset($row['sort_order'])) {
             $row['sort_order'] = (int) $row['sort_order'];
+        }
+
+        if (isset($row['is_active'])) {
+            $row['is_active'] = (int) $row['is_active'];
         }
 
         $options = $row['options'] ?? null;

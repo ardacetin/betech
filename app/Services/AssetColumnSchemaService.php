@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Models\AssetComponent;
 use App\Models\AssetCustomField;
 use App\Models\Setting;
 use Medoo\Medoo;
@@ -43,6 +44,7 @@ class AssetColumnSchemaService
         private readonly Setting $settingModel,
         private readonly AssetTypeTableService $assetTypeTableService,
         private readonly AssetCustomField $assetCustomFieldModel,
+        private readonly AssetComponent $assetComponentModel,
     ) {
     }
 
@@ -170,12 +172,36 @@ class AssetColumnSchemaService
     }
 
     /**
+     * @return list<array{id: int, name: string, label: string, type: string}>
+     */
+    public function getActiveComponents(?int $assetTypeId = null): array
+    {
+        if ($assetTypeId === null || $assetTypeId <= 0) {
+            return [];
+        }
+
+        return array_map(
+            static fn (array $component): array => [
+                'id' => (int) ($component['id'] ?? 0),
+                'name' => (string) ($component['column_name'] ?? ''),
+                'label' => (string) ($component['name'] ?? ''),
+                'type' => 'varchar',
+            ],
+            $this->assetComponentModel->findByAssetTypeId($assetTypeId)
+        );
+    }
+
+    /**
      * @return list<string>
      */
     public function getWritableColumnNames(?int $assetTypeId = null): array
     {
         $tableColumns = $this->listAssetsTableColumns($assetTypeId);
-        $allowed = array_merge($this->nativeColumns(), array_column($this->getActiveCustomFields($assetTypeId), 'name'));
+        $allowed = array_merge(
+            $this->nativeColumns(),
+            array_column($this->getActiveCustomFields($assetTypeId), 'name'),
+            array_column($this->getActiveComponents($assetTypeId), 'name')
+        );
         $allowed = array_values(array_unique($allowed));
 
         return array_values(array_intersect($allowed, $tableColumns));
@@ -294,6 +320,17 @@ class AssetColumnSchemaService
             ];
         }
 
+        foreach ($this->getActiveComponents($assetTypeId) as $component) {
+            if (!$this->columnExists($component['name'], $assetTypeId)) {
+                continue;
+            }
+
+            $schema[] = [
+                'column' => $component['name'],
+                'label' => $component['label'],
+            ];
+        }
+
         return $schema;
     }
 
@@ -374,6 +411,16 @@ class AssetColumnSchemaService
                 || mb_strtolower($field['name'], 'UTF-8') === mb_strtolower($trimmed, 'UTF-8')
             ) {
                 return $field['name'];
+            }
+        }
+
+        foreach ($this->getActiveComponents($assetTypeId) as $component) {
+            if (
+                $this->normalizeHeaderKey($component['label']) === $normalizedHeader
+                || $this->normalizeHeaderKey($component['name']) === $normalizedHeader
+                || mb_strtolower($component['name'], 'UTF-8') === mb_strtolower($trimmed, 'UTF-8')
+            ) {
+                return $component['name'];
             }
         }
 

@@ -6,6 +6,7 @@ namespace App\Models;
 
 use App\Services\AssetTypeTableService;
 use App\Services\DatabaseService;
+use App\Services\DdlIdentifierGuard;
 use Medoo\Medoo;
 
 class AssetType
@@ -13,6 +14,7 @@ class AssetType
     public function __construct(
         private readonly DatabaseService $databaseService,
         private readonly AssetTypeTableService $assetTypeTableService,
+        private readonly DdlIdentifierGuard $ddlIdentifierGuard,
     ) {
     }
 
@@ -100,6 +102,7 @@ class AssetType
         }
 
         $slug = $this->ensureUniqueSlug($this->generateSlug($trimmedName));
+        $this->ddlIdentifierGuard->assertSafeSlug($slug);
 
         $this->db()->insert('asset_types', [
             'name' => $trimmedName,
@@ -139,6 +142,7 @@ class AssetType
 
         if ($trimmedName !== (string) ($existing['name'] ?? '')) {
             $slug = $this->ensureUniqueSlug($this->generateSlug($trimmedName), $id);
+            $this->ddlIdentifierGuard->assertSafeSlug($slug);
         }
 
         $updateData = [

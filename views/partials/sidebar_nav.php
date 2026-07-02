@@ -67,43 +67,43 @@ $sectionHeaderClass = 'mt-6 mb-2 px-3 text-[11px] font-bold uppercase tracking-w
 
         <?php if ($canManageAssets): ?>
         <div class="<?= $sectionHeaderClass ?>"><?= htmlspecialchars(__('nav_section_operations'), ENT_QUOTES, 'UTF-8') ?></div>
-        <button
-            type="button"
-            @click="activeView = 'helpdesk'; fetchTickets(); fetchTicketCategories()"
-            class="group flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900"
-            :class="activeView === 'helpdesk' ? 'bg-gray-900 font-semibold text-white shadow-sm hover:bg-gray-900 hover:text-white' : ''"
-        >
-            <svg class="h-5 w-5 flex-shrink-0 text-gray-400 transition-colors group-hover:text-gray-500" :class="activeView === 'helpdesk' ? 'text-white group-hover:text-white' : ''" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 6v.75m0 3v.75m0 3v.75m0 3V18m-9-5.25h5.25M7.5 15h3M3.375 5.25c-.621 0-1.125.504-1.125 1.125v3.026a2.999 2.999 0 010 5.198v3.026c0 .621.504 1.125 1.125 1.125h17.25c.621 0 1.125-.504 1.125-1.125v-3.026a2.999 2.999 0 010-5.198V6.375c0-.621-.504-1.125-1.125-1.125H3.375z"></path>
-            </svg>
-            <span><?= htmlspecialchars(__('nav_helpdesk'), ENT_QUOTES, 'UTF-8') ?></span>
-        </button>
-        <button
-            type="button"
-            @click="activeView = 'knowledge_base'; fetchKnowledgeBaseArticles()"
-            class="group flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900"
-            :class="activeView === 'knowledge_base' ? 'bg-gray-900 font-semibold text-white shadow-sm hover:bg-gray-900 hover:text-white' : ''"
-        >
-            <svg class="h-5 w-5 flex-shrink-0 text-gray-400 transition-colors group-hover:text-gray-500" :class="activeView === 'knowledge_base' ? 'text-white group-hover:text-white' : ''" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25"></path>
-            </svg>
-            <span><?= htmlspecialchars(__('nav_knowledge_base'), ENT_QUOTES, 'UTF-8') ?></span>
-        </button>
-        <?php endif; ?>
-
-        <?php if ($canAccessSettings): ?>
-        <div class="<?= $sectionHeaderClass ?>"><?= htmlspecialchars(__('nav_section_management'), ENT_QUOTES, 'UTF-8') ?></div>
-        <button
-            type="button"
-            @click="activeView = 'reports'; fetchReports()"
-            class="group flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900"
-            :class="activeView === 'reports' ? 'bg-gray-900 font-semibold text-white shadow-sm hover:bg-gray-900 hover:text-white' : ''"
-        >
-            <svg class="h-5 w-5 flex-shrink-0 text-gray-400 transition-colors group-hover:text-gray-500" :class="activeView === 'reports' ? 'text-white group-hover:text-white' : ''" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z"></path>
-            </svg>
-            <span><?= htmlspecialchars(__('nav_reports'), ENT_QUOTES, 'UTF-8') ?></span>
-        </button>
+        <div class="space-y-1">
+            <button
+                type="button"
+                @click="activeView = 'helpdesk'; fetchTickets(); fetchTicketCategories()"
+                class="group flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900"
+                :class="activeView === 'helpdesk' ? 'bg-gray-900 font-semibold text-white shadow-sm hover:bg-gray-900 hover:text-white' : ''"
+            >
+                <svg class="h-5 w-5 flex-shrink-0 text-gray-400 transition-colors group-hover:text-gray-500" :class="activeView === 'helpdesk' ? 'text-white group-hover:text-white' : ''" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 6v.75m0 3v.75m0 3v.75m0 3V18m-9-5.25h5.25M7.5 15h3M3.375 5.25c-.621 0-1.125.504-1.125 1.125v3.026a2.999 2.999 0 010 5.198v3.026c0 .621.504 1.125 1.125 1.125h17.25c.621 0 1.125-.504 1.125-1.125v-3.026a2.999 2.999 0 010-5.198V6.375c0-.621-.504-1.125-1.125-1.125H3.375z"></path>
+                </svg>
+                <span><?= htmlspecialchars(__('nav_helpdesk'), ENT_QUOTES, 'UTF-8') ?></span>
+            </button>
+            <button
+                type="button"
+                @click="activeView = 'knowledge_base'; fetchKnowledgeBaseArticles()"
+                class="group flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900"
+                :class="activeView === 'knowledge_base' ? 'bg-gray-900 font-semibold text-white shadow-sm hover:bg-gray-900 hover:text-white' : ''"
+            >
+                <svg class="h-5 w-5 flex-shrink-0 text-gray-400 transition-colors group-hover:text-gray-500" :class="activeView === 'knowledge_base' ? 'text-white group-hover:text-white' : ''" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25"></path>
+                </svg>
+                <span><?= htmlspecialchars(__('nav_knowledge_base'), ENT_QUOTES, 'UTF-8') ?></span>
+            </button>
+            <?php if ($canAccessSettings): ?>
+            <button
+                type="button"
+                @click="activeView = 'reports'; fetchReports()"
+                class="group ml-4 flex w-[calc(100%-1rem)] items-center gap-3 rounded-lg border-l border-gray-200 px-3 py-2 pl-4 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900"
+                :class="activeView === 'reports' ? 'bg-gray-900 font-semibold text-white shadow-sm hover:bg-gray-900 hover:text-white' : ''"
+            >
+                <svg class="h-5 w-5 flex-shrink-0 text-gray-400 transition-colors group-hover:text-gray-500" :class="activeView === 'reports' ? 'text-white group-hover:text-white' : ''" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z"></path>
+                </svg>
+                <span><?= htmlspecialchars(__('nav_reports'), ENT_QUOTES, 'UTF-8') ?></span>
+            </button>
+            <?php endif; ?>
+        </div>
         <?php endif; ?>
 
         <div class="<?= $sectionHeaderClass ?>"><?= htmlspecialchars(__('nav_section_asset_management'), ENT_QUOTES, 'UTF-8') ?></div>

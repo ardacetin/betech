@@ -10,20 +10,32 @@ use RuntimeException;
 
 class AssetTypeTableService
 {
+    public const DEFAULT_EXTENDED_TYPE_SLUG = 'bilgisayarlar';
+
     /** @var list<string> */
-    public const BASE_COLUMNS = [
+    public const FOUNDATION_COLUMNS = [
         'asset_tag',
         'name',
+        'serial_number',
+        'status',
+        'assigned_to',
+    ];
+
+    /** @var list<string> */
+    public const EXTENDED_COLUMNS = [
         'model',
         'brand',
-        'serial_number',
         'type',
-        'status',
         'location',
         'building',
-        'assigned_to',
         'mac_address_1',
         'mac_address_2',
+    ];
+
+    /** @var list<string> */
+    public const BASE_COLUMNS = [
+        ...self::FOUNDATION_COLUMNS,
+        ...self::EXTENDED_COLUMNS,
     ];
 
     /** @var array<string, list<string>> */
@@ -31,6 +43,7 @@ class AssetTypeTableService
 
     public function __construct(
         private readonly DatabaseService $databaseService,
+        private readonly DdlIdentifierGuard $ddlIdentifierGuard,
     ) {
     }
 
@@ -88,32 +101,40 @@ class AssetTypeTableService
             return $tableName;
         }
 
+        $normalizedSlug = $this->normalizeSlug($slug);
+        $extended = $this->usesExtendedSchema($slug);
+        $columnDefinitions = [
+            'id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT',
+            'asset_tag VARCHAR(64) NOT NULL',
+            'name VARCHAR(255) NOT NULL',
+            'serial_number VARCHAR(128) DEFAULT NULL',
+            'status VARCHAR(32) NOT NULL DEFAULT \'ready\'',
+            'assigned_to VARCHAR(255) DEFAULT NULL',
+        ];
+
+        if ($extended) {
+            $columnDefinitions = array_merge($columnDefinitions, [
+                'model VARCHAR(255) DEFAULT NULL',
+                'brand VARCHAR(255) DEFAULT NULL',
+                'type VARCHAR(255) DEFAULT NULL',
+                'location VARCHAR(255) DEFAULT NULL',
+                'building VARCHAR(255) DEFAULT NULL',
+                'mac_address_1 VARCHAR(255) DEFAULT NULL',
+                'mac_address_2 VARCHAR(255) DEFAULT NULL',
+            ]);
+        }
+
+        $columnDefinitions[] = 'created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP';
+        $columnDefinitions[] = 'updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP';
+        $columnDefinitions[] = 'PRIMARY KEY (id)';
+        $columnDefinitions[] = sprintf('UNIQUE KEY uq_%s_asset_tag (asset_tag)', $normalizedSlug);
+        $columnDefinitions[] = sprintf('KEY idx_%s_serial_number (serial_number)', $normalizedSlug);
+        $columnDefinitions[] = sprintf('KEY idx_%s_status (status)', $normalizedSlug);
+
         $sql = sprintf(
-            'CREATE TABLE IF NOT EXISTS `%s` (
-                id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-                asset_tag VARCHAR(64) NOT NULL,
-                name VARCHAR(255) NOT NULL,
-                model VARCHAR(255) DEFAULT NULL,
-                brand VARCHAR(255) DEFAULT NULL,
-                serial_number VARCHAR(128) DEFAULT NULL,
-                type VARCHAR(255) DEFAULT NULL,
-                status VARCHAR(32) NOT NULL DEFAULT \'ready\',
-                location VARCHAR(255) DEFAULT NULL,
-                building VARCHAR(255) DEFAULT NULL,
-                assigned_to VARCHAR(255) DEFAULT NULL,
-                mac_address_1 VARCHAR(255) DEFAULT NULL,
-                mac_address_2 VARCHAR(255) DEFAULT NULL,
-                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-                PRIMARY KEY (id),
-                UNIQUE KEY uq_%s_asset_tag (asset_tag),
-                KEY idx_%s_serial_number (serial_number),
-                KEY idx_%s_status (status)
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci',
+            'CREATE TABLE IF NOT EXISTS `%s` (%s) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci',
             $tableName,
-            $this->normalizeSlug($slug),
-            $this->normalizeSlug($slug),
-            $this->normalizeSlug($slug)
+            implode(",\n                ", $columnDefinitions)
         );
 
         $this->db()->query($sql);
@@ -179,6 +200,8 @@ class AssetTypeTableService
 
     public function addColumn(string $tableName, string $columnName, string $fieldType = 'varchar'): bool
     {
+        $this->ddlIdentifierGuard->assertSafeIdentifier($columnName, 'column');
+
         if (!$this->isValidColumnIdentifier($columnName)) {
             throw new RuntimeException(sprintf('Invalid column name: %s', $columnName));
         }
@@ -189,7 +212,7 @@ class AssetTypeTableService
 
         $sqlType = $this->mapFieldTypeToSql($fieldType);
         $sql = sprintf(
-            'ALTER TABLE `%s` ADD COLUMN `%s` %s NULL DEFAULT NULL',
+            'ALTER TABLE `%s` ADD COLUMN `%s` %s DEFAULT NULL',
             $tableName,
             $columnName,
             $sqlType
@@ -218,6 +241,8 @@ class AssetTypeTableService
 
     public function dropColumn(string $tableName, string $columnName): void
     {
+        $this->ddlIdentifierGuard->assertSafeIdentifier($columnName, 'column');
+
         if (!$this->isValidColumnIdentifier($columnName)) {
             throw new RuntimeException(sprintf('Invalid column name: %s', $columnName));
         }
@@ -231,13 +256,28 @@ class AssetTypeTableService
             return;
         }
 
-        $this->db()->query(sprintf(
-            'ALTER TABLE `%s` DROP COLUMN `%s`',
-            $tableName,
-            $columnName
-        ));
+        try {
+            $this->db()->query(sprintf(
+                'ALTER TABLE `%s` DROP COLUMN `%s`',
+                $tableName,
+                $columnName
+            ));
+        } catch (PDOException $exception) {
+            if (!$this->isMissingColumnError($exception)) {
+                throw new RuntimeException(
+                    sprintf('Failed to drop column `%s` on `%s`: %s', $columnName, $tableName, $exception->getMessage()),
+                    0,
+                    $exception
+                );
+            }
+        }
 
         unset($this->tableColumnsCache[$tableName]);
+    }
+
+    public function usesExtendedSchema(string $slug): bool
+    {
+        return $this->normalizeSlug($slug) === self::DEFAULT_EXTENDED_TYPE_SLUG;
     }
 
     public function countRows(string $tableName): int
@@ -252,25 +292,12 @@ class AssetTypeTableService
     /**
      * @return list<array{column: string, label: string, type: string, is_custom: bool}>
      */
-    public function buildSchemaDefinition(int $assetTypeId, array $customFields = []): array
+    public function buildSchemaDefinition(int $assetTypeId, array $customFields = [], array $components = []): array
     {
         $tableName = $this->tableNameForTypeId($assetTypeId);
         $columns = $this->listTableColumns($tableName);
-        $customByColumn = [];
-
-        foreach ($customFields as $field) {
-            if (!is_array($field)) {
-                continue;
-            }
-
-            $columnName = trim((string) ($field['column_name'] ?? ''));
-
-            if ($columnName !== '') {
-                $customByColumn[$columnName] = $field;
-            }
-        }
-
         $schema = [];
+        $seen = [];
 
         foreach (AssetColumnSchemaService::NATIVE_COLUMN_LABELS as $column => $label) {
             if (!in_array($column, $columns, true)) {
@@ -282,8 +309,10 @@ class AssetTypeTableService
                 'label' => $label,
                 'type' => 'varchar',
                 'is_custom' => false,
+                'is_component' => false,
                 'input' => $column === 'status' ? 'select' : 'text',
             ];
+            $seen[$column] = true;
         }
 
         foreach ($customFields as $field) {
@@ -293,7 +322,7 @@ class AssetTypeTableService
 
             $columnName = trim((string) ($field['column_name'] ?? ''));
 
-            if ($columnName === '' || !in_array($columnName, $columns, true)) {
+            if ($columnName === '' || !in_array($columnName, $columns, true) || isset($seen[$columnName])) {
                 continue;
             }
 
@@ -302,12 +331,51 @@ class AssetTypeTableService
                 'label' => (string) ($field['label'] ?? $columnName),
                 'type' => (string) ($field['field_type'] ?? 'varchar'),
                 'is_custom' => true,
+                'is_component' => false,
                 'input' => $this->mapFieldTypeToInput((string) ($field['field_type'] ?? 'varchar')),
                 'options' => is_array($field['options'] ?? null) ? $field['options'] : [],
             ];
+            $seen[$columnName] = true;
         }
 
-        unset($customByColumn);
+        foreach ($components as $component) {
+            if (!is_array($component)) {
+                continue;
+            }
+
+            $columnName = trim((string) ($component['column_name'] ?? ''));
+
+            if ($columnName === '' || !in_array($columnName, $columns, true) || isset($seen[$columnName])) {
+                continue;
+            }
+
+            $schema[] = [
+                'column' => $columnName,
+                'label' => (string) ($component['name'] ?? $columnName),
+                'type' => 'varchar',
+                'is_custom' => false,
+                'is_component' => true,
+                'input' => 'text',
+                'options' => [],
+            ];
+            $seen[$columnName] = true;
+        }
+
+        foreach ($columns as $column) {
+            if (isset($seen[$column]) || in_array($column, ['id', 'created_at', 'updated_at'], true)) {
+                continue;
+            }
+
+            $schema[] = [
+                'column' => $column,
+                'label' => $column,
+                'type' => 'varchar',
+                'is_custom' => true,
+                'is_component' => false,
+                'input' => 'text',
+                'options' => [],
+            ];
+        }
 
         return $schema;
     }
@@ -362,9 +430,11 @@ class AssetTypeTableService
     private function mapFieldTypeToSql(string $fieldType): string
     {
         return match (mb_strtolower(trim($fieldType), 'UTF-8')) {
-            'text', 'textarea' => 'TEXT',
-            'number', 'int', 'integer' => 'INT NULL',
-            default => 'VARCHAR(255)',
+            'text', 'textarea' => 'TEXT NULL',
+            'int', 'integer', 'number' => 'INT NULL',
+            'date' => 'DATE NULL',
+            'decimal' => 'DECIMAL(12,2) NULL',
+            default => 'VARCHAR(255) NULL',
         };
     }
 
@@ -372,7 +442,9 @@ class AssetTypeTableService
     {
         return match (mb_strtolower(trim($fieldType), 'UTF-8')) {
             'text', 'textarea' => 'textarea',
-            'number', 'int', 'integer' => 'number',
+            'int', 'integer', 'number' => 'number',
+            'date' => 'date',
+            'decimal' => 'number',
             'dropdown', 'select' => 'select',
             default => 'text',
         };
@@ -390,5 +462,20 @@ class AssetTypeTableService
 
         return str_contains($message, 'duplicate column')
             || str_contains($message, '1060');
+    }
+
+    private function isMissingColumnError(PDOException $exception): bool
+    {
+        $errorInfo = $exception->errorInfo ?? null;
+
+        if (is_array($errorInfo) && isset($errorInfo[1]) && (int) $errorInfo[1] === 1091) {
+            return true;
+        }
+
+        $message = strtolower($exception->getMessage());
+
+        return str_contains($message, "check that column")
+            || str_contains($message, "can't drop")
+            || str_contains($message, '1091');
     }
 }
