@@ -284,12 +284,27 @@ class User
 
     public static function normalizeRoleStatic(?string $role): string
     {
-        $normalized = strtolower(trim((string) $role));
+        $normalized = mb_strtolower(trim((string) $role), 'UTF-8');
+        $slug = preg_replace('/\s+/', '_', $normalized) ?? $normalized;
 
-        return match ($normalized) {
-            'admin', 'super_admin', 'technician' => self::ROLE_ADMIN,
-            default => self::ROLE_USER,
-        };
+        $adminRoles = [
+            'admin',
+            'super_admin',
+            'technician',
+            'sistem yöneticisi',
+            'sistem yoneticisi',
+            'bilgi işlem',
+            'bilgi islem',
+            'sistem_yöneticisi',
+            'sistem_yoneticisi',
+            'bilgi_islem',
+        ];
+
+        if (in_array($normalized, $adminRoles, true) || in_array($slug, $adminRoles, true)) {
+            return self::ROLE_ADMIN;
+        }
+
+        return self::ROLE_USER;
     }
 
     /**

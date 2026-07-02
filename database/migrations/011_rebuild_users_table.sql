@@ -21,7 +21,7 @@ CREATE TABLE users (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 INSERT INTO users (name, email, password_hash, role) VALUES (
-    'Sistem Yöneticisi',
+    'Bilgi İşlem',
     'admin@betech.local',
     '$2y$12$Iq4I72XccafKZS3FyZACy.C8b1b1Y81WA6GrhaWuUd2CBqvSKhNV.',
     'super_admin'

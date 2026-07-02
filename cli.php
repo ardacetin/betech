@@ -71,7 +71,7 @@ if ($command === 'make:admin') {
     }
 
     echo sprintf(
-        "Success: '%s' (%s) is now a system administrator.\n",
+        "Success: '%s' (%s) is now a Bilgi İşlem administrator.\n",
         (string) ($person['name'] ?? $username),
         (string) ($person['email'] ?? '')
     );

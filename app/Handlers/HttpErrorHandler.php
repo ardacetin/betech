@@ -15,7 +15,7 @@ use Slim\Interfaces\CallableResolverInterface;
 
 class HttpErrorHandler extends ErrorHandler
 {
-    private const GENERIC_ERROR_MESSAGE = 'Sunucu hatası oluştu. Lütfen sistem yöneticisiyle iletişime geçin.';
+    private const GENERIC_ERROR_MESSAGE = 'Sunucu hatası oluştu. Lütfen Bilgi İşlem birimiyle iletişime geçin.';
 
     public function __construct(
         CallableResolverInterface $callableResolver,

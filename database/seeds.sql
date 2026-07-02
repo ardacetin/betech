@@ -32,7 +32,7 @@ FROM (
 WHERE NOT EXISTS (SELECT 1 FROM locations LIMIT 1);
 
 INSERT INTO users (name, email, role) VALUES
-('Sistem Yöneticisi', 'admin@betech.local', 'super_admin')
+('Bilgi İşlem', 'admin@betech.local', 'super_admin')
 ON DUPLICATE KEY UPDATE
     name = VALUES(name),
     role = 'super_admin';

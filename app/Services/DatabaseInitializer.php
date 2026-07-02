@@ -640,6 +640,22 @@ class DatabaseInitializer
               AND p.role <> 'admin'"
         );
 
+        $connection->query(
+            "UPDATE personnel
+            SET role = 'admin'
+            WHERE role IN ('Sistem Yöneticisi', 'sistem yöneticisi', 'Bilgi İşlem', 'bilgi işlem', 'super_admin', 'technician')"
+        );
+
+        if ($this->usersTableExists($connection)) {
+            $connection->query(
+                "UPDATE users SET name = 'Bilgi İşlem' WHERE name = 'Sistem Yöneticisi'"
+            );
+        }
+
+        $connection->query(
+            "UPDATE personnel SET name = 'Bilgi İşlem' WHERE name = 'Sistem Yöneticisi'"
+        );
+
         return ['Self-healed personnel table: migrated operator roles from users table.'];
     }
 
@@ -659,7 +675,7 @@ class DatabaseInitializer
         }
 
         $insertPayload = [
-            'name' => 'Sistem Yöneticisi',
+            'name' => 'Bilgi İşlem',
             'email' => $defaultAdminEmail,
             'role' => 'super_admin',
         ];

@@ -77,7 +77,7 @@ if (!$initializationResult->isSuccessful()) {
 
     echo json_encode([
         'status' => 'error',
-        'message' => $isProduction ? 'Veritabanı başlatılamadı. Lütfen sistem yöneticisiyle iletişime geçin.' : $message,
+        'message' => $isProduction ? 'Veritabanı başlatılamadı. Lütfen Bilgi İşlem birimiyle iletişime geçin.' : $message,
     ], JSON_THROW_ON_ERROR);
 
     exit(1);
