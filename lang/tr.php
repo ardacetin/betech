@@ -455,6 +455,8 @@ return [
     'analytics_no_category_data' => 'Henüz kategori verisi yok.',
     'inventory_title' => 'Envanter Listesi',
     'inventory_subtitle' => 'Tüm envanter alanları doğrudan veritabanı sütunlarında tutulur.',
+    'inventory_section_identity' => 'Kimlik ve Durum',
+    'inventory_section_location_network' => 'Lokasyon ve Ağ',
     'col_asset_tag' => 'Envanter Etiketi',
     'col_name' => 'Ad',
     'col_category' => 'Tür',

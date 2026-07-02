@@ -174,8 +174,20 @@ class Category
 
     public function countAssets(int $categoryId): int
     {
-        return $this->db()->count('assets', [
-            'category_id' => $categoryId,
+        $category = $this->findById($categoryId);
+
+        if ($category === null) {
+            return 0;
+        }
+
+        $categoryName = trim((string) ($category['name'] ?? ''));
+
+        if ($categoryName === '') {
+            return 0;
+        }
+
+        return (int) $this->db()->count('assets', [
+            'type' => $categoryName,
         ]);
     }
 

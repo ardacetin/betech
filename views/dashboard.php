@@ -769,88 +769,100 @@ $i18nScript = json_encode([
     <div
         x-show="isEditOpen"
         x-cloak
-        class="fixed inset-0 z-50 flex items-center justify-center px-4"
+        class="fixed inset-0 z-50 flex items-center justify-center px-4 py-6"
         @keydown.escape.window="closeEditModal()"
     >
         <div class="absolute inset-0 bg-zinc-900/40 backdrop-blur-sm" @click="closeEditModal()"></div>
 
-        <div class="relative w-full max-w-xl rounded-2xl border border-zinc-200 bg-white shadow-soft">
+        <div class="relative flex max-h-[92vh] w-full max-w-3xl flex-col rounded-2xl border border-zinc-200 bg-white shadow-soft">
             <div class="flex items-center justify-between border-b border-zinc-200 px-6 py-4">
                 <div>
                     <h3 class="text-lg font-semibold text-zinc-900"><?= htmlspecialchars(__('modal_edit_asset'), ENT_QUOTES, 'UTF-8') ?></h3>
-                    <p class="mt-1 text-sm text-zinc-500"><?= htmlspecialchars(__('modal_edit_subtitle'), ENT_QUOTES, 'UTF-8') ?></p>
+                    <p class="mt-1 text-sm text-zinc-500"><?= htmlspecialchars(__('modal_asset_detail_subtitle'), ENT_QUOTES, 'UTF-8') ?></p>
                 </div>
                 <button type="button" @click="closeEditModal()" class="rounded-lg p-2 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600">&times;</button>
             </div>
 
-            <form @submit.prevent="submitEditForm" class="max-h-[70vh] overflow-y-auto px-6 py-5">
-                <div class="rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3">
-                    <p class="text-xs uppercase tracking-wide text-zinc-400"><?= htmlspecialchars(__('col_asset_tag'), ENT_QUOTES, 'UTF-8') ?></p>
-                    <p class="mt-1 text-sm font-semibold text-zinc-900" x-text="editAsset?.asset_tag"></p>
+            <form @submit.prevent="submitEditForm" class="flex min-h-0 flex-1 flex-col overflow-hidden">
+                <div class="min-h-0 flex-1 overflow-y-auto px-6 py-5">
+                    <div class="grid gap-6 lg:grid-cols-2">
+                        <div class="space-y-3">
+                            <h4 class="text-xs font-semibold uppercase tracking-wide text-zinc-500"><?= htmlspecialchars(__('inventory_section_identity'), ENT_QUOTES, 'UTF-8') ?></h4>
+                            <label class="block">
+                                <span class="mb-1 block text-xs font-medium text-zinc-700"><?= htmlspecialchars(__('col_asset_tag'), ENT_QUOTES, 'UTF-8') ?></span>
+                                <input x-model="editForm.asset_tag" type="text" class="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4">
+                            </label>
+                            <label class="block">
+                                <span class="mb-1 block text-xs font-medium text-zinc-700"><?= htmlspecialchars(__('label_name'), ENT_QUOTES, 'UTF-8') ?></span>
+                                <input x-model="editForm.name" type="text" required class="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4">
+                            </label>
+                            <label class="block">
+                                <span class="mb-1 block text-xs font-medium text-zinc-700"><?= htmlspecialchars(__('col_model'), ENT_QUOTES, 'UTF-8') ?></span>
+                                <input x-model="editForm.model" type="text" class="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4">
+                            </label>
+                            <label class="block">
+                                <span class="mb-1 block text-xs font-medium text-zinc-700"><?= htmlspecialchars(__('col_brand'), ENT_QUOTES, 'UTF-8') ?></span>
+                                <input x-model="editForm.brand" type="text" class="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4">
+                            </label>
+                            <label class="block">
+                                <span class="mb-1 block text-xs font-medium text-zinc-700"><?= htmlspecialchars(__('label_serial_number'), ENT_QUOTES, 'UTF-8') ?></span>
+                                <input x-model="editForm.serial_number" type="text" class="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4">
+                            </label>
+                            <label class="block">
+                                <span class="mb-1 block text-xs font-medium text-zinc-700"><?= htmlspecialchars(__('col_category'), ENT_QUOTES, 'UTF-8') ?></span>
+                                <input x-model="editForm.type" type="text" class="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4">
+                            </label>
+                            <label class="block">
+                                <span class="mb-1 block text-xs font-medium text-zinc-700"><?= htmlspecialchars(__('label_status'), ENT_QUOTES, 'UTF-8') ?></span>
+                                <select x-model="editForm.status" class="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4">
+                                    <option value="ready"><?= htmlspecialchars(__('status_ready'), ENT_QUOTES, 'UTF-8') ?></option>
+                                    <option value="deployed"><?= htmlspecialchars(__('status_deployed'), ENT_QUOTES, 'UTF-8') ?></option>
+                                    <option value="storage"><?= htmlspecialchars(__('status_storage'), ENT_QUOTES, 'UTF-8') ?></option>
+                                    <option value="broken"><?= htmlspecialchars(__('status_broken'), ENT_QUOTES, 'UTF-8') ?></option>
+                                </select>
+                            </label>
+                        </div>
+
+                        <div class="space-y-3">
+                            <h4 class="text-xs font-semibold uppercase tracking-wide text-zinc-500"><?= htmlspecialchars(__('inventory_section_location_network'), ENT_QUOTES, 'UTF-8') ?></h4>
+                            <label class="block">
+                                <span class="mb-1 block text-xs font-medium text-zinc-700"><?= htmlspecialchars(__('col_location'), ENT_QUOTES, 'UTF-8') ?></span>
+                                <input x-model="editForm.location" type="text" class="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4">
+                            </label>
+                            <label class="block">
+                                <span class="mb-1 block text-xs font-medium text-zinc-700"><?= htmlspecialchars(__('col_building'), ENT_QUOTES, 'UTF-8') ?></span>
+                                <input x-model="editForm.building" type="text" class="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4">
+                            </label>
+                            <label class="block">
+                                <span class="mb-1 block text-xs font-medium text-zinc-700"><?= htmlspecialchars(__('col_assigned_user'), ENT_QUOTES, 'UTF-8') ?></span>
+                                <input x-model="editForm.assigned_to" type="text" class="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4" placeholder="<?= htmlspecialchars(__('assign_user_hint'), ENT_QUOTES, 'UTF-8') ?>">
+                            </label>
+                            <label class="block">
+                                <span class="mb-1 block text-xs font-medium text-zinc-700"><?= htmlspecialchars(__('label_mac_address_1'), ENT_QUOTES, 'UTF-8') ?></span>
+                                <input x-model="editForm.mac_address_1" type="text" class="w-full rounded-lg border border-zinc-300 px-3 py-2 font-mono text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4">
+                            </label>
+                            <label class="block">
+                                <span class="mb-1 block text-xs font-medium text-zinc-700"><?= htmlspecialchars(__('label_mac_address_2'), ENT_QUOTES, 'UTF-8') ?></span>
+                                <input x-model="editForm.mac_address_2" type="text" class="w-full rounded-lg border border-zinc-300 px-3 py-2 font-mono text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4">
+                            </label>
+
+                            <div class="border-t border-zinc-200 pt-3">
+                                <h4 class="text-xs font-semibold text-zinc-900"><?= htmlspecialchars(__('label_assign_user'), ENT_QUOTES, 'UTF-8') ?></h4>
+                                <p class="mt-1 text-xs text-zinc-500"><?= htmlspecialchars(__('assign_user_hint'), ENT_QUOTES, 'UTF-8') ?></p>
+                                <?php require __DIR__ . '/partials/user_picker.php'; ?>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div x-show="editErrorMessage" x-cloak class="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700" x-text="editErrorMessage"></div>
                 </div>
 
-                <div class="mt-5 grid gap-4 sm:grid-cols-2">
-                    <label class="block sm:col-span-2">
-                        <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('label_name'), ENT_QUOTES, 'UTF-8') ?></span>
-                        <input x-model="editForm.name" type="text" required class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4">
-                    </label>
-                    <label class="block">
-                        <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('col_model'), ENT_QUOTES, 'UTF-8') ?></span>
-                        <input x-model="editForm.model" type="text" class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4">
-                    </label>
-                    <label class="block">
-                        <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('col_brand'), ENT_QUOTES, 'UTF-8') ?></span>
-                        <input x-model="editForm.brand" type="text" class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4">
-                    </label>
-                    <label class="block">
-                        <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('label_serial_number'), ENT_QUOTES, 'UTF-8') ?></span>
-                        <input x-model="editForm.serial_number" type="text" class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4">
-                    </label>
-                    <label class="block">
-                        <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('col_category'), ENT_QUOTES, 'UTF-8') ?></span>
-                        <input x-model="editForm.type" type="text" class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4">
-                    </label>
-                    <label class="block">
-                        <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('label_status'), ENT_QUOTES, 'UTF-8') ?></span>
-                        <select x-model="editForm.status" class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4">
-                            <option value="ready"><?= htmlspecialchars(__('status_ready'), ENT_QUOTES, 'UTF-8') ?></option>
-                            <option value="deployed"><?= htmlspecialchars(__('status_deployed'), ENT_QUOTES, 'UTF-8') ?></option>
-                            <option value="storage"><?= htmlspecialchars(__('status_storage'), ENT_QUOTES, 'UTF-8') ?></option>
-                            <option value="broken"><?= htmlspecialchars(__('status_broken'), ENT_QUOTES, 'UTF-8') ?></option>
-                        </select>
-                    </label>
-                    <label class="block">
-                        <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('col_location'), ENT_QUOTES, 'UTF-8') ?></span>
-                        <input x-model="editForm.location" type="text" class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4">
-                    </label>
-                    <label class="block">
-                        <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('col_building'), ENT_QUOTES, 'UTF-8') ?></span>
-                        <input x-model="editForm.building" type="text" class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4">
-                    </label>
-                    <label class="block">
-                        <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('label_mac_address_1'), ENT_QUOTES, 'UTF-8') ?></span>
-                        <input x-model="editForm.mac_address_1" type="text" class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 font-mono text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4">
-                    </label>
-                    <label class="block">
-                        <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('label_mac_address_2'), ENT_QUOTES, 'UTF-8') ?></span>
-                        <input x-model="editForm.mac_address_2" type="text" class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 font-mono text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4">
-                    </label>
-                </div>
-
-                <div class="mt-6 border-t border-zinc-200 pt-5">
-                    <h4 class="text-sm font-semibold text-zinc-900"><?= htmlspecialchars(__('label_assign_user'), ENT_QUOTES, 'UTF-8') ?></h4>
-                    <p class="mt-1 text-xs text-zinc-500"><?= htmlspecialchars(__('assign_user_hint'), ENT_QUOTES, 'UTF-8') ?></p>
-                    <?php require __DIR__ . '/partials/user_picker.php'; ?>
-                </div>
-
-                <div x-show="editErrorMessage" x-cloak class="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700" x-text="editErrorMessage"></div>
-
-                <div class="mt-6 flex items-center justify-end gap-3 border-t border-zinc-200 pt-5">
-                    <button type="button" @click="closeEditModal()" class="rounded-xl px-4 py-2.5 text-sm font-medium text-zinc-600 hover:bg-zinc-100"><?= htmlspecialchars(__('cancel'), ENT_QUOTES, 'UTF-8') ?></button>
+                <div class="flex items-center justify-end gap-3 border-t border-zinc-200 px-6 py-4">
+                    <button type="button" @click="closeEditModal()" class="rounded-xl px-4 py-2 text-sm font-medium text-zinc-600 hover:bg-zinc-100"><?= htmlspecialchars(__('cancel'), ENT_QUOTES, 'UTF-8') ?></button>
                     <button
                         type="submit"
                         :disabled="isSubmitting"
-                        class="inline-flex items-center gap-2 rounded-xl bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60"
+                        class="inline-flex items-center gap-2 rounded-xl bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60"
                     >
                         <span x-show="isSubmitting"><?= htmlspecialchars(__('saving'), ENT_QUOTES, 'UTF-8') ?></span>
                         <span x-show="!isSubmitting"><?= htmlspecialchars(__('save_changes'), ENT_QUOTES, 'UTF-8') ?></span>
@@ -2393,6 +2405,7 @@ $i18nScript = json_encode([
             isManualUserSubmitting: false,
             editAsset: null,
             editForm: {
+                asset_tag: '',
                 name: '',
                 model: '',
                 brand: '',
@@ -2401,6 +2414,7 @@ $i18nScript = json_encode([
                 status: 'ready',
                 location: '',
                 building: '',
+                assigned_to: '',
                 mac_address_1: '',
                 mac_address_2: '',
             },
@@ -4295,10 +4309,14 @@ $i18nScript = json_encode([
                     this.isImportSubmitting = false;
                 }
             },
+            openInventoryAssetModal(asset) {
+                this.openEditModal(this.buildInventoryEditPayload(asset));
+            },
             openEditModal(asset) {
                 this.editErrorMessage = '';
                 this.editAsset = asset;
                 this.editForm = {
+                    asset_tag: asset.asset_tag || '',
                     name: asset.name || '',
                     model: asset.model || '',
                     brand: asset.brand || '',
@@ -4307,6 +4325,7 @@ $i18nScript = json_encode([
                     status: asset.status || 'ready',
                     location: asset.location || asset.location_name || '',
                     building: asset.building || asset.location_building || '',
+                    assigned_to: asset.assigned_to || asset.user_name || '',
                     mac_address_1: asset.mac_address_1 || '',
                     mac_address_2: asset.mac_address_2 || '',
                 };
@@ -4659,6 +4678,7 @@ $i18nScript = json_encode([
             },
             buildEditPayload() {
                 const payload = {
+                    asset_tag: String(this.editForm.asset_tag || '').trim(),
                     name: this.editForm.name.trim(),
                     status: this.editForm.status,
                 };
@@ -4670,9 +4690,12 @@ $i18nScript = json_encode([
                 if (this.selectedUser?.id) {
                     payload.personnel_id = Number(this.selectedUser.id);
                 } else {
-                    payload.assigned_to = this.selectedUser
-                        ? String(this.selectedUser.name || this.selectedUser.email || '').trim()
-                        : '';
+                    payload.assigned_to = String(
+                        this.editForm.assigned_to
+                        || this.selectedUser?.name
+                        || this.selectedUser?.email
+                        || ''
+                    ).trim();
                 }
 
                 return payload;
@@ -4744,7 +4767,13 @@ $i18nScript = json_encode([
                         return;
                     }
 
-                    window.location.reload();
+                    this.closeEditModal();
+
+                    if (this.activeView === 'assets') {
+                        await this.fetchInventoryList();
+                    } else {
+                        window.location.reload();
+                    }
                 } catch (error) {
                     this.editErrorMessage = window.__i18n.network_error;
                 } finally {

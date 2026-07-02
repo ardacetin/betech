@@ -164,8 +164,20 @@ class Location
 
     public function countAssets(int $locationId): int
     {
-        return $this->db()->count('assets', [
-            'location_id' => $locationId,
+        $location = $this->findById($locationId);
+
+        if ($location === null) {
+            return 0;
+        }
+
+        $locationName = trim((string) ($location['name'] ?? ''));
+
+        if ($locationName === '') {
+            return 0;
+        }
+
+        return (int) $this->db()->count('assets', [
+            'location' => $locationName,
         ]);
     }
 

@@ -455,6 +455,8 @@ return [
     'analytics_no_category_data' => 'No category data yet.',
     'inventory_title' => 'Asset Inventory',
     'inventory_subtitle' => 'All inventory attributes are stored in dedicated database columns.',
+    'inventory_section_identity' => 'Identity & Status',
+    'inventory_section_location_network' => 'Location & Network',
     'col_asset_tag' => 'Asset Tag',
     'col_name' => 'Name',
     'col_category' => 'Type',
