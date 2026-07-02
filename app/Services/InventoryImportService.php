@@ -52,17 +52,21 @@ class InventoryImportService
         return $this->columnSchemaService->buildTemplateCsvContent();
     }
 
-    public static function buildResultMessage(int $imported, int $updated, int $failed): string
+    public static function buildResultMessage(int $insertedCount, int $updatedCount, int $failed): string
     {
         if ($failed > 0) {
-            return sprintf(__('inventory_import_partial_success'), $imported, $updated, $failed);
+            return sprintf(__('inventory_import_partial_success'), $insertedCount, $updatedCount, $failed);
         }
 
-        if ($imported === 0 && $updated === 0) {
+        if ($insertedCount === 0 && $updatedCount === 0) {
             return __('inventory_import_no_changes');
         }
 
-        return sprintf(__('inventory_import_completion_report'), $imported, $updated);
+        return sprintf(
+            'İçeri aktarma tamamlandı: %d yeni demirbaş eklendi, %d mevcut demirbaş güncellendi.',
+            $insertedCount,
+            $updatedCount
+        );
     }
 
     /**
@@ -125,6 +129,8 @@ class InventoryImportService
         }
 
         $state = $this->newImportState();
+        $insertedCount = 0;
+        $updatedCount = 0;
         $columnIndexMap = null;
         $lineNumber = 0;
 
@@ -150,13 +156,18 @@ class InventoryImportService
             $this->processRow(
                 $lineNumber,
                 $this->mapRowByColumnIndex($columns, $columnIndexMap),
-                $state
+                $state,
+                $insertedCount,
+                $updatedCount
             );
         }
 
         if ($columnIndexMap === null) {
             throw new RuntimeException(__('import_csv_missing_headers'));
         }
+
+        $state['imported'] = $insertedCount;
+        $state['updated'] = $updatedCount;
 
         return $this->finalizeImportState($state);
     }
@@ -382,7 +393,13 @@ class InventoryImportService
      *     seenTags: array<string, true>
      * } $state
      */
-    private function processRow(int $rowNumber, array $values, array &$state): void
+    private function processRow(
+        int $rowNumber,
+        array $values,
+        array &$state,
+        ?int &$insertedCount = null,
+        ?int &$updatedCount = null
+    ): void
     {
         if ($this->isImportRowEmpty($values)) {
             $state['skipped']++;
@@ -488,15 +505,25 @@ class InventoryImportService
         }
 
         try {
+            $isUpdate = $existingAsset !== null;
+
             $result = $this->assetModel->upsertFromImport($existingAsset, $fields);
             $asset = $result['asset'];
 
-            if ($result['created']) {
-                $state['created_assets'][] = (int) $asset['id'];
-                $state['imported']++;
-            } else {
+            if ($isUpdate) {
                 $state['updated_assets'][] = (int) $asset['id'];
                 $state['updated']++;
+
+                if ($updatedCount !== null) {
+                    ++$updatedCount;
+                }
+            } else {
+                $state['created_assets'][] = (int) $asset['id'];
+                $state['imported']++;
+
+                if ($insertedCount !== null) {
+                    ++$insertedCount;
+                }
             }
         } catch (\Throwable $exception) {
             $state['failed']++;
