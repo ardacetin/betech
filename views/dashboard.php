@@ -497,7 +497,7 @@ $i18nScript = json_encode([
             </div>
         </aside>
 
-        <main class="flex-1 overflow-y-auto">
+        <main class="min-w-0 flex-1 overflow-x-hidden overflow-y-auto">
             <header class="sticky top-0 z-10 border-b border-zinc-200 bg-white/90 backdrop-blur">
                 <div class="mx-auto flex max-w-7xl items-center justify-between gap-4 px-6 py-4">
                     <div>
@@ -636,7 +636,7 @@ $i18nScript = json_encode([
                 </div>
             </header>
 
-            <div class="mx-auto max-w-7xl space-y-8 px-6 py-8">
+            <div class="mx-auto min-w-0 max-w-7xl space-y-8 px-6 py-8">
                 <?php if ($isEndUser): ?>
                 <?php require __DIR__ . '/partials/end_user_knowledge_base_panel.php'; ?>
                 <?php endif; ?>
@@ -4039,14 +4039,14 @@ $i18nScript = json_encode([
             },
             inventoryStatusClass(status) {
                 const classes = {
-                    ready: 'bg-sky-50 text-sky-700 ring-sky-600/20',
-                    deployed: 'bg-emerald-50 text-emerald-700 ring-emerald-600/20',
-                    storage: 'bg-amber-50 text-amber-700 ring-amber-600/20',
-                    broken: 'bg-rose-50 text-rose-700 ring-rose-600/20',
-                    under_repair: 'bg-indigo-50 text-indigo-700 ring-indigo-600/20',
+                    ready: 'bg-sky-50 text-sky-700 border border-sky-200',
+                    deployed: 'bg-emerald-50 text-emerald-700 border border-emerald-200',
+                    storage: 'bg-amber-50 text-amber-800 border border-amber-200',
+                    broken: 'bg-rose-50 text-rose-700 border border-rose-200',
+                    under_repair: 'bg-indigo-50 text-indigo-700 border border-indigo-200',
                 };
 
-                return classes[status] || 'bg-zinc-100 text-zinc-700 ring-zinc-500/20';
+                return classes[status] || 'bg-slate-100 text-slate-700 border border-slate-200';
             },
             translateInventoryStatus(status) {
                 const key = `status_${status}`;
