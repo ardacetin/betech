@@ -13,7 +13,7 @@ declare(strict_types=1);
 ?>
 <div class="min-h-screen bg-gray-50" x-data="portConfigPage()" x-init="init()">
     <header class="border-b border-zinc-200 bg-white">
-        <div class="mx-auto flex max-w-3xl items-center justify-between gap-4 px-6 py-4">
+        <div class="mx-auto flex max-w-4xl items-center justify-between gap-4 px-6 py-4">
             <div class="flex min-w-0 items-center gap-4">
                 <a href="<?= htmlspecialchars($backUrl, ENT_QUOTES, 'UTF-8') ?>" class="rounded-lg p-2 text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-600" aria-label="<?= htmlspecialchars(__('switch_port_config_back'), ENT_QUOTES, 'UTF-8') ?>">
                     <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
@@ -28,7 +28,7 @@ declare(strict_types=1);
         </div>
     </header>
 
-    <main class="mx-auto max-w-3xl space-y-6 px-6 py-8">
+    <main class="mx-auto max-w-4xl space-y-6 px-6 py-8">
         <section class="rounded-2xl border border-zinc-200 bg-white p-6 shadow-soft">
             <h2 class="text-sm font-semibold text-zinc-900"><?= htmlspecialchars(__('switch_port_config_switch_info'), ENT_QUOTES, 'UTF-8') ?></h2>
             <dl class="mt-4 grid gap-3 text-sm sm:grid-cols-2">

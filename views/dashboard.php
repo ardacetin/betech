@@ -106,6 +106,9 @@ if ($activeAssetTypeId <= 0 && $assetTypes !== [] && !$forceAssetsView) {
 }
 
 $initialActiveView = is_string($initialActiveView ?? null) ? trim((string) $initialActiveView) : null;
+$switchPortsSwitchesJson = is_string($switchPortsSwitchesJson ?? null) ? $switchPortsSwitchesJson : json_encode($switchPortsSwitchesJson ?? [], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
+$switchPortsSelectedSwitchId = (int) ($switchPortsSelectedSwitchId ?? 0);
+$switchPortsMatrixJson = is_string($switchPortsMatrixJson ?? null) ? $switchPortsMatrixJson : json_encode($switchPortsMatrixJson ?? null, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
 $assetTypesJson = json_encode($assetTypes, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
 $assetSchemaJson = $assetSchemaJson ?? '[]';
 $assetPagination = $assetPagination ?? ['page' => 1, 'per_page' => 50, 'total' => 0, 'total_pages' => 1];
@@ -527,7 +530,7 @@ $i18nScript = json_encode([
     'list_pagination_info' => __('list_pagination_info'),
 ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
 ?>
-<div class="min-h-screen bg-gray-50" x-data="assetDashboard()" x-init="parseInventoryRoute(); parseDocumentsRoute(); parseListSortFromUrl(); restoreDashboardView(); syncDocumentTitle(); $watch('activeView', () => syncDocumentTitle()); $watch('settingsTab', () => syncDocumentTitle()); if (isEndUser) { initEndUserPortal(); } else if (canManageAssets) { fetchCategories(); fetchLocations(); fetchTicketCategories(); fetchLicenses(); fetchConsumables(); fetchTickets(); if (activeView === 'dashboard') { fetchDashboardStats(); } if (activeView === 'assets') { fetchAssetTypeSchema().then(() => fetchInventoryList(false)); } } if (canAccessSettings && activeView === 'reports') { fetchReports(); } if (canAccessSettings && activeView === 'documents') { fetchQualityDocuments(); } this.isAssignLicenseModalOpen = false;">
+<div class="min-h-screen bg-gray-50" x-data="assetDashboard()" x-init="parseInventoryRoute(); parseDocumentsRoute(); parseSwitchPortsRoute(); parseListSortFromUrl(); restoreDashboardView(); syncDocumentTitle(); $watch('activeView', () => syncDocumentTitle()); $watch('settingsTab', () => syncDocumentTitle()); if (isEndUser) { initEndUserPortal(); } else if (canManageAssets) { fetchCategories(); fetchLocations(); fetchTicketCategories(); fetchLicenses(); fetchConsumables(); fetchTickets(); if (activeView === 'dashboard') { fetchDashboardStats(); } if (activeView === 'assets') { fetchAssetTypeSchema().then(() => fetchInventoryList(false)); } if (activeView === 'switch_ports') { initSwitchPorts(); } } if (canAccessSettings && activeView === 'reports') { fetchReports(); } if (canAccessSettings && activeView === 'documents') { fetchQualityDocuments(); } this.isAssignLicenseModalOpen = false;">
     <div class="flex h-screen overflow-hidden bg-gray-50">
         <aside class="hidden h-full w-64 min-h-0 flex-shrink-0 flex-col border-r border-gray-200 bg-white lg:flex">
             <div class="flex h-16 shrink-0 items-center gap-3 border-b border-gray-200 px-5">
@@ -699,7 +702,7 @@ $i18nScript = json_encode([
                 </div>
             </header>
 
-            <div class="mx-auto min-w-0 max-w-7xl space-y-8 px-6 py-8">
+            <div class="mx-auto min-w-0 max-w-7xl px-6 py-8" :class="activeView === 'switch_ports' ? 'space-y-0 py-4' : 'space-y-8'">
                 <?php if ($isEndUser): ?>
                 <?php require __DIR__ . '/partials/end_user_knowledge_base_panel.php'; ?>
                 <?php endif; ?>
@@ -724,6 +727,7 @@ $i18nScript = json_encode([
                 <?php require __DIR__ . '/partials/knowledge_base_panel.php'; ?>
                 <?php require __DIR__ . '/partials/helpdesk_panel.php'; ?>
                 <?php require __DIR__ . '/partials/ipam_panel.php'; ?>
+                <?php require __DIR__ . '/partials/switch_ports_panel.php'; ?>
                 <?php endif; ?>
                 <?php if ($canAccessSettings): ?>
                 <?php require __DIR__ . '/partials/admin_reports.php'; ?>
@@ -2193,6 +2197,7 @@ $i18nScript = json_encode([
                 helpdesk: <?= json_encode(__('helpdesk_page_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 reports: <?= json_encode(__('reports_page_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 ipam: <?= json_encode(__('ipam_page_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
+                switch_ports: <?= json_encode(__('switch_ports_page_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 settings: <?= json_encode(__('settings_page_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 categories: <?= json_encode(__('categories_page_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 asset_types: <?= json_encode(__('asset_types_page_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
@@ -2214,6 +2219,7 @@ $i18nScript = json_encode([
                 helpdesk: <?= json_encode(__('helpdesk_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 reports: <?= json_encode(__('reports_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 ipam: <?= json_encode(__('ipam_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
+                switch_ports: <?= json_encode(__('switch_ports_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 settings: <?= json_encode(__('settings_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 categories: <?= json_encode(__('categories_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 asset_types: <?= json_encode(__('asset_types_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
@@ -2617,6 +2623,12 @@ $i18nScript = json_encode([
             offboardSuccessMessage: '',
             offboardErrorMessage: '',
             ipamSubView: 'networks',
+            switchPortsSwitches: <?= $switchPortsSwitchesJson ?>,
+            switchPortsSelectedId: <?= $switchPortsSelectedSwitchId > 0 ? $switchPortsSelectedSwitchId : 'null' ?>,
+            switchPortsMatrix: <?= $switchPortsMatrixJson ?>,
+            switchPortsMatrixLoading: false,
+            switchPortsMatrixError: '',
+            switchPortsUtilizationLabel: <?= json_encode(__('switch_ports_utilization'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
             ipNetworks: [],
             ipNetworksLoading: false,
             ipNetworksError: '',
@@ -2812,6 +2824,109 @@ $i18nScript = json_encode([
 
                 if (path === '/documents' || path === '/documents.php' || path.endsWith('/documents.php')) {
                     this.activeView = 'documents';
+                }
+            },
+            parseSwitchPortsRoute() {
+                const path = window.location.pathname;
+
+                if (path === '/network/switch-ports' || path.endsWith('/network/switch-ports')) {
+                    this.activeView = 'switch_ports';
+                }
+            },
+            openSwitchPorts() {
+                this.activeView = 'switch_ports';
+                this.initSwitchPorts();
+                window.history.replaceState({}, '', '/network/switch-ports');
+                this.persistDashboardView();
+                this.syncDocumentTitle();
+            },
+            initSwitchPorts() {
+                if (!this.switchPortsSwitches || this.switchPortsSwitches.length === 0) {
+                    this.fetchSwitchPortsDirectory();
+                }
+
+                const params = new URLSearchParams(window.location.search);
+                const preselected = parseInt(params.get('switch_id') || '0', 10) || Number(this.switchPortsSelectedId || 0);
+
+                if (preselected > 0) {
+                    this.switchPortsSelectedId = preselected;
+
+                    if (!this.switchPortsMatrix || Number(this.switchPortsMatrix?.switch?.id || 0) !== preselected) {
+                        this.selectSwitchPort(preselected, false);
+                    }
+                }
+            },
+            formatSwitchPortUtilization(sw) {
+                const used = sw?.used_ports ?? 0;
+                const total = sw?.total_ports ?? 0;
+                return this.switchPortsUtilizationLabel.replace(':used', used).replace(':total', total);
+            },
+            switchPortsGridStyle() {
+                const cols = this.switchPortsMatrix?.ports_per_row || 12;
+                return `grid-template-columns: repeat(${cols}, minmax(2.5rem, 1fr));`;
+            },
+            switchPortsTopRow() {
+                if (!this.switchPortsMatrix?.ports) {
+                    return [];
+                }
+
+                return this.switchPortsMatrix.ports.slice(0, this.switchPortsMatrix.ports_per_row);
+            },
+            switchPortsBottomRow() {
+                if (!this.switchPortsMatrix?.ports) {
+                    return [];
+                }
+
+                return this.switchPortsMatrix.ports.slice(this.switchPortsMatrix.ports_per_row);
+            },
+            switchPortConfigUrl(portNumber) {
+                return `/network/port-config?switch_id=${encodeURIComponent(this.switchPortsSelectedId)}&port=${encodeURIComponent(portNumber)}`;
+            },
+            async fetchSwitchPortsDirectory() {
+                try {
+                    const response = await fetch('/api/network/switches/directory');
+                    const payload = await response.json();
+
+                    if (response.ok && payload?.status === 'success') {
+                        this.switchPortsSwitches = payload.data || [];
+                    }
+                } catch (error) {
+                    this.switchPortsSwitches = this.switchPortsSwitches || [];
+                }
+            },
+            async selectSwitchPort(switchId, updateUrl = true) {
+                this.switchPortsSelectedId = switchId;
+                this.switchPortsMatrix = null;
+                this.switchPortsMatrixLoading = true;
+                this.switchPortsMatrixError = '';
+
+                if (updateUrl) {
+                    const url = new URL(window.location.href);
+                    url.pathname = '/network/switch-ports';
+                    url.searchParams.set('switch_id', String(switchId));
+                    window.history.replaceState({}, '', url);
+                }
+
+                try {
+                    const response = await fetch(`/api/network/switches/matrix?switch_id=${encodeURIComponent(switchId)}`);
+                    let payload = null;
+
+                    try {
+                        payload = await response.json();
+                    } catch (parseError) {
+                        payload = null;
+                    }
+
+                    if (!response.ok || !payload || payload.status !== 'success') {
+                        this.switchPortsMatrixError = <?= json_encode(__('switch_ports_matrix_error'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>;
+                        return;
+                    }
+
+                    this.switchPortsMatrix = payload.data;
+                } catch (error) {
+                    this.switchPortsMatrixError = <?= json_encode(__('switch_ports_matrix_error'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>;
+                } finally {
+                    this.switchPortsMatrixLoading = false;
                 }
             },
             parseListSortFromUrl() {
@@ -3090,6 +3205,10 @@ $i18nScript = json_encode([
                     if (this.activeView === 'ipam') {
                         this.ipamSubView = 'networks';
                         this.fetchIpNetworks();
+                    }
+
+                    if (this.activeView === 'switch_ports') {
+                        this.initSwitchPorts();
                     }
 
                     if (this.activeView === 'audit_logs' && this.canAccessSettings) {
