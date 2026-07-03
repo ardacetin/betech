@@ -11,8 +11,8 @@ INSERT INTO categories (name, slug, fields) VALUES
     )
 ),
 (
-    'Ağ Anahtarı (Switch)',
-    'ag-anahtari-switch',
+    'Switch',
+    'switch',
     JSON_ARRAY(
         JSON_OBJECT('name', 'ports', 'label', 'Port Sayısı', 'label_en', 'Port Count', 'type', 'number'),
         JSON_OBJECT('name', 'ip_address', 'label', 'IP Adresi', 'label_en', 'IP Address', 'type', 'text')

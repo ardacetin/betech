@@ -1282,7 +1282,60 @@ class DatabaseInitializer
             $warnings[] = sprintf('Added total_ports column on `%s`.', $tableName);
         }
 
+        foreach ($this->patchSwitchAssetTypeTerminology($connection) as $warning) {
+            $warnings[] = $warning;
+        }
+
         return $warnings;
+    }
+
+    /**
+     * @param object $connection Medoo instance
+     *
+     * @return list<string>
+     */
+    private function patchSwitchAssetTypeTerminology(object $connection): array
+    {
+        $warnings = [];
+
+        if (!$this->tableExists($connection, 'asset_types')) {
+            return $warnings;
+        }
+
+        $connection->query(
+            "UPDATE asset_types
+                SET name = 'Switchler', slug = 'switchler'
+                WHERE slug IN ('ag_anahtarlari', 'ag-anahtarlari', 'ag-anahtari-switch')"
+        );
+
+        if ($this->tableExists($connection, 'assets_global_registry')) {
+            $connection->query(
+                "UPDATE assets_global_registry
+                    SET asset_type = 'switchler'
+                    WHERE asset_type IN ('ag_anahtarlari', 'ag-anahtarlari', 'ag-anahtari-switch')"
+            );
+        }
+
+        $legacyTables = ['assets_ag_anahtarlari', 'assets_ag_anahtari_switch'];
+
+        foreach ($legacyTables as $legacyTable) {
+            if (
+                $this->tableExists($connection, $legacyTable)
+                && !$this->tableExists($connection, 'assets_switchler')
+            ) {
+                $connection->query(sprintf(
+                    'RENAME TABLE `%s` TO `assets_switchler`',
+                    $this->escapeIdentifier($legacyTable)
+                ));
+                $warnings[] = sprintf('Renamed legacy switch table `%s` to `assets_switchler`.', $legacyTable);
+            }
+        }
+
+        if ($warnings !== []) {
+            return $warnings;
+        }
+
+        return [];
     }
 
     /**
@@ -1292,47 +1345,7 @@ class DatabaseInitializer
      */
     private function resolveSwitchTypeTableNames(object $connection): array
     {
-        $slugs = ['ag_anahtarlari', 'switchler', 'switches', 'ag-anahtarlari'];
-        $rows = $connection->select('asset_types', ['slug', 'name']);
-
-        if (is_array($rows)) {
-            foreach ($rows as $row) {
-                if (!is_array($row)) {
-                    continue;
-                }
-
-                $slug = strtolower(trim((string) ($row['slug'] ?? '')));
-                $name = strtolower(trim((string) ($row['name'] ?? '')));
-
-                if ($slug === '') {
-                    continue;
-                }
-
-                if (
-                    str_contains($slug, 'switch')
-                    || str_contains($slug, 'anahtar')
-                    || str_contains($name, 'anahtar')
-                    || str_contains($name, 'switch')
-                ) {
-                    $slugs[] = $slug;
-                }
-            }
-        }
-
-        $tables = [];
-
-        foreach (array_values(array_unique(array_filter($slugs))) as $slug) {
-            $normalized = strtolower(preg_replace('/[^a-z0-9_]+/', '_', $slug) ?? $slug);
-            $normalized = trim($normalized, '_');
-
-            if ($normalized === '') {
-                continue;
-            }
-
-            $tables[] = 'assets_' . $normalized;
-        }
-
-        return array_values(array_unique($tables));
+        return ['assets_switchler'];
     }
 
     private function getIpamMigrationPath(): string

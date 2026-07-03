@@ -25,45 +25,9 @@ class SwitchPortController
 
     public function index(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
     {
-        if ($denied = $this->denyUnlessOperational($request, $response)) {
-            return $denied;
-        }
-
-        $query = $request->getQueryParams();
-        $selectedSwitchId = (int) ($query['switch_id'] ?? 0);
-
-        $switches = [];
-
-        try {
-            $switches = $this->networkPortMappingService->listSwitchDirectory();
-        } catch (\Throwable) {
-            $switches = [];
-        }
-
-        $initialMatrix = null;
-
-        if ($selectedSwitchId > 0) {
-            try {
-                $initialMatrix = $this->networkPortMappingService->getSwitchPortMatrix($selectedSwitchId);
-            } catch (\Throwable) {
-                $initialMatrix = null;
-            }
-        }
-
-        $html = $this->viewRenderer->render('switch-ports', [
-            'appName' => __('app_name'),
-            'pageTitle' => __('switch_ports_page_title'),
-            'locale' => Translator::instance()->getLocale(),
-            'csrfToken' => $this->sessionAuthService->getOrCreateCsrfToken(),
-            'backUrl' => '/',
-            'switchesJson' => json_encode($switches, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE),
-            'initialMatrixJson' => json_encode($initialMatrix, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE),
-            'selectedSwitchId' => $selectedSwitchId,
-        ]);
-
-        $response->getBody()->write($html);
-
-        return $response->withHeader('Content-Type', 'text/html; charset=utf-8');
+        return $response
+            ->withHeader('Location', '/network/switch-ports')
+            ->withStatus(302);
     }
 
     public function portConfig(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface

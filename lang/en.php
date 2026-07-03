@@ -1368,7 +1368,7 @@ return [
     'network_connection_settings_subtitle' => 'Define the switch and physical port this device is connected to.',
     'network_switch_select_label' => 'Switch',
     'network_switch_select_placeholder' => 'Select a switch…',
-    'network_switch_list_empty' => 'No switches found. Add switch inventory under the Network Switches asset section.',
+    'network_switch_list_empty' => 'No switches found. Add switch inventory under the Switchler asset section.',
     'network_port_number_label' => 'Port Number',
     'network_port_number_placeholder' => 'e.g. 24',
     'network_port_mapping_invalid_source' => 'Invalid source asset context.',

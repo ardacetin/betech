@@ -22,6 +22,7 @@ use App\Services\LicenseFilterSchemaService;
 use App\Services\ListPagination;
 use App\Services\Auth\SessionAuthService;
 use App\Services\EndUserContextService;
+use App\Services\NetworkPortMappingService;
 use App\Services\QrCodeService;
 use App\Services\Translator;
 use App\Services\ViewRenderer;
@@ -54,6 +55,7 @@ class HealthController
         private readonly ConsumableFilterSchemaService $consumableFilterSchemaService,
         private readonly AssetCustomField $assetCustomFieldModel,
         private readonly AssetTypeTableService $assetTypeTableService,
+        private readonly NetworkPortMappingService $networkPortMappingService,
     ) {
     }
 
@@ -84,6 +86,48 @@ class HealthController
         );
     }
 
+    public function switchPorts(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
+    {
+        $role = $this->sessionAuthService->role();
+
+        if (!$this->userModel->isOperationalRole($role)) {
+            return $response
+                ->withHeader('Location', '/unauthorized')
+                ->withStatus(302);
+        }
+
+        $selectedSwitchId = (int) ($request->getQueryParams()['switch_id'] ?? 0);
+        $switches = [];
+        $matrix = null;
+
+        try {
+            $switches = $this->networkPortMappingService->listSwitchDirectory();
+        } catch (\Throwable) {
+            $switches = [];
+        }
+
+        if ($selectedSwitchId > 0) {
+            try {
+                $matrix = $this->networkPortMappingService->getSwitchPortMatrix($selectedSwitchId);
+            } catch (\Throwable) {
+                $matrix = null;
+            }
+        }
+
+        return $this->renderDashboard(
+            $request,
+            $response,
+            null,
+            false,
+            'switch_ports',
+            [
+                'switches' => $switches,
+                'selected_switch_id' => $selectedSwitchId,
+                'matrix' => $matrix,
+            ]
+        );
+    }
+
     public function inventorySection(
         ServerRequestInterface $request,
         ResponseInterface $response,
@@ -104,12 +148,16 @@ class HealthController
     /**
      * @param array{id: int, slug: string, table: string}|null $requestedAssetType
      */
+    /**
+     * @param array{switches?: list<array<string, mixed>>, selected_switch_id?: int, matrix?: array<string, mixed>|null} $switchPortsBootstrap
+     */
     private function renderDashboard(
         ServerRequestInterface $request,
         ResponseInterface $response,
         ?array $requestedAssetType,
         bool $forceAssetsView,
-        ?string $initialActiveView = null
+        ?string $initialActiveView = null,
+        array $switchPortsBootstrap = [],
     ): ResponseInterface {
         $userId = $this->sessionAuthService->userId() ?? 0;
         $role = $this->sessionAuthService->role();
@@ -278,6 +326,15 @@ class HealthController
                     : [],
                 JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE
             ),
+            'switchPortsSwitchesJson' => json_encode(
+                $switchPortsBootstrap['switches'] ?? [],
+                JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE
+            ),
+            'switchPortsSelectedSwitchId' => (int) ($switchPortsBootstrap['selected_switch_id'] ?? 0),
+            'switchPortsMatrixJson' => json_encode(
+                $switchPortsBootstrap['matrix'] ?? null,
+                JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE
+            ),
         ]);
 
         $response->getBody()->write($html);
@@ -302,6 +359,10 @@ class HealthController
 
         if ($initialActiveView === 'documents') {
             return __('quality_documents_page_title');
+        }
+
+        if ($initialActiveView === 'switch_ports') {
+            return __('switch_ports_page_title');
         }
 
         if ($forceAssetsView && $requestedAssetType !== null) {

@@ -20,7 +20,7 @@ ALTER TABLE ip_addresses
     ADD KEY idx_ip_addresses_ping_status (ping_status);
 
 INSERT INTO asset_types (name, slug, sort_order) VALUES
-    ('Ağ Anahtarları', 'ag_anahtarlari', 10)
+    ('Switchler', 'switchler', 10)
 ON DUPLICATE KEY UPDATE
     name = VALUES(name),
     sort_order = VALUES(sort_order);

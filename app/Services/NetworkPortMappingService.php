@@ -11,15 +11,9 @@ use RuntimeException;
 
 class NetworkPortMappingService
 {
-    /**
-     * @var list<string>
-     */
-    private const SWITCH_TYPE_SLUGS = [
-        'ag_anahtarlari',
-        'switchler',
-        'switches',
-        'ag-anahtarlari',
-    ];
+    private const SWITCH_TABLE = 'assets_switchler';
+
+    private const SWITCH_TYPE_SLUG = 'switchler';
 
     private const DEFAULT_TOTAL_PORTS = 24;
 
@@ -432,93 +426,78 @@ class NetworkPortMappingService
      */
     private function collectSwitchRows(): array
     {
-        $switchSlugs = $this->resolveSwitchTypeSlugs();
-        $switches = [];
+        $tableName = self::SWITCH_TABLE;
+        $slug = self::SWITCH_TYPE_SLUG;
 
-        foreach ($switchSlugs as $slug) {
-            try {
-                $tableName = $this->resolveSwitchTableName($slug);
-
-                if ($tableName === null || !$this->tableExists($tableName)) {
-                    continue;
-                }
-
-                $tableColumns = $this->describeTableColumns($tableName);
-
-                if ($tableColumns === [] || !in_array('id', $tableColumns, true)) {
-                    continue;
-                }
-
-                $selectColumns = $this->buildSelectColumns($tableColumns);
-                $orderClause = $this->buildOrderClause($tableColumns);
-                $connection = $this->databaseService->getConnection();
-
-                $query = ['ORDER' => $orderClause];
-
-                if ($orderClause === []) {
-                    unset($query['ORDER']);
-                }
-
-                $rows = $connection->select($tableName, $selectColumns, $query);
-
-                if (!is_array($rows)) {
-                    continue;
-                }
-
-                foreach ($rows as $row) {
-                    if (!is_array($row)) {
-                        continue;
-                    }
-
-                    $totalPorts = self::DEFAULT_TOTAL_PORTS;
-
-                    if (in_array('total_ports', $tableColumns, true)) {
-                        $totalPorts = (int) ($row['total_ports'] ?? self::DEFAULT_TOTAL_PORTS);
-                    }
-
-                    if ($totalPorts <= 0) {
-                        $totalPorts = self::DEFAULT_TOTAL_PORTS;
-                    }
-
-                    $switches[] = [
-                        'id' => (int) ($row['id'] ?? 0),
-                        'asset_tag' => (string) ($row['asset_tag'] ?? ''),
-                        'name' => (string) ($row['name'] ?? ''),
-                        'model' => (string) ($row['model'] ?? ''),
-                        'brand' => (string) ($row['brand'] ?? ''),
-                        'serial_number' => (string) ($row['serial_number'] ?? ''),
-                        'status' => (string) ($row['status'] ?? ''),
-                        'location' => (string) ($row['location'] ?? ''),
-                        'building' => (string) ($row['building'] ?? ''),
-                        'total_ports' => $totalPorts,
-                        'asset_type_slug' => $slug,
-                        'asset_type_name' => $this->resolveTypeName($slug),
-                        'label' => $this->formatSwitchLabel($row),
-                    ];
-                }
-            } catch (\Throwable) {
-                continue;
+        try {
+            if (!$this->tableExists($tableName)) {
+                return [];
             }
+
+            $tableColumns = $this->describeTableColumns($tableName);
+
+            if ($tableColumns === [] || !in_array('id', $tableColumns, true)) {
+                return [];
+            }
+
+            $selectColumns = $this->buildSelectColumns($tableColumns);
+            $orderClause = $this->buildOrderClause($tableColumns);
+            $connection = $this->databaseService->getConnection();
+
+            $query = ['ORDER' => $orderClause];
+
+            if ($orderClause === []) {
+                unset($query['ORDER']);
+            }
+
+            $rows = $connection->select($tableName, $selectColumns, $query);
+
+            if (!is_array($rows)) {
+                return [];
+            }
+
+            $switches = [];
+
+            foreach ($rows as $row) {
+                if (!is_array($row)) {
+                    continue;
+                }
+
+                $totalPorts = self::DEFAULT_TOTAL_PORTS;
+
+                if (in_array('total_ports', $tableColumns, true)) {
+                    $totalPorts = (int) ($row['total_ports'] ?? self::DEFAULT_TOTAL_PORTS);
+                }
+
+                if ($totalPorts <= 0) {
+                    $totalPorts = self::DEFAULT_TOTAL_PORTS;
+                }
+
+                $switches[] = [
+                    'id' => (int) ($row['id'] ?? 0),
+                    'asset_tag' => (string) ($row['asset_tag'] ?? ''),
+                    'name' => (string) ($row['name'] ?? ''),
+                    'model' => (string) ($row['model'] ?? ''),
+                    'brand' => (string) ($row['brand'] ?? ''),
+                    'serial_number' => (string) ($row['serial_number'] ?? ''),
+                    'status' => (string) ($row['status'] ?? ''),
+                    'location' => (string) ($row['location'] ?? ''),
+                    'building' => (string) ($row['building'] ?? ''),
+                    'total_ports' => $totalPorts,
+                    'asset_type_slug' => $slug,
+                    'asset_type_name' => $this->resolveTypeName($slug),
+                    'label' => $this->formatSwitchLabel($row),
+                ];
+            }
+
+            if ($switches !== []) {
+                usort($switches, static fn (array $a, array $b): int => strcmp($a['label'], $b['label']));
+            }
+
+            return $switches;
+        } catch (\Throwable) {
+            return [];
         }
-
-        if ($switches !== []) {
-            usort($switches, static fn (array $a, array $b): int => strcmp($a['label'], $b['label']));
-        }
-
-        return $switches;
-    }
-
-    private function resolveSwitchTableName(string $slug): ?string
-    {
-        $typeContext = $this->assetTypeTableService->resolveWhitelistedType($slug);
-
-        if ($typeContext !== null) {
-            return (string) ($typeContext['table'] ?? '');
-        }
-
-        $tableName = $this->assetTypeTableService->tableNameForSlug($slug);
-
-        return $this->tableExists($tableName) ? $tableName : null;
     }
 
     /**
@@ -665,7 +644,7 @@ class NetworkPortMappingService
 
     private function isSwitchTypeSlug(string $slug): bool
     {
-        return in_array($slug, $this->resolveSwitchTypeSlugs(), true);
+        return $slug === self::SWITCH_TYPE_SLUG;
     }
 
     /**
@@ -673,27 +652,7 @@ class NetworkPortMappingService
      */
     private function resolveSwitchTypeSlugs(): array
     {
-        $slugs = self::SWITCH_TYPE_SLUGS;
-
-        foreach ($this->assetTypeModel->findAll() as $assetType) {
-            $slug = strtolower(trim((string) ($assetType['slug'] ?? '')));
-            $name = strtolower(trim((string) ($assetType['name'] ?? '')));
-
-            if ($slug === '') {
-                continue;
-            }
-
-            if (
-                str_contains($slug, 'switch')
-                || str_contains($slug, 'anahtar')
-                || str_contains($name, 'anahtar')
-                || str_contains($name, 'switch')
-            ) {
-                $slugs[] = $slug;
-            }
-        }
-
-        return array_values(array_unique(array_filter($slugs)));
+        return [self::SWITCH_TYPE_SLUG];
     }
 
     /**

@@ -253,7 +253,7 @@ $inventoryImportController = new InventoryImportController(
         $appLogger,
         $turnstileVerifier
     );
-$healthController = new HealthController($appConfig, $assetModel, $assetTypeModel, $categoryModel, $viewRenderer, $qrCodeService, $analyticsService, $settingModel, $userModel, $personnelModel, $sessionAuthService, $endUserContextService, $locationModel, $assetFilterSchemaService, $licenseModel, $licenseFilterSchemaService, $consumableModel, $consumableFilterSchemaService, $assetCustomFieldModel, $assetTypeTableService);
+$healthController = new HealthController($appConfig, $assetModel, $assetTypeModel, $categoryModel, $viewRenderer, $qrCodeService, $analyticsService, $settingModel, $userModel, $personnelModel, $sessionAuthService, $endUserContextService, $locationModel, $assetFilterSchemaService, $licenseModel, $licenseFilterSchemaService, $consumableModel, $consumableFilterSchemaService, $assetCustomFieldModel, $assetTypeTableService, $networkPortMappingService);
 $inventoryFormController = new InventoryFormController($assetModel, $assetTypeModel, $assetCustomFieldModel, $assetTypeTableService, $viewRenderer, $sessionAuthService, $userModel, $networkPortMappingService);
 $networkPortMappingController = new NetworkPortMappingController($networkPortMappingService);
 $switchPortController = new SwitchPortController($networkPortMappingService, $viewRenderer, $sessionAuthService, $userModel);
@@ -351,7 +351,7 @@ $app->get('/unauthorized', [$authController, 'showUnauthorized']);
 $app->get('/', [$healthController, 'index']);
 $app->get('/inventory/add', [$inventoryFormController, 'add']);
 $app->get('/inventory/edit', [$inventoryFormController, 'edit']);
-$app->get('/network/switch-ports', [$switchPortController, 'index']);
+$app->get('/network/switch-ports', [$healthController, 'switchPorts']);
 $app->get('/network/port-config', [$switchPortController, 'portConfig']);
 $app->get('/inventory/{typeId}', [$healthController, 'inventorySection']);
 $app->get('/documents', [$healthController, 'documents']);
