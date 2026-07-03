@@ -45,6 +45,7 @@ class AssetColumnSchemaService
         private readonly AssetTypeTableService $assetTypeTableService,
         private readonly AssetCustomField $assetCustomFieldModel,
         private readonly AssetComponent $assetComponentModel,
+        private readonly ?FileStorageCache $schemaMetadataCache = null,
     ) {
     }
 
@@ -117,6 +118,19 @@ class AssetColumnSchemaService
             return $this->tableColumnsCache[$cacheKey];
         }
 
+        $fileCacheKey = 'schema_columns:' . $tableName;
+
+        if ($this->schemaMetadataCache !== null) {
+            $cached = $this->schemaMetadataCache->get($fileCacheKey);
+
+            if (is_array($cached)) {
+                /** @var list<string> $cached */
+                $this->tableColumnsCache[$cacheKey] = $cached;
+
+                return $cached;
+            }
+        }
+
         if ($tableName === 'assets') {
             $statement = $this->db()->query('SHOW COLUMNS FROM `assets`');
         } else {
@@ -145,6 +159,10 @@ class AssetColumnSchemaService
         }
 
         $this->tableColumnsCache[$cacheKey] = $columns;
+
+        if ($this->schemaMetadataCache !== null) {
+            $this->schemaMetadataCache->set($fileCacheKey, $columns, FileStorageCache::DEFAULT_TTL_SECONDS);
+        }
 
         return $columns;
     }

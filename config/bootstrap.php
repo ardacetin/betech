@@ -77,7 +77,7 @@ use App\Services\ConsumableFilterSchemaService;
 use App\Services\DatabaseBackupService;
 use App\Services\DatabaseService;
 use App\Services\R2BackupStorage;
-use App\Services\EndUserContextService;
+use App\Services\FileStorageCache;
 use App\Services\InventoryImportService;
 use App\Services\IpAddressGenerator;
 use App\Services\IpamCsvImportService;
@@ -162,7 +162,8 @@ $errorMiddleware->setErrorHandler(HttpForbiddenException::class, $errorHandler);
 
 $settingModel = new Setting($databaseService);
 $ddlIdentifierGuard = new DdlIdentifierGuard();
-$assetTypeTableService = new AssetTypeTableService($databaseService, $ddlIdentifierGuard);
+$fileStorageCache = new FileStorageCache($rootPath . '/storage/cache');
+$assetTypeTableService = new AssetTypeTableService($databaseService, $ddlIdentifierGuard, $fileStorageCache);
 $assetTypeModel = new AssetType($databaseService, $assetTypeTableService, $ddlIdentifierGuard);
 $assetRegistryModel = new AssetRegistry($databaseService);
 $assetsGlobalRegistryModel = new AssetsGlobalRegistry($databaseService);
@@ -179,7 +180,8 @@ $assetColumnSchemaService = new AssetColumnSchemaService(
     $settingModel,
     $assetTypeTableService,
     $assetCustomFieldModel,
-    $assetComponentModel
+    $assetComponentModel,
+    $fileStorageCache
 );
 $assetModel = new Asset(
     $databaseService,

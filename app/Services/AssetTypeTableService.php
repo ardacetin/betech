@@ -41,9 +41,20 @@ class AssetTypeTableService
     /** @var array<string, list<string>> */
     private array $tableColumnsCache = [];
 
+    /** @var list<array{name: string, column: string}> */
+    private const PERFORMANCE_INDEXES = [
+        ['name' => 'idx_status', 'column' => 'status'],
+        ['name' => 'idx_assigned', 'column' => 'assigned_to'],
+        ['name' => 'idx_serial', 'column' => 'serial_number'],
+        ['name' => 'idx_created_at', 'column' => 'created_at'],
+        ['name' => 'idx_brand', 'column' => 'brand'],
+        ['name' => 'idx_model', 'column' => 'model'],
+    ];
+
     public function __construct(
         private readonly DatabaseService $databaseService,
         private readonly DdlIdentifierGuard $ddlIdentifierGuard,
+        private readonly ?FileStorageCache $schemaMetadataCache = null,
     ) {
     }
 
@@ -177,6 +188,8 @@ class AssetTypeTableService
         $tableName = $this->tableNameForSlug($slug);
 
         if ($this->tableExists($tableName)) {
+            $this->ensurePerformanceIndexesForTable($tableName);
+
             return $tableName;
         }
 
@@ -207,8 +220,22 @@ class AssetTypeTableService
         $columnDefinitions[] = 'updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP';
         $columnDefinitions[] = 'PRIMARY KEY (id)';
         $columnDefinitions[] = sprintf('UNIQUE KEY uq_%s_asset_tag (asset_tag)', $normalizedSlug);
-        $columnDefinitions[] = sprintf('KEY idx_%s_serial_number (serial_number)', $normalizedSlug);
-        $columnDefinitions[] = sprintf('KEY idx_%s_status (status)', $normalizedSlug);
+
+        foreach (self::PERFORMANCE_INDEXES as $indexDefinition) {
+            $column = $indexDefinition['column'];
+
+            if ($column === 'brand' || $column === 'model') {
+                if (!$extended) {
+                    continue;
+                }
+            }
+
+            $columnDefinitions[] = sprintf(
+                'KEY %s (%s)',
+                $indexDefinition['name'],
+                $column
+            );
+        }
 
         $sql = sprintf(
             'CREATE TABLE IF NOT EXISTS `%s` (%s) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci',
@@ -217,9 +244,131 @@ class AssetTypeTableService
         );
 
         $this->db()->query($sql);
-        unset($this->tableColumnsCache[$tableName]);
+        $this->invalidateSchemaCache($tableName);
 
         return $tableName;
+    }
+
+    /**
+     * Ensure performance indexes exist on every registered polymorphic asset table.
+     *
+     * @return list<string>
+     */
+    public function ensureAllPolymorphicPerformanceIndexes(): array
+    {
+        $messages = [];
+
+        foreach ($this->listRegisteredTypeSlugs() as $slug) {
+            $tableName = $this->tableNameForSlug($slug);
+
+            if (!$this->tableExists($tableName)) {
+                continue;
+            }
+
+            foreach ($this->ensurePerformanceIndexesForTable($tableName) as $message) {
+                $messages[] = $message;
+            }
+        }
+
+        return $messages;
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function ensurePerformanceIndexesForTable(string $tableName): array
+    {
+        if (!$this->isValidTableName($tableName) || !$this->tableExists($tableName)) {
+            return [];
+        }
+
+        $messages = [];
+
+        foreach (self::PERFORMANCE_INDEXES as $indexDefinition) {
+            $indexName = $indexDefinition['name'];
+            $columnName = $indexDefinition['column'];
+
+            if (!$this->columnExists($tableName, $columnName)) {
+                continue;
+            }
+
+            if ($this->indexExistsOnTable($tableName, $indexName)) {
+                continue;
+            }
+
+            $this->db()->query(sprintf(
+                'ALTER TABLE `%s` ADD INDEX `%s` (`%s`)',
+                $tableName,
+                $indexName,
+                $columnName
+            ));
+
+            $messages[] = sprintf(
+                'Added performance index `%s` on `%s` (%s).',
+                $indexName,
+                $tableName,
+                $columnName
+            );
+        }
+
+        if ($messages !== []) {
+            $this->invalidateSchemaCache($tableName);
+        }
+
+        return $messages;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function listRegisteredTypeSlugs(): array
+    {
+        $rows = $this->db()->select('asset_types', 'slug', [
+            'ORDER' => ['sort_order' => 'ASC', 'id' => 'ASC'],
+        ]);
+
+        if (!is_array($rows)) {
+            return [];
+        }
+
+        $slugs = [];
+
+        foreach ($rows as $row) {
+            $slug = $this->extractSlugFromRow($row);
+
+            if ($slug !== null) {
+                $slugs[] = $slug;
+            }
+        }
+
+        return array_values(array_unique($slugs));
+    }
+
+    private function indexExistsOnTable(string $tableName, string $indexName): bool
+    {
+        if (!$this->isValidTableName($tableName) || !$this->isValidIndexName($indexName)) {
+            return false;
+        }
+
+        $statement = $this->db()->query(
+            sprintf("SHOW INDEX FROM `%s` WHERE Key_name = %s", $tableName, $this->db()->quote($indexName))
+        );
+
+        return $statement !== false && $statement->rowCount() > 0;
+    }
+
+    private function isValidIndexName(string $indexName): bool
+    {
+        return preg_match('/^[a-z][a-z0-9_]*$/', $indexName) === 1;
+    }
+
+    private function invalidateSchemaCache(string $tableName): void
+    {
+        unset($this->tableColumnsCache[$tableName]);
+
+        if ($this->schemaMetadataCache !== null) {
+            $this->schemaMetadataCache->delete('schema_columns:' . $tableName);
+        }
     }
 
     public function dropTableForSlug(string $slug): void
@@ -231,7 +380,7 @@ class AssetTypeTableService
         }
 
         $this->db()->query(sprintf('DROP TABLE `%s`', $tableName));
-        unset($this->tableColumnsCache[$tableName]);
+        $this->invalidateSchemaCache($tableName);
     }
 
     /**
@@ -245,6 +394,19 @@ class AssetTypeTableService
 
         if (isset($this->tableColumnsCache[$tableName])) {
             return $this->tableColumnsCache[$tableName];
+        }
+
+        $cacheKey = 'schema_columns:' . $tableName;
+
+        if ($this->schemaMetadataCache !== null) {
+            $cached = $this->schemaMetadataCache->get($cacheKey);
+
+            if (is_array($cached)) {
+                /** @var list<string> $cached */
+                $this->tableColumnsCache[$tableName] = $cached;
+
+                return $cached;
+            }
         }
 
         if (!$this->tableExists($tableName)) {
@@ -268,6 +430,10 @@ class AssetTypeTableService
         }
 
         $this->tableColumnsCache[$tableName] = $columns;
+
+        if ($this->schemaMetadataCache !== null) {
+            $this->schemaMetadataCache->set($cacheKey, $columns, FileStorageCache::DEFAULT_TTL_SECONDS);
+        }
 
         return $columns;
     }
@@ -301,7 +467,7 @@ class AssetTypeTableService
             $this->db()->query($sql);
         } catch (PDOException $exception) {
             if ($this->isDuplicateColumnError($exception)) {
-                unset($this->tableColumnsCache[$tableName]);
+                $this->invalidateSchemaCache($tableName);
 
                 return true;
             }
@@ -313,7 +479,7 @@ class AssetTypeTableService
             );
         }
 
-        unset($this->tableColumnsCache[$tableName]);
+        $this->invalidateSchemaCache($tableName);
 
         return true;
     }

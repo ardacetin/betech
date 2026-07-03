@@ -89,6 +89,10 @@ class DatabaseInitializer
                     $warnings[] = $warning;
                 }
 
+                foreach ($this->patchPolymorphicAssetPerformanceIndexes($connection) as $warning) {
+                    $warnings[] = $warning;
+                }
+
                 foreach ($this->patchSoftwareLicenseManagement($connection) as $warning) {
                     $warnings[] = $warning;
                 }
@@ -941,6 +945,23 @@ class DatabaseInitializer
         }
 
         return $warnings;
+    }
+
+    /**
+     * @param object $connection Medoo instance
+     *
+     * @return list<string>
+     */
+    private function patchPolymorphicAssetPerformanceIndexes(object $connection): array
+    {
+        if (!$this->tableExists($connection, 'asset_types')) {
+            return [];
+        }
+
+        $ddlGuard = new DdlIdentifierGuard();
+        $assetTypeTableService = new AssetTypeTableService($this->databaseService, $ddlGuard);
+
+        return $assetTypeTableService->ensureAllPolymorphicPerformanceIndexes();
     }
 
     /**
