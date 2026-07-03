@@ -9,7 +9,11 @@ declare(strict_types=1);
  * @var string $errorMessage
  * @var string $redirectTarget
  * @var string $csrfToken
+ * @var bool $turnstileEnabled
+ * @var string $turnstileSiteKey
  */
+$turnstileEnabled = $turnstileEnabled ?? true;
+$turnstileSiteKey = trim((string) ($turnstileSiteKey ?? '0x4AAAAAACLf0FH4wQScyWEe'));
 ?>
 <!DOCTYPE html>
 <html lang="tr" class="h-full">
@@ -68,7 +72,13 @@ declare(strict_types=1);
                 >
             </label>
 
-            <div class="cf-turnstile text-center my-4" data-sitekey="0x4AAAAAACLf0FH4wQScyWEe" data-theme="light"></div>
+            <?php if ($turnstileEnabled): ?>
+            <div
+                class="cf-turnstile text-center my-4 flex justify-center"
+                data-sitekey="<?= htmlspecialchars($turnstileSiteKey, ENT_QUOTES, 'UTF-8') ?>"
+                data-theme="light"
+            ></div>
+            <?php endif; ?>
 
             <button
                 type="submit"
@@ -81,6 +91,8 @@ declare(strict_types=1);
 
     <p class="mt-8 text-xs text-zinc-400"><?= htmlspecialchars(__('login_footer'), ENT_QUOTES, 'UTF-8') ?></p>
 </div>
+<?php if ($turnstileEnabled): ?>
 <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+<?php endif; ?>
 </body>
 </html>

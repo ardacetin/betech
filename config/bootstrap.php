@@ -213,7 +213,10 @@ $licenseFilterSchemaService = new LicenseFilterSchemaService();
 $consumableFilterSchemaService = new ConsumableFilterSchemaService();
 $inventoryImportService = new InventoryImportService($assetModel, $assetColumnSchemaService);
 $ldapAuthenticator = new LdapAuthenticator($settingModel);
-$turnstileVerifier = new TurnstileVerifier($turnstileConfig['secret_key'] ?? '');
+$turnstileVerifier = new TurnstileVerifier(
+    $turnstileConfig['secret_key'] ?? '',
+    $turnstileConfig['site_key'] ?? ''
+);
 $inventoryImportController = new InventoryImportController(
     $inventoryImportService,
     $assetHistoryModel,

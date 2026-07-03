@@ -58,6 +58,8 @@ class AuthController
             'errorMessage' => $this->resolveErrorMessage($errorKey),
             'redirectTarget' => $this->resolveRedirectTarget($request),
             'csrfToken' => $this->sessionAuthService->getOrCreateCsrfToken(),
+            'turnstileEnabled' => $this->turnstileVerifier->isEnabled(),
+            'turnstileSiteKey' => $this->turnstileVerifier->siteKey(),
         ], null);
 
         $response->getBody()->write($html);
@@ -94,18 +96,26 @@ class AuthController
         $redirectTarget = $this->sanitizeRedirect((string) ($payload['redirect'] ?? ''));
         $turnstileToken = trim((string) ($payload['cf-turnstile-response'] ?? $_POST['cf-turnstile-response'] ?? ''));
 
-        if ($turnstileToken === '') {
-            $this->logFailedLogin($clientIp, $identifier, 'turnstile_missing', false, 'form');
+        if ($this->turnstileVerifier->isEnabled()) {
+            if ($turnstileToken === '') {
+                $this->logFailedLogin($clientIp, $identifier, 'turnstile_missing', false, 'form');
 
-            return $this->redirectWithError($response, 'login_turnstile_missing', $redirectTarget);
-        }
+                return $this->redirectWithError($response, 'login_turnstile_missing', $redirectTarget);
+            }
 
-        $remoteIp = trim((string) ($request->getServerParams()['REMOTE_ADDR'] ?? $clientIp));
+            $remoteIp = trim((string) ($request->getServerParams()['REMOTE_ADDR'] ?? $clientIp));
+            $turnstileResult = $this->turnstileVerifier->verify($turnstileToken, $remoteIp);
 
-        if (!$this->turnstileVerifier->verify($turnstileToken, $remoteIp)) {
-            $this->logFailedLogin($clientIp, $identifier, 'turnstile_failed', false, 'form');
+            if ($turnstileResult['transport_error']) {
+                $this->appLogger->warning('Cloudflare Turnstile siteverify unreachable; continuing login with transport fallback.', [
+                    'client_ip' => $clientIp,
+                    'identifier' => $identifier,
+                ]);
+            } elseif (!$turnstileResult['accepted']) {
+                $this->logFailedLogin($clientIp, $identifier, 'turnstile_failed', false, 'form');
 
-            return $this->redirectWithError($response, 'login_turnstile_failed', $redirectTarget);
+                return $this->redirectWithError($response, 'login_turnstile_failed', $redirectTarget);
+            }
         }
 
         return $this->completeLdapLogin($response, $clientIp, $identifier, $password, $redirectTarget, 'form');

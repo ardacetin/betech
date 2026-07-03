@@ -11,14 +11,40 @@ class TurnstileVerifier
     private const VERIFY_URL = 'https://challenges.cloudflare.com/turnstile/v0/siteverify';
 
     public function __construct(
-        private readonly string $secretKey
+        private readonly string $secretKey,
+        private readonly string $siteKey = ''
     ) {
     }
 
-    public function verify(string $token, string $remoteIp): bool
+    public function isEnabled(): bool
     {
-        if ($this->secretKey === '' || trim($token) === '') {
-            return false;
+        return trim($this->secretKey) !== '';
+    }
+
+    public function siteKey(): string
+    {
+        $siteKey = trim($this->siteKey);
+
+        return $siteKey !== '' ? $siteKey : '0x4AAAAAACLf0FH4wQScyWEe';
+    }
+
+    /**
+     * @return array{accepted: bool, transport_error: bool}
+     */
+    public function verify(string $token, string $remoteIp): array
+    {
+        if (!$this->isEnabled()) {
+            return [
+                'accepted' => true,
+                'transport_error' => false,
+            ];
+        }
+
+        if (trim($token) === '') {
+            return [
+                'accepted' => false,
+                'transport_error' => false,
+            ];
         }
 
         $responseBody = $this->postSiteVerify([
@@ -28,17 +54,26 @@ class TurnstileVerifier
         ]);
 
         if ($responseBody === null) {
-            return false;
+            return [
+                'accepted' => false,
+                'transport_error' => true,
+            ];
         }
 
         try {
             /** @var array<string, mixed> $decoded */
             $decoded = json_decode($responseBody, true, 512, JSON_THROW_ON_ERROR);
         } catch (JsonException) {
-            return false;
+            return [
+                'accepted' => false,
+                'transport_error' => true,
+            ];
         }
 
-        return ($decoded['success'] ?? false) === true;
+        return [
+            'accepted' => ($decoded['success'] ?? false) === true,
+            'transport_error' => false,
+        ];
     }
 
     /**
@@ -46,6 +81,10 @@ class TurnstileVerifier
      */
     private function postSiteVerify(array $fields): ?string
     {
+        if (!function_exists('curl_init')) {
+            return null;
+        }
+
         $curl = curl_init(self::VERIFY_URL);
 
         if ($curl === false) {
@@ -65,9 +104,16 @@ class TurnstileVerifier
 
         $response = curl_exec($curl);
         $statusCode = (int) curl_getinfo($curl, CURLINFO_HTTP_CODE);
+        $curlError = curl_error($curl);
         curl_close($curl);
 
         if ($response === false || $statusCode >= 400) {
+            error_log(sprintf(
+                '[TurnstileVerifier] siteverify request failed (HTTP %d): %s',
+                $statusCode,
+                $curlError !== '' ? $curlError : 'empty response'
+            ));
+
             return null;
         }
 
