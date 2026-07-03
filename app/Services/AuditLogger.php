@@ -27,7 +27,8 @@ class AuditLogger
         ?int $entityId,
         ?array $oldValues,
         ?array $newValues,
-        ?string $ipAddress = null
+        ?string $ipAddress = null,
+        ?string $assetType = null
     ): void {
         try {
             $this->auditLogModel->create(
@@ -37,7 +38,8 @@ class AuditLogger
                 $entityId,
                 $this->changeFormatter->maskValues($oldValues),
                 $this->changeFormatter->maskValues($newValues),
-                $ipAddress
+                $ipAddress,
+                $assetType
             );
         } catch (\Throwable) {
             // Audit failures must never break primary operations.
@@ -55,7 +57,8 @@ class AuditLogger
         string $entityType,
         ?int $entityId,
         ?array $oldValues = null,
-        ?array $newValues = null
+        ?array $newValues = null,
+        ?string $assetType = null
     ): void {
         $this->log(
             $userId,
@@ -64,7 +67,8 @@ class AuditLogger
             $entityId,
             $oldValues,
             $newValues,
-            $this->clientIpResolver->resolveFromRequest($request)
+            $this->clientIpResolver->resolveFromRequest($request),
+            $assetType
         );
     }
 

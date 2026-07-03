@@ -44,9 +44,10 @@ class AuditLog
         ?int $entityId,
         ?array $oldValues,
         ?array $newValues,
-        ?string $ipAddress
+        ?string $ipAddress,
+        ?string $assetType = null
     ): void {
-        $this->db()->insert('audit_logs', [
+        $payload = [
             'user_id' => $userId !== null && $userId > 0 ? $userId : null,
             'action_type' => $actionType,
             'entity_type' => $entityType,
@@ -54,7 +55,13 @@ class AuditLog
             'old_values' => $oldValues !== null ? json_encode($oldValues, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) : null,
             'new_values' => $newValues !== null ? json_encode($newValues, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) : null,
             'ip_address' => $ipAddress,
-        ]);
+        ];
+
+        if ($this->columnExists('asset_type')) {
+            $payload['asset_type'] = $assetType !== null && trim($assetType) !== '' ? trim($assetType) : null;
+        }
+
+        $this->db()->insert('audit_logs', $payload);
     }
 
     /**
@@ -105,6 +112,7 @@ class AuditLog
             'audit_logs.action_type',
             'audit_logs.entity_type',
             'audit_logs.entity_id',
+            'audit_logs.asset_type',
             'audit_logs.old_values',
             'audit_logs.new_values',
             'audit_logs.ip_address',
@@ -112,7 +120,7 @@ class AuditLog
             'users.name(user_name)',
             'users.email(user_email)',
         ], array_merge($conditions, [
-            'ORDER' => ['audit_logs.created_at' => 'DESC', 'audit_logs.id' => 'DESC'],
+            'ORDER' => ['audit_logs.id' => 'DESC'],
             'LIMIT' => [$offset, $perPage],
         ]));
 
@@ -148,6 +156,7 @@ class AuditLog
             'audit_logs.action_type',
             'audit_logs.entity_type',
             'audit_logs.entity_id',
+            'audit_logs.asset_type',
             'audit_logs.old_values',
             'audit_logs.new_values',
             'audit_logs.ip_address',
@@ -155,7 +164,7 @@ class AuditLog
             'users.name(user_name)',
             'users.email(user_email)',
         ], [
-            'ORDER' => ['audit_logs.created_at' => 'DESC', 'audit_logs.id' => 'DESC'],
+            'ORDER' => ['audit_logs.id' => 'DESC'],
             'LIMIT' => $limit,
         ]);
 
@@ -218,6 +227,9 @@ class AuditLog
             'action_type' => (string) ($row['action_type'] ?? ''),
             'entity_type' => (string) ($row['entity_type'] ?? ''),
             'entity_id' => $row['entity_id'] !== null ? (int) $row['entity_id'] : null,
+            'asset_type' => isset($row['asset_type']) && $row['asset_type'] !== null
+                ? (string) $row['asset_type']
+                : null,
             'old_values' => $this->decodeJsonColumn($row['old_values'] ?? null),
             'new_values' => $this->decodeJsonColumn($row['new_values'] ?? null),
             'ip_address' => $row['ip_address'] !== null ? (string) $row['ip_address'] : null,
@@ -257,5 +269,24 @@ class AuditLog
     private function db(): Medoo
     {
         return $this->databaseService->getConnection();
+    }
+
+    private function columnExists(string $columnName): bool
+    {
+        $statement = $this->db()->query(
+            'SELECT COUNT(*) AS total
+            FROM information_schema.COLUMNS
+            WHERE TABLE_SCHEMA = DATABASE()
+              AND TABLE_NAME = ' . $this->db()->quote('audit_logs') . '
+              AND COLUMN_NAME = ' . $this->db()->quote($columnName)
+        );
+
+        if ($statement === false) {
+            return false;
+        }
+
+        $row = $statement->fetch();
+
+        return (int) ($row['total'] ?? 0) > 0;
     }
 }

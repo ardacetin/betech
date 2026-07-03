@@ -1149,6 +1149,31 @@ class DatabaseInitializer
             $warnings[] = 'Self-healed database: created audit_logs table.';
         }
 
+        if (!$this->columnExists($connection, 'audit_logs', 'asset_type')) {
+            $this->safeQuery(
+                $connection,
+                'ALTER TABLE audit_logs ADD COLUMN asset_type VARCHAR(255) NULL DEFAULT NULL AFTER entity_id'
+            );
+            $this->safeQuery(
+                $connection,
+                'ALTER TABLE audit_logs ADD KEY idx_audit_logs_asset_type (asset_type)'
+            );
+            $warnings[] = 'Self-healed audit_logs table: added asset_type column.';
+        }
+
+        if ($this->tableExists($connection, 'asset_histories')
+            && !$this->columnExists($connection, 'asset_histories', 'asset_type')) {
+            $this->safeQuery(
+                $connection,
+                'ALTER TABLE asset_histories ADD COLUMN asset_type VARCHAR(255) NULL DEFAULT NULL AFTER asset_id'
+            );
+            $this->safeQuery(
+                $connection,
+                'ALTER TABLE asset_histories ADD KEY idx_asset_histories_asset_type (asset_type)'
+            );
+            $warnings[] = 'Self-healed asset_histories table: added asset_type column.';
+        }
+
         return $warnings;
     }
 

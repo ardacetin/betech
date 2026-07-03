@@ -62,6 +62,7 @@ use App\Models\User;
 use App\Services\AnalyticsService;
 use App\Services\AppLogger;
 use App\Services\AssetColumnSchemaService;
+use App\Services\AssetMutationLogger;
 use App\Services\DdlIdentifierGuard;
 use App\Services\AssetTypeTableService;
 use App\Services\AssetCsvImportService;
@@ -127,6 +128,9 @@ $userModel = new User($databaseService);
 $personnelModel = new Personnel($databaseService);
 $sessionAuthService = new SessionAuthService();
 $endUserContextService = new EndUserContextService($sessionAuthService, $userModel, $personnelModel);
+$auditLogModel = new AuditLog($databaseService);
+$auditChangeFormatter = new AuditChangeFormatter();
+$auditLogger = new AuditLogger($auditLogModel, $auditChangeFormatter, $clientIpResolver);
 $publicPaths = [
     '/login',
     '/api/login',
@@ -164,6 +168,12 @@ $assetRegistryModel = new AssetRegistry($databaseService);
 $assetsGlobalRegistryModel = new AssetsGlobalRegistry($databaseService);
 $assetCustomFieldModel = new AssetCustomField($databaseService, $assetTypeTableService, $assetTypeModel, $ddlIdentifierGuard);
 $assetComponentModel = new AssetComponent($databaseService, $assetTypeModel, $assetTypeTableService);
+$assetMutationLogger = new AssetMutationLogger(
+    $auditLogger,
+    $endUserContextService,
+    $userModel,
+    $assetTypeModel
+);
 $assetColumnSchemaService = new AssetColumnSchemaService(
     $databaseService,
     $settingModel,
@@ -177,7 +187,8 @@ $assetModel = new Asset(
     $assetTypeTableService,
     $assetRegistryModel,
     $assetsGlobalRegistryModel,
-    $assetTypeModel
+    $assetTypeModel,
+    $assetMutationLogger
 );
 $assetHistoryModel = new AssetHistory($databaseService);
 $categoryModel = new Category($databaseService);
@@ -202,9 +213,6 @@ $licenseFilterSchemaService = new LicenseFilterSchemaService();
 $consumableFilterSchemaService = new ConsumableFilterSchemaService();
 $inventoryImportService = new InventoryImportService($assetModel, $assetColumnSchemaService);
 $ldapAuthenticator = new LdapAuthenticator($settingModel);
-$auditLogModel = new AuditLog($databaseService);
-$auditChangeFormatter = new AuditChangeFormatter();
-$auditLogger = new AuditLogger($auditLogModel, $auditChangeFormatter, $clientIpResolver);
 $turnstileVerifier = new TurnstileVerifier($turnstileConfig['secret_key'] ?? '');
 $inventoryImportController = new InventoryImportController(
     $inventoryImportService,

@@ -199,6 +199,7 @@ CREATE TABLE IF NOT EXISTS assets (
 CREATE TABLE IF NOT EXISTS asset_histories (
     id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
     asset_id BIGINT UNSIGNED NOT NULL,
+    asset_type VARCHAR(255) NULL DEFAULT NULL,
     action VARCHAR(50) NOT NULL,
     user_id BIGINT UNSIGNED DEFAULT NULL,
     target_personnel_id BIGINT UNSIGNED DEFAULT NULL,
@@ -206,6 +207,7 @@ CREATE TABLE IF NOT EXISTS asset_histories (
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
     KEY idx_asset_histories_asset_id (asset_id),
+    KEY idx_asset_histories_asset_type (asset_type),
     KEY idx_asset_histories_action (action),
     KEY idx_asset_histories_created_at (created_at),
     CONSTRAINT fk_asset_histories_asset_id
@@ -332,6 +334,7 @@ CREATE TABLE IF NOT EXISTS audit_logs (
     action_type VARCHAR(32) NOT NULL,
     entity_type VARCHAR(32) NOT NULL,
     entity_id BIGINT UNSIGNED DEFAULT NULL,
+    asset_type VARCHAR(255) NULL DEFAULT NULL,
     old_values JSON DEFAULT NULL,
     new_values JSON DEFAULT NULL,
     ip_address VARCHAR(45) DEFAULT NULL,
@@ -341,6 +344,7 @@ CREATE TABLE IF NOT EXISTS audit_logs (
     KEY idx_audit_logs_action_type (action_type),
     KEY idx_audit_logs_entity_type (entity_type),
     KEY idx_audit_logs_entity_id (entity_id),
+    KEY idx_audit_logs_asset_type (asset_type),
     KEY idx_audit_logs_created_at (created_at),
     CONSTRAINT fk_audit_logs_user_id
         FOREIGN KEY (user_id) REFERENCES users (id)

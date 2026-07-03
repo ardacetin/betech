@@ -471,6 +471,21 @@ class AssetTypeTableService
         return is_array($row) && isset($row['id']) ? (int) $row['id'] : null;
     }
 
+    public function slugForTypeId(int $typeId): ?string
+    {
+        if ($typeId <= 0) {
+            return null;
+        }
+
+        $slug = $this->db()->get('asset_types', 'slug', ['id' => $typeId]);
+
+        if (!is_string($slug) || trim($slug) === '') {
+            return null;
+        }
+
+        return trim($slug);
+    }
+
     private function db(): Medoo
     {
         return $this->databaseService->getConnection();

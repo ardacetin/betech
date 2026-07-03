@@ -159,19 +159,6 @@ class AssetController
         try {
             $asset = $this->assetModel->create($coreFields, $this->resolveAssetTypeId($request));
             $this->logAssetCreation($request, $asset, $coreFields);
-            $this->auditLogger->logFromRequest(
-                $request,
-                $this->actorUserId(),
-                AuditLog::ACTION_CREATED,
-                AuditLog::ENTITY_ASSET,
-                (int) ($asset['id'] ?? 0),
-                null,
-                [
-                    'asset_tag' => (string) ($asset['asset_tag'] ?? ''),
-                    'name' => (string) ($asset['name'] ?? ''),
-                    'status' => (string) ($asset['status'] ?? ''),
-                ]
-            );
         } catch (\RuntimeException $exception) {
             return $this->jsonResponse($response, 422, [
                 'status' => 'error',
@@ -239,15 +226,6 @@ class AssetController
         try {
             $asset = $this->assetModel->update($assetId, $coreFields);
             $this->logAssetUpdates($request, $assetId, $existingAsset, $coreFields);
-            $this->auditLogger->logFromRequest(
-                $request,
-                $this->actorUserId(),
-                AuditLog::ACTION_UPDATED,
-                AuditLog::ENTITY_ASSET,
-                $assetId,
-                $this->snapshotAssetAudit($existingAsset, $coreFields),
-                $this->snapshotAssetAudit($asset ?? [], $coreFields)
-            );
         } catch (\RuntimeException $exception) {
             return $this->jsonResponse($response, 422, [
                 'status' => 'error',
@@ -335,19 +313,6 @@ class AssetController
                 'message' => 'Asset could not be deleted because related records blocked the operation.',
             ]);
         }
-
-        $this->auditLogger->logFromRequest(
-            $request,
-            $this->actorUserId(),
-            AuditLog::ACTION_DELETED,
-            AuditLog::ENTITY_ASSET,
-            $assetId,
-            [
-                'asset_tag' => (string) ($existingAsset['asset_tag'] ?? ''),
-                'name' => (string) ($existingAsset['name'] ?? ''),
-            ],
-            null
-        );
 
         return $this->jsonResponse($response, 200, [
             'status' => 'success',
@@ -510,7 +475,8 @@ class AssetController
                 'assigned_to' => $assignedTo,
                 'personnel_name' => $personnelName,
                 'status' => 'deployed',
-            ]
+            ],
+            $this->resolveAssetTypeSlug($existingAsset)
         );
 
         return $this->jsonResponse($response, 200, [
@@ -607,7 +573,8 @@ class AssetController
             [
                 'asset_tag' => (string) ($asset['asset_tag'] ?? ''),
                 'status' => 'ready',
-            ]
+            ],
+            $this->resolveAssetTypeSlug($existingAsset)
         );
 
         return $this->jsonResponse($response, 200, [
@@ -752,7 +719,8 @@ class AssetController
                 'asset_tag' => (string) ($asset['asset_tag'] ?? ''),
                 'assigned_to' => $newAssignedTo,
                 'personnel_name' => $newUserName,
-            ]
+            ],
+            $this->resolveAssetTypeSlug($existingAsset)
         );
 
         return $this->jsonResponse($response, 200, [
@@ -911,6 +879,7 @@ class AssetController
     private function logAssetCreation(ServerRequestInterface $request, array $asset, array $coreFields): void
     {
         $assetId = (int) $asset['id'];
+        $assetTypeSlug = $this->resolveAssetTypeSlug($asset);
 
         $this->logAssetHistory(
             $request,
@@ -918,7 +887,8 @@ class AssetController
             'created',
             null,
             null,
-            sprintf('Asset created with tag %s', (string) $asset['asset_tag'])
+            sprintf('Asset created with tag %s', (string) $asset['asset_tag']),
+            $assetTypeSlug
         );
 
         $assignedTo = trim((string) ($coreFields['assigned_to'] ?? ''));
@@ -1462,14 +1432,16 @@ class AssetController
         string $action,
         ?int $userId,
         ?int $targetPersonnelId,
-        ?string $notes
+        ?string $notes,
+        ?string $assetType = null
     ): void {
         $this->assetHistoryModel->log(
             $assetId,
             $action,
             $userId,
             $targetPersonnelId,
-            $this->appendClientIpToNotes($notes, $request)
+            $this->appendClientIpToNotes($notes, $request),
+            $assetType
         );
     }
 
@@ -1498,6 +1470,20 @@ class AssetController
     private function actorUserId(): ?int
     {
         return $this->endUserContextService->resolveLegacyUserId();
+    }
+
+    /**
+     * @param array<string, mixed> $asset
+     */
+    private function resolveAssetTypeSlug(array $asset): ?string
+    {
+        $slug = trim((string) ($asset['asset_type_slug'] ?? ''));
+
+        if ($slug !== '') {
+            return $slug;
+        }
+
+        return $this->assetTypeTableService->slugForTypeId((int) ($asset['asset_type_id'] ?? 0));
     }
 
     private function appendClientIpToNotes(?string $notes, ServerRequestInterface $request): ?string

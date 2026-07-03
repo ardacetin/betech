@@ -19,15 +19,22 @@ class AssetHistory
         string $action,
         ?int $userId = null,
         ?int $targetPersonnelId = null,
-        ?string $notes = null
+        ?string $notes = null,
+        ?string $assetType = null
     ): void {
-        $this->db()->insert('asset_histories', [
+        $payload = [
             'asset_id' => $assetId,
             'action' => $action,
             'user_id' => $this->normalizeOptionalUserId($userId),
             'target_personnel_id' => $this->normalizeOptionalPersonnelId($targetPersonnelId),
             'notes' => $notes,
-        ]);
+        ];
+
+        if ($this->columnExists('asset_type')) {
+            $payload['asset_type'] = $assetType !== null && trim($assetType) !== '' ? trim($assetType) : null;
+        }
+
+        $this->db()->insert('asset_histories', $payload);
     }
 
     /**
@@ -37,24 +44,33 @@ class AssetHistory
     {
         $limit = max(1, min(20, $limit));
 
-        $rows = $this->db()->select('asset_histories', [
-            '[>]assets' => ['asset_id' => 'id'],
+        $joins = [
             '[>]personnel(target_personnel)' => ['target_personnel_id' => 'id'],
             '[>]users(actor)' => ['user_id' => 'id'],
-        ], [
+        ];
+        $columns = [
             'asset_histories.id',
             'asset_histories.asset_id',
+            'asset_histories.asset_type',
             'asset_histories.action',
             'asset_histories.user_id',
             'asset_histories.target_personnel_id',
             'asset_histories.notes',
             'asset_histories.created_at',
-            'assets.name(asset_name)',
             'target_personnel.name(target_personnel_name)',
             'actor.name(actor_name)',
-        ], [
+        ];
+
+        if ($this->tableExists('assets_global_registry')) {
+            $joins['[>]assets_global_registry(registry)'] = ['asset_id' => 'id'];
+            $columns[] = 'registry.name(registry_asset_name)';
+        }
+
+        $joins['[>]assets'] = ['asset_id' => 'id'];
+        $columns[] = 'assets.name(legacy_asset_name)';
+
+        $rows = $this->db()->select('asset_histories', $joins, $columns, [
             'ORDER' => [
-                'asset_histories.created_at' => 'DESC',
                 'asset_histories.id' => 'DESC',
             ],
             'LIMIT' => $limit,
@@ -62,7 +78,7 @@ class AssetHistory
 
         return array_map(
             fn (array $row): array => $this->normalizeRow($row),
-            $rows
+            is_array($rows) ? $rows : []
         );
     }
 
@@ -77,6 +93,7 @@ class AssetHistory
         ], [
             'asset_histories.id',
             'asset_histories.asset_id',
+            'asset_histories.asset_type',
             'asset_histories.action',
             'asset_histories.user_id',
             'asset_histories.target_personnel_id',
@@ -87,14 +104,13 @@ class AssetHistory
         ], [
             'asset_histories.asset_id' => $assetId,
             'ORDER' => [
-                'asset_histories.created_at' => 'DESC',
                 'asset_histories.id' => 'DESC',
             ],
         ]);
 
         return array_map(
             fn (array $row): array => $this->normalizeRow($row),
-            $rows
+            is_array($rows) ? $rows : []
         );
     }
 
@@ -118,6 +134,16 @@ class AssetHistory
 
         if (array_key_exists('target_personnel_name', $row)) {
             $row['target_user_name'] = $row['target_personnel_name'];
+        }
+
+        $registryName = trim((string) ($row['registry_asset_name'] ?? ''));
+        $legacyName = trim((string) ($row['legacy_asset_name'] ?? ''));
+        $row['asset_name'] = $registryName !== '' ? $registryName : $legacyName;
+
+        unset($row['registry_asset_name'], $row['legacy_asset_name']);
+
+        if (array_key_exists('asset_type', $row) && $row['asset_type'] !== null) {
+            $row['asset_type'] = (string) $row['asset_type'];
         }
 
         return $row;
@@ -147,6 +173,42 @@ class AssetHistory
         }
 
         return $personnelId;
+    }
+
+    private function tableExists(string $tableName): bool
+    {
+        if (!preg_match('/^[a-z0-9_]+$/', $tableName)) {
+            return false;
+        }
+
+        $statement = $this->db()->query(
+            "SHOW TABLES LIKE '" . str_replace("'", "''", $tableName) . "'"
+        );
+
+        if ($statement === false) {
+            return false;
+        }
+
+        return $statement->fetch() !== false;
+    }
+
+    private function columnExists(string $columnName): bool
+    {
+        $statement = $this->db()->query(
+            'SELECT COUNT(*) AS total
+            FROM information_schema.COLUMNS
+            WHERE TABLE_SCHEMA = DATABASE()
+              AND TABLE_NAME = ' . $this->db()->quote('asset_histories') . '
+              AND COLUMN_NAME = ' . $this->db()->quote($columnName)
+        );
+
+        if ($statement === false) {
+            return false;
+        }
+
+        $row = $statement->fetch();
+
+        return (int) ($row['total'] ?? 0) > 0;
     }
 
     private function db(): Medoo

@@ -4002,6 +4002,10 @@ $i18nScript = json_encode([
                 const entity = String(log?.entity_type || '');
                 const verb = window.__i18n['dashboard_log_verb_' + action] || action.replace(/_/g, ' ');
                 const entityPhrase = window.__i18n['dashboard_log_entity_' + entity] || entity;
+                const assetType = String(log?.asset_type || '').trim();
+                const entityLabel = assetType !== ''
+                    ? entityPhrase + ' (' + assetType + ')'
+                    : entityPhrase;
                 const userHtml = '<span class="font-semibold text-gray-900">' + this.escapeHtml(rawName) + '</span>';
 
                 if (action === 'login' || entity === '') {
@@ -4013,7 +4017,7 @@ $i18nScript = json_encode([
                 return (window.__i18n.dashboard_log_template || ':user :verb :entity')
                     .replace(':user', userHtml)
                     .replace(':verb', this.escapeHtml(verb))
-                    .replace(':entity', this.escapeHtml(entityPhrase));
+                    .replace(':entity', this.escapeHtml(entityLabel));
             },
             formatAuditFeedTime(value) {
                 if (!value) {

@@ -8,6 +8,7 @@ use App\Models\AssetRegistry;
 use App\Models\AssetsGlobalRegistry;
 use App\Models\AssetType;
 use App\Services\AssetColumnSchemaService;
+use App\Services\AssetMutationLogger;
 use App\Services\AssetTypeTableService;
 use App\Services\DatabaseService;
 use App\Services\ListPagination;
@@ -39,6 +40,7 @@ class Asset
         private readonly AssetRegistry $assetRegistry,
         private readonly AssetsGlobalRegistry $assetsGlobalRegistry,
         private readonly AssetType $assetTypeModel,
+        private readonly AssetMutationLogger $assetMutationLogger,
     ) {
     }
 
@@ -403,14 +405,35 @@ class Asset
 
     public function deletePermanently(int $assetId): bool
     {
-        if (!$this->db()->has('assets', ['id' => $assetId])) {
+        if ($assetId <= 0) {
             return false;
         }
 
+        $typeId = $this->assetRegistry->resolveTypeId($assetId);
+        $existsInLegacy = $this->db()->has('assets', ['id' => $assetId]);
+        $existsInTypeTable = false;
+
+        if ($typeId !== null && $typeId > 0) {
+            $tableName = $this->resolveTableName($typeId);
+            $existsInTypeTable = $this->tableExists($tableName) && $this->db()->has($tableName, ['id' => $assetId]);
+        }
+
+        if (!$existsInLegacy && !$existsInTypeTable) {
+            return false;
+        }
+
+        $beforeRow = $this->findById($assetId);
+        $resolvedTypeId = $typeId ?? (int) ($beforeRow['asset_type_id'] ?? 0);
         $pdo = $this->db()->pdo;
 
         if ($pdo->inTransaction()) {
-            return $this->executeDeleteCascade($this->db(), $assetId);
+            $deleted = $this->executeDeleteCascade($this->db(), $assetId);
+
+            if ($deleted && $beforeRow !== null && $resolvedTypeId > 0) {
+                $this->assetMutationLogger->logDeleted($resolvedTypeId, $assetId, $beforeRow);
+            }
+
+            return $deleted;
         }
 
         $deleted = false;
@@ -419,12 +442,24 @@ class Asset
             $deleted = $this->executeDeleteCascade($db, $assetId);
         });
 
+        if ($deleted && $beforeRow !== null && $resolvedTypeId > 0) {
+            $this->assetMutationLogger->logDeleted($resolvedTypeId, $assetId, $beforeRow);
+        }
+
         return $deleted;
     }
 
     private function executeDeleteCascade(Medoo $db, int $assetId): bool
     {
-        if (!$db->has('assets', ['id' => $assetId])) {
+        $typeId = $this->assetRegistry->resolveTypeId($assetId);
+        $existsInLegacy = $db->has('assets', ['id' => $assetId]);
+        $tableName = $typeId !== null && $typeId > 0 ? $this->resolveTableName($typeId) : 'assets';
+        $existsInTypeTable = $typeId !== null
+            && $typeId > 0
+            && $this->tableExists($tableName)
+            && $db->has($tableName, ['id' => $assetId]);
+
+        if (!$existsInLegacy && !$existsInTypeTable) {
             return false;
         }
 
@@ -466,17 +501,22 @@ class Asset
 
         $typeId = $this->assetRegistry->resolveTypeId($assetId);
 
-        if ($typeId !== null) {
+        if ($typeId !== null && $typeId > 0) {
             $tableName = $this->resolveTableName($typeId);
-            $db->delete($tableName, ['id' => $assetId]);
+
+            if ($this->tableExists($tableName)) {
+                $db->delete($tableName, ['id' => $assetId]);
+            }
         }
 
         $this->assetRegistry->unregister($assetId);
         $this->assetsGlobalRegistry->unregister($assetId);
 
-        $db->delete('assets', [
-            'id' => $assetId,
-        ]);
+        if ($existsInLegacy) {
+            $db->delete('assets', [
+                'id' => $assetId,
+            ]);
+        }
 
         return true;
     }
@@ -548,6 +588,7 @@ class Asset
 
         $this->syncLegacyAssetRow($typeId, $row);
         $this->syncGlobalRegistry($typeId, $row);
+        $this->assetMutationLogger->logCreated($typeId, $insertedId, $row);
 
         return $this->normalizeRow($row, $typeId);
     }
@@ -626,6 +667,14 @@ class Asset
         }
 
         $this->syncGlobalRegistry($typeId > 0 ? $typeId : (int) ($row['asset_type_id'] ?? 0), $row);
+
+        $effectiveTypeId = ($typeId !== null && $typeId > 0)
+            ? $typeId
+            : (int) ($existing['asset_type_id'] ?? $row['asset_type_id'] ?? 0);
+
+        if ($effectiveTypeId > 0) {
+            $this->assetMutationLogger->logUpdated($effectiveTypeId, $assetId, $existing, $row);
+        }
 
         return $this->normalizeRow($row, $typeId > 0 ? $typeId : null);
     }

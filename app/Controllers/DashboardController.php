@@ -31,7 +31,7 @@ class DashboardController
         return $this->jsonResponse($response, 200, [
             'status' => 'success',
             'data' => $stats,
-        ]);
+        ])->withHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
     }
 
     /**
