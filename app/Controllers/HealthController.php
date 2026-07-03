@@ -114,18 +114,19 @@ class HealthController
             }
         }
 
-        return $this->renderDashboard(
-            $request,
-            $response,
-            null,
-            false,
-            'switch_ports',
-            [
-                'switches' => $switches,
-                'selected_switch_id' => $selectedSwitchId,
-                'matrix' => $matrix,
-            ]
-        );
+        $html = $this->viewRenderer->render('switch_ports', [
+            'appName' => __('app_name'),
+            'pageTitle' => __('switch_ports_page_title'),
+            'locale' => Translator::instance()->getLocale(),
+            'switches' => $switches,
+            'switchesJson' => json_encode($switches, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE),
+            'selectedSwitchId' => $selectedSwitchId,
+            'matrixJson' => json_encode($matrix, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE),
+        ]);
+
+        $response->getBody()->write($html);
+
+        return $response->withHeader('Content-Type', 'text/html; charset=utf-8');
     }
 
     public function inventorySection(
@@ -148,16 +149,12 @@ class HealthController
     /**
      * @param array{id: int, slug: string, table: string}|null $requestedAssetType
      */
-    /**
-     * @param array{switches?: list<array<string, mixed>>, selected_switch_id?: int, matrix?: array<string, mixed>|null} $switchPortsBootstrap
-     */
     private function renderDashboard(
         ServerRequestInterface $request,
         ResponseInterface $response,
         ?array $requestedAssetType,
         bool $forceAssetsView,
         ?string $initialActiveView = null,
-        array $switchPortsBootstrap = [],
     ): ResponseInterface {
         $userId = $this->sessionAuthService->userId() ?? 0;
         $role = $this->sessionAuthService->role();
@@ -324,15 +321,6 @@ class HealthController
                         $this->assetCustomFieldModel->findByAssetTypeId($activeAssetTypeId)
                     )
                     : [],
-                JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE
-            ),
-            'switchPortsSwitchesJson' => json_encode(
-                $switchPortsBootstrap['switches'] ?? [],
-                JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE
-            ),
-            'switchPortsSelectedSwitchId' => (int) ($switchPortsBootstrap['selected_switch_id'] ?? 0),
-            'switchPortsMatrixJson' => json_encode(
-                $switchPortsBootstrap['matrix'] ?? null,
                 JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE
             ),
         ]);

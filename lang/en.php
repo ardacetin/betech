@@ -1382,7 +1382,7 @@ return [
     'switch_ports_directory_subtitle' => 'All registered network switches',
     'switch_ports_loading' => 'Loading switch list...',
     'switch_ports_fetch_error' => 'Failed to load switch list.',
-    'switch_ports_empty_registry' => 'No registered network switches found yet. Please add devices from Asset Management.',
+    'switch_ports_empty_registry' => 'No registered Network Switch devices found yet. Please add a device from Asset Management.',
     'switch_ports_select_prompt' => 'Select a switch from the left to view its port map.',
     'switch_ports_matrix_loading' => 'Loading port matrix...',
     'switch_ports_matrix_error' => 'Failed to load port matrix.',

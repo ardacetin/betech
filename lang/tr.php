@@ -1406,7 +1406,7 @@ return [
     'switch_ports_directory_subtitle' => 'Kayıtlı tüm switchler',
     'switch_ports_loading' => 'Switch listesi yükleniyor...',
     'switch_ports_fetch_error' => 'Switch listesi yüklenemedi.',
-    'switch_ports_empty_registry' => 'Henüz kayıtlı Switch cihazı bulunamadı. Lütfen Varlık Yönetiminden cihaz ekleyin.',
+    'switch_ports_empty_registry' => 'Henüz kayıtlı Ağ Switch cihazı bulunamadı. Lütfen Varlık Yönetiminden cihaz ekleyin.',
     'switch_ports_select_prompt' => 'Port haritasını görüntülemek için soldan bir switch seçin.',
     'switch_ports_matrix_loading' => 'Port matrisi yükleniyor...',
     'switch_ports_matrix_error' => 'Port matrisi yüklenemedi.',
