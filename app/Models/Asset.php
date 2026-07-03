@@ -106,6 +106,14 @@ class Asset
         $tableName = $this->resolveTableName($assetTypeId);
         $page = max(1, $page);
         $perPage = ListPagination::PAGE_SIZE;
+
+        if (!$this->columnSchemaService->assetTableExists($assetTypeId)) {
+            return [
+                'data' => [],
+                'pagination' => ListPagination::meta($page, 0, $perPage),
+            ];
+        }
+
         $countWhere = $where === [] ? null : $where;
         $total = (int) $this->db()->count($tableName, $countWhere);
         $selectWhere = $where;

@@ -39,7 +39,7 @@ class RoleMiddleware implements MiddlewareInterface
         }
 
         $method = strtoupper($request->getMethod());
-        $role = $this->sessionAuthService->role();
+        $role = User::normalizeRoleStatic($this->sessionAuthService->role());
 
         foreach ($this->rules as $rule) {
             if (!$this->matchesPattern($path, (string) $rule['pattern'])) {
@@ -491,6 +491,96 @@ class RoleMiddleware implements MiddlewareInterface
                 'methods' => ['GET'],
                 'pattern' => '/api/dashboard/stats',
                 'roles' => $operational,
+            ],
+            [
+                'methods' => ['GET'],
+                'pattern' => '/api/assets/schema',
+                'roles' => $operational,
+            ],
+            [
+                'methods' => ['GET'],
+                'pattern' => '/api/asset-types',
+                'roles' => [User::ROLE_ADMIN],
+            ],
+            [
+                'methods' => ['POST'],
+                'pattern' => '/api/asset-types',
+                'roles' => [User::ROLE_ADMIN],
+            ],
+            [
+                'methods' => ['PUT'],
+                'pattern' => '/api/asset-types/{id}',
+                'roles' => [User::ROLE_ADMIN],
+            ],
+            [
+                'methods' => ['DELETE'],
+                'pattern' => '/api/asset-types/{id}',
+                'roles' => [User::ROLE_ADMIN],
+            ],
+            [
+                'methods' => ['GET'],
+                'pattern' => '/api/asset-types/{typeId}/schema',
+                'roles' => $operational,
+            ],
+            [
+                'methods' => ['GET'],
+                'pattern' => '/api/asset-types/{typeId}/custom-fields',
+                'roles' => [User::ROLE_ADMIN],
+            ],
+            [
+                'methods' => ['POST'],
+                'pattern' => '/api/asset-types/{typeId}/custom-fields',
+                'roles' => [User::ROLE_ADMIN],
+            ],
+            [
+                'methods' => ['PUT'],
+                'pattern' => '/api/asset-types/custom-fields/{id}',
+                'roles' => [User::ROLE_ADMIN],
+            ],
+            [
+                'methods' => ['DELETE'],
+                'pattern' => '/api/asset-types/custom-fields/{id}',
+                'roles' => [User::ROLE_ADMIN],
+            ],
+            [
+                'methods' => ['GET'],
+                'pattern' => '/api/asset-types/{typeId}/components',
+                'roles' => [User::ROLE_ADMIN],
+            ],
+            [
+                'methods' => ['POST'],
+                'pattern' => '/api/asset-types/{typeId}/components',
+                'roles' => [User::ROLE_ADMIN],
+            ],
+            [
+                'methods' => ['PUT'],
+                'pattern' => '/api/asset-types/components/{id}',
+                'roles' => [User::ROLE_ADMIN],
+            ],
+            [
+                'methods' => ['DELETE'],
+                'pattern' => '/api/asset-types/components/{id}',
+                'roles' => [User::ROLE_ADMIN],
+            ],
+            [
+                'methods' => ['GET'],
+                'pattern' => '/api/quality-documents',
+                'roles' => [User::ROLE_ADMIN],
+            ],
+            [
+                'methods' => ['POST'],
+                'pattern' => '/api/quality-documents',
+                'roles' => [User::ROLE_ADMIN],
+            ],
+            [
+                'methods' => ['GET'],
+                'pattern' => '/api/quality-documents/{id}/download',
+                'roles' => [User::ROLE_ADMIN],
+            ],
+            [
+                'methods' => ['DELETE'],
+                'pattern' => '/api/quality-documents/{id}',
+                'roles' => [User::ROLE_ADMIN],
             ],
             [
                 'methods' => ['GET'],

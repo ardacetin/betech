@@ -22,19 +22,29 @@ class AssetTypeController
 
     public function index(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
     {
-        $assetTypes = array_map(
-            function (array $assetType): array {
-                $assetType['asset_count'] = $this->assetTypeModel->countAssets((int) $assetType['id']);
+        try {
+            $assetTypes = [];
 
-                return $assetType;
-            },
-            $this->assetTypeModel->findAll()
-        );
+            foreach ($this->assetTypeModel->findAll() as $assetType) {
+                try {
+                    $assetType['asset_count'] = $this->assetTypeModel->countAssets((int) ($assetType['id'] ?? 0));
+                } catch (\Throwable) {
+                    $assetType['asset_count'] = 0;
+                }
 
-        return $this->jsonResponse($response, 200, [
-            'status' => 'success',
-            'data' => $assetTypes,
-        ]);
+                $assetTypes[] = $assetType;
+            }
+
+            return $this->jsonResponse($response, 200, [
+                'status' => 'success',
+                'data' => $assetTypes,
+            ]);
+        } catch (\Throwable) {
+            return $this->jsonResponse($response, 500, [
+                'status' => 'error',
+                'message' => __('asset_types_fetch_error'),
+            ]);
+        }
     }
 
     public function store(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface

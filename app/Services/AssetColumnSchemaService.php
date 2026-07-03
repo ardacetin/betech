@@ -461,16 +461,27 @@ class AssetColumnSchemaService
     public function resolveTableName(?int $assetTypeId): string
     {
         if ($assetTypeId === null || $assetTypeId <= 0) {
+            $fallback = $this->assetTypeTableService->resolveFallbackTableName();
+
+            if ($this->assetTypeTableService->tableExists($fallback)) {
+                return $fallback;
+            }
+
             return 'assets';
         }
 
         $tableName = $this->assetTypeTableService->tableNameForTypeId($assetTypeId);
 
-        if ($tableName !== null && $this->assetTypeTableService->tableExists($tableName)) {
-            return $tableName;
+        if ($tableName === null || trim($tableName) === '') {
+            return $this->assetTypeTableService->resolveFallbackTableName();
         }
 
-        return 'assets';
+        return $tableName;
+    }
+
+    public function assetTableExists(?int $assetTypeId): bool
+    {
+        return $this->assetTypeTableService->tableExists($this->resolveTableName($assetTypeId));
     }
 
     private function db(): Medoo
