@@ -193,6 +193,15 @@ $sectionHeaderClass = 'mt-6 mb-2 px-3 text-[11px] font-bold uppercase tracking-w
             </svg>
             <span><?= htmlspecialchars(__('nav_ipam'), ENT_QUOTES, 'UTF-8') ?></span>
         </button>
+        <a
+            href="/network/switch-ports"
+            class="group flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900"
+        >
+            <svg class="h-5 w-5 flex-shrink-0 text-gray-400 transition-colors group-hover:text-gray-500" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6A2.25 2.25 0 016 8.25v7.5A2.25 2.25 0 013.75 18h16.5A2.25 2.25 0 0121 15.75v-7.5A2.25 2.25 0 0118.75 6H3.75zM3.75 6l7.5 4.5L18.75 6M9 12.75h6"></path>
+            </svg>
+            <span><?= htmlspecialchars(__('switch_ports_nav_link'), ENT_QUOTES, 'UTF-8') ?></span>
+        </a>
         <?php endif; ?>
 
         <?php if ($canAccessPersonnel || $canAccessSettings): ?>

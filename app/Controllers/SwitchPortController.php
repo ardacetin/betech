@@ -29,12 +29,36 @@ class SwitchPortController
             return $denied;
         }
 
-        $html = $this->viewRenderer->render('switch_ports', [
+        $query = $request->getQueryParams();
+        $selectedSwitchId = (int) ($query['switch_id'] ?? 0);
+
+        $switches = [];
+
+        try {
+            $switches = $this->networkPortMappingService->listSwitchDirectory();
+        } catch (\Throwable) {
+            $switches = [];
+        }
+
+        $initialMatrix = null;
+
+        if ($selectedSwitchId > 0) {
+            try {
+                $initialMatrix = $this->networkPortMappingService->getSwitchPortMatrix($selectedSwitchId);
+            } catch (\Throwable) {
+                $initialMatrix = null;
+            }
+        }
+
+        $html = $this->viewRenderer->render('switch-ports', [
             'appName' => __('app_name'),
             'pageTitle' => __('switch_ports_page_title'),
             'locale' => Translator::instance()->getLocale(),
             'csrfToken' => $this->sessionAuthService->getOrCreateCsrfToken(),
             'backUrl' => '/',
+            'switchesJson' => json_encode($switches, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE),
+            'initialMatrixJson' => json_encode($initialMatrix, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE),
+            'selectedSwitchId' => $selectedSwitchId,
         ]);
 
         $response->getBody()->write($html);

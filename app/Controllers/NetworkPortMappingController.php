@@ -26,9 +26,15 @@ class NetworkPortMappingController
 
     public function directory(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
     {
+        try {
+            $data = $this->networkPortMappingService->listSwitchDirectory();
+        } catch (\Throwable) {
+            $data = [];
+        }
+
         return $this->jsonResponse($response, 200, [
             'status' => 'success',
-            'data' => $this->networkPortMappingService->listSwitchDirectory(),
+            'data' => $data,
         ]);
     }
 

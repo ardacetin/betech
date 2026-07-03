@@ -79,38 +79,46 @@ class NetworkPortMappingService
      */
     public function listSwitchDirectory(): array
     {
-        $directory = [];
+        try {
+            $directory = [];
 
-        foreach ($this->collectSwitchRows() as $switch) {
-            $switchId = (int) ($switch['id'] ?? 0);
-            $totalPorts = (int) ($switch['total_ports'] ?? self::DEFAULT_TOTAL_PORTS);
+            foreach ($this->collectSwitchRows() as $switch) {
+                $switchId = (int) ($switch['id'] ?? 0);
+                $totalPorts = (int) ($switch['total_ports'] ?? self::DEFAULT_TOTAL_PORTS);
 
-            if ($totalPorts <= 0) {
-                $totalPorts = self::DEFAULT_TOTAL_PORTS;
+                if ($totalPorts <= 0) {
+                    $totalPorts = self::DEFAULT_TOTAL_PORTS;
+                }
+
+                try {
+                    $usedPorts = $this->networkPortMappingModel->countBySwitchId($switchId);
+                } catch (\Throwable) {
+                    $usedPorts = 0;
+                }
+
+                $directory[] = [
+                    'id' => $switchId,
+                    'asset_tag' => (string) ($switch['asset_tag'] ?? ''),
+                    'name' => (string) ($switch['name'] ?? ''),
+                    'location' => (string) ($switch['location'] ?? ''),
+                    'building' => (string) ($switch['building'] ?? ''),
+                    'model' => (string) ($switch['model'] ?? ''),
+                    'brand' => (string) ($switch['brand'] ?? ''),
+                    'status' => (string) ($switch['status'] ?? ''),
+                    'asset_type_slug' => (string) ($switch['asset_type_slug'] ?? ''),
+                    'total_ports' => $totalPorts,
+                    'used_ports' => $usedPorts,
+                    'utilization_percent' => $totalPorts > 0
+                        ? (int) round(($usedPorts / $totalPorts) * 100)
+                        : 0,
+                    'label' => (string) ($switch['label'] ?? ''),
+                ];
             }
 
-            $usedPorts = $this->networkPortMappingModel->countBySwitchId($switchId);
-
-            $directory[] = [
-                'id' => $switchId,
-                'asset_tag' => (string) ($switch['asset_tag'] ?? ''),
-                'name' => (string) ($switch['name'] ?? ''),
-                'location' => (string) ($switch['location'] ?? ''),
-                'building' => (string) ($switch['building'] ?? ''),
-                'model' => (string) ($switch['model'] ?? ''),
-                'brand' => (string) ($switch['brand'] ?? ''),
-                'status' => (string) ($switch['status'] ?? ''),
-                'asset_type_slug' => (string) ($switch['asset_type_slug'] ?? ''),
-                'total_ports' => $totalPorts,
-                'used_ports' => $usedPorts,
-                'utilization_percent' => $totalPorts > 0
-                    ? (int) round(($usedPorts / $totalPorts) * 100)
-                    : 0,
-                'label' => (string) ($switch['label'] ?? ''),
-            ];
+            return $directory;
+        } catch (\Throwable) {
+            return [];
         }
-
-        return $directory;
     }
 
     /**
@@ -118,59 +126,79 @@ class NetworkPortMappingService
      */
     public function getSwitchPortMatrix(int $switchAssetId): ?array
     {
-        $switch = $this->findSwitchAssetById($switchAssetId);
+        try {
+            $switch = $this->findSwitchAssetById($switchAssetId);
 
-        if ($switch === null) {
-            return null;
-        }
-
-        $totalPorts = (int) ($switch['total_ports'] ?? self::DEFAULT_TOTAL_PORTS);
-
-        if ($totalPorts <= 0) {
-            $totalPorts = self::DEFAULT_TOTAL_PORTS;
-        }
-
-        $mappingByPort = [];
-
-        foreach ($this->networkPortMappingModel->findAllBySwitchId($switchAssetId) as $mapping) {
-            $portNumber = trim((string) ($mapping['port_number'] ?? ''));
-
-            if ($portNumber === '') {
-                continue;
+            if ($switch === null) {
+                return null;
             }
 
-            $mappingByPort[$portNumber] = $this->enrichMapping($mapping);
-        }
+            $totalPorts = (int) ($switch['total_ports'] ?? self::DEFAULT_TOTAL_PORTS);
 
-        $ports = [];
+            if ($totalPorts <= 0) {
+                $totalPorts = self::DEFAULT_TOTAL_PORTS;
+            }
 
-        for ($index = 1; $index <= $totalPorts; ++$index) {
-            $portKey = (string) $index;
-            $mapping = $mappingByPort[$portKey] ?? null;
+            $mappingByPort = [];
 
-            $ports[] = [
-                'port_number' => $portKey,
-                'occupied' => $mapping !== null,
-                'mapping' => $mapping,
+            try {
+                foreach ($this->networkPortMappingModel->findAllBySwitchId($switchAssetId) as $mapping) {
+                    $portNumber = trim((string) ($mapping['port_number'] ?? ''));
+
+                    if ($portNumber === '') {
+                        continue;
+                    }
+
+                    try {
+                        $mappingByPort[$portNumber] = $this->enrichMapping($mapping);
+                    } catch (\Throwable) {
+                        $mappingByPort[$portNumber] = $mapping;
+                    }
+                }
+            } catch (\Throwable) {
+                $mappingByPort = [];
+            }
+
+            $ports = [];
+
+            for ($index = 1; $index <= $totalPorts; ++$index) {
+                $portKey = (string) $index;
+                $mapping = $mappingByPort[$portKey] ?? null;
+
+                $ports[] = [
+                    'port_number' => $portKey,
+                    'occupied' => $mapping !== null,
+                    'mapping' => $mapping,
+                ];
+            }
+
+            $portsPerRow = (int) ceil($totalPorts / 2);
+
+            $usedPorts = 0;
+
+            try {
+                $usedPorts = $this->networkPortMappingModel->countBySwitchId($switchAssetId);
+            } catch (\Throwable) {
+                $usedPorts = count($mappingByPort);
+            }
+
+            return [
+                'switch' => [
+                    'id' => (int) ($switch['id'] ?? 0),
+                    'asset_tag' => (string) ($switch['asset_tag'] ?? ''),
+                    'name' => (string) ($switch['name'] ?? ''),
+                    'location' => (string) ($switch['location'] ?? ''),
+                    'building' => (string) ($switch['building'] ?? ''),
+                    'total_ports' => $totalPorts,
+                    'used_ports' => $usedPorts,
+                    'asset_type_slug' => (string) ($switch['asset_type_slug'] ?? ''),
+                ],
+                'ports_per_row' => $portsPerRow,
+                'ports' => $ports,
             ];
+        } catch (\Throwable) {
+            return null;
         }
-
-        $portsPerRow = (int) ceil($totalPorts / 2);
-
-        return [
-            'switch' => [
-                'id' => (int) ($switch['id'] ?? 0),
-                'asset_tag' => (string) ($switch['asset_tag'] ?? ''),
-                'name' => (string) ($switch['name'] ?? ''),
-                'location' => (string) ($switch['location'] ?? ''),
-                'building' => (string) ($switch['building'] ?? ''),
-                'total_ports' => $totalPorts,
-                'used_ports' => $this->networkPortMappingModel->countBySwitchId($switchAssetId),
-                'asset_type_slug' => (string) ($switch['asset_type_slug'] ?? ''),
-            ],
-            'ports_per_row' => $portsPerRow,
-            'ports' => $ports,
-        ];
     }
 
     /**
@@ -408,75 +436,68 @@ class NetworkPortMappingService
         $switches = [];
 
         foreach ($switchSlugs as $slug) {
-            $typeContext = $this->assetTypeTableService->resolveWhitelistedType($slug);
+            try {
+                $tableName = $this->resolveSwitchTableName($slug);
 
-            if ($typeContext === null) {
-                continue;
-            }
-
-            $tableName = $typeContext['table'];
-            $connection = $this->databaseService->getConnection();
-
-            if (!$this->tableExists($tableName)) {
-                continue;
-            }
-
-            $columns = [
-                'id',
-                'asset_tag',
-                'name',
-                'model',
-                'brand',
-                'serial_number',
-                'status',
-            ];
-
-            if ($this->columnExistsOnTable($tableName, 'location')) {
-                $columns[] = 'location';
-            }
-
-            if ($this->columnExistsOnTable($tableName, 'building')) {
-                $columns[] = 'building';
-            }
-
-            if ($this->columnExistsOnTable($tableName, 'total_ports')) {
-                $columns[] = 'total_ports';
-            }
-
-            $rows = $connection->select($tableName, $columns, [
-                'ORDER' => ['name' => 'ASC', 'asset_tag' => 'ASC'],
-            ]);
-
-            if (!is_array($rows)) {
-                continue;
-            }
-
-            foreach ($rows as $row) {
-                if (!is_array($row)) {
+                if ($tableName === null || !$this->tableExists($tableName)) {
                     continue;
                 }
 
-                $totalPorts = (int) ($row['total_ports'] ?? self::DEFAULT_TOTAL_PORTS);
+                $tableColumns = $this->describeTableColumns($tableName);
 
-                if ($totalPorts <= 0) {
-                    $totalPorts = self::DEFAULT_TOTAL_PORTS;
+                if ($tableColumns === [] || !in_array('id', $tableColumns, true)) {
+                    continue;
                 }
 
-                $switches[] = [
-                    'id' => (int) ($row['id'] ?? 0),
-                    'asset_tag' => (string) ($row['asset_tag'] ?? ''),
-                    'name' => (string) ($row['name'] ?? ''),
-                    'model' => (string) ($row['model'] ?? ''),
-                    'brand' => (string) ($row['brand'] ?? ''),
-                    'serial_number' => (string) ($row['serial_number'] ?? ''),
-                    'status' => (string) ($row['status'] ?? ''),
-                    'location' => (string) ($row['location'] ?? ''),
-                    'building' => (string) ($row['building'] ?? ''),
-                    'total_ports' => $totalPorts,
-                    'asset_type_slug' => $slug,
-                    'asset_type_name' => $this->resolveTypeName($slug),
-                    'label' => $this->formatSwitchLabel($row),
-                ];
+                $selectColumns = $this->buildSelectColumns($tableColumns);
+                $orderClause = $this->buildOrderClause($tableColumns);
+                $connection = $this->databaseService->getConnection();
+
+                $query = ['ORDER' => $orderClause];
+
+                if ($orderClause === []) {
+                    unset($query['ORDER']);
+                }
+
+                $rows = $connection->select($tableName, $selectColumns, $query);
+
+                if (!is_array($rows)) {
+                    continue;
+                }
+
+                foreach ($rows as $row) {
+                    if (!is_array($row)) {
+                        continue;
+                    }
+
+                    $totalPorts = self::DEFAULT_TOTAL_PORTS;
+
+                    if (in_array('total_ports', $tableColumns, true)) {
+                        $totalPorts = (int) ($row['total_ports'] ?? self::DEFAULT_TOTAL_PORTS);
+                    }
+
+                    if ($totalPorts <= 0) {
+                        $totalPorts = self::DEFAULT_TOTAL_PORTS;
+                    }
+
+                    $switches[] = [
+                        'id' => (int) ($row['id'] ?? 0),
+                        'asset_tag' => (string) ($row['asset_tag'] ?? ''),
+                        'name' => (string) ($row['name'] ?? ''),
+                        'model' => (string) ($row['model'] ?? ''),
+                        'brand' => (string) ($row['brand'] ?? ''),
+                        'serial_number' => (string) ($row['serial_number'] ?? ''),
+                        'status' => (string) ($row['status'] ?? ''),
+                        'location' => (string) ($row['location'] ?? ''),
+                        'building' => (string) ($row['building'] ?? ''),
+                        'total_ports' => $totalPorts,
+                        'asset_type_slug' => $slug,
+                        'asset_type_name' => $this->resolveTypeName($slug),
+                        'label' => $this->formatSwitchLabel($row),
+                    ];
+                }
+            } catch (\Throwable) {
+                continue;
             }
         }
 
@@ -485,6 +506,107 @@ class NetworkPortMappingService
         }
 
         return $switches;
+    }
+
+    private function resolveSwitchTableName(string $slug): ?string
+    {
+        $typeContext = $this->assetTypeTableService->resolveWhitelistedType($slug);
+
+        if ($typeContext !== null) {
+            return (string) ($typeContext['table'] ?? '');
+        }
+
+        $tableName = $this->assetTypeTableService->tableNameForSlug($slug);
+
+        return $this->tableExists($tableName) ? $tableName : null;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function describeTableColumns(string $tableName): array
+    {
+        try {
+            $statement = $this->db()->query(sprintf(
+                'DESCRIBE `%s`',
+                str_replace('`', '``', $tableName)
+            ));
+
+            if ($statement === false) {
+                return [];
+            }
+
+            $columns = [];
+
+            while ($row = $statement->fetch(\PDO::FETCH_ASSOC)) {
+                if (!is_array($row)) {
+                    continue;
+                }
+
+                $field = trim((string) ($row['Field'] ?? ''));
+
+                if ($field !== '') {
+                    $columns[] = $field;
+                }
+            }
+
+            return $columns;
+        } catch (\Throwable) {
+            return [];
+        }
+    }
+
+    /**
+     * @param list<string> $tableColumns
+     *
+     * @return list<string>
+     */
+    private function buildSelectColumns(array $tableColumns): array
+    {
+        $wanted = [
+            'id',
+            'asset_tag',
+            'name',
+            'model',
+            'brand',
+            'serial_number',
+            'status',
+            'location',
+            'building',
+            'total_ports',
+        ];
+
+        $selected = array_values(array_intersect($wanted, $tableColumns));
+
+        if ($selected === []) {
+            return ['id'];
+        }
+
+        return $selected;
+    }
+
+    /**
+     * @param list<string> $tableColumns
+     *
+     * @return array<string, string>
+     */
+    private function buildOrderClause(array $tableColumns): array
+    {
+        $order = [];
+
+        if (in_array('name', $tableColumns, true)) {
+            $order['name'] = 'ASC';
+        }
+
+        if (in_array('asset_tag', $tableColumns, true)) {
+            $order['asset_tag'] = 'ASC';
+        }
+
+        if ($order === [] && in_array('id', $tableColumns, true)) {
+            $order['id'] = 'ASC';
+        }
+
+        return $order;
     }
 
     /**
@@ -602,13 +724,7 @@ class NetworkPortMappingService
 
     private function columnExistsOnTable(string $tableName, string $columnName): bool
     {
-        $statement = $this->db()->query(sprintf(
-            "SHOW COLUMNS FROM `%s` LIKE '%s'",
-            str_replace('`', '``', $tableName),
-            str_replace("'", "''", $columnName)
-        ));
-
-        return $statement !== false && $statement->rowCount() > 0;
+        return in_array($columnName, $this->describeTableColumns($tableName), true);
     }
 
     private function mappingTableExists(): bool
