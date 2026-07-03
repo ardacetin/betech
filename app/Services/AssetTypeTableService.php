@@ -64,45 +64,73 @@ class AssetTypeTableService
             return null;
         }
 
-        $row = $this->db()->get('asset_types', 'slug', [
-            'id' => $assetTypeId,
-        ]);
+        $slug = $this->slugForTypeId($assetTypeId);
 
-        if (!is_array($row) || trim((string) ($row['slug'] ?? '')) === '') {
-            $fallbackTable = $this->resolveFallbackTableName();
+        if ($slug === null) {
             error_log(sprintf(
-                '[AssetTypeTableService] Asset type id %d not found; using fallback table `%s`.',
-                $assetTypeId,
-                $fallbackTable
+                '[AssetTypeTableService] Asset type id %d not found in asset_types whitelist.',
+                $assetTypeId
             ));
 
-            return $fallbackTable;
+            return null;
         }
 
-        return $this->tableNameForSlug((string) $row['slug']);
+        return $this->tableNameForSlug($slug);
+    }
+
+    /**
+     * Resolve a whitelisted asset type from a route/query slug or numeric id.
+     *
+     * @return array{id: int, slug: string, table: string}|null
+     */
+    public function resolveWhitelistedType(string $identifier): ?array
+    {
+        $identifier = trim($identifier);
+
+        if ($identifier === '') {
+            $identifier = self::DEFAULT_EXTENDED_TYPE_SLUG;
+        }
+
+        $typeId = $this->resolveTypeIdFromIdentifier($identifier);
+
+        if ($typeId === null) {
+            return null;
+        }
+
+        $slug = $this->slugForTypeId($typeId);
+
+        if ($slug === null) {
+            return null;
+        }
+
+        return [
+            'id' => $typeId,
+            'slug' => $slug,
+            'table' => $this->tableNameForSlug($slug),
+        ];
     }
 
     public function resolveFallbackTableName(): string
     {
-        $defaultSlugRow = $this->db()->get('asset_types', 'slug', [
+        $defaultSlug = $this->extractSlugFromRow($this->db()->get('asset_types', 'slug', [
             'slug' => self::DEFAULT_EXTENDED_TYPE_SLUG,
             'ORDER' => ['id' => 'ASC'],
-        ]);
+        ]));
 
-        if (is_array($defaultSlugRow) && trim((string) ($defaultSlugRow['slug'] ?? '')) !== '') {
-            $defaultTable = $this->tableNameForSlug((string) $defaultSlugRow['slug']);
+        if ($defaultSlug !== null) {
+            $defaultTable = $this->tableNameForSlug($defaultSlug);
 
             if ($this->tableExists($defaultTable)) {
                 return $defaultTable;
             }
         }
 
-        $firstTypeRow = $this->db()->get('asset_types', 'slug', [
+        $firstSlug = $this->extractSlugFromRow($this->db()->get('asset_types', 'slug', [
             'ORDER' => ['sort_order' => 'ASC', 'id' => 'ASC'],
-        ]);
+        ]));
 
-        if (is_array($firstTypeRow) && trim((string) ($firstTypeRow['slug'] ?? '')) !== '') {
-            $firstTable = $this->tableNameForSlug((string) $firstTypeRow['slug']);
+        if ($firstSlug !== null) {
+            $firstTable = $this->tableNameForSlug($firstSlug);
 
             if ($this->tableExists($firstTable)) {
                 return $firstTable;
@@ -477,13 +505,27 @@ class AssetTypeTableService
             return null;
         }
 
-        $slug = $this->db()->get('asset_types', 'slug', ['id' => $typeId]);
+        return $this->extractSlugFromRow($this->db()->get('asset_types', 'slug', ['id' => $typeId]));
+    }
 
-        if (!is_string($slug) || trim($slug) === '') {
-            return null;
+    /**
+     * Medoo returns a scalar string when selecting a single column via get().
+     */
+    private function extractSlugFromRow(mixed $row): ?string
+    {
+        if (is_string($row)) {
+            $slug = trim($row);
+
+            return $slug !== '' ? $slug : null;
         }
 
-        return trim($slug);
+        if (is_array($row)) {
+            $slug = trim((string) ($row['slug'] ?? ''));
+
+            return $slug !== '' ? $slug : null;
+        }
+
+        return null;
     }
 
     private function db(): Medoo

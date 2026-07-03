@@ -90,13 +90,22 @@ class AssetController
 
     public function index(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
     {
+        $typeContext = $this->resolveAssetTypeContext($request);
+
+        if ($typeContext === null) {
+            return $this->jsonResponse($response, 422, [
+                'status' => 'error',
+                'message' => __('asset_type_invalid_id'),
+            ]);
+        }
+
+        $assetTypeId = $typeContext['id'];
         $categories = $this->categoryModel->findAll();
         $locations = $this->locationModel->findAll();
         $settings = $this->settingModel->getAdminBundle();
-        $assetTypeId = $this->resolveAssetTypeId($request);
-        $globalCustomFields = $assetTypeId !== null
-            ? $this->mapCustomFieldsForFilters($this->assetCustomFieldModel->findByAssetTypeId($assetTypeId))
-            : (is_array($settings['custom_fields'] ?? null) ? $settings['custom_fields'] : []);
+        $globalCustomFields = $this->mapCustomFieldsForFilters(
+            $this->assetCustomFieldModel->findByAssetTypeId($assetTypeId)
+        );
 
         $filterDefinitions = $this->assetFilterSchemaService->buildDefinitions($categories, $globalCustomFields);
         $filterDefinitions = $this->assetFilterSchemaService->resolveOptions(
@@ -127,6 +136,8 @@ class AssetController
                 'total' => $result['pagination']['total'],
                 'filters' => $activeFilters,
                 'asset_type_id' => $assetTypeId,
+                'asset_type_slug' => $typeContext['slug'],
+                'asset_table' => $typeContext['table'],
             ],
         ]);
     }
@@ -1123,15 +1134,10 @@ class AssetController
 
     private function resolveAssetTypeId(ServerRequestInterface $request): ?int
     {
-        $queryParams = $request->getQueryParams();
-        $typeIdentifier = trim((string) ($queryParams['type'] ?? ''));
+        $context = $this->resolveAssetTypeContext($request);
 
-        if ($typeIdentifier !== '') {
-            $resolved = $this->assetTypeTableService->resolveTypeIdFromIdentifier($typeIdentifier);
-
-            if ($resolved !== null) {
-                return $resolved;
-            }
+        if ($context !== null) {
+            return $context['id'];
         }
 
         $parsedBody = $request->getParsedBody();
@@ -1140,21 +1146,31 @@ class AssetController
             $bodyTypeId = (int) ($parsedBody['asset_type_id'] ?? 0);
 
             if ($bodyTypeId > 0) {
-                return $bodyTypeId;
+                $slug = $this->assetTypeTableService->slugForTypeId($bodyTypeId);
+
+                return $slug !== null ? $bodyTypeId : null;
             }
 
             $bodyTypeSlug = trim((string) ($parsedBody['type'] ?? ''));
 
             if ($bodyTypeSlug !== '') {
-                $resolved = $this->assetTypeTableService->resolveTypeIdFromIdentifier($bodyTypeSlug);
+                $resolved = $this->assetTypeTableService->resolveWhitelistedType($bodyTypeSlug);
 
-                if ($resolved !== null) {
-                    return $resolved;
-                }
+                return $resolved !== null ? $resolved['id'] : null;
             }
         }
 
         return null;
+    }
+
+    /**
+     * @return array{id: int, slug: string, table: string}|null
+     */
+    private function resolveAssetTypeContext(ServerRequestInterface $request): ?array
+    {
+        $typeIdentifier = trim((string) ($request->getQueryParams()['type'] ?? ''));
+
+        return $this->assetTypeTableService->resolveWhitelistedType($typeIdentifier);
     }
 
     /**

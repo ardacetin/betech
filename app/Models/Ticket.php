@@ -671,7 +671,19 @@ class Ticket
 
         $row = $this->db()->get('asset_types', 'slug', ['id' => $typeId]);
 
-        return is_array($row) ? trim((string) ($row['slug'] ?? '')) ?: null : null;
+        if (is_string($row)) {
+            $slug = trim($row);
+
+            return $slug !== '' ? $slug : null;
+        }
+
+        if (is_array($row)) {
+            $slug = trim((string) ($row['slug'] ?? ''));
+
+            return $slug !== '' ? $slug : null;
+        }
+
+        return null;
     }
 
     private function assertUserExists(?int $userId): void

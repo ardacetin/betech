@@ -473,7 +473,7 @@ class AssetColumnSchemaService
         $tableName = $this->assetTypeTableService->tableNameForTypeId($assetTypeId);
 
         if ($tableName === null || trim($tableName) === '') {
-            return $this->assetTypeTableService->resolveFallbackTableName();
+            return 'assets___unknown_type___';
         }
 
         return $tableName;

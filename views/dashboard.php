@@ -3203,6 +3203,7 @@ $i18nScript = json_encode([
                 this.persistDashboardView();
             },
             restoreDashboardView() {
+                const inventoryRouteMatch = window.location.pathname.match(/^\/inventory\/([^/]+)\/?$/);
                 const raw = sessionStorage.getItem('betechDashboardView');
 
                 if (!raw) {
@@ -3222,7 +3223,7 @@ $i18nScript = json_encode([
                         this.settingsTab = saved.settingsTab;
                     }
 
-                    if (saved.activeAssetTypeId) {
+                    if (saved.activeAssetTypeId && !inventoryRouteMatch) {
                         this.activeAssetTypeId = Number(saved.activeAssetTypeId);
                     }
 
@@ -4710,7 +4711,10 @@ $i18nScript = json_encode([
                 params.set('page', String(page ?? this.inventoryPage ?? 1));
 
                 if (this.activeAssetTypeId) {
-                    params.set('type', String(this.activeAssetTypeId));
+                    const activeType = (this.assetTypes || []).find(
+                        (type) => Number(type.id) === Number(this.activeAssetTypeId)
+                    );
+                    params.set('type', String(activeType?.slug || this.activeAssetTypeId));
                 }
 
                 Object.entries(this.assetFilters || {}).forEach(([name, value]) => {
