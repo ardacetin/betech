@@ -138,6 +138,7 @@ declare(strict_types=1);
                                 >
                             </th>
                             <th class="px-4 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wide text-zinc-500"><?= htmlspecialchars(__('ipam_col_ip'), ENT_QUOTES, 'UTF-8') ?></th>
+                            <th class="px-4 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wide text-zinc-500"><?= htmlspecialchars(__('ipam_col_ping'), ENT_QUOTES, 'UTF-8') ?></th>
                             <th class="px-4 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wide text-zinc-500"><?= htmlspecialchars(__('ipam_col_status'), ENT_QUOTES, 'UTF-8') ?></th>
                             <th class="px-4 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wide text-zinc-500"><?= htmlspecialchars(__('ipam_col_hostname'), ENT_QUOTES, 'UTF-8') ?></th>
                             <th class="px-4 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wide text-zinc-500"><?= htmlspecialchars(__('ipam_col_asset'), ENT_QUOTES, 'UTF-8') ?></th>
@@ -156,7 +157,33 @@ declare(strict_types=1);
                                         @change="toggleIpAddressSelection(address.id, $event.target.checked)"
                                     >
                                 </td>
-                                <td class="whitespace-nowrap px-4 py-2 font-mono text-zinc-900" x-text="address.ip_address"></td>
+                                <td class="whitespace-nowrap px-4 py-2">
+                                    <div class="flex items-center gap-2 font-mono text-zinc-900">
+                                        <span
+                                            class="relative inline-flex h-2.5 w-2.5 shrink-0"
+                                            :title="formatPingTooltip(address)"
+                                        >
+                                            <span
+                                                x-show="address.ping_status === 'online'"
+                                                x-cloak
+                                                class="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"
+                                            ></span>
+                                            <span
+                                                class="relative inline-flex h-2.5 w-2.5 rounded-full"
+                                                :class="pingStatusDotClass(address.ping_status)"
+                                            ></span>
+                                        </span>
+                                        <span x-text="address.ip_address"></span>
+                                    </div>
+                                </td>
+                                <td class="px-4 py-2">
+                                    <span
+                                        class="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium"
+                                        :class="pingStatusBadgeClass(address.ping_status)"
+                                        :title="formatPingTooltip(address)"
+                                        x-text="pingStatusLabel(address.ping_status)"
+                                    ></span>
+                                </td>
                                 <td class="px-4 py-2">
                                     <span class="inline-flex rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset" :class="ipAddressStatusClass(address.status)" x-text="ipAddressStatusLabel(address.status)"></span>
                                 </td>
@@ -190,7 +217,7 @@ declare(strict_types=1);
                     @click="openIpAddressModal(address)"
                     class="rounded-lg border px-2 py-2 text-left text-[11px] font-mono transition hover:ring-2 hover:ring-zinc-300"
                     :class="ipAddressGridClass(address.status)"
-                    :title="address.hostname || address.asset_tag || address.ip_address"
+                    :title="formatPingTooltip(address)"
                 >
                     <span x-text="address.ip_address.split('.').slice(3).join('.') || address.ip_address"></span>
                 </button>

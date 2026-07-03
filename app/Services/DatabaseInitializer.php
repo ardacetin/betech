@@ -1212,6 +1212,23 @@ class DatabaseInitializer
             $warnings[] = 'Self-healed database: created IPAM tables.';
         }
 
+        $networkMigrationPath = dirname($this->schemaPath) . '/migrations/029_network_port_mappings_and_ip_ping.sql';
+
+        if (is_readable($networkMigrationPath)) {
+            if (!$this->tableExists($connection, 'network_port_mappings')) {
+                $this->applySqlFile($connection, $networkMigrationPath);
+                $warnings[] = 'Applied migration: network port mappings and IP ping heartbeat columns.';
+            } elseif (!$this->columnExists($connection, 'ip_addresses', 'ping_status')) {
+                $connection->query(
+                    "ALTER TABLE ip_addresses
+                        ADD COLUMN ping_status ENUM('online', 'offline') DEFAULT NULL AFTER notes,
+                        ADD COLUMN last_seen_at DATETIME DEFAULT NULL AFTER ping_status,
+                        ADD KEY idx_ip_addresses_ping_status (ping_status)"
+                );
+                $warnings[] = 'Applied migration: IP ping heartbeat columns on ip_addresses.';
+            }
+        }
+
         return $warnings;
     }
 

@@ -53,6 +53,8 @@ class IpAddress
             'ip_addresses.hostname',
             'ip_addresses.mac_address',
             'ip_addresses.notes',
+            'ip_addresses.ping_status',
+            'ip_addresses.last_seen_at',
             'ip_addresses.created_at',
             'ip_addresses.updated_at',
             'assets.asset_tag(asset_tag)',
@@ -86,6 +88,8 @@ class IpAddress
             'ip_addresses.hostname',
             'ip_addresses.mac_address',
             'ip_addresses.notes',
+            'ip_addresses.ping_status',
+            'ip_addresses.last_seen_at',
             'ip_addresses.created_at',
             'ip_addresses.updated_at',
             'assets.asset_tag(asset_tag)',
@@ -117,6 +121,8 @@ class IpAddress
             'ip_addresses.hostname',
             'ip_addresses.mac_address',
             'ip_addresses.notes',
+            'ip_addresses.ping_status',
+            'ip_addresses.last_seen_at',
             'ip_addresses.created_at',
             'ip_addresses.updated_at',
             'assets.asset_tag(asset_tag)',
@@ -215,6 +221,8 @@ class IpAddress
             'ip_addresses.hostname',
             'ip_addresses.mac_address',
             'ip_addresses.notes',
+            'ip_addresses.ping_status',
+            'ip_addresses.last_seen_at',
             'ip_addresses.created_at',
             'ip_addresses.updated_at',
             'assets.asset_tag(asset_tag)',
@@ -377,6 +385,53 @@ class IpAddress
     }
 
     /**
+     * @return list<array<string, mixed>>
+     */
+    public function findPingableAddresses(): array
+    {
+        if (!$this->pingColumnsExist()) {
+            return [];
+        }
+
+        $rows = $this->db()->select('ip_addresses', [
+            'id',
+            'ip_address',
+            'status',
+        ], [
+            'status' => [self::STATUS_RESERVED, self::STATUS_ASSIGNED],
+            'ORDER' => ['ip_address' => 'ASC'],
+        ]);
+
+        if (!is_array($rows)) {
+            return [];
+        }
+
+        return array_values(array_filter(
+            $rows,
+            static fn ($row): bool => is_array($row)
+                && trim((string) ($row['ip_address'] ?? '')) !== ''
+                && filter_var((string) $row['ip_address'], FILTER_VALIDATE_IP) !== false
+        ));
+    }
+
+    public function updatePingStatus(int $id, bool $online): void
+    {
+        if ($id <= 0 || !$this->pingColumnsExist()) {
+            return;
+        }
+
+        $updates = [
+            'ping_status' => $online ? 'online' : 'offline',
+        ];
+
+        if ($online) {
+            $updates['last_seen_at'] = date('Y-m-d H:i:s');
+        }
+
+        $this->db()->update('ip_addresses', $updates, ['id' => $id]);
+    }
+
+    /**
      * @param array<string, mixed> $row
      *
      * @return array<string, mixed>
@@ -394,9 +449,30 @@ class IpAddress
             'hostname' => $row['hostname'] !== null ? (string) $row['hostname'] : null,
             'mac_address' => $row['mac_address'] !== null ? (string) $row['mac_address'] : null,
             'notes' => $row['notes'] !== null ? (string) $row['notes'] : null,
+            'ping_status' => isset($row['ping_status']) && $row['ping_status'] !== null
+                ? (string) $row['ping_status']
+                : null,
+            'last_seen_at' => isset($row['last_seen_at']) && $row['last_seen_at'] !== null
+                ? (string) $row['last_seen_at']
+                : null,
             'created_at' => (string) ($row['created_at'] ?? ''),
             'updated_at' => (string) ($row['updated_at'] ?? ''),
         ];
+    }
+
+    private function pingColumnsExist(): bool
+    {
+        static $exists = null;
+
+        if ($exists !== null) {
+            return $exists;
+        }
+
+        $statement = $this->db()->query("SHOW COLUMNS FROM `ip_addresses` LIKE 'ping_status'");
+
+        $exists = $statement !== false && $statement->rowCount() > 0;
+
+        return $exists;
     }
 
     private function normalizeOptionalText(?string $value): ?string

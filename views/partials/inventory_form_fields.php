@@ -102,6 +102,12 @@ declare(strict_types=1);
             <?php require __DIR__ . '/user_picker.php'; ?>
         </section>
 
+        <template x-if="mode === 'edit'">
+            <div>
+                <?php require __DIR__ . '/inventory_network_port_mapping.php'; ?>
+            </div>
+        </template>
+
         <section class="rounded-2xl border border-zinc-200 bg-zinc-50 p-6">
             <h3 class="text-sm font-semibold text-zinc-900"><?= htmlspecialchars(__('inventory_form_actions_title'), ENT_QUOTES, 'UTF-8') ?></h3>
             <p class="mt-1 text-sm text-zinc-500"><?= htmlspecialchars(__('inventory_form_actions_subtitle'), ENT_QUOTES, 'UTF-8') ?></p>

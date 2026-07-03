@@ -27,6 +27,7 @@ use App\Controllers\TicketController;
 use App\Controllers\HealthController;
 use App\Controllers\InventoryFormController;
 use App\Controllers\InventoryImportController;
+use App\Controllers\NetworkPortMappingController;
 use App\Controllers\SettingsController;
 use App\Controllers\UserController;
 use App\Handlers\HttpErrorHandler;
@@ -54,9 +55,10 @@ use App\Models\QualityDocument;
 use App\Models\IpAddress;
 use App\Models\IpNetwork;
 use App\Models\License;
+use App\Models\Location;
 use App\Models\TicketCategory;
 use App\Models\Ticket;
-use App\Models\Location;
+use App\Models\NetworkPortMapping;
 use App\Models\Setting;
 use App\Models\Personnel;
 use App\Models\User;
@@ -88,6 +90,7 @@ use App\Services\LoginAttemptService;
 use App\Services\Mail\MailConfigResolver;
 use App\Services\Mail\MailService;
 use App\Services\Mail\TicketNotificationService;
+use App\Services\NetworkPortMappingService;
 use App\Services\QualityDocumentStorageService;
 use App\Services\QrCodeService;
 use App\Services\Translator;
@@ -201,6 +204,13 @@ $licenseModel = new License($databaseService);
 $ipAddressGenerator = new IpAddressGenerator();
 $ipNetworkModel = new IpNetwork($databaseService, $ipAddressGenerator);
 $ipAddressModel = new IpAddress($databaseService);
+$networkPortMappingModel = new NetworkPortMapping($databaseService);
+$networkPortMappingService = new NetworkPortMappingService(
+    $databaseService,
+    $networkPortMappingModel,
+    $assetTypeModel,
+    $assetTypeTableService
+);
 $ipamCsvImportService = new IpamCsvImportService($ipNetworkModel, $ipAddressModel, $assetModel, $ipAddressGenerator);
 $consumableModel = new Consumable($databaseService);
 $knowledgeBaseArticleModel = new KnowledgeBaseArticle($databaseService);
@@ -242,8 +252,9 @@ $inventoryImportController = new InventoryImportController(
         $turnstileVerifier
     );
 $healthController = new HealthController($appConfig, $assetModel, $assetTypeModel, $categoryModel, $viewRenderer, $qrCodeService, $analyticsService, $settingModel, $userModel, $personnelModel, $sessionAuthService, $endUserContextService, $locationModel, $assetFilterSchemaService, $licenseModel, $licenseFilterSchemaService, $consumableModel, $consumableFilterSchemaService, $assetCustomFieldModel, $assetTypeTableService);
-$inventoryFormController = new InventoryFormController($assetModel, $assetTypeModel, $assetCustomFieldModel, $assetTypeTableService, $viewRenderer, $sessionAuthService, $userModel);
-$assetController = new AssetController($assetModel, $assetHistoryModel, $userIntegrationFactory, $personnelModel, $userModel, $locationModel, $categoryModel, $assetCsvImportService, $inventoryImportService, $sessionAuthService, $clientIpResolver, $endUserContextService, $auditLogger, $assetFilterSchemaService, $settingModel, $assetCustomFieldModel, $assetTypeTableService);
+$inventoryFormController = new InventoryFormController($assetModel, $assetTypeModel, $assetCustomFieldModel, $assetTypeTableService, $viewRenderer, $sessionAuthService, $userModel, $networkPortMappingService);
+$networkPortMappingController = new NetworkPortMappingController($networkPortMappingService);
+$assetController = new AssetController($assetModel, $assetHistoryModel, $userIntegrationFactory, $personnelModel, $userModel, $locationModel, $categoryModel, $assetCsvImportService, $inventoryImportService, $sessionAuthService, $clientIpResolver, $endUserContextService, $auditLogger, $assetFilterSchemaService, $settingModel, $assetCustomFieldModel, $assetTypeTableService, $networkPortMappingService);
 $assetViewController = new AssetViewController($appConfig, $assetModel, $viewRenderer);
 $assetTutanakController = new AssetTutanakController($assetModel, $settingModel, $personnelModel, $userModel, $userIntegrationFactory, $zimmetTutanakService, $viewRenderer, $sessionAuthService, $endUserContextService);
 $userController = new UserController($userIntegrationFactory, $personnelModel, $assetModel, $assetHistoryModel, $settingModel, $sessionAuthService, $clientIpResolver);
@@ -377,7 +388,8 @@ $app->group('', function ($group) use (
     $ticketController,
     $userController,
     $assetController,
-    $inventoryImportController
+    $inventoryImportController,
+    $networkPortMappingController
 ): void {
     $group->get('/api/analytics/summary', [$analyticsController, 'summary']);
     $group->get('/api/reports/helpdesk', [$reportController, 'helpDesk']);
@@ -437,6 +449,8 @@ $app->group('', function ($group) use (
     $group->put('/api/ip-addresses/{id}', [$ipNetworkController, 'updateAddress']);
     $group->post('/api/ip-addresses/bulk-update', [$ipNetworkController, 'bulkUpdateAddresses']);
     $group->post('/admin/network/ip/bulk-update', [$ipNetworkController, 'bulkUpdateAddresses']);
+    $group->get('/api/network/switches', [$networkPortMappingController, 'switches']);
+    $group->get('/api/network/port-mappings', [$networkPortMappingController, 'show']);
     $group->get('/api/consumables', [$consumableController, 'index']);
     $group->post('/api/consumables', [$consumableController, 'store']);
     $group->get('/api/consumables/{id}', [$consumableController, 'show']);

@@ -24,6 +24,7 @@ use App\Services\Auth\SessionAuthService;
 use App\Services\Auth\UserIntegrationFactory;
 use App\Services\ClientIpResolver;
 use App\Services\EndUserContextService;
+use App\Services\NetworkPortMappingService;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 
@@ -62,6 +63,7 @@ class AssetController
         private readonly Setting $settingModel,
         private readonly AssetCustomField $assetCustomFieldModel,
         private readonly AssetTypeTableService $assetTypeTableService,
+        private readonly NetworkPortMappingService $networkPortMappingService,
     ) {
     }
 
@@ -250,8 +252,9 @@ class AssetController
         }
 
         $coreFields = $this->normalizeCoreFields($coreFields, allowPartial: true);
+        $hasPortMapping = array_key_exists('port_mapping', $payload);
 
-        if ($coreFields === []) {
+        if ($coreFields === [] && !$hasPortMapping) {
             return $this->jsonResponse($response, 422, [
                 'status' => 'error',
                 'message' => 'No updatable fields were provided.',
@@ -259,8 +262,22 @@ class AssetController
         }
 
         try {
-            $asset = $this->assetModel->update($assetId, $coreFields);
-            $this->logAssetUpdates($request, $assetId, $existingAsset, $coreFields);
+            $asset = $coreFields !== []
+                ? $this->assetModel->update($assetId, $coreFields)
+                : $existingAsset;
+
+            if ($coreFields !== []) {
+                $this->logAssetUpdates($request, $assetId, $existingAsset, $coreFields);
+            }
+
+            if ($hasPortMapping) {
+                $sourceSlug = trim((string) ($typeContext['slug'] ?? $existingAsset['asset_type_slug'] ?? ''));
+
+                if ($sourceSlug !== '') {
+                    $mappingPayload = is_array($payload['port_mapping']) ? $payload['port_mapping'] : null;
+                    $this->networkPortMappingService->syncForSource($sourceSlug, $assetId, $mappingPayload);
+                }
+            }
         } catch (\RuntimeException $exception) {
             return $this->jsonResponse($response, 422, [
                 'status' => 'error',

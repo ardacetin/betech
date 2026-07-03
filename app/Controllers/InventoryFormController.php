@@ -10,6 +10,7 @@ use App\Models\AssetType;
 use App\Models\User;
 use App\Services\AssetTypeTableService;
 use App\Services\Auth\SessionAuthService;
+use App\Services\NetworkPortMappingService;
 use App\Services\Translator;
 use App\Services\ViewRenderer;
 use Psr\Http\Message\ResponseInterface;
@@ -25,6 +26,7 @@ class InventoryFormController
         private readonly ViewRenderer $viewRenderer,
         private readonly SessionAuthService $sessionAuthService,
         private readonly User $userModel,
+        private readonly NetworkPortMappingService $networkPortMappingService,
     ) {
     }
 
@@ -125,6 +127,14 @@ class InventoryFormController
             'activeAssetTypeName' => $this->resolveTypeName($assetTypes, $typeContext['id']),
             'assetSchemaJson' => json_encode($schema, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE),
             'assetJson' => json_encode($asset, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE),
+            'switchAssetsJson' => json_encode(
+                $this->networkPortMappingService->listSwitchAssets(),
+                JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE
+            ),
+            'portMappingJson' => json_encode(
+                $this->networkPortMappingService->findForSource($typeContext['slug'], $assetId),
+                JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE
+            ),
             'cancelUrl' => '/inventory/' . rawurlencode($typeContext['slug']),
         ]);
 

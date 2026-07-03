@@ -475,6 +475,12 @@ $i18nScript = json_encode([
     'ipam_status_assigned' => __('ipam_status_assigned'),
     'ipam_status_dhcp' => __('ipam_status_dhcp'),
     'ipam_status_broken' => __('ipam_status_broken'),
+    'ipam_col_ping' => __('ipam_col_ping'),
+    'ipam_ping_online' => __('ipam_ping_online'),
+    'ipam_ping_offline' => __('ipam_ping_offline'),
+    'ipam_ping_unknown' => __('ipam_ping_unknown'),
+    'ipam_ping_last_seen' => __('ipam_ping_last_seen'),
+    'ipam_ping_never_seen' => __('ipam_ping_never_seen'),
     'ipam_bulk_edit' => __('ipam_bulk_edit'),
     'ipam_bulk_edit_title' => __('ipam_bulk_edit_title'),
     'ipam_bulk_edit_subtitle' => __('ipam_bulk_edit_subtitle'),
@@ -6301,6 +6307,76 @@ $i18nScript = json_encode([
                 };
 
                 return map[status] || 'border-zinc-200 bg-white text-zinc-700';
+            },
+            pingStatusLabel(status) {
+                const map = {
+                    online: window.__i18n.ipam_ping_online,
+                    offline: window.__i18n.ipam_ping_offline,
+                };
+
+                return map[status] || window.__i18n.ipam_ping_unknown;
+            },
+            pingStatusDotClass(status) {
+                const map = {
+                    online: 'bg-emerald-500',
+                    offline: 'bg-rose-500',
+                };
+
+                return map[status] || 'bg-zinc-300';
+            },
+            pingStatusBadgeClass(status) {
+                const map = {
+                    online: 'bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-600/20',
+                    offline: 'bg-rose-50 text-rose-700 ring-1 ring-inset ring-rose-600/20',
+                };
+
+                return map[status] || 'bg-zinc-100 text-zinc-500 ring-1 ring-inset ring-zinc-300';
+            },
+            formatPingTooltip(address) {
+                const status = this.pingStatusLabel(address?.ping_status);
+                const lastSeen = String(address?.last_seen_at || '').trim();
+
+                if (lastSeen === '') {
+                    return `${status} · ${window.__i18n.ipam_ping_never_seen}`;
+                }
+
+                const formatted = this.formatRelativeTime(lastSeen);
+
+                return `${status} · ${window.__i18n.ipam_ping_last_seen}: ${formatted}`;
+            },
+            formatRelativeTime(value) {
+                const date = new Date(value);
+
+                if (Number.isNaN(date.getTime())) {
+                    return value;
+                }
+
+                const diffMs = Date.now() - date.getTime();
+                const diffMinutes = Math.round(diffMs / 60000);
+
+                if (diffMinutes < 1) {
+                    return window.__i18n.locale === 'en' ? 'just now' : 'az önce';
+                }
+
+                if (diffMinutes < 60) {
+                    return window.__i18n.locale === 'en'
+                        ? `${diffMinutes} min ago`
+                        : `${diffMinutes} dk önce`;
+                }
+
+                const diffHours = Math.round(diffMinutes / 60);
+
+                if (diffHours < 48) {
+                    return window.__i18n.locale === 'en'
+                        ? `${diffHours} h ago`
+                        : `${diffHours} sa önce`;
+                }
+
+                const diffDays = Math.round(diffHours / 24);
+
+                return window.__i18n.locale === 'en'
+                    ? `${diffDays} d ago`
+                    : `${diffDays} gün önce`;
             },
             isIpAddressSelected(addressId) {
                 return (this.selectedIpAddressIds || []).includes(Number(addressId));
