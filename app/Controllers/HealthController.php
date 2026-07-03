@@ -218,7 +218,13 @@ class HealthController
 
         $html = $this->viewRenderer->render('dashboard', [
             'appName' => __('app_name'),
-            'pageTitle' => $isEndUser ? __('portal_page_title') : __('page_title'),
+            'pageTitle' => $this->resolveDashboardPageTitle(
+                $isEndUser,
+                $requestedAssetType,
+                $forceAssetsView,
+                $initialActiveView,
+                $assetTypes
+            ),
             'environment' => $this->appConfig['env'],
             'locale' => Translator::instance()->getLocale(),
             'csrfToken' => $this->sessionAuthService->getOrCreateCsrfToken(),
@@ -277,6 +283,36 @@ class HealthController
         $response->getBody()->write($html);
 
         return $response->withHeader('Content-Type', 'text/html; charset=utf-8');
+    }
+
+    /**
+     * @param array{id: int, slug: string, table: string}|null $requestedAssetType
+     * @param list<array<string, mixed>> $assetTypes
+     */
+    private function resolveDashboardPageTitle(
+        bool $isEndUser,
+        ?array $requestedAssetType,
+        bool $forceAssetsView,
+        ?string $initialActiveView,
+        array $assetTypes
+    ): string {
+        if ($isEndUser) {
+            return __('portal_page_title');
+        }
+
+        if ($initialActiveView === 'documents') {
+            return __('quality_documents_page_title');
+        }
+
+        if ($forceAssetsView && $requestedAssetType !== null) {
+            foreach ($assetTypes as $assetType) {
+                if ((int) ($assetType['id'] ?? 0) === $requestedAssetType['id']) {
+                    return (string) ($assetType['name'] ?? __('nav_assets'));
+                }
+            }
+        }
+
+        return __('dashboard_page_title');
     }
 
     /**

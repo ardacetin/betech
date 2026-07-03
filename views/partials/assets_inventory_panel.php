@@ -133,7 +133,7 @@ $assetActiveFilters = $assetActiveFilters ?? [];
                         <template x-for="asset in inventoryAssets" :key="asset.id">
                             <tr
                                 class="group cursor-pointer hover:bg-zinc-50/80"
-                                @click="openInventoryAssetModal(asset)"
+                                @click="openInventoryEditPage(asset)"
                             >
                                 <template x-for="(column, index) in inventoryGridColumns()" :key="`${asset.id}-${column.column}`">
                                     <td

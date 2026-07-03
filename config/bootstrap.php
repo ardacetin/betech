@@ -25,6 +25,7 @@ use App\Controllers\ReportController;
 use App\Controllers\TicketCategoryController;
 use App\Controllers\TicketController;
 use App\Controllers\HealthController;
+use App\Controllers\InventoryFormController;
 use App\Controllers\InventoryImportController;
 use App\Controllers\SettingsController;
 use App\Controllers\UserController;
@@ -241,6 +242,7 @@ $inventoryImportController = new InventoryImportController(
         $turnstileVerifier
     );
 $healthController = new HealthController($appConfig, $assetModel, $assetTypeModel, $categoryModel, $viewRenderer, $qrCodeService, $analyticsService, $settingModel, $userModel, $personnelModel, $sessionAuthService, $endUserContextService, $locationModel, $assetFilterSchemaService, $licenseModel, $licenseFilterSchemaService, $consumableModel, $consumableFilterSchemaService, $assetCustomFieldModel, $assetTypeTableService);
+$inventoryFormController = new InventoryFormController($assetModel, $assetTypeModel, $assetCustomFieldModel, $assetTypeTableService, $viewRenderer, $sessionAuthService, $userModel);
 $assetController = new AssetController($assetModel, $assetHistoryModel, $userIntegrationFactory, $personnelModel, $userModel, $locationModel, $categoryModel, $assetCsvImportService, $inventoryImportService, $sessionAuthService, $clientIpResolver, $endUserContextService, $auditLogger, $assetFilterSchemaService, $settingModel, $assetCustomFieldModel, $assetTypeTableService);
 $assetViewController = new AssetViewController($appConfig, $assetModel, $viewRenderer);
 $assetTutanakController = new AssetTutanakController($assetModel, $settingModel, $personnelModel, $userModel, $userIntegrationFactory, $zimmetTutanakService, $viewRenderer, $sessionAuthService, $endUserContextService);
@@ -333,6 +335,8 @@ $app->post('/api/login', [$authController, 'apiLogin']);
 $app->get('/logout', [$authController, 'logout']);
 $app->get('/unauthorized', [$authController, 'showUnauthorized']);
 $app->get('/', [$healthController, 'index']);
+$app->get('/inventory/add', [$inventoryFormController, 'add']);
+$app->get('/inventory/edit', [$inventoryFormController, 'edit']);
 $app->get('/inventory/{typeId}', [$healthController, 'inventorySection']);
 $app->get('/documents', [$healthController, 'documents']);
 $app->get('/assets/view/{id}', [$assetViewController, 'show']);

@@ -154,7 +154,16 @@ class AssetController
             ]);
         }
 
-        [$coreFields] = $this->separatePayload($payload);
+        $assetTypeId = $this->resolveAssetTypeId($request);
+
+        if ($assetTypeId === null) {
+            return $this->jsonResponse($response, 422, [
+                'status' => 'error',
+                'message' => __('asset_type_invalid_id'),
+            ]);
+        }
+
+        $coreFields = $this->extractAssetFields($payload, $assetTypeId);
         $coreFields['asset_tag'] = $this->assetModel->generateNextAssetTag();
         $errors = $this->validateCoreFields($coreFields);
 
@@ -169,7 +178,7 @@ class AssetController
         $coreFields = $this->normalizeCoreFields($coreFields);
 
         try {
-            $asset = $this->assetModel->create($coreFields, $this->resolveAssetTypeId($request));
+            $asset = $this->assetModel->create($coreFields, $assetTypeId);
             $this->logAssetCreation($request, $asset, $coreFields);
         } catch (\RuntimeException $exception) {
             return $this->jsonResponse($response, 422, [
@@ -214,7 +223,21 @@ class AssetController
             ]);
         }
 
-        [$coreFields] = $this->separatePayload($payload);
+        $assetTypeId = (int) ($existingAsset['asset_type_id'] ?? 0);
+        $typeContext = $this->resolveAssetTypeContext($request);
+
+        if ($typeContext !== null) {
+            if ($assetTypeId > 0 && $assetTypeId !== $typeContext['id']) {
+                return $this->jsonResponse($response, 422, [
+                    'status' => 'error',
+                    'message' => __('asset_type_invalid_id'),
+                ]);
+            }
+
+            $assetTypeId = $typeContext['id'];
+        }
+
+        $coreFields = $this->extractAssetFields($payload, $assetTypeId > 0 ? $assetTypeId : null);
 
         $errors = $this->validateCoreFields($coreFields, $assetId);
 
@@ -1214,6 +1237,40 @@ class AssetController
         $decoded = json_decode($rawBody, true);
 
         return is_array($decoded) ? $decoded : null;
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     *
+     * @return array<string, mixed>
+     */
+    private function extractAssetFields(array $payload, ?int $assetTypeId): array
+    {
+        $legacyKeys = ['category_id', 'personnel_id', 'location_id'];
+        $metaKeys = ['asset_type_id'];
+        $allowedColumns = [];
+
+        if ($assetTypeId !== null && $assetTypeId > 0) {
+            $customFields = $this->assetCustomFieldModel->findByAssetTypeId($assetTypeId);
+            $schema = $this->assetTypeTableService->buildSchemaDefinition($assetTypeId, $customFields);
+            $allowedColumns = array_flip(array_column($schema, 'column'));
+        } else {
+            $allowedColumns = array_flip(self::CORE_FIELDS);
+        }
+
+        $fields = [];
+
+        foreach ($payload as $key => $value) {
+            if (!is_string($key) || in_array($key, $metaKeys, true)) {
+                continue;
+            }
+
+            if (isset($allowedColumns[$key]) || in_array($key, $legacyKeys, true)) {
+                $fields[$key] = $value;
+            }
+        }
+
+        return $fields;
     }
 
     /**

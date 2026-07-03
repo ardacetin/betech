@@ -186,9 +186,8 @@ declare(strict_types=1);
                 <article class="rounded-2xl border border-gray-200 bg-white p-6">
                     <h3 class="text-base font-semibold tracking-tight text-gray-900"><?= htmlspecialchars(__('dashboard_quick_actions'), ENT_QUOTES, 'UTF-8') ?></h3>
                     <div class="mt-4 space-y-2.5">
-                        <button
-                            type="button"
-                            @click="openAddModal()"
+                        <a
+                            href="/inventory/add"
                             class="group flex w-full items-center gap-3 rounded-xl border border-gray-200 px-4 py-3 text-left text-sm font-medium text-gray-700 transition-all hover:bg-gray-50"
                         >
                             <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gray-50 text-gray-400 transition-colors group-hover:text-gray-600">
@@ -197,7 +196,7 @@ declare(strict_types=1);
                                 </svg>
                             </span>
                             <?= htmlspecialchars(__('add_asset'), ENT_QUOTES, 'UTF-8') ?>
-                        </button>
+                        </a>
                         <button
                             type="button"
                             @click="openTicketModal()"
