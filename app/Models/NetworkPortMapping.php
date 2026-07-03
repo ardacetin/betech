@@ -36,6 +36,95 @@ class NetworkPortMapping
     }
 
     /**
+     * @return array<string, mixed>|null
+     */
+    public function findBySwitchAndPort(int $switchAssetId, string $portNumber): ?array
+    {
+        if (!$this->tableExists() || $switchAssetId <= 0 || trim($portNumber) === '') {
+            return null;
+        }
+
+        $row = $this->db()->get('network_port_mappings', '*', [
+            'switch_asset_id' => $switchAssetId,
+            'port_number' => trim($portNumber),
+        ]);
+
+        if (!is_array($row) || $row === []) {
+            return null;
+        }
+
+        return $this->normalizeRow($row);
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    public function findAllBySwitchId(int $switchAssetId): array
+    {
+        if (!$this->tableExists() || $switchAssetId <= 0) {
+            return [];
+        }
+
+        $rows = $this->db()->select('network_port_mappings', '*', [
+            'switch_asset_id' => $switchAssetId,
+            'ORDER' => ['port_number' => 'ASC'],
+        ]);
+
+        if (!is_array($rows)) {
+            return [];
+        }
+
+        return array_map(fn (array $row): array => $this->normalizeRow($row), $rows);
+    }
+
+    public function countBySwitchId(int $switchAssetId): int
+    {
+        if (!$this->tableExists() || $switchAssetId <= 0) {
+            return 0;
+        }
+
+        return (int) $this->db()->count('network_port_mappings', [
+            'switch_asset_id' => $switchAssetId,
+        ]);
+    }
+
+    public function deleteBySwitchAndPort(int $switchAssetId, string $portNumber): void
+    {
+        if (!$this->tableExists() || $switchAssetId <= 0 || trim($portNumber) === '') {
+            return;
+        }
+
+        $this->db()->delete('network_port_mappings', [
+            'switch_asset_id' => $switchAssetId,
+            'port_number' => trim($portNumber),
+        ]);
+    }
+
+    public function deleteBySource(string $sourceAssetType, int $sourceAssetId): void
+    {
+        if (!$this->tableExists() || $sourceAssetId <= 0 || trim($sourceAssetType) === '') {
+            return;
+        }
+
+        $this->db()->delete('network_port_mappings', [
+            'source_asset_type' => trim($sourceAssetType),
+            'source_asset_id' => $sourceAssetId,
+        ]);
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     */
+    public function insert(array $row): void
+    {
+        if (!$this->tableExists()) {
+            return;
+        }
+
+        $this->db()->insert('network_port_mappings', $row);
+    }
+
+    /**
      * @param array<string, mixed> $row
      *
      * @return array<string, mixed>

@@ -34,6 +34,7 @@ class AssetColumnSchemaService
         'assigned_to' => 'Zimmetli Kişi',
         'mac_address_1' => 'Mac Adresi 1',
         'mac_address_2' => 'Mac Adresi 2',
+        'total_ports' => 'Toplam Port',
     ];
 
     /** @var array<string, list<string>> */

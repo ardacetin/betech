@@ -14,6 +14,11 @@ declare(strict_types=1);
             </p>
         </div>
         <div class="flex flex-wrap gap-2">
+            <a
+                x-show="ipamSubView === 'networks'"
+                href="/network/switch-ports"
+                class="inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-4 py-2.5 text-sm font-medium text-zinc-700 shadow-soft transition hover:bg-zinc-50"
+            ><?= htmlspecialchars(__('switch_ports_nav_link'), ENT_QUOTES, 'UTF-8') ?></a>
             <button
                 type="button"
                 x-show="ipamSubView === 'addresses' && selectedIpAddressCount >= 2"

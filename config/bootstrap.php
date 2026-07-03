@@ -28,6 +28,7 @@ use App\Controllers\HealthController;
 use App\Controllers\InventoryFormController;
 use App\Controllers\InventoryImportController;
 use App\Controllers\NetworkPortMappingController;
+use App\Controllers\SwitchPortController;
 use App\Controllers\SettingsController;
 use App\Controllers\UserController;
 use App\Handlers\HttpErrorHandler;
@@ -209,7 +210,8 @@ $networkPortMappingService = new NetworkPortMappingService(
     $databaseService,
     $networkPortMappingModel,
     $assetTypeModel,
-    $assetTypeTableService
+    $assetTypeTableService,
+    $assetsGlobalRegistryModel
 );
 $ipamCsvImportService = new IpamCsvImportService($ipNetworkModel, $ipAddressModel, $assetModel, $ipAddressGenerator);
 $consumableModel = new Consumable($databaseService);
@@ -254,6 +256,7 @@ $inventoryImportController = new InventoryImportController(
 $healthController = new HealthController($appConfig, $assetModel, $assetTypeModel, $categoryModel, $viewRenderer, $qrCodeService, $analyticsService, $settingModel, $userModel, $personnelModel, $sessionAuthService, $endUserContextService, $locationModel, $assetFilterSchemaService, $licenseModel, $licenseFilterSchemaService, $consumableModel, $consumableFilterSchemaService, $assetCustomFieldModel, $assetTypeTableService);
 $inventoryFormController = new InventoryFormController($assetModel, $assetTypeModel, $assetCustomFieldModel, $assetTypeTableService, $viewRenderer, $sessionAuthService, $userModel, $networkPortMappingService);
 $networkPortMappingController = new NetworkPortMappingController($networkPortMappingService);
+$switchPortController = new SwitchPortController($networkPortMappingService, $viewRenderer, $sessionAuthService, $userModel);
 $assetController = new AssetController($assetModel, $assetHistoryModel, $userIntegrationFactory, $personnelModel, $userModel, $locationModel, $categoryModel, $assetCsvImportService, $inventoryImportService, $sessionAuthService, $clientIpResolver, $endUserContextService, $auditLogger, $assetFilterSchemaService, $settingModel, $assetCustomFieldModel, $assetTypeTableService, $networkPortMappingService);
 $assetViewController = new AssetViewController($appConfig, $assetModel, $viewRenderer);
 $assetTutanakController = new AssetTutanakController($assetModel, $settingModel, $personnelModel, $userModel, $userIntegrationFactory, $zimmetTutanakService, $viewRenderer, $sessionAuthService, $endUserContextService);
@@ -348,6 +351,8 @@ $app->get('/unauthorized', [$authController, 'showUnauthorized']);
 $app->get('/', [$healthController, 'index']);
 $app->get('/inventory/add', [$inventoryFormController, 'add']);
 $app->get('/inventory/edit', [$inventoryFormController, 'edit']);
+$app->get('/network/switch-ports', [$switchPortController, 'index']);
+$app->get('/network/port-config', [$switchPortController, 'portConfig']);
 $app->get('/inventory/{typeId}', [$healthController, 'inventorySection']);
 $app->get('/documents', [$healthController, 'documents']);
 $app->get('/assets/view/{id}', [$assetViewController, 'show']);
@@ -450,7 +455,12 @@ $app->group('', function ($group) use (
     $group->post('/api/ip-addresses/bulk-update', [$ipNetworkController, 'bulkUpdateAddresses']);
     $group->post('/admin/network/ip/bulk-update', [$ipNetworkController, 'bulkUpdateAddresses']);
     $group->get('/api/network/switches', [$networkPortMappingController, 'switches']);
+    $group->get('/api/network/switches/directory', [$networkPortMappingController, 'directory']);
+    $group->get('/api/network/switches/matrix', [$networkPortMappingController, 'matrix']);
     $group->get('/api/network/port-mappings', [$networkPortMappingController, 'show']);
+    $group->get('/api/network/port-mappings/search', [$networkPortMappingController, 'searchAssets']);
+    $group->post('/api/network/port-mappings', [$networkPortMappingController, 'assign']);
+    $group->post('/api/network/port-mappings/disconnect', [$networkPortMappingController, 'disconnect']);
     $group->get('/api/consumables', [$consumableController, 'index']);
     $group->post('/api/consumables', [$consumableController, 'store']);
     $group->get('/api/consumables/{id}', [$consumableController, 'show']);

@@ -1241,7 +1241,98 @@ class DatabaseInitializer
             $warnings[] = 'Applied migration: IP rogue device detection column on ip_addresses.';
         }
 
+        foreach ($this->patchSwitchPortManagement($connection) as $warning) {
+            $warnings[] = $warning;
+        }
+
         return $warnings;
+    }
+
+    /**
+     * @param object $connection Medoo instance
+     *
+     * @return list<string>
+     */
+    private function patchSwitchPortManagement(object $connection): array
+    {
+        $warnings = [];
+
+        if ($this->tableExists($connection, 'network_port_mappings')
+            && !$this->indexExists($connection, 'network_port_mappings', 'uq_network_port_mappings_switch_port')) {
+            $connection->query(
+                'ALTER TABLE network_port_mappings
+                    ADD UNIQUE KEY uq_network_port_mappings_switch_port (switch_asset_id, port_number)'
+            );
+            $warnings[] = 'Applied migration: unique switch/port constraint on network_port_mappings.';
+        }
+
+        foreach ($this->resolveSwitchTypeTableNames($connection) as $tableName) {
+            if (!$this->tableExists($connection, $tableName)) {
+                continue;
+            }
+
+            if ($this->columnExists($connection, $tableName, 'total_ports')) {
+                continue;
+            }
+
+            $connection->query(sprintf(
+                'ALTER TABLE `%s` ADD COLUMN total_ports INT UNSIGNED DEFAULT 24',
+                $this->escapeIdentifier($tableName)
+            ));
+            $warnings[] = sprintf('Added total_ports column on `%s`.', $tableName);
+        }
+
+        return $warnings;
+    }
+
+    /**
+     * @param object $connection Medoo instance
+     *
+     * @return list<string>
+     */
+    private function resolveSwitchTypeTableNames(object $connection): array
+    {
+        $slugs = ['ag_anahtarlari', 'switchler', 'switches', 'ag-anahtarlari'];
+        $rows = $connection->select('asset_types', ['slug', 'name']);
+
+        if (is_array($rows)) {
+            foreach ($rows as $row) {
+                if (!is_array($row)) {
+                    continue;
+                }
+
+                $slug = strtolower(trim((string) ($row['slug'] ?? '')));
+                $name = strtolower(trim((string) ($row['name'] ?? '')));
+
+                if ($slug === '') {
+                    continue;
+                }
+
+                if (
+                    str_contains($slug, 'switch')
+                    || str_contains($slug, 'anahtar')
+                    || str_contains($name, 'anahtar')
+                    || str_contains($name, 'switch')
+                ) {
+                    $slugs[] = $slug;
+                }
+            }
+        }
+
+        $tables = [];
+
+        foreach (array_values(array_unique(array_filter($slugs))) as $slug) {
+            $normalized = strtolower(preg_replace('/[^a-z0-9_]+/', '_', $slug) ?? $slug);
+            $normalized = trim($normalized, '_');
+
+            if ($normalized === '') {
+                continue;
+            }
+
+            $tables[] = 'assets_' . $normalized;
+        }
+
+        return array_values(array_unique($tables));
     }
 
     private function getIpamMigrationPath(): string

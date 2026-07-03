@@ -88,6 +88,24 @@ class AssetsGlobalRegistry
     }
 
     /**
+     * @return array<string, mixed>|null
+     */
+    public function findById(int $assetId): ?array
+    {
+        if ($assetId <= 0 || !$this->tableExists()) {
+            return null;
+        }
+
+        $row = $this->db()->get('assets_global_registry', '*', ['id' => $assetId]);
+
+        if (!is_array($row) || $row === []) {
+            return null;
+        }
+
+        return $this->normalizeRow($row);
+    }
+
+    /**
      * @return list<array<string, mixed>>
      */
     public function search(string $query, int $limit = 50): array

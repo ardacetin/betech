@@ -7,6 +7,7 @@ namespace App\Controllers;
 use App\Services\NetworkPortMappingService;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
+use RuntimeException;
 
 class NetworkPortMappingController
 {
@@ -20,6 +21,50 @@ class NetworkPortMappingController
         return $this->jsonResponse($response, 200, [
             'status' => 'success',
             'data' => $this->networkPortMappingService->listSwitchAssets(),
+        ]);
+    }
+
+    public function directory(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
+    {
+        return $this->jsonResponse($response, 200, [
+            'status' => 'success',
+            'data' => $this->networkPortMappingService->listSwitchDirectory(),
+        ]);
+    }
+
+    public function matrix(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
+    {
+        $switchId = (int) ($request->getQueryParams()['switch_id'] ?? 0);
+
+        if ($switchId <= 0) {
+            return $this->jsonResponse($response, 422, [
+                'status' => 'error',
+                'message' => __('network_port_mapping_invalid_switch'),
+            ]);
+        }
+
+        $matrix = $this->networkPortMappingService->getSwitchPortMatrix($switchId);
+
+        if ($matrix === null) {
+            return $this->jsonResponse($response, 404, [
+                'status' => 'error',
+                'message' => __('network_port_mapping_invalid_switch'),
+            ]);
+        }
+
+        return $this->jsonResponse($response, 200, [
+            'status' => 'success',
+            'data' => $matrix,
+        ]);
+    }
+
+    public function searchAssets(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
+    {
+        $query = trim((string) ($request->getQueryParams()['q'] ?? ''));
+
+        return $this->jsonResponse($response, 200, [
+            'status' => 'success',
+            'data' => $this->networkPortMappingService->searchConnectableAssets($query),
         ]);
     }
 
@@ -40,6 +85,83 @@ class NetworkPortMappingController
             'status' => 'success',
             'data' => $this->networkPortMappingService->findForSource($sourceType, $sourceId),
         ]);
+    }
+
+    public function assign(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
+    {
+        $body = $this->parseJsonBody($request);
+
+        $switchId = (int) ($body['switch_asset_id'] ?? 0);
+        $portNumber = trim((string) ($body['port_number'] ?? ''));
+        $sourceType = trim((string) ($body['source_asset_type'] ?? ''));
+        $sourceId = (int) ($body['source_asset_id'] ?? 0);
+
+        if ($switchId <= 0 || $portNumber === '' || $sourceType === '' || $sourceId <= 0) {
+            return $this->jsonResponse($response, 422, [
+                'status' => 'error',
+                'message' => __('switch_port_assign_invalid_payload'),
+            ]);
+        }
+
+        try {
+            $this->networkPortMappingService->assignPort($switchId, $portNumber, $sourceType, $sourceId);
+        } catch (RuntimeException $exception) {
+            return $this->jsonResponse($response, 422, [
+                'status' => 'error',
+                'message' => $exception->getMessage(),
+            ]);
+        }
+
+        return $this->jsonResponse($response, 200, [
+            'status' => 'success',
+            'message' => __('switch_port_assign_success'),
+            'data' => $this->networkPortMappingService->getPortConfigContext($switchId, $portNumber),
+        ]);
+    }
+
+    public function disconnect(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
+    {
+        $body = $this->parseJsonBody($request);
+
+        $switchId = (int) ($body['switch_asset_id'] ?? 0);
+        $portNumber = trim((string) ($body['port_number'] ?? ''));
+
+        if ($switchId <= 0 || $portNumber === '') {
+            return $this->jsonResponse($response, 422, [
+                'status' => 'error',
+                'message' => __('switch_port_disconnect_invalid_payload'),
+            ]);
+        }
+
+        try {
+            $this->networkPortMappingService->disconnectPort($switchId, $portNumber);
+        } catch (RuntimeException $exception) {
+            return $this->jsonResponse($response, 422, [
+                'status' => 'error',
+                'message' => $exception->getMessage(),
+            ]);
+        }
+
+        return $this->jsonResponse($response, 200, [
+            'status' => 'success',
+            'message' => __('switch_port_disconnect_success'),
+        ]);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function parseJsonBody(ServerRequestInterface $request): array
+    {
+        $raw = (string) $request->getBody();
+
+        if ($raw === '') {
+            return [];
+        }
+
+        $decoded = json_decode($raw, true);
+
+        return is_array($decoded) ? $decoded : [];
     }
 
     /**
