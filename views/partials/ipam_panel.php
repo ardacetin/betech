@@ -164,13 +164,14 @@ declare(strict_types=1);
                                             :title="formatPingTooltip(address)"
                                         >
                                             <span
-                                                x-show="address.ping_status === 'online'"
+                                                x-show="address.ping_status === 'online' || isIpRogueViolation(address)"
                                                 x-cloak
-                                                class="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"
+                                                class="absolute inline-flex h-full w-full animate-ping rounded-full opacity-75"
+                                                :class="isIpRogueViolation(address) ? 'bg-amber-400' : 'bg-emerald-400'"
                                             ></span>
                                             <span
                                                 class="relative inline-flex h-2.5 w-2.5 rounded-full"
-                                                :class="pingStatusDotClass(address.ping_status)"
+                                                :class="pingStatusDotClass(address)"
                                             ></span>
                                         </span>
                                         <span x-text="address.ip_address"></span>
@@ -179,9 +180,9 @@ declare(strict_types=1);
                                 <td class="px-4 py-2">
                                     <span
                                         class="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium"
-                                        :class="pingStatusBadgeClass(address.ping_status)"
+                                        :class="pingStatusBadgeClass(address)"
                                         :title="formatPingTooltip(address)"
-                                        x-text="pingStatusLabel(address.ping_status)"
+                                        x-text="pingStatusLabel(address)"
                                     ></span>
                                 </td>
                                 <td class="px-4 py-2">

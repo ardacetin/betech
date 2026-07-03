@@ -1229,6 +1229,18 @@ class DatabaseInitializer
             }
         }
 
+        $rogueMigrationPath = dirname($this->schemaPath) . '/migrations/030_ip_addresses_rogue_detection.sql';
+
+        if (is_readable($rogueMigrationPath) && $this->tableExists($connection, 'ip_addresses')
+            && !$this->columnExists($connection, 'ip_addresses', 'is_rogue')) {
+            $connection->query(
+                "ALTER TABLE ip_addresses
+                    ADD COLUMN is_rogue TINYINT(1) NOT NULL DEFAULT 0 AFTER last_seen_at,
+                    ADD KEY idx_ip_addresses_is_rogue (is_rogue)"
+            );
+            $warnings[] = 'Applied migration: IP rogue device detection column on ip_addresses.';
+        }
+
         return $warnings;
     }
 

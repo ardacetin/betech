@@ -16,7 +16,7 @@ class PingHeartbeatService
     }
 
     /**
-     * @return array{checked: int, online: int, offline: int}
+     * @return array{checked: int, online: int, offline: int, rogue: int}
      */
     public function run(): array
     {
@@ -24,17 +24,31 @@ class PingHeartbeatService
         $checked = 0;
         $online = 0;
         $offline = 0;
+        $rogue = 0;
 
         foreach (array_chunk($addresses, self::MAX_CONCURRENCY) as $batch) {
+            $statusById = [];
+
+            foreach ($batch as $address) {
+                $statusById[(int) ($address['id'] ?? 0)] = (string) ($address['status'] ?? '');
+            }
+
             $results = $this->pingBatch($batch);
 
             foreach ($results as $result) {
                 ++$checked;
+                $id = (int) ($result['id'] ?? 0);
                 $isOnline = (bool) ($result['online'] ?? false);
-                $this->ipAddressModel->updatePingStatus((int) $result['id'], $isOnline);
+                $allocationStatus = $statusById[$id] ?? '';
+
+                $this->ipAddressModel->updatePingStatus($id, $isOnline, $allocationStatus);
 
                 if ($isOnline) {
                     ++$online;
+
+                    if (strtolower(trim($allocationStatus)) === IpAddress::STATUS_AVAILABLE) {
+                        ++$rogue;
+                    }
                 } else {
                     ++$offline;
                 }
@@ -45,6 +59,7 @@ class PingHeartbeatService
             'checked' => $checked,
             'online' => $online,
             'offline' => $offline,
+            'rogue' => $rogue,
         ];
     }
 

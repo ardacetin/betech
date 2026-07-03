@@ -481,6 +481,8 @@ $i18nScript = json_encode([
     'ipam_ping_unknown' => __('ipam_ping_unknown'),
     'ipam_ping_last_seen' => __('ipam_ping_last_seen'),
     'ipam_ping_never_seen' => __('ipam_ping_never_seen'),
+    'ipam_rogue_active_device' => __('ipam_rogue_active_device'),
+    'ipam_rogue_ip_violation' => __('ipam_rogue_ip_violation'),
     'ipam_bulk_edit' => __('ipam_bulk_edit'),
     'ipam_bulk_edit_title' => __('ipam_bulk_edit_title'),
     'ipam_bulk_edit_subtitle' => __('ipam_bulk_edit_subtitle'),
@@ -6308,7 +6310,14 @@ $i18nScript = json_encode([
 
                 return map[status] || 'border-zinc-200 bg-white text-zinc-700';
             },
-            pingStatusLabel(status) {
+            pingStatusLabel(address) {
+                if (this.isIpRogueViolation(address)) {
+                    return window.__i18n.ipam_rogue_active_device;
+                }
+
+                const status = typeof address === 'object' && address !== null
+                    ? address.ping_status
+                    : address;
                 const map = {
                     online: window.__i18n.ipam_ping_online,
                     offline: window.__i18n.ipam_ping_offline,
@@ -6316,7 +6325,25 @@ $i18nScript = json_encode([
 
                 return map[status] || window.__i18n.ipam_ping_unknown;
             },
-            pingStatusDotClass(status) {
+            isIpRogueViolation(address) {
+                if (!address || typeof address !== 'object') {
+                    return false;
+                }
+
+                if (address.is_rogue === true || Number(address.is_rogue) === 1) {
+                    return true;
+                }
+
+                return address.status === 'available' && address.ping_status === 'online';
+            },
+            pingStatusDotClass(address) {
+                if (this.isIpRogueViolation(address)) {
+                    return 'bg-amber-500';
+                }
+
+                const status = typeof address === 'object' && address !== null
+                    ? address.ping_status
+                    : address;
                 const map = {
                     online: 'bg-emerald-500',
                     offline: 'bg-rose-500',
@@ -6324,7 +6351,14 @@ $i18nScript = json_encode([
 
                 return map[status] || 'bg-zinc-300';
             },
-            pingStatusBadgeClass(status) {
+            pingStatusBadgeClass(address) {
+                if (this.isIpRogueViolation(address)) {
+                    return 'bg-amber-50 text-amber-800 ring-1 ring-inset ring-amber-500/40';
+                }
+
+                const status = typeof address === 'object' && address !== null
+                    ? address.ping_status
+                    : address;
                 const map = {
                     online: 'bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-600/20',
                     offline: 'bg-rose-50 text-rose-700 ring-1 ring-inset ring-rose-600/20',
@@ -6333,7 +6367,18 @@ $i18nScript = json_encode([
                 return map[status] || 'bg-zinc-100 text-zinc-500 ring-1 ring-inset ring-zinc-300';
             },
             formatPingTooltip(address) {
-                const status = this.pingStatusLabel(address?.ping_status);
+                if (this.isIpRogueViolation(address)) {
+                    const lastSeen = String(address?.last_seen_at || '').trim();
+                    const violation = window.__i18n.ipam_rogue_ip_violation;
+
+                    if (lastSeen === '') {
+                        return violation;
+                    }
+
+                    return `${violation} · ${window.__i18n.ipam_ping_last_seen}: ${this.formatRelativeTime(lastSeen)}`;
+                }
+
+                const status = this.pingStatusLabel(address);
                 const lastSeen = String(address?.last_seen_at || '').trim();
 
                 if (lastSeen === '') {

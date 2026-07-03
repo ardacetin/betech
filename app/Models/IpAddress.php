@@ -55,6 +55,7 @@ class IpAddress
             'ip_addresses.notes',
             'ip_addresses.ping_status',
             'ip_addresses.last_seen_at',
+            'ip_addresses.is_rogue',
             'ip_addresses.created_at',
             'ip_addresses.updated_at',
             'assets.asset_tag(asset_tag)',
@@ -90,6 +91,7 @@ class IpAddress
             'ip_addresses.notes',
             'ip_addresses.ping_status',
             'ip_addresses.last_seen_at',
+            'ip_addresses.is_rogue',
             'ip_addresses.created_at',
             'ip_addresses.updated_at',
             'assets.asset_tag(asset_tag)',
@@ -123,6 +125,7 @@ class IpAddress
             'ip_addresses.notes',
             'ip_addresses.ping_status',
             'ip_addresses.last_seen_at',
+            'ip_addresses.is_rogue',
             'ip_addresses.created_at',
             'ip_addresses.updated_at',
             'assets.asset_tag(asset_tag)',
@@ -223,6 +226,7 @@ class IpAddress
             'ip_addresses.notes',
             'ip_addresses.ping_status',
             'ip_addresses.last_seen_at',
+            'ip_addresses.is_rogue',
             'ip_addresses.created_at',
             'ip_addresses.updated_at',
             'assets.asset_tag(asset_tag)',
@@ -398,7 +402,6 @@ class IpAddress
             'ip_address',
             'status',
         ], [
-            'status' => [self::STATUS_RESERVED, self::STATUS_ASSIGNED],
             'ORDER' => ['ip_address' => 'ASC'],
         ]);
 
@@ -414,7 +417,7 @@ class IpAddress
         ));
     }
 
-    public function updatePingStatus(int $id, bool $online): void
+    public function updatePingStatus(int $id, bool $online, string $allocationStatus = ''): void
     {
         if ($id <= 0 || !$this->pingColumnsExist()) {
             return;
@@ -426,6 +429,12 @@ class IpAddress
 
         if ($online) {
             $updates['last_seen_at'] = date('Y-m-d H:i:s');
+        }
+
+        if ($this->rogueColumnExists()) {
+            $updates['is_rogue'] = $online && strtolower(trim($allocationStatus)) === self::STATUS_AVAILABLE
+                ? 1
+                : 0;
         }
 
         $this->db()->update('ip_addresses', $updates, ['id' => $id]);
@@ -455,6 +464,7 @@ class IpAddress
             'last_seen_at' => isset($row['last_seen_at']) && $row['last_seen_at'] !== null
                 ? (string) $row['last_seen_at']
                 : null,
+            'is_rogue' => (int) ($row['is_rogue'] ?? 0) === 1,
             'created_at' => (string) ($row['created_at'] ?? ''),
             'updated_at' => (string) ($row['updated_at'] ?? ''),
         ];
@@ -469,6 +479,21 @@ class IpAddress
         }
 
         $statement = $this->db()->query("SHOW COLUMNS FROM `ip_addresses` LIKE 'ping_status'");
+
+        $exists = $statement !== false && $statement->rowCount() > 0;
+
+        return $exists;
+    }
+
+    private function rogueColumnExists(): bool
+    {
+        static $exists = null;
+
+        if ($exists !== null) {
+            return $exists;
+        }
+
+        $statement = $this->db()->query("SHOW COLUMNS FROM `ip_addresses` LIKE 'is_rogue'");
 
         $exists = $statement !== false && $statement->rowCount() > 0;
 

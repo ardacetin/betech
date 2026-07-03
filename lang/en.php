@@ -1362,6 +1362,8 @@ return [
     'ipam_ping_unknown' => 'Unknown',
     'ipam_ping_last_seen' => 'Last seen',
     'ipam_ping_never_seen' => 'No ping data yet',
+    'ipam_rogue_active_device' => 'Unauthorized Active Device',
+    'ipam_rogue_ip_violation' => 'IP violation: available address is responding',
     'network_connection_settings_title' => 'Network Connection Settings',
     'network_connection_settings_subtitle' => 'Define the switch and physical port this device is connected to.',
     'network_switch_select_label' => 'Switch',

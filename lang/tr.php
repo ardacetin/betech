@@ -1386,6 +1386,8 @@ return [
     'ipam_ping_unknown' => 'Bilinmiyor',
     'ipam_ping_last_seen' => 'Son görülme',
     'ipam_ping_never_seen' => 'Henüz ping alınmadı',
+    'ipam_rogue_active_device' => 'Kayıt Dışı Aktif Cihaz',
+    'ipam_rogue_ip_violation' => 'IP İhlali: Müsait IP yanıt veriyor',
     'network_connection_settings_title' => 'Ağ Bağlantı Ayarları',
     'network_connection_settings_subtitle' => 'Bu cihazın bağlı olduğu switch ve fiziksel port bilgisini tanımlayın.',
     'network_switch_select_label' => 'Switch / Ağ Anahtarı',

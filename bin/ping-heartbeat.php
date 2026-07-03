@@ -29,10 +29,11 @@ $service = new PingHeartbeatService($ipAddressModel);
 try {
     $result = $service->run();
     echo sprintf(
-        "Ping heartbeat complete: %d checked, %d online, %d offline\n",
+        "Ping heartbeat complete: %d checked, %d online, %d offline, %d rogue\n",
         $result['checked'],
         $result['online'],
-        $result['offline']
+        $result['offline'],
+        $result['rogue']
     );
     exit(0);
 } catch (\Throwable $exception) {
