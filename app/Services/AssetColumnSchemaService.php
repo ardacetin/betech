@@ -258,6 +258,10 @@ class AssetColumnSchemaService
         if ($assetTypeId !== null && $assetTypeId > 0) {
             $tableName = $this->assetTypeTableService->tableNameForTypeId($assetTypeId);
 
+            if ($tableName === null || !$this->assetTypeTableService->tableExists($tableName)) {
+                return $this->ensureColumnExists($columnName);
+            }
+
             return $this->assetTypeTableService->addColumn($tableName, $columnName);
         }
 
@@ -460,14 +464,10 @@ class AssetColumnSchemaService
             return 'assets';
         }
 
-        try {
-            $tableName = $this->assetTypeTableService->tableNameForTypeId($assetTypeId);
+        $tableName = $this->assetTypeTableService->tableNameForTypeId($assetTypeId);
 
-            if ($this->assetTypeTableService->tableExists($tableName)) {
-                return $tableName;
-            }
-        } catch (RuntimeException) {
-            return 'assets';
+        if ($tableName !== null && $this->assetTypeTableService->tableExists($tableName)) {
+            return $tableName;
         }
 
         return 'assets';

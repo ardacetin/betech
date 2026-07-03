@@ -270,7 +270,7 @@ class AssetCustomFieldController
             'status' => 'success',
             'data' => [
                 'asset_type' => $assetType,
-                'table' => $tableName,
+                'table' => $tableName ?? $this->assetTypeTableService->resolveFallbackTableName(),
                 'columns' => $schema,
                 'custom_fields' => $customFields,
                 'components' => $components,

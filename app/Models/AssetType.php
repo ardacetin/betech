@@ -194,13 +194,10 @@ class AssetType
 
     public function countAssets(int $assetTypeId): int
     {
-        try {
-            $tableName = $this->assetTypeTableService->tableNameForTypeId($assetTypeId);
+        $tableName = $this->assetTypeTableService->tableNameForTypeId($assetTypeId);
 
-            if ($this->assetTypeTableService->tableExists($tableName)) {
-                return $this->assetTypeTableService->countRows($tableName);
-            }
-        } catch (\Throwable) {
+        if ($tableName !== null && $this->assetTypeTableService->tableExists($tableName)) {
+            return $this->assetTypeTableService->countRows($tableName);
         }
 
         if (!$this->db()->has('assets', ['asset_type_id' => $assetTypeId])) {

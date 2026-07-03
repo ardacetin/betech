@@ -156,10 +156,13 @@ class AssetComponent
         $columnName = trim((string) ($existing['column_name'] ?? ''));
 
         if ($columnName !== '' && $assetTypeId > 0) {
-            try {
-                $tableName = $this->assetTypeTableService->tableNameForTypeId($assetTypeId);
-                $this->assetTypeTableService->dropColumn($tableName, $columnName);
-            } catch (\Throwable) {
+            $tableName = $this->assetTypeTableService->tableNameForTypeId($assetTypeId);
+
+            if ($tableName !== null && $this->assetTypeTableService->tableExists($tableName)) {
+                try {
+                    $this->assetTypeTableService->dropColumn($tableName, $columnName);
+                } catch (\Throwable) {
+                }
             }
         }
 

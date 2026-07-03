@@ -58,17 +58,68 @@ class AssetTypeTableService
         return 'assets_' . $normalized;
     }
 
-    public function tableNameForTypeId(int $assetTypeId): string
+    public function tableNameForTypeId(int $assetTypeId): ?string
     {
+        if ($assetTypeId <= 0) {
+            return null;
+        }
+
         $row = $this->db()->get('asset_types', 'slug', [
             'id' => $assetTypeId,
         ]);
 
         if (!is_array($row) || trim((string) ($row['slug'] ?? '')) === '') {
-            throw new RuntimeException(__('asset_type_not_found'));
+            $fallbackTable = $this->resolveFallbackTableName();
+            error_log(sprintf(
+                '[AssetTypeTableService] Asset type id %d not found; using fallback table `%s`.',
+                $assetTypeId,
+                $fallbackTable
+            ));
+
+            return $fallbackTable;
         }
 
         return $this->tableNameForSlug((string) $row['slug']);
+    }
+
+    public function resolveFallbackTableName(): string
+    {
+        $defaultSlugRow = $this->db()->get('asset_types', 'slug', [
+            'slug' => self::DEFAULT_EXTENDED_TYPE_SLUG,
+            'ORDER' => ['id' => 'ASC'],
+        ]);
+
+        if (is_array($defaultSlugRow) && trim((string) ($defaultSlugRow['slug'] ?? '')) !== '') {
+            $defaultTable = $this->tableNameForSlug((string) $defaultSlugRow['slug']);
+
+            if ($this->tableExists($defaultTable)) {
+                return $defaultTable;
+            }
+        }
+
+        $firstTypeRow = $this->db()->get('asset_types', 'slug', [
+            'ORDER' => ['sort_order' => 'ASC', 'id' => 'ASC'],
+        ]);
+
+        if (is_array($firstTypeRow) && trim((string) ($firstTypeRow['slug'] ?? '')) !== '') {
+            $firstTable = $this->tableNameForSlug((string) $firstTypeRow['slug']);
+
+            if ($this->tableExists($firstTable)) {
+                return $firstTable;
+            }
+        }
+
+        $bilgisayarlarTable = $this->tableNameForSlug(self::DEFAULT_EXTENDED_TYPE_SLUG);
+
+        if ($this->tableExists($bilgisayarlarTable)) {
+            return $bilgisayarlarTable;
+        }
+
+        if ($this->tableExists('assets')) {
+            return 'assets';
+        }
+
+        return $bilgisayarlarTable;
     }
 
     public function tableExists(string $tableName): bool
@@ -294,7 +345,22 @@ class AssetTypeTableService
      */
     public function buildSchemaDefinition(int $assetTypeId, array $customFields = [], array $components = []): array
     {
+        if ($assetTypeId <= 0) {
+            return [];
+        }
+
         $tableName = $this->tableNameForTypeId($assetTypeId);
+
+        if ($tableName === null || trim($tableName) === '' || !$this->tableExists($tableName)) {
+            error_log(sprintf(
+                '[AssetTypeTableService] Skipping schema build for asset type id %d; table `%s` is unavailable.',
+                $assetTypeId,
+                (string) $tableName
+            ));
+
+            return [];
+        }
+
         $columns = $this->listTableColumns($tableName);
         $schema = [];
         $seen = [];
