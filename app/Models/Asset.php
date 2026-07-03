@@ -102,19 +102,32 @@ class Asset
         int $page = 1,
         int $perPage = ListPagination::PAGE_SIZE,
         ?int $assetTypeId = null,
-        ?array $order = null
+        ?array $order = null,
+        ?string $forcedTableName = null
     ): array {
         $where = $this->buildDashboardFilterWhere($filters, $filterDefinitions, $assetTypeId);
-        $tableName = $this->resolveTableName($assetTypeId);
+        $tableName = $this->resolveInventoryTableName($assetTypeId, $forcedTableName);
         $page = max(1, $page);
         $perPage = ListPagination::PAGE_SIZE;
 
-        if (!$this->columnSchemaService->assetTableExists($assetTypeId)) {
+        if ($tableName === null || !$this->assetTypeTableService->tableExists($tableName)) {
+            error_log(sprintf(
+                '[Asset] Inventory table unavailable for type_id=%s (resolved table: %s)',
+                $assetTypeId ?? 'none',
+                $tableName ?? 'null'
+            ));
+
             return [
                 'data' => [],
                 'pagination' => ListPagination::meta($page, 0, $perPage),
             ];
         }
+
+        error_log(sprintf(
+            '[Asset] Inventory query targeting `%s` for type_id=%s',
+            $tableName,
+            $assetTypeId ?? 'none'
+        ));
 
         $countWhere = $where === [] ? null : $where;
         $total = (int) $this->db()->count($tableName, $countWhere);
@@ -879,6 +892,19 @@ class Asset
     private function resolveTableName(?int $assetTypeId): string
     {
         return $this->columnSchemaService->resolveTableName($assetTypeId);
+    }
+
+    private function resolveInventoryTableName(?int $assetTypeId, ?string $forcedTableName = null): ?string
+    {
+        if ($forcedTableName !== null && trim($forcedTableName) !== '') {
+            return trim($forcedTableName);
+        }
+
+        if ($assetTypeId === null || $assetTypeId <= 0) {
+            return null;
+        }
+
+        return $this->assetTypeTableService->tableNameForTypeIdStrict($assetTypeId);
     }
 
     /**

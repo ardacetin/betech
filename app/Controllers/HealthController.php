@@ -60,14 +60,14 @@ class HealthController
     public function index(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
     {
         $typeIdentifier = trim((string) ($request->getQueryParams()['type'] ?? ''));
-        $typeId = $typeIdentifier !== ''
-            ? $this->assetTypeTableService->resolveTypeIdFromIdentifier($typeIdentifier)
+        $typeContext = $typeIdentifier !== ''
+            ? $this->assetTypeTableService->resolveWhitelistedType($typeIdentifier)
             : null;
 
         return $this->renderDashboard(
             $request,
             $response,
-            $typeId,
+            $typeContext,
             false,
             null
         );
@@ -90,23 +90,24 @@ class HealthController
         array $args
     ): ResponseInterface {
         $typeIdentifier = trim((string) ($args['typeId'] ?? ''));
-        $typeId = $typeIdentifier !== ''
-            ? $this->assetTypeTableService->resolveTypeIdFromIdentifier($typeIdentifier)
-            : null;
+        $typeContext = $this->assetTypeTableService->resolveWhitelistedType($typeIdentifier);
 
         return $this->renderDashboard(
             $request,
             $response,
-            $typeId,
+            $typeContext,
             true,
             null
         );
     }
 
+    /**
+     * @param array{id: int, slug: string, table: string}|null $requestedAssetType
+     */
     private function renderDashboard(
         ServerRequestInterface $request,
         ResponseInterface $response,
-        ?int $requestedAssetTypeId,
+        ?array $requestedAssetType,
         bool $forceAssetsView,
         ?string $initialActiveView = null
     ): ResponseInterface {
@@ -125,10 +126,15 @@ class HealthController
         $userName = trim((string) ($personnelProfile['name'] ?? $currentUser['name'] ?? ''));
         $userEmail = trim((string) ($personnelProfile['email'] ?? $currentUserEmail));
         $assetTypes = $isEndUser ? [] : $this->assetTypeModel->findAll();
-        $activeAssetTypeId = $requestedAssetTypeId;
+        $activeAssetTypeId = $requestedAssetType['id'] ?? null;
+        $activeAssetTypeSlug = $requestedAssetType['slug'] ?? null;
+        $activeAssetTable = $requestedAssetType['table'] ?? null;
 
-        if (!$isEndUser && $activeAssetTypeId === null && $assetTypes !== []) {
-            $activeAssetTypeId = (int) ($assetTypes[0]['id'] ?? 0);
+        if (!$isEndUser && $activeAssetTypeId === null && $assetTypes !== [] && !$forceAssetsView) {
+            $fallbackType = $this->assetTypeTableService->resolveWhitelistedType('');
+            $activeAssetTypeId = $fallbackType['id'] ?? (int) ($assetTypes[0]['id'] ?? 0);
+            $activeAssetTypeSlug = $fallbackType['slug'] ?? null;
+            $activeAssetTable = $fallbackType['table'] ?? null;
         }
 
         if ($canManageAssets) {
@@ -164,7 +170,8 @@ class HealthController
                 $assetPage,
                 ListPagination::PAGE_SIZE,
                 $activeAssetTypeId,
-                $assetSortOrder
+                $assetSortOrder,
+                $activeAssetTable
             );
             $assets = $assetListResult['data'];
             $assetPagination = $assetListResult['pagination'];
@@ -253,6 +260,7 @@ class HealthController
             'assetTypes' => $assetTypes,
             'assetTypesJson' => json_encode($assetTypes, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE),
             'activeAssetTypeId' => $activeAssetTypeId ?? 0,
+            'activeAssetTypeSlug' => $activeAssetTypeSlug ?? '',
             'forceAssetsView' => $forceAssetsView,
             'initialActiveView' => $initialActiveView,
             'assetSchemaJson' => json_encode(

@@ -143,14 +143,15 @@ $sectionHeaderClass = 'mt-6 mb-2 px-3 text-[11px] font-bold uppercase tracking-w
             </button>
             <div x-show="assetManagementOpen" x-cloak class="ml-4 space-y-1 border-l border-gray-200 pl-3">
                 <?php foreach ($assetTypes as $assetType): ?>
-                <button
-                    type="button"
-                    @click="openAssetSection(<?= (int) ($assetType['id'] ?? 0) ?>)"
+                <?php $assetTypeSlug = trim((string) ($assetType['slug'] ?? '')); ?>
+                <a
+                    href="/inventory/<?= htmlspecialchars($assetTypeSlug !== '' ? $assetTypeSlug : (string) ($assetType['id'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
+                    @click.prevent="openAssetSection(<?= (int) ($assetType['id'] ?? 0) ?>, '<?= htmlspecialchars($assetTypeSlug, ENT_QUOTES, 'UTF-8') ?>')"
                     class="group flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900"
                     :class="activeView === 'assets' && Number(activeAssetTypeId) === <?= (int) ($assetType['id'] ?? 0) ?> ? 'bg-gray-900 font-semibold text-white shadow-sm hover:bg-gray-900 hover:text-white' : ''"
                 >
                     <span class="truncate"><?= htmlspecialchars((string) ($assetType['name'] ?? ''), ENT_QUOTES, 'UTF-8') ?></span>
-                </button>
+                </a>
                 <?php endforeach; ?>
             </div>
         </div>

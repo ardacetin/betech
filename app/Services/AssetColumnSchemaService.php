@@ -470,7 +470,7 @@ class AssetColumnSchemaService
             return 'assets';
         }
 
-        $tableName = $this->assetTypeTableService->tableNameForTypeId($assetTypeId);
+        $tableName = $this->assetTypeTableService->tableNameForTypeIdStrict($assetTypeId);
 
         if ($tableName === null || trim($tableName) === '') {
             return 'assets___unknown_type___';

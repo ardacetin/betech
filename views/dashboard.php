@@ -98,12 +98,13 @@ $initialAssetFiltersJson = json_encode($initialAssetFilters, JSON_THROW_ON_ERROR
 $inventoryAssetsJson = json_encode($canManageAssets ? $assets : [], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
 $assetTypes = $assetTypes ?? [];
 $activeAssetTypeId = (int) ($activeAssetTypeId ?? 0);
+$activeAssetTypeSlug = trim((string) ($activeAssetTypeSlug ?? ''));
+$forceAssetsView = (bool) ($forceAssetsView ?? false);
 
-if ($activeAssetTypeId <= 0 && $assetTypes !== []) {
+if ($activeAssetTypeId <= 0 && $assetTypes !== [] && !$forceAssetsView) {
     $activeAssetTypeId = (int) ($assetTypes[0]['id'] ?? 1);
 }
 
-$forceAssetsView = (bool) ($forceAssetsView ?? false);
 $initialActiveView = is_string($initialActiveView ?? null) ? trim((string) $initialActiveView) : null;
 $assetTypesJson = json_encode($assetTypes, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
 $assetSchemaJson = $assetSchemaJson ?? '[]';
@@ -518,7 +519,7 @@ $i18nScript = json_encode([
     'list_pagination_info' => __('list_pagination_info'),
 ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
 ?>
-<div class="min-h-screen bg-gray-50" x-data="assetDashboard()" x-init="parseInventoryRoute(); parseDocumentsRoute(); parseListSortFromUrl(); restoreDashboardView(); if (isEndUser) { initEndUserPortal(); } else if (canManageAssets) { fetchCategories(); fetchLocations(); fetchTicketCategories(); fetchLicenses(); fetchConsumables(); fetchTickets(); if (activeView === 'dashboard') { fetchDashboardStats(); } } if (canAccessSettings && activeView === 'reports') { fetchReports(); } if (canAccessSettings && activeView === 'documents') { fetchQualityDocuments(); } this.isAssignLicenseModalOpen = false;">
+<div class="min-h-screen bg-gray-50" x-data="assetDashboard()" x-init="parseInventoryRoute(); parseDocumentsRoute(); parseListSortFromUrl(); restoreDashboardView(); if (isEndUser) { initEndUserPortal(); } else if (canManageAssets) { fetchCategories(); fetchLocations(); fetchTicketCategories(); fetchLicenses(); fetchConsumables(); fetchTickets(); if (activeView === 'dashboard') { fetchDashboardStats(); } if (activeView === 'assets') { fetchAssetTypeSchema().then(() => fetchInventoryList(false)); } } if (canAccessSettings && activeView === 'reports') { fetchReports(); } if (canAccessSettings && activeView === 'documents') { fetchQualityDocuments(); } this.isAssignLicenseModalOpen = false;">
     <div class="flex h-screen overflow-hidden bg-gray-50">
         <aside class="hidden h-full w-64 min-h-0 flex-shrink-0 flex-col border-r border-gray-200 bg-white lg:flex">
             <div class="flex h-16 shrink-0 items-center gap-3 border-b border-gray-200 px-5">
@@ -2366,6 +2367,7 @@ $i18nScript = json_encode([
                 ? json_encode($initialActiveView, JSON_THROW_ON_ERROR)
                 : ($isEndUser ? "'knowledge_base'" : ($forceAssetsView ? "'assets'" : ($canManageAssets ? "'dashboard'" : "'assets'"))) ?>,
             activeAssetTypeId: <?= $activeAssetTypeId ?>,
+            activeAssetTypeSlug: <?= json_encode((string) ($activeAssetTypeSlug ?? ''), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
             assetManagementOpen: <?= ($forceAssetsView || !$canManageAssets) ? 'true' : 'false' ?>,
             assetTypes: <?= $assetTypesJson ?>,
             inventorySchema: <?= is_string($assetSchemaJson) ? $assetSchemaJson : '[]' ?>,
@@ -3025,6 +3027,7 @@ $i18nScript = json_encode([
                     const byId = (this.assetTypes || []).find((type) => String(type.id) === identifier);
 
                     this.activeAssetTypeId = Number((bySlug || byId)?.id || identifier);
+                    this.activeAssetTypeSlug = String((bySlug || byId)?.slug || identifier || this.activeAssetTypeSlug || '');
                     this.activeView = 'assets';
                     this.assetManagementOpen = true;
                 }
@@ -3185,20 +3188,22 @@ $i18nScript = json_encode([
 
                 return current?.name || window.__i18n.nav_assets;
             },
-            openAssetSection(typeId) {
+            openAssetSection(typeId, typeSlug = '') {
                 const targetTypeId = Number(typeId);
 
                 if (!Number.isInteger(targetTypeId) || targetTypeId <= 0) {
                     return;
                 }
 
+                const activeType = (this.assetTypes || []).find((type) => Number(type.id) === targetTypeId);
+                const pathIdentifier = String(typeSlug || activeType?.slug || targetTypeId);
+
                 this.activeAssetTypeId = targetTypeId;
+                this.activeAssetTypeSlug = pathIdentifier;
                 this.activeView = 'assets';
                 this.assetManagementOpen = true;
                 this.inventoryPage = 1;
                 this.fetchAssetTypeSchema().then(() => this.fetchInventoryList(true));
-                const activeType = (this.assetTypes || []).find((type) => Number(type.id) === targetTypeId);
-                const pathIdentifier = activeType?.slug || String(targetTypeId);
                 window.history.replaceState({}, '', `/inventory/${encodeURIComponent(pathIdentifier)}`);
                 this.persistDashboardView();
             },
@@ -4714,7 +4719,8 @@ $i18nScript = json_encode([
                     const activeType = (this.assetTypes || []).find(
                         (type) => Number(type.id) === Number(this.activeAssetTypeId)
                     );
-                    params.set('type', String(activeType?.slug || this.activeAssetTypeId));
+                    const typeSlug = String(this.activeAssetTypeSlug || activeType?.slug || this.activeAssetTypeId);
+                    params.set('type', typeSlug);
                 }
 
                 Object.entries(this.assetFilters || {}).forEach(([name, value]) => {

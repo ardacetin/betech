@@ -496,7 +496,31 @@ class AssetTypeTableService
             'slug' => $trimmed,
         ]);
 
-        return is_array($row) && isset($row['id']) ? (int) $row['id'] : null;
+        return $this->extractIdFromRow($row);
+    }
+
+    /**
+     * Medoo returns a scalar when selecting a single column via get().
+     */
+    private function extractIdFromRow(mixed $row): ?int
+    {
+        if (is_int($row)) {
+            return $row > 0 ? $row : null;
+        }
+
+        if (is_string($row) && ctype_digit(trim($row))) {
+            $id = (int) trim($row);
+
+            return $id > 0 ? $id : null;
+        }
+
+        if (is_array($row) && isset($row['id'])) {
+            $id = (int) $row['id'];
+
+            return $id > 0 ? $id : null;
+        }
+
+        return null;
     }
 
     public function slugForTypeId(int $typeId): ?string
@@ -506,6 +530,20 @@ class AssetTypeTableService
         }
 
         return $this->extractSlugFromRow($this->db()->get('asset_types', 'slug', ['id' => $typeId]));
+    }
+
+    /**
+     * Resolve the isolated physical table for a whitelisted asset type id.
+     */
+    public function tableNameForTypeIdStrict(int $assetTypeId): ?string
+    {
+        $slug = $this->slugForTypeId($assetTypeId);
+
+        if ($slug === null) {
+            return null;
+        }
+
+        return $this->tableNameForSlug($slug);
     }
 
     /**

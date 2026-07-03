@@ -125,7 +125,8 @@ class AssetController
             $page,
             ListPagination::PAGE_SIZE,
             $assetTypeId,
-            $sortOrder
+            $sortOrder,
+            $typeContext['table']
         );
 
         return $this->jsonResponse($response, 200, [
