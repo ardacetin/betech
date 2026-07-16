@@ -113,12 +113,10 @@ declare(strict_types=1);
                                             <div
                                                 x-show="port.occupied && port.mapping"
                                                 x-cloak
-                                                class="pointer-events-none absolute bottom-full left-1/2 z-20 mb-1.5 hidden w-48 -translate-x-1/2 rounded-md border border-zinc-200 bg-white p-2 text-left text-[10px] font-normal text-zinc-700 shadow-lg group-hover:block"
+                                                class="pointer-events-none absolute bottom-full left-1/2 z-20 mb-1.5 hidden w-52 -translate-x-1/2 rounded-md border border-zinc-200 bg-white p-2 text-left text-[10px] font-normal text-zinc-700 shadow-lg group-hover:block"
                                             >
-                                                <p class="font-semibold text-zinc-900" x-text="port.mapping?.asset_name || '—'"></p>
-                                                <p class="mt-0.5"><span class="text-zinc-500"><?= htmlspecialchars(__('switch_port_asset_tag'), ENT_QUOTES, 'UTF-8') ?>:</span> <span x-text="port.mapping?.asset_tag || '—'"></span></p>
-                                                <p x-show="port.mapping?.ip_address" x-cloak class="mt-0.5"><span class="text-zinc-500"><?= htmlspecialchars(__('switch_port_ip_address'), ENT_QUOTES, 'UTF-8') ?>:</span> <span x-text="port.mapping?.ip_address"></span></p>
-                                                <p x-show="port.mapping?.assigned_to" x-cloak class="mt-0.5"><span class="text-zinc-500"><?= htmlspecialchars(__('switch_port_assigned_user'), ENT_QUOTES, 'UTF-8') ?>:</span> <span x-text="port.mapping?.assigned_to"></span></p>
+                                                <p class="text-[10px] font-medium uppercase tracking-wide text-zinc-400"><?= htmlspecialchars(__('switch_port_description_label'), ENT_QUOTES, 'UTF-8') ?></p>
+                                                <p class="mt-1 whitespace-pre-wrap font-medium text-zinc-900" x-text="port.mapping?.description || port.mapping?.asset_name || '—'"></p>
                                             </div>
                                         </a>
                                     </template>
@@ -134,12 +132,10 @@ declare(strict_types=1);
                                             <div
                                                 x-show="port.occupied && port.mapping"
                                                 x-cloak
-                                                class="pointer-events-none absolute bottom-full left-1/2 z-20 mb-1.5 hidden w-48 -translate-x-1/2 rounded-md border border-zinc-200 bg-white p-2 text-left text-[10px] font-normal text-zinc-700 shadow-lg group-hover:block"
+                                                class="pointer-events-none absolute bottom-full left-1/2 z-20 mb-1.5 hidden w-52 -translate-x-1/2 rounded-md border border-zinc-200 bg-white p-2 text-left text-[10px] font-normal text-zinc-700 shadow-lg group-hover:block"
                                             >
-                                                <p class="font-semibold text-zinc-900" x-text="port.mapping?.asset_name || '—'"></p>
-                                                <p class="mt-0.5"><span class="text-zinc-500"><?= htmlspecialchars(__('switch_port_asset_tag'), ENT_QUOTES, 'UTF-8') ?>:</span> <span x-text="port.mapping?.asset_tag || '—'"></span></p>
-                                                <p x-show="port.mapping?.ip_address" x-cloak class="mt-0.5"><span class="text-zinc-500"><?= htmlspecialchars(__('switch_port_ip_address'), ENT_QUOTES, 'UTF-8') ?>:</span> <span x-text="port.mapping?.ip_address"></span></p>
-                                                <p x-show="port.mapping?.assigned_to" x-cloak class="mt-0.5"><span class="text-zinc-500"><?= htmlspecialchars(__('switch_port_assigned_user'), ENT_QUOTES, 'UTF-8') ?>:</span> <span x-text="port.mapping?.assigned_to"></span></p>
+                                                <p class="text-[10px] font-medium uppercase tracking-wide text-zinc-400"><?= htmlspecialchars(__('switch_port_description_label'), ENT_QUOTES, 'UTF-8') ?></p>
+                                                <p class="mt-1 whitespace-pre-wrap font-medium text-zinc-900" x-text="port.mapping?.description || port.mapping?.asset_name || '—'"></p>
                                             </div>
                                         </a>
                                     </template>

@@ -99,10 +99,11 @@ class NetworkPortMappingController
 
         $switchId = (int) ($body['switch_asset_id'] ?? 0);
         $portNumber = trim((string) ($body['port_number'] ?? ''));
+        $description = trim((string) ($body['description'] ?? ''));
         $sourceType = trim((string) ($body['source_asset_type'] ?? ''));
         $sourceId = (int) ($body['source_asset_id'] ?? 0);
 
-        if ($switchId <= 0 || $portNumber === '' || $sourceType === '' || $sourceId <= 0) {
+        if ($switchId <= 0 || $portNumber === '') {
             return $this->jsonResponse($response, 422, [
                 'status' => 'error',
                 'message' => __('switch_port_assign_invalid_payload'),
@@ -110,7 +111,11 @@ class NetworkPortMappingController
         }
 
         try {
-            $this->networkPortMappingService->assignPort($switchId, $portNumber, $sourceType, $sourceId);
+            if ($sourceType !== '' && $sourceId > 0 && $description === '') {
+                $this->networkPortMappingService->assignPort($switchId, $portNumber, $sourceType, $sourceId);
+            } else {
+                $this->networkPortMappingService->savePortDescription($switchId, $portNumber, $description);
+            }
         } catch (RuntimeException $exception) {
             return $this->jsonResponse($response, 422, [
                 'status' => 'error',
@@ -120,7 +125,9 @@ class NetworkPortMappingController
 
         return $this->jsonResponse($response, 200, [
             'status' => 'success',
-            'message' => __('switch_port_assign_success'),
+            'message' => $description === '' && !($sourceType !== '' && $sourceId > 0)
+                ? __('switch_port_disconnect_success')
+                : __('switch_port_assign_success'),
             'data' => $this->networkPortMappingService->getPortConfigContext($switchId, $portNumber),
         ]);
     }

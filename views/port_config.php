@@ -54,76 +54,39 @@ declare(strict_types=1);
             </dl>
         </section>
 
-        <section x-show="context.mapping" x-cloak class="rounded-2xl border border-blue-200 bg-blue-50/50 p-6">
-            <h2 class="text-sm font-semibold text-blue-900"><?= htmlspecialchars(__('switch_port_config_current_connection'), ENT_QUOTES, 'UTF-8') ?></h2>
-            <dl class="mt-4 grid gap-3 text-sm sm:grid-cols-2">
-                <div>
-                    <dt class="text-blue-700/80"><?= htmlspecialchars(__('switch_port_asset_name'), ENT_QUOTES, 'UTF-8') ?></dt>
-                    <dd class="font-medium text-blue-900" x-text="context.mapping?.asset_name || '—'"></dd>
-                </div>
-                <div>
-                    <dt class="text-blue-700/80"><?= htmlspecialchars(__('switch_port_asset_tag'), ENT_QUOTES, 'UTF-8') ?></dt>
-                    <dd class="font-mono text-blue-900" x-text="context.mapping?.asset_tag || '—'"></dd>
-                </div>
-                <div x-show="context.mapping?.ip_address" x-cloak>
-                    <dt class="text-blue-700/80"><?= htmlspecialchars(__('switch_port_ip_address'), ENT_QUOTES, 'UTF-8') ?></dt>
-                    <dd class="font-mono text-blue-900" x-text="context.mapping?.ip_address"></dd>
-                </div>
-                <div x-show="context.mapping?.assigned_to" x-cloak>
-                    <dt class="text-blue-700/80"><?= htmlspecialchars(__('switch_port_assigned_user'), ENT_QUOTES, 'UTF-8') ?></dt>
-                    <dd class="text-blue-900" x-text="context.mapping?.assigned_to"></dd>
-                </div>
-            </dl>
-            <button
-                type="button"
-                @click="disconnectPort()"
-                :disabled="disconnecting"
-                class="mt-5 inline-flex items-center gap-2 rounded-xl border border-rose-200 bg-white px-4 py-2.5 text-sm font-medium text-rose-700 transition hover:bg-rose-50 disabled:opacity-60"
-            ><?= htmlspecialchars(__('switch_port_disconnect'), ENT_QUOTES, 'UTF-8') ?></button>
-        </section>
-
         <section class="rounded-2xl border border-zinc-200 bg-white p-6 shadow-soft">
             <h2 class="text-sm font-semibold text-zinc-900"><?= htmlspecialchars(__('switch_port_config_assign_title'), ENT_QUOTES, 'UTF-8') ?></h2>
             <p class="mt-1 text-sm text-zinc-500"><?= htmlspecialchars(__('switch_port_config_assign_subtitle'), ENT_QUOTES, 'UTF-8') ?></p>
 
-            <div class="relative mt-4">
-                <input
-                    type="search"
-                    x-model="searchQuery"
-                    @input.debounce.300ms="searchAssets()"
-                    placeholder="<?= htmlspecialchars(__('switch_port_search_placeholder'), ENT_QUOTES, 'UTF-8') ?>"
+            <label class="mt-4 block">
+                <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('switch_port_description_label'), ENT_QUOTES, 'UTF-8') ?></span>
+                <textarea
+                    x-model="description"
+                    rows="5"
+                    maxlength="2000"
+                    placeholder="<?= htmlspecialchars(__('switch_port_description_placeholder'), ENT_QUOTES, 'UTF-8') ?>"
                     class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4"
-                />
-                <p x-show="searchLoading" x-cloak class="mt-2 text-xs text-zinc-500"><?= htmlspecialchars(__('switch_port_search_loading'), ENT_QUOTES, 'UTF-8') ?></p>
+                ></textarea>
+                <p class="mt-1.5 text-xs text-zinc-500"><?= htmlspecialchars(__('switch_port_description_hint'), ENT_QUOTES, 'UTF-8') ?></p>
+            </label>
+
+            <div class="mt-5 flex flex-wrap items-center gap-3">
+                <button
+                    type="button"
+                    @click="saveDescription()"
+                    :disabled="saving"
+                    class="inline-flex items-center rounded-xl bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-zinc-800 disabled:opacity-60"
+                ><?= htmlspecialchars(__('switch_port_description_save'), ENT_QUOTES, 'UTF-8') ?></button>
+
+                <button
+                    type="button"
+                    x-show="hasDescription"
+                    x-cloak
+                    @click="clearDescription()"
+                    :disabled="saving || disconnecting"
+                    class="inline-flex items-center rounded-xl border border-rose-200 bg-white px-4 py-2.5 text-sm font-medium text-rose-700 transition hover:bg-rose-50 disabled:opacity-60"
+                ><?= htmlspecialchars(__('switch_port_disconnect'), ENT_QUOTES, 'UTF-8') ?></button>
             </div>
-
-            <ul x-show="searchResults.length > 0" x-cloak class="mt-4 divide-y divide-zinc-100 rounded-xl border border-zinc-200">
-                <template x-for="asset in searchResults" :key="asset.id + '-' + asset.asset_type_slug">
-                    <li>
-                        <button
-                            type="button"
-                            @click="assignAsset(asset)"
-                            :disabled="assigning"
-                            class="flex w-full items-start justify-between gap-3 px-4 py-3 text-left transition hover:bg-zinc-50 disabled:opacity-60"
-                            :class="selectedAsset?.id === asset.id ? 'bg-sky-50' : ''"
-                        >
-                            <div class="min-w-0">
-                                <p class="truncate text-sm font-medium text-zinc-900" x-text="asset.name || asset.asset_tag"></p>
-                                <p class="mt-0.5 truncate text-xs text-zinc-500">
-                                    <span x-text="asset.asset_tag"></span>
-                                    <span x-show="asset.ip_address"> · <span x-text="asset.ip_address"></span></span>
-                                    <span x-show="asset.assigned_to"> · <span x-text="asset.assigned_to"></span></span>
-                                </p>
-                            </div>
-                            <span class="shrink-0 rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] font-medium text-zinc-600" x-text="asset.asset_type_slug"></span>
-                        </button>
-                    </li>
-                </template>
-            </ul>
-
-            <p x-show="searchQuery.length >= 2 && !searchLoading && searchResults.length === 0" x-cloak class="mt-4 text-sm text-zinc-500">
-                <?= htmlspecialchars(__('switch_port_search_empty'), ENT_QUOTES, 'UTF-8') ?>
-            </p>
 
             <p x-show="formError" x-cloak class="mt-4 text-sm text-rose-600" x-text="formError"></p>
             <p x-show="formSuccess" x-cloak class="mt-4 text-sm text-emerald-700" x-text="formSuccess"></p>
@@ -137,11 +100,8 @@ function portConfigPage() {
 
   return {
     context: initialContext,
-    searchQuery: '',
-    searchResults: [],
-    searchLoading: false,
-    selectedAsset: null,
-    assigning: false,
+    description: initialContext?.mapping?.description || '',
+    saving: false,
     disconnecting: false,
     formError: '',
     formSuccess: '',
@@ -153,38 +113,19 @@ function portConfigPage() {
         .replace(':port', this.context.port_number || '');
     },
 
+    get hasDescription() {
+      return String(this.context?.mapping?.description || '').trim() !== '';
+    },
+
     init() {
       // context loaded from server
     },
 
-    async searchAssets() {
-      const q = this.searchQuery.trim();
+    async saveDescription() {
+      this.saving = true;
       this.formError = '';
       this.formSuccess = '';
-      if (q.length < 2) {
-        this.searchResults = [];
-        return;
-      }
-      this.searchLoading = true;
-      try {
-        const response = await fetch(`/api/network/port-mappings/search?q=${encodeURIComponent(q)}`);
-        const payload = await response.json();
-        if (!response.ok || payload.status !== 'success') {
-          throw new Error(payload.message || 'Failed');
-        }
-        this.searchResults = payload.data || [];
-      } catch (error) {
-        this.formError = error?.message || <?= json_encode(__('switch_port_search_error'), JSON_UNESCAPED_UNICODE) ?>;
-      } finally {
-        this.searchLoading = false;
-      }
-    },
 
-    async assignAsset(asset) {
-      this.selectedAsset = asset;
-      this.assigning = true;
-      this.formError = '';
-      this.formSuccess = '';
       try {
         const response = await fetch('/api/network/port-mappings', {
           method: 'POST',
@@ -192,8 +133,7 @@ function portConfigPage() {
           body: JSON.stringify({
             switch_asset_id: this.context.switch.id,
             port_number: this.context.port_number,
-            source_asset_type: asset.asset_type_slug,
-            source_asset_id: asset.id,
+            description: this.description,
           }),
         });
         const payload = await response.json();
@@ -201,23 +141,25 @@ function portConfigPage() {
           throw new Error(payload.message || 'Failed');
         }
         this.context = payload.data || this.context;
+        this.description = this.context?.mapping?.description || '';
         this.formSuccess = payload.message || <?= json_encode(__('switch_port_assign_success'), JSON_UNESCAPED_UNICODE) ?>;
-        this.searchResults = [];
-        this.searchQuery = '';
       } catch (error) {
         this.formError = error?.message || <?= json_encode(__('switch_port_assign_error'), JSON_UNESCAPED_UNICODE) ?>;
       } finally {
-        this.assigning = false;
+        this.saving = false;
       }
     },
 
-    async disconnectPort() {
+    async clearDescription() {
       if (!confirm(<?= json_encode(__('switch_port_disconnect_confirm'), JSON_UNESCAPED_UNICODE) ?>)) {
         return;
       }
+
       this.disconnecting = true;
       this.formError = '';
       this.formSuccess = '';
+      this.description = '';
+
       try {
         const response = await fetch('/api/network/port-mappings/disconnect', {
           method: 'POST',

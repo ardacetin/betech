@@ -277,6 +277,28 @@ class DatabaseInitializer
         return strtolower((string) $row['Type']);
     }
 
+    /**
+     * @param object $connection Medoo instance
+     */
+    private function columnIsNullable(object $connection, string $table, string $column): bool
+    {
+        $statement = $connection->query(
+            sprintf("SHOW COLUMNS FROM `%s` LIKE '%s'", $this->escapeIdentifier($table), $column)
+        );
+
+        if ($statement === false) {
+            return false;
+        }
+
+        $row = $statement->fetch(\PDO::FETCH_ASSOC);
+
+        if (!is_array($row)) {
+            return false;
+        }
+
+        return strtoupper((string) ($row['Null'] ?? 'NO')) === 'YES';
+    }
+
     private function getAssetHistoriesTableMigrationPath(): string
     {
         return dirname($this->schemaPath) . '/migrations/002_create_asset_histories_table.sql';
@@ -1264,6 +1286,28 @@ class DatabaseInitializer
                     ADD UNIQUE KEY uq_network_port_mappings_switch_port (switch_asset_id, port_number)'
             );
             $warnings[] = 'Applied migration: unique switch/port constraint on network_port_mappings.';
+        }
+
+        if ($this->tableExists($connection, 'network_port_mappings')
+            && !$this->columnExists($connection, 'network_port_mappings', 'description')) {
+            $connection->query(
+                'ALTER TABLE network_port_mappings
+                    ADD COLUMN description TEXT NULL AFTER port_number'
+            );
+            $warnings[] = 'Applied migration: free-text description column on network_port_mappings.';
+        }
+
+        if (
+            $this->tableExists($connection, 'network_port_mappings')
+            && $this->columnExists($connection, 'network_port_mappings', 'source_asset_type')
+            && !$this->columnIsNullable($connection, 'network_port_mappings', 'source_asset_type')
+        ) {
+            $connection->query(
+                'ALTER TABLE network_port_mappings
+                    MODIFY COLUMN source_asset_type VARCHAR(64) NULL,
+                    MODIFY COLUMN source_asset_id INT UNSIGNED NULL'
+            );
+            $warnings[] = 'Applied migration: nullable source asset columns on network_port_mappings.';
         }
 
         foreach ($this->resolveSwitchTypeTableNames($connection) as $tableName) {

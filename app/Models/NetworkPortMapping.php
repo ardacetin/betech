@@ -124,6 +124,35 @@ class NetworkPortMapping
         $this->db()->insert('network_port_mappings', $row);
     }
 
+    public function upsertPortDescription(int $switchAssetId, string $portNumber, string $description): void
+    {
+        if (!$this->tableExists() || $switchAssetId <= 0 || trim($portNumber) === '') {
+            return;
+        }
+
+        $existing = $this->findBySwitchAndPort($switchAssetId, $portNumber);
+        $payload = [
+            'description' => $description,
+            'source_asset_type' => null,
+            'source_asset_id' => null,
+        ];
+
+        if ($existing !== null) {
+            $this->db()->update('network_port_mappings', $payload, [
+                'switch_asset_id' => $switchAssetId,
+                'port_number' => trim($portNumber),
+            ]);
+
+            return;
+        }
+
+        $this->db()->insert('network_port_mappings', [
+            ...$payload,
+            'switch_asset_id' => $switchAssetId,
+            'port_number' => trim($portNumber),
+        ]);
+    }
+
     /**
      * @param array<string, mixed> $row
      *
@@ -137,6 +166,7 @@ class NetworkPortMapping
             'source_asset_id' => (int) ($row['source_asset_id'] ?? 0),
             'switch_asset_id' => (int) ($row['switch_asset_id'] ?? 0),
             'port_number' => (string) ($row['port_number'] ?? ''),
+            'description' => (string) ($row['description'] ?? ''),
             'updated_at' => (string) ($row['updated_at'] ?? ''),
         ];
     }

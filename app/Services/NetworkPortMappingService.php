@@ -184,7 +184,7 @@ class NetworkPortMappingService
 
                 $ports[] = [
                     'port_number' => $portKey,
-                    'occupied' => $mapping !== null,
+                    'occupied' => $mapping !== null && $this->mappingHasContent($mapping),
                     'mapping' => $mapping,
                 ];
             }
@@ -258,12 +258,55 @@ class NetworkPortMappingService
         ];
     }
 
+    public function savePortDescription(int $switchAssetId, string $portNumber, string $description): void
+    {
+        if (!$this->mappingTableExists()) {
+            throw new RuntimeException(__('network_port_mapping_table_missing'));
+        }
+
+        $switch = $this->findSwitchAssetById($switchAssetId);
+
+        if ($switch === null) {
+            throw new RuntimeException(__('network_port_mapping_invalid_switch'));
+        }
+
+        $portIndex = (int) trim($portNumber);
+        $totalPorts = (int) ($switch['total_ports'] ?? self::DEFAULT_TOTAL_PORTS);
+
+        if ($totalPorts <= 0) {
+            $totalPorts = self::DEFAULT_TOTAL_PORTS;
+        }
+
+        if ($portIndex < 1 || $portIndex > $totalPorts) {
+            throw new RuntimeException(__('switch_port_invalid_port_number'));
+        }
+
+        $trimmedDescription = trim($description);
+
+        if ($trimmedDescription === '') {
+            $this->networkPortMappingModel->deleteBySwitchAndPort($switchAssetId, (string) $portIndex);
+
+            return;
+        }
+
+        if (mb_strlen($trimmedDescription) > 2000) {
+            throw new RuntimeException(__('switch_port_description_too_long'));
+        }
+
+        $this->networkPortMappingModel->upsertPortDescription(
+            $switchAssetId,
+            (string) $portIndex,
+            $trimmedDescription
+        );
+    }
+
     public function assignPort(
         int $switchAssetId,
         string $portNumber,
         string $sourceAssetType,
         int $sourceAssetId
     ): void {
+        // Legacy inventory-linked assignment path kept for older callers.
         if (!$this->mappingTableExists()) {
             throw new RuntimeException(__('network_port_mapping_table_missing'));
         }
@@ -315,6 +358,7 @@ class NetworkPortMappingService
                 'source_asset_id' => $sourceAssetId,
                 'switch_asset_id' => $switchAssetId,
                 'port_number' => (string) $portIndex,
+                'description' => $this->formatAssetLabel($asset),
             ]);
 
             $pdo->commit();
@@ -433,15 +477,34 @@ class NetworkPortMappingService
     {
         $sourceId = (int) ($mapping['source_asset_id'] ?? 0);
         $asset = $sourceId > 0 ? $this->assetsGlobalRegistry->findById($sourceId) : null;
+        $description = trim((string) ($mapping['description'] ?? ''));
+
+        if ($description === '' && $asset !== null) {
+            $description = $this->formatAssetLabel($asset);
+        }
 
         return [
             ...$mapping,
-            'asset_name' => (string) ($asset['name'] ?? ''),
+            'description' => $description,
+            'asset_name' => $description !== '' ? $description : (string) ($asset['name'] ?? ''),
             'asset_tag' => (string) ($asset['asset_tag'] ?? ''),
             'assigned_to' => (string) ($asset['assigned_to'] ?? ''),
             'ip_address' => $sourceId > 0 ? $this->findIpForAsset($sourceId) : null,
             'asset_type_slug' => (string) ($asset['asset_type_slug'] ?? $mapping['source_asset_type'] ?? ''),
         ];
+    }
+
+    /**
+     * @param array<string, mixed> $mapping
+     */
+    private function mappingHasContent(array $mapping): bool
+    {
+        if (trim((string) ($mapping['description'] ?? '')) !== '') {
+            return true;
+        }
+
+        return (int) ($mapping['source_asset_id'] ?? 0) > 0
+            || trim((string) ($mapping['asset_name'] ?? '')) !== '';
     }
 
     /**
