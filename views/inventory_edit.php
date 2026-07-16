@@ -13,8 +13,6 @@ declare(strict_types=1);
  * @var string $activeAssetTypeName
  * @var string $assetSchemaJson
  * @var string $assetJson
- * @var string $switchAssetsJson
- * @var string|null $portMappingJson
  * @var string $cancelUrl
  */
 ?>
@@ -71,11 +69,6 @@ declare(strict_types=1);
             assetId: 0,
             assetTypeSlug: <?= json_encode($activeAssetTypeSlug, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
             inventorySchema: <?= $assetSchemaJson ?>,
-            switchAssets: <?= $switchAssetsJson ?? '[]' ?>,
-            portMappingForm: {
-                switch_asset_id: '',
-                port_number: '',
-            },
             form: {
                 asset_tag: '',
                 name: '',
@@ -133,11 +126,6 @@ declare(strict_types=1);
                     };
                 }
 
-                const portMapping = <?= ($portMappingJson ?? 'null') ?>;
-                if (portMapping) {
-                    this.portMappingForm.switch_asset_id = String(portMapping.switch_asset_id || '');
-                    this.portMappingForm.port_number = String(portMapping.port_number || '');
-                }
             },
             canSubmit() {
                 return this.assetId > 0 && String(this.form.name || '').trim() !== '';
@@ -170,21 +158,6 @@ declare(strict_types=1);
                         || this.selectedUser?.email
                         || ''
                     ).trim();
-                }
-
-                const switchAssetId = Number(this.portMappingForm.switch_asset_id || 0);
-                const portNumber = String(this.portMappingForm.port_number || '').trim();
-
-                if (switchAssetId > 0 && portNumber !== '') {
-                    payload.port_mapping = {
-                        switch_asset_id: switchAssetId,
-                        port_number: portNumber,
-                    };
-                } else if (switchAssetId === 0 && portNumber === '') {
-                    payload.port_mapping = {
-                        switch_asset_id: '',
-                        port_number: '',
-                    };
                 }
 
                 return payload;

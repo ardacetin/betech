@@ -277,6 +277,28 @@ class DatabaseInitializer
         return strtolower((string) $row['Type']);
     }
 
+    /**
+     * @param object $connection Medoo instance
+     */
+    private function columnIsNullable(object $connection, string $table, string $column): bool
+    {
+        $statement = $connection->query(
+            sprintf("SHOW COLUMNS FROM `%s` LIKE '%s'", $this->escapeIdentifier($table), $column)
+        );
+
+        if ($statement === false) {
+            return false;
+        }
+
+        $row = $statement->fetch(\PDO::FETCH_ASSOC);
+
+        if (!is_array($row)) {
+            return false;
+        }
+
+        return strtoupper((string) ($row['Null'] ?? 'NO')) === 'YES';
+    }
+
     private function getAssetHistoriesTableMigrationPath(): string
     {
         return dirname($this->schemaPath) . '/migrations/002_create_asset_histories_table.sql';
@@ -1266,6 +1288,28 @@ class DatabaseInitializer
             $warnings[] = 'Applied migration: unique switch/port constraint on network_port_mappings.';
         }
 
+        if ($this->tableExists($connection, 'network_port_mappings')
+            && !$this->columnExists($connection, 'network_port_mappings', 'description')) {
+            $connection->query(
+                'ALTER TABLE network_port_mappings
+                    ADD COLUMN description TEXT NULL AFTER port_number'
+            );
+            $warnings[] = 'Applied migration: free-text description column on network_port_mappings.';
+        }
+
+        if (
+            $this->tableExists($connection, 'network_port_mappings')
+            && $this->columnExists($connection, 'network_port_mappings', 'source_asset_type')
+            && !$this->columnIsNullable($connection, 'network_port_mappings', 'source_asset_type')
+        ) {
+            $connection->query(
+                'ALTER TABLE network_port_mappings
+                    MODIFY COLUMN source_asset_type VARCHAR(64) NULL,
+                    MODIFY COLUMN source_asset_id INT UNSIGNED NULL'
+            );
+            $warnings[] = 'Applied migration: nullable source asset columns on network_port_mappings.';
+        }
+
         foreach ($this->resolveSwitchTypeTableNames($connection) as $tableName) {
             if (!$this->tableExists($connection, $tableName)) {
                 continue;
@@ -1316,26 +1360,48 @@ class DatabaseInitializer
             );
         }
 
-        $legacyTables = ['assets_ag_anahtarlari', 'assets_ag_anahtari_switch'];
+        $legacyTables = [
+            'assets_ag_anahtarlari',
+            'assets_ag_anahtari_switch',
+            'assets_switches',
+        ];
 
         foreach ($legacyTables as $legacyTable) {
-            if (
-                $this->tableExists($connection, $legacyTable)
-                && !$this->tableExists($connection, 'assets_switchler')
-            ) {
+            if (!$this->tableExists($connection, $legacyTable)) {
+                continue;
+            }
+
+            if (!$this->tableExists($connection, 'assets_switchler')) {
                 $connection->query(sprintf(
                     'RENAME TABLE `%s` TO `assets_switchler`',
                     $this->escapeIdentifier($legacyTable)
                 ));
                 $warnings[] = sprintf('Renamed legacy switch table `%s` to `assets_switchler`.', $legacyTable);
+                continue;
+            }
+
+            // Slug standardization may have created an empty assets_switchler while
+            // real inventory rows remained in the legacy table.
+            $legacyCount = $this->countTableRows($connection, $legacyTable);
+            $canonicalCount = $this->countTableRows($connection, 'assets_switchler');
+
+            if ($legacyCount > 0 && $canonicalCount === 0) {
+                $connection->query(sprintf(
+                    'DROP TABLE `%s`',
+                    $this->escapeIdentifier('assets_switchler')
+                ));
+                $connection->query(sprintf(
+                    'RENAME TABLE `%s` TO `assets_switchler`',
+                    $this->escapeIdentifier($legacyTable)
+                ));
+                $warnings[] = sprintf(
+                    'Replaced empty `assets_switchler` with legacy switch rows from `%s`.',
+                    $legacyTable
+                );
             }
         }
 
-        if ($warnings !== []) {
-            return $warnings;
-        }
-
-        return [];
+        return $warnings;
     }
 
     /**
@@ -1345,7 +1411,40 @@ class DatabaseInitializer
      */
     private function resolveSwitchTypeTableNames(object $connection): array
     {
-        return ['assets_switchler'];
+        $tables = [
+            'assets_switchler',
+            'assets_ag_anahtarlari',
+            'assets_ag_anahtari_switch',
+            'assets_switches',
+        ];
+
+        return array_values(array_filter(
+            $tables,
+            fn (string $table): bool => $this->tableExists($connection, $table)
+        ));
+    }
+
+    /**
+     * @param object $connection Medoo instance
+     */
+    private function countTableRows(object $connection, string $table): int
+    {
+        try {
+            $statement = $connection->query(sprintf(
+                'SELECT COUNT(*) AS row_count FROM `%s`',
+                $this->escapeIdentifier($table)
+            ));
+
+            if ($statement === false) {
+                return 0;
+            }
+
+            $row = $statement->fetch(\PDO::FETCH_ASSOC);
+
+            return is_array($row) ? (int) ($row['row_count'] ?? 0) : 0;
+        } catch (\Throwable) {
+            return 0;
+        }
     }
 
     private function getIpamMigrationPath(): string
