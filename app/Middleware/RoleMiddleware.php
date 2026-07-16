@@ -429,6 +429,31 @@ class RoleMiddleware implements MiddlewareInterface
             ],
             [
                 'methods' => ['GET'],
+                'pattern' => '/api/tickets/{id}/attachments/{attachmentId}/download',
+                'roles' => $withEndUser,
+            ],
+            [
+                'methods' => ['GET'],
+                'pattern' => '/api/tickets/{id}/followers',
+                'roles' => $operational,
+            ],
+            [
+                'methods' => ['PUT'],
+                'pattern' => '/api/tickets/{id}/followers',
+                'roles' => $operational,
+            ],
+            [
+                'methods' => ['POST'],
+                'pattern' => '/api/tickets/{id}/transfer',
+                'roles' => $operational,
+            ],
+            [
+                'methods' => ['POST'],
+                'pattern' => '/api/tickets/{id}/attach-email',
+                'roles' => $operational,
+            ],
+            [
+                'methods' => ['GET'],
                 'pattern' => '/api/personnel',
                 'roles' => $operational,
             ],

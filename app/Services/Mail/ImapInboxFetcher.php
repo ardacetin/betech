@@ -8,6 +8,9 @@ use App\Services\AppLogger;
 
 class ImapInboxFetcher
 {
+    /** @var resource|null */
+    private $activeConnection = null;
+
     public function __construct(
         private readonly ImapConfigResolver $imapConfigResolver,
         private readonly AppLogger $appLogger
@@ -20,12 +23,21 @@ class ImapInboxFetcher
      *     skipped: bool,
      *     message: string,
      *     fetched: int,
-     *     messages: list<array{uid: int, message_id: string, from: string, subject: string, body: string}>
+     *     messages: list<array{
+     *         uid: int,
+     *         message_id: string,
+     *         in_reply_to: string,
+     *         references: list<string>,
+     *         from: string,
+     *         subject: string,
+     *         body: string
+     *     }>
      * }
      */
     public function fetchUnreadMessages(): array
     {
         $this->logStep('mail.imap.start', []);
+        $this->closeActiveConnection();
 
         if (!function_exists('imap_open')) {
             $message = 'PHP IMAP extension is not loaded (ext-imap). Inbound email fetching is unavailable.';
@@ -84,11 +96,12 @@ class ImapInboxFetcher
             imap_errors();
         }
 
+        // Writable connection so processed messages can be marked \\Seen.
         $connection = @imap_open(
             $mailboxPath,
             $config['username'],
             $config['password'],
-            OP_READONLY,
+            0,
             1,
             [
                 'DISABLE_AUTHENTICATOR' => 'GSSAPI',
@@ -119,6 +132,8 @@ class ImapInboxFetcher
             ];
         }
 
+        $this->activeConnection = $connection;
+
         $this->logStep('mail.imap.connected', [
             'stage' => 'mailbox_selected',
             'mailbox_path' => $mailboxPath,
@@ -138,7 +153,7 @@ class ImapInboxFetcher
                     'matched' => 0,
                 ]);
 
-                imap_close($connection);
+                $this->closeActiveConnection();
 
                 return [
                     'success' => true,
@@ -164,14 +179,24 @@ class ImapInboxFetcher
                     continue;
                 }
 
+                $rawHeaders = imap_fetchheader($connection, $uid, FT_UID);
+                $headerMap = is_string($rawHeaders) ? $this->parseRawHeaders($rawHeaders) : [];
+
                 $from = $this->parseEmailAddress(isset($overview->from) ? (string) $overview->from : '');
                 $subject = $this->decodeMimeHeader(isset($overview->subject) ? (string) $overview->subject : '');
-                $messageId = trim(isset($overview->message_id) ? (string) $overview->message_id : '');
+                $messageId = $this->normalizeMessageId(
+                    $headerMap['message-id']
+                        ?? (isset($overview->message_id) ? (string) $overview->message_id : '')
+                );
+                $inReplyTo = $this->normalizeMessageId($headerMap['in-reply-to'] ?? '');
+                $references = $this->parseReferences($headerMap['references'] ?? '');
                 $body = $this->extractMessageBody($connection, $uid);
 
                 $messages[] = [
                     'uid' => $uid,
                     'message_id' => $messageId,
+                    'in_reply_to' => $inReplyTo,
+                    'references' => $references,
                     'from' => $from,
                     'subject' => $subject,
                     'body' => $body,
@@ -182,14 +207,13 @@ class ImapInboxFetcher
                     'from' => $from,
                     'subject' => $subject,
                     'message_id' => $messageId,
+                    'in_reply_to' => $inReplyTo,
                 ]);
             }
 
             $this->logStep('mail.imap.fetch_complete', [
                 'fetched' => count($messages),
             ]);
-
-            imap_close($connection);
 
             return [
                 'success' => true,
@@ -205,9 +229,7 @@ class ImapInboxFetcher
                 'trace' => $exception->getTraceAsString(),
             ]);
 
-            if (is_resource($connection)) {
-                imap_close($connection);
-            }
+            $this->closeActiveConnection();
 
             return [
                 'success' => false,
@@ -217,6 +239,47 @@ class ImapInboxFetcher
                 'messages' => [],
             ];
         }
+    }
+
+    /**
+     * @param list<int> $uids
+     */
+    public function markMessagesSeen(array $uids): void
+    {
+        if ($this->activeConnection === null || $uids === []) {
+            return;
+        }
+
+        $uniqueUids = array_values(array_unique(array_filter(
+            array_map(static fn ($uid): int => (int) $uid, $uids),
+            static fn (int $uid): bool => $uid > 0
+        )));
+
+        if ($uniqueUids === []) {
+            return;
+        }
+
+        $sequence = implode(',', $uniqueUids);
+        $result = @imap_setflag_full($this->activeConnection, $sequence, '\\Seen', ST_UID);
+
+        $this->logStep('mail.imap.mark_seen', [
+            'uids' => $uniqueUids,
+            'success' => $result === true,
+            'last_error' => $result === true ? null : (imap_last_error() ?: null),
+        ]);
+    }
+
+    public function closeActiveConnection(): void
+    {
+        if ($this->activeConnection === null) {
+            return;
+        }
+
+        if (is_resource($this->activeConnection)) {
+            imap_close($this->activeConnection);
+        }
+
+        $this->activeConnection = null;
     }
 
     /**
@@ -287,6 +350,70 @@ class ImapInboxFetcher
         }
 
         return '';
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function parseRawHeaders(string $rawHeaders): array
+    {
+        $normalized = preg_replace("/\r\n[ \t]+/", ' ', str_replace("\r\n", "\n", $rawHeaders)) ?? $rawHeaders;
+        $map = [];
+
+        foreach (explode("\n", $normalized) as $line) {
+            if (!str_contains($line, ':')) {
+                continue;
+            }
+
+            [$name, $value] = explode(':', $line, 2);
+            $key = strtolower(trim($name));
+
+            if ($key === '') {
+                continue;
+            }
+
+            $map[$key] = trim($value);
+        }
+
+        return $map;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function parseReferences(string $raw): array
+    {
+        $parts = preg_split('/\s+/', trim($raw)) ?: [];
+        $ids = [];
+
+        foreach ($parts as $part) {
+            $messageId = $this->normalizeMessageId($part);
+
+            if ($messageId !== '') {
+                $ids[$messageId] = true;
+            }
+        }
+
+        return array_keys($ids);
+    }
+
+    private function normalizeMessageId(string $value): string
+    {
+        $trimmed = trim($value);
+
+        if ($trimmed === '') {
+            return '';
+        }
+
+        if ($trimmed[0] !== '<') {
+            $trimmed = '<' . $trimmed;
+        }
+
+        if (!str_ends_with($trimmed, '>')) {
+            $trimmed .= '>';
+        }
+
+        return $trimmed;
     }
 
     private function parseEmailAddress(string $raw): string

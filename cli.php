@@ -11,6 +11,8 @@ if (PHP_SAPI !== 'cli') {
 require __DIR__ . '/vendor/autoload.php';
 
 use App\Commands\FetchEmailsCommand;
+use App\Models\AssetRegistry;
+use App\Models\AssetsGlobalRegistry;
 use App\Models\Consumable;
 use App\Models\IpNetwork;
 use App\Models\License;
@@ -79,6 +81,10 @@ if ($command === 'make:admin') {
     exit(0);
 }
 
+$assetsGlobalRegistryModel = new AssetsGlobalRegistry($databaseService);
+$assetRegistryModel = new AssetRegistry($databaseService);
+$ticketModel = new Ticket($databaseService, $assetsGlobalRegistryModel, $assetRegistryModel);
+
 if ($command === 'mail:fetch_inbox') {
     $settingModel = new Setting($databaseService);
     $mailConfigResolver = new MailConfigResolver($settingModel);
@@ -87,7 +93,7 @@ if ($command === 'mail:fetch_inbox') {
     $service = new InboundEmailTicketService(
         $imapInboxFetcher,
         new Personnel($databaseService),
-        new Ticket($databaseService),
+        $ticketModel,
         $appLogger
     );
     $commandRunner = new FetchEmailsCommand($service);
@@ -103,7 +109,7 @@ if ($command === 'notify:daily_summary') {
     $service = new DailySummaryNotificationService(
         new License($databaseService),
         new Consumable($databaseService),
-        new Ticket($databaseService),
+        $ticketModel,
         $settingModel,
         new Personnel($databaseService),
         $mailService,

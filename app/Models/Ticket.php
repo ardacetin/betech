@@ -32,6 +32,12 @@ class Ticket
     public const PRIORITY_HIGH = 'high';
     public const PRIORITY_CRITICAL = 'critical';
 
+    public const SOURCE_WEB = 'web';
+    public const SOURCE_EMAIL = 'email';
+
+    public const EMAIL_DIRECTION_INBOUND = 'inbound';
+    public const EMAIL_DIRECTION_OUTBOUND = 'outbound';
+
     public function __construct(
         private readonly DatabaseService $databaseService,
         private readonly AssetsGlobalRegistry $assetsGlobalRegistry,
@@ -152,7 +158,8 @@ class Ticket
         $ticket = $this->normalizeRow($rows[0]);
 
         if ($withComments) {
-            $ticket['comments'] = $this->findCommentsByTicketId($id);
+            $ticket['comments'] = $this->findCommentsByTicketId($id, true);
+            $ticket['followers'] = $this->findFollowersByTicketId($id);
         }
 
         return $ticket;
@@ -161,30 +168,67 @@ class Ticket
     /**
      * @return list<array<string, mixed>>
      */
-    public function findCommentsByTicketId(int $ticketId): array
+    public function findCommentsByTicketId(int $ticketId, bool $includeInternal = true): array
     {
-        $rows = $this->db()->select('ticket_comments', [
+        $conditions = [
+            'ticket_id' => $ticketId,
+            'ORDER' => ['created_at' => 'ASC', 'id' => 'ASC'],
+        ];
+
+        if (!$includeInternal) {
+            $conditions['is_internal'] = 0;
+        }
+
+        $columns = [
             'id',
             'ticket_id',
             'user_id',
             'author_name',
             'body',
+            'is_internal',
+            'email_message_id',
+            'email_in_reply_to',
             'created_at',
-        ], [
-            'ticket_id' => $ticketId,
-            'ORDER' => ['created_at' => 'ASC', 'id' => 'ASC'],
-        ]);
+        ];
 
-        return array_map(
-            static function (array $row): array {
-                $row['id'] = (int) $row['id'];
-                $row['ticket_id'] = (int) $row['ticket_id'];
-                $row['user_id'] = $row['user_id'] !== null ? (int) $row['user_id'] : null;
+        try {
+            $rows = $this->db()->select('ticket_comments', $columns, $conditions);
+        } catch (\Throwable) {
+            $rows = $this->db()->select('ticket_comments', [
+                'id',
+                'ticket_id',
+                'user_id',
+                'author_name',
+                'body',
+                'created_at',
+            ], [
+                'ticket_id' => $ticketId,
+                'ORDER' => ['created_at' => 'ASC', 'id' => 'ASC'],
+            ]);
+        }
 
-                return $row;
-            },
-            $rows
-        );
+        if (!is_array($rows)) {
+            return [];
+        }
+
+        $comments = [];
+
+        foreach ($rows as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+
+            $comment = $this->normalizeCommentRow($row);
+
+            if (!$includeInternal && !empty($comment['is_internal'])) {
+                continue;
+            }
+
+            $comment['attachments'] = $this->findAttachmentsByCommentId((int) $comment['id']);
+            $comments[] = $comment;
+        }
+
+        return $comments;
     }
 
     /**
@@ -309,8 +353,15 @@ class Ticket
     /**
      * @return array<string, mixed>
      */
-    public function addComment(int $ticketId, string $body, ?int $userId, string $authorName): array
-    {
+    public function addComment(
+        int $ticketId,
+        string $body,
+        ?int $userId,
+        string $authorName,
+        bool $isInternal = false,
+        ?string $emailMessageId = null,
+        ?string $emailInReplyTo = null
+    ): array {
         if ($this->findById($ticketId) === null) {
             throw new \InvalidArgumentException(__('ticket_not_found'));
         }
@@ -326,32 +377,457 @@ class Ticket
             throw new \InvalidArgumentException(__('ticket_comment_author_required'));
         }
 
-        $this->db()->insert('ticket_comments', [
+        $payload = [
             'ticket_id' => $ticketId,
             'user_id' => $userId,
             'author_name' => $trimmedAuthor,
             'body' => $trimmedBody,
-        ]);
+            'is_internal' => $isInternal ? 1 : 0,
+            'email_message_id' => $this->normalizeOptionalMessageId($emailMessageId),
+            'email_in_reply_to' => $this->normalizeOptionalMessageId($emailInReplyTo),
+        ];
+
+        $this->db()->insert('ticket_comments', $payload);
 
         $commentId = (int) $this->db()->id();
-        $comment = $this->db()->get('ticket_comments', [
-            'id',
-            'ticket_id',
-            'user_id',
-            'author_name',
-            'body',
-            'created_at',
-        ], ['id' => $commentId]);
+        $comment = $this->findCommentById($commentId);
 
-        if (!is_array($comment) || $comment === []) {
+        if ($comment === null) {
             throw new \RuntimeException(__('ticket_comment_create_error'));
         }
 
-        $comment['id'] = (int) $comment['id'];
-        $comment['ticket_id'] = (int) $comment['ticket_id'];
-        $comment['user_id'] = $comment['user_id'] !== null ? (int) $comment['user_id'] : null;
-
         return $comment;
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    public function findCommentById(int $commentId): ?array
+    {
+        try {
+            $comment = $this->db()->get('ticket_comments', [
+                'id',
+                'ticket_id',
+                'user_id',
+                'author_name',
+                'body',
+                'is_internal',
+                'email_message_id',
+                'email_in_reply_to',
+                'created_at',
+            ], ['id' => $commentId]);
+        } catch (\Throwable) {
+            $comment = $this->db()->get('ticket_comments', [
+                'id',
+                'ticket_id',
+                'user_id',
+                'author_name',
+                'body',
+                'created_at',
+            ], ['id' => $commentId]);
+        }
+
+        if (!is_array($comment) || $comment === []) {
+            return null;
+        }
+
+        $normalized = $this->normalizeCommentRow($comment);
+        $normalized['attachments'] = $this->findAttachmentsByCommentId((int) $normalized['id']);
+
+        return $normalized;
+    }
+
+    /**
+     * @param list<array{
+     *     original_filename: string,
+     *     stored_filename: string,
+     *     file_path: string,
+     *     file_size: string,
+     *     mime_type?: string|null
+     * }> $attachments
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function addCommentAttachments(
+        int $ticketId,
+        int $commentId,
+        array $attachments,
+        ?int $uploadedByUserId
+    ): array {
+        $created = [];
+
+        foreach ($attachments as $attachment) {
+            $this->db()->insert('ticket_comment_attachments', [
+                'comment_id' => $commentId,
+                'ticket_id' => $ticketId,
+                'original_filename' => (string) ($attachment['original_filename'] ?? 'file'),
+                'stored_filename' => (string) ($attachment['stored_filename'] ?? ''),
+                'file_path' => (string) ($attachment['file_path'] ?? ''),
+                'file_size' => (string) ($attachment['file_size'] ?? ''),
+                'mime_type' => $attachment['mime_type'] ?? null,
+                'uploaded_by_user_id' => $uploadedByUserId,
+            ]);
+
+            $row = $this->findAttachmentById((int) $this->db()->id());
+
+            if ($row !== null) {
+                $created[] = $row;
+            }
+        }
+
+        return $created;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    public function findAttachmentsByCommentId(int $commentId): array
+    {
+        if (!$this->collaborationTablesReady()) {
+            return [];
+        }
+
+        $rows = $this->db()->select('ticket_comment_attachments', '*', [
+            'comment_id' => $commentId,
+            'ORDER' => ['id' => 'ASC'],
+        ]);
+
+        if (!is_array($rows)) {
+            return [];
+        }
+
+        return array_map(fn (array $row): array => $this->normalizeAttachmentRow($row), $rows);
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    public function findAttachmentById(int $attachmentId): ?array
+    {
+        if (!$this->collaborationTablesReady() || $attachmentId <= 0) {
+            return null;
+        }
+
+        $row = $this->db()->get('ticket_comment_attachments', '*', ['id' => $attachmentId]);
+
+        if (!is_array($row) || $row === []) {
+            return null;
+        }
+
+        return $this->normalizeAttachmentRow($row);
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    public function findFollowersByTicketId(int $ticketId): array
+    {
+        if (!$this->collaborationTablesReady()) {
+            return [];
+        }
+
+        $rows = $this->db()->select('ticket_followers', '*', [
+            'ticket_id' => $ticketId,
+            'ORDER' => ['id' => 'ASC'],
+        ]);
+
+        if (!is_array($rows)) {
+            return [];
+        }
+
+        return array_map(fn (array $row): array => $this->normalizeFollowerRow($row), $rows);
+    }
+
+    /**
+     * @param list<array{personnel_id?: int|null, user_id?: int|null, email?: string|null, notify_email?: bool|int|null}> $items
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function replaceFollowers(int $ticketId, array $items): array
+    {
+        if ($this->findById($ticketId) === null) {
+            throw new \InvalidArgumentException(__('ticket_not_found'));
+        }
+
+        if (!$this->collaborationTablesReady()) {
+            throw new \RuntimeException(__('ticket_followers_unavailable'));
+        }
+
+        $this->db()->delete('ticket_followers', ['ticket_id' => $ticketId]);
+
+        foreach ($items as $item) {
+            if (!is_array($item)) {
+                continue;
+            }
+
+            $personnelId = isset($item['personnel_id']) && (int) $item['personnel_id'] > 0
+                ? (int) $item['personnel_id']
+                : null;
+            $userId = isset($item['user_id']) && (int) $item['user_id'] > 0
+                ? (int) $item['user_id']
+                : null;
+            $email = isset($item['email']) ? strtolower(trim((string) $item['email'])) : '';
+
+            if ($personnelId === null && $userId === null && $email === '') {
+                continue;
+            }
+
+            if ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                throw new \InvalidArgumentException(__('ticket_follower_email_invalid'));
+            }
+
+            if ($personnelId !== null) {
+                $this->assertPersonnelExists($personnelId);
+            }
+
+            if ($userId !== null) {
+                $this->assertUserExists($userId);
+            }
+
+            $this->db()->insert('ticket_followers', [
+                'ticket_id' => $ticketId,
+                'personnel_id' => $personnelId,
+                'user_id' => $userId,
+                'email' => $email !== '' ? $email : null,
+                'notify_email' => !array_key_exists('notify_email', $item) || (bool) $item['notify_email'] ? 1 : 0,
+            ]);
+        }
+
+        return $this->findFollowersByTicketId($ticketId);
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function followerEmailsForTicket(int $ticketId): array
+    {
+        $emails = [];
+
+        foreach ($this->findFollowersByTicketId($ticketId) as $follower) {
+            if (!(bool) ($follower['notify_email'] ?? true)) {
+                continue;
+            }
+
+            $email = trim((string) ($follower['email'] ?? ''));
+
+            if ($email === '' && !empty($follower['personnel_id'])) {
+                $row = $this->db()->get('personnel', 'email', ['id' => (int) $follower['personnel_id']]);
+                $email = is_string($row) ? $row : (string) ($row['email'] ?? '');
+            }
+
+            if ($email === '' && !empty($follower['user_id'])) {
+                $row = $this->db()->get('users', 'email', ['id' => (int) $follower['user_id']]);
+                $email = is_string($row) ? $row : (string) ($row['email'] ?? '');
+            }
+
+            $email = strtolower(trim($email));
+
+            if ($email !== '' && filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                $emails[] = $email;
+            }
+        }
+
+        return array_values(array_unique($emails));
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function transferToCategory(
+        int $ticketId,
+        int $categoryId,
+        ?int $actorUserId,
+        string $actorName,
+        ?string $note = null
+    ): array {
+        $existing = $this->findById($ticketId);
+
+        if ($existing === null) {
+            throw new \InvalidArgumentException(__('ticket_not_found'));
+        }
+
+        $this->assertCategoryExists($categoryId);
+
+        $oldCategoryName = trim((string) ($existing['category_name'] ?? '')) ?: __('ticket_transfer_uncategorized');
+        $category = $this->db()->get('ticket_categories', ['id', 'name'], ['id' => $categoryId]);
+        $newCategoryName = is_array($category)
+            ? trim((string) ($category['name'] ?? ''))
+            : '';
+
+        if ($newCategoryName === '') {
+            throw new \InvalidArgumentException(__('ticket_category_not_found'));
+        }
+
+        $this->db()->update('tickets', ['category_id' => $categoryId], ['id' => $ticketId]);
+
+        $systemBody = sprintf(
+            __('ticket_transfer_system_note'),
+            $oldCategoryName,
+            $newCategoryName
+        );
+
+        if ($note !== null && trim($note) !== '') {
+            $systemBody .= "\n\n" . trim($note);
+        }
+
+        $this->addComment(
+            $ticketId,
+            $systemBody,
+            $actorUserId,
+            $actorName !== '' ? $actorName : __('ticket_system_author'),
+            true
+        );
+
+        $updated = $this->findById($ticketId, true);
+
+        if ($updated === null) {
+            throw new \RuntimeException(__('ticket_update_error'));
+        }
+
+        return $updated;
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    public function findByEmailMessageId(string $messageId): ?array
+    {
+        $normalized = $this->normalizeOptionalMessageId($messageId);
+
+        if ($normalized === null) {
+            return null;
+        }
+
+        if ($this->collaborationTablesReady()) {
+            $emailRow = $this->db()->get('ticket_email_messages', ['ticket_id'], [
+                'message_id' => $normalized,
+            ]);
+
+            if (is_array($emailRow) && (int) ($emailRow['ticket_id'] ?? 0) > 0) {
+                return $this->findById((int) $emailRow['ticket_id']);
+            }
+        }
+
+        $ticket = $this->db()->get('tickets', 'id', [
+            'email_message_id' => $normalized,
+        ]);
+
+        $ticketId = is_array($ticket) ? (int) ($ticket['id'] ?? 0) : (int) $ticket;
+
+        return $ticketId > 0 ? $this->findById($ticketId) : null;
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    public function findByTicketNumber(string $ticketNumber): ?array
+    {
+        $normalized = strtoupper(trim($ticketNumber));
+
+        if ($normalized === '') {
+            return null;
+        }
+
+        $rows = $this->selectRows(['tickets.ticket_number' => $normalized], 1);
+
+        return $rows === [] ? null : $this->normalizeRow($rows[0]);
+    }
+
+    public function recordEmailMessage(
+        int $ticketId,
+        string $messageId,
+        string $direction,
+        ?string $inReplyTo = null,
+        ?int $commentId = null,
+        ?string $fromAddress = null,
+        ?string $subject = null
+    ): void {
+        if (!$this->collaborationTablesReady()) {
+            return;
+        }
+
+        $normalizedMessageId = $this->normalizeOptionalMessageId($messageId);
+
+        if ($normalizedMessageId === null) {
+            return;
+        }
+
+        if ($this->db()->has('ticket_email_messages', ['message_id' => $normalizedMessageId])) {
+            return;
+        }
+
+        $this->db()->insert('ticket_email_messages', [
+            'ticket_id' => $ticketId,
+            'comment_id' => $commentId,
+            'message_id' => $normalizedMessageId,
+            'in_reply_to' => $this->normalizeOptionalMessageId($inReplyTo),
+            'direction' => $direction === self::EMAIL_DIRECTION_OUTBOUND
+                ? self::EMAIL_DIRECTION_OUTBOUND
+                : self::EMAIL_DIRECTION_INBOUND,
+            'from_address' => $fromAddress !== null ? trim($fromAddress) : null,
+            'subject' => $subject !== null ? trim($subject) : null,
+        ]);
+    }
+
+    public function emailMessageExists(string $messageId): bool
+    {
+        $normalized = $this->normalizeOptionalMessageId($messageId);
+
+        if ($normalized === null || !$this->collaborationTablesReady()) {
+            return false;
+        }
+
+        return $this->db()->has('ticket_email_messages', ['message_id' => $normalized]);
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function emailReferenceChain(int $ticketId): array
+    {
+        if (!$this->collaborationTablesReady()) {
+            return [];
+        }
+
+        $rows = $this->db()->select('ticket_email_messages', ['message_id'], [
+            'ticket_id' => $ticketId,
+            'ORDER' => ['id' => 'ASC'],
+        ]);
+
+        if (!is_array($rows)) {
+            return [];
+        }
+
+        $ids = [];
+
+        foreach ($rows as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+
+            $messageId = $this->normalizeOptionalMessageId((string) ($row['message_id'] ?? ''));
+
+            if ($messageId !== null) {
+                $ids[] = $messageId;
+            }
+        }
+
+        return $ids;
+    }
+
+    public function setEmailThreadRoot(int $ticketId, string $messageId, ?string $references = null): void
+    {
+        $normalized = $this->normalizeOptionalMessageId($messageId);
+
+        if ($normalized === null) {
+            return;
+        }
+
+        $this->db()->update('tickets', [
+            'source' => self::SOURCE_EMAIL,
+            'email_message_id' => $normalized,
+            'email_references' => $references,
+        ], ['id' => $ticketId]);
     }
 
     /**
@@ -387,7 +863,7 @@ class Ticket
         $ticket = $this->normalizeRow($rows[0]);
 
         if ($withComments) {
-            $ticket['comments'] = $this->findCommentsByTicketId($id);
+            $ticket['comments'] = $this->findCommentsByTicketId($id, false);
         }
 
         return $ticket;
@@ -463,6 +939,9 @@ class Ticket
             'tickets.category_id',
             'tickets.assigned_user_id',
             'tickets.created_by_user_id',
+            'tickets.source',
+            'tickets.email_message_id',
+            'tickets.email_references',
             'tickets.resolved_at',
             'tickets.created_at',
             'tickets.updated_at',
@@ -507,6 +986,9 @@ class Ticket
         $row['category_id'] = $row['category_id'] !== null ? (int) $row['category_id'] : null;
         $row['status'] = (string) $row['status'];
         $row['priority'] = (string) $row['priority'];
+        $row['source'] = trim((string) ($row['source'] ?? self::SOURCE_WEB)) ?: self::SOURCE_WEB;
+        $row['email_message_id'] = trim((string) ($row['email_message_id'] ?? '')) ?: null;
+        $row['email_references'] = trim((string) ($row['email_references'] ?? '')) ?: null;
         $row['is_open'] = !in_array($row['status'], [self::STATUS_RESOLVED, self::STATUS_CLOSED], true);
 
         if ($row['asset_id'] === null) {
@@ -523,6 +1005,109 @@ class Ticket
         $row['category_color'] = trim((string) ($row['category_color'] ?? '')) ?: null;
 
         return $row;
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     *
+     * @return array<string, mixed>
+     */
+    private function normalizeCommentRow(array $row): array
+    {
+        $row['id'] = (int) ($row['id'] ?? 0);
+        $row['ticket_id'] = (int) ($row['ticket_id'] ?? 0);
+        $row['user_id'] = isset($row['user_id']) && $row['user_id'] !== null ? (int) $row['user_id'] : null;
+        $row['author_name'] = (string) ($row['author_name'] ?? '');
+        $row['body'] = (string) ($row['body'] ?? '');
+        $row['is_internal'] = (bool) ((int) ($row['is_internal'] ?? 0));
+        $row['email_message_id'] = trim((string) ($row['email_message_id'] ?? '')) ?: null;
+        $row['email_in_reply_to'] = trim((string) ($row['email_in_reply_to'] ?? '')) ?: null;
+        $row['created_at'] = (string) ($row['created_at'] ?? '');
+        $row['attachments'] = $row['attachments'] ?? [];
+
+        return $row;
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     *
+     * @return array<string, mixed>
+     */
+    private function normalizeAttachmentRow(array $row): array
+    {
+        return [
+            'id' => (int) ($row['id'] ?? 0),
+            'comment_id' => (int) ($row['comment_id'] ?? 0),
+            'ticket_id' => (int) ($row['ticket_id'] ?? 0),
+            'original_filename' => (string) ($row['original_filename'] ?? ''),
+            'stored_filename' => (string) ($row['stored_filename'] ?? ''),
+            'file_path' => (string) ($row['file_path'] ?? ''),
+            'file_size' => (string) ($row['file_size'] ?? ''),
+            'mime_type' => trim((string) ($row['mime_type'] ?? '')) ?: null,
+            'uploaded_by_user_id' => isset($row['uploaded_by_user_id']) && $row['uploaded_by_user_id'] !== null
+                ? (int) $row['uploaded_by_user_id']
+                : null,
+            'created_at' => (string) ($row['created_at'] ?? ''),
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     *
+     * @return array<string, mixed>
+     */
+    private function normalizeFollowerRow(array $row): array
+    {
+        return [
+            'id' => (int) ($row['id'] ?? 0),
+            'ticket_id' => (int) ($row['ticket_id'] ?? 0),
+            'personnel_id' => isset($row['personnel_id']) && $row['personnel_id'] !== null
+                ? (int) $row['personnel_id']
+                : null,
+            'user_id' => isset($row['user_id']) && $row['user_id'] !== null
+                ? (int) $row['user_id']
+                : null,
+            'email' => trim((string) ($row['email'] ?? '')) ?: null,
+            'notify_email' => (bool) ((int) ($row['notify_email'] ?? 1)),
+            'created_at' => (string) ($row['created_at'] ?? ''),
+        ];
+    }
+
+    private function normalizeOptionalMessageId(?string $messageId): ?string
+    {
+        if ($messageId === null) {
+            return null;
+        }
+
+        $trimmed = trim($messageId);
+
+        if ($trimmed === '') {
+            return null;
+        }
+
+        if ($trimmed[0] !== '<') {
+            $trimmed = '<' . trim($trimmed, '<>') . '>';
+        }
+
+        return $trimmed;
+    }
+
+    private function collaborationTablesReady(): bool
+    {
+        static $ready = null;
+
+        if ($ready !== null) {
+            return $ready;
+        }
+
+        try {
+            $statement = $this->db()->query("SHOW TABLES LIKE 'ticket_comment_attachments'");
+            $ready = $statement !== false && $statement->rowCount() > 0;
+        } catch (\Throwable) {
+            $ready = false;
+        }
+
+        return $ready;
     }
 
     private function generateTicketNumber(): string

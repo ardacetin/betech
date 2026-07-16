@@ -93,6 +93,7 @@ use App\Services\Mail\MailService;
 use App\Services\Mail\TicketNotificationService;
 use App\Services\NetworkPortMappingService;
 use App\Services\QualityDocumentStorageService;
+use App\Services\TicketAttachmentStorageService;
 use App\Services\QrCodeService;
 use App\Services\Translator;
 use App\Services\TurnstileVerifier;
@@ -218,6 +219,7 @@ $consumableModel = new Consumable($databaseService);
 $knowledgeBaseArticleModel = new KnowledgeBaseArticle($databaseService);
 $qualityDocumentStorageService = new QualityDocumentStorageService($rootPath);
 $qualityDocumentModel = new QualityDocument($databaseService, $qualityDocumentStorageService);
+$ticketAttachmentStorageService = new TicketAttachmentStorageService($rootPath);
 $ticketCategoryModel = new TicketCategory($databaseService);
 $userIntegrationFactory = new UserIntegrationFactory($databaseService, $settingModel);
 $qrCodeService = new QrCodeService($appConfig['url']);
@@ -320,6 +322,7 @@ $ticketNotificationService = new TicketNotificationService(
     $mailConfigResolver,
     $viewRenderer,
     $userModel,
+    $ticketModel,
     $appLogger,
     $appConfig['url']
 );
@@ -330,6 +333,7 @@ $ticketController = new TicketController(
     $sessionAuthService,
     $endUserContextService,
     $ticketNotificationService,
+    $ticketAttachmentStorageService,
     $auditLogger
 );
 $endUserController = new EndUserController($assetModel, $endUserContextService);
@@ -368,6 +372,7 @@ $app->group('', function ($group) use ($ticketController, $assetTutanakControlle
     $group->post('/api/tickets', [$ticketController, 'store']);
     $group->get('/api/tickets/{id}', [$ticketController, 'show']);
     $group->post('/api/tickets/{id}/comments', [$ticketController, 'addComment']);
+    $group->get('/api/tickets/{id}/attachments/{attachmentId}/download', [$ticketController, 'downloadAttachment']);
     $group->get('/api/assets/{id}/tutanak', [$assetTutanakController, 'show']);
     $group->get('/api/assets/{id}/history', [$assetController, 'history']);
 });
@@ -480,6 +485,10 @@ $app->group('', function ($group) use (
     $group->delete('/api/quality-documents/{id}', [$qualityDocumentController, 'destroy']);
     $group->put('/api/tickets/{id}', [$ticketController, 'update']);
     $group->delete('/api/tickets/{id}', [$ticketController, 'destroy']);
+    $group->get('/api/tickets/{id}/followers', [$ticketController, 'followers']);
+    $group->put('/api/tickets/{id}/followers', [$ticketController, 'updateFollowers']);
+    $group->post('/api/tickets/{id}/transfer', [$ticketController, 'transfer']);
+    $group->post('/api/tickets/{id}/attach-email', [$ticketController, 'attachEmail']);
     $group->get('/api/assets/{id}/licenses', [$licenseController, 'forAsset']);
     $group->get('/api/personnel', [$userController, 'personnelIndex']);
     $group->post('/api/personnel', [$userController, 'storePersonnel']);
