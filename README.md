@@ -1,168 +1,138 @@
-# BT Yönetim Sistemi (ITMS)
+# BT Yönetim Sistemi (ITMS) / Betech
 
-**BT Yönetim Sistemi (ITMS)** is a lightweight, open-source, self-hosted platform for tracking IT inventory, personnel assignments, and operational workflows inside your own infrastructure. Unlike multi-tenant SaaS products, ITMS runs as a **standalone application** on your servers: one organization, one database, full control over data, authentication, and network boundaries.
+[Türkçe README](README.tr.md)
 
-Built with **PHP 8.1+**, **Slim 4**, **Medoo**, **MySQL** (with native JSON columns), **Alpine.js**, and **Tailwind CSS**, the system combines relational integrity for core records with flexible JSON properties for category-specific technical fields—without external cloud dependencies.
+**BT Yönetim Sistemi (ITMS)** is a lightweight, open-source, self-hosted platform for IT inventory, help desk, network/IP management, and operational workflows inside your own infrastructure. Unlike multi-tenant SaaS products, ITMS runs as a **standalone application** on your servers: one organization, one database, full control over data, authentication, and network boundaries.
+
+Built with **PHP 8.1+**, **Slim 4**, **Medoo**, **MySQL**, **Alpine.js**, and **Tailwind CSS**. Spreadsheet import/export uses **PhpSpreadsheet**. Optional integrations include LDAP, Google/Microsoft SSO, SMTP, IMAP inbox fetching, Cloudflare Turnstile, Telegram alerts, and Cloudflare R2 backups.
 
 ---
 
-## Key Features
+## Table of contents
 
-### Envanter Yönetimi (Inventory Management)
+1. [Key features](#key-features)
+2. [Roles and navigation](#roles-and-navigation)
+3. [Architecture](#architecture)
+4. [System requirements](#system-requirements)
+5. [Installation](#installation)
+6. [Upgrading](#upgrading)
+7. [CLI tools](#cli-tools)
+8. [Localization](#localization)
+9. [Project structure](#project-structure)
+10. [Security notes](#security-notes)
+11. [License](#license)
 
-- Fixed relational columns for operational data (`asset_tag`, `serial_number`, `name`, `status`, `user_id`, `location_id`, `category_id`).
-- **Auto-generated inventory tags** in sequential `ENV-####` format (e.g. `ENV-0001`, `ENV-0002`) assigned on create—no manual tag entry required. Tags drive QR code generation on the dashboard.
-- Dynamic **JSON `properties`** column for per-category technical attributes (default MAC address fields, RAM, CPU, ports, IP address, and custom fields).
-- Global optional custom fields configurable from **Sistem Ayarları**.
+---
 
-### Category-driven dynamic forms
+## Key features
 
-- Category definitions include a JSON `fields` schema (text, number, textarea).
-- The dashboard loads field definitions at runtime and renders inputs with **Alpine.js**—no code changes required when categories evolve.
-- **Super Admins** manage categories from **Sistem Ayarları → Kategoriler**: create, edit, and delete categories with a built-in **dynamic field builder** (label, internal name, and type per field).
-- Category CRUD is exposed via `GET/POST/PUT/DELETE /api/categories`; the `fields` payload is persisted to the `categories.fields` JSON column and immediately drives asset create/edit forms.
-- Deletion is blocked when assets still reference the category, preventing orphaned records.
+### Polymorphic inventory (Varlık Yönetimi)
 
-### Physical location and room-based asset tracking
+- Assets are stored in **per-type tables** (`assets_{slug}`) driven by configurable **asset types** (e.g. Switchler, laptops, printers).
+- Core fields include tag, name, serial, status, location, assignment, and type-specific columns.
+- **Auto-generated inventory tags** in sequential `ENV-####` format (e.g. `ENV-0001`) on create.
+- Custom fields and hardware components are managed per asset type.
+- Standalone **Add / Edit** inventory pages (`/inventory/add`, `/inventory/edit`) with type-aware forms.
+- CSV/Excel **import** and **export** for inventory records.
+- QR labels and a public mobile asset page at `/assets/view/{id}`.
+- Assignment workflows: assign, return to storage, direct transfer, offboarding reclaim, zimmet tutanak (Quill HTML templates).
 
-- **Locations** table stores campus/building context (`name`, `building`, `description`) for classrooms, server rooms, and other physical areas.
-- Assets may have a `user_id`, a `location_id`, or both—personnel assignment and room placement are independent.
-- **Super Admins** manage locations from **Sistem Ayarları → Lokasyonlar** with full CRUD via `GET/POST/PUT/DELETE /api/locations`.
-- Location changes are written to `asset_histories` (e.g. “Varlık lokasyona taşındı: Sunser Odası”).
-- Legacy databases self-heal on boot: `DatabaseInitializer` creates the `locations` table and adds `assets.location_id` when missing.
+### Help desk (Yardım Masası)
 
-### Software Asset Management (SAM) with seat capacity tracking and hardware/user mapping
+- Ticket lifecycle for IT support (create, status, comments, categories).
+- End-user **portal**: my tickets, published knowledge base, my assigned assets.
+- Optional **IMAP inbox fetching** (`php cli.php mail:fetch_inbox`) to open tickets from email.
+- SMTP notifications for ticket events (configured under Settings).
 
-- **Licenses** table tracks corporate software (`name`, `vendor`, optional `license_key`, `seats`, `expiration_date`, `notes`).
-- **License assignments** map each seat to either an `asset_id` (device) or a `user_id` (person)—never both on the same row.
-- `GET /api/licenses` returns `assigned_seats` and `remaining_seats` for each license; assignment is blocked when no seats remain.
-- **Super Admins and Technicians** manage licenses from the **Yazılım & Lisanslar** dashboard tab with add/assign/unassign workflows.
-- Asset detail view lists software licenses currently assigned to that hardware via `GET /api/assets/{id}/licenses`.
-- Legacy databases self-heal on boot: `DatabaseInitializer` creates `licenses` and `license_assignments` when missing.
+### Knowledge base & quality documents
 
-### Automated database setup
+- Internal knowledge articles (draft/published) for operators and end users.
+- Quality / IT policy document library with upload and download.
 
-- On first request, `public/index.php` runs `DatabaseInitializer`, which applies `database/schema.sql`, incremental migrations, and `database/seeds.sql`.
-- No separate installer wizard: configure `.env`, point your web server at `public/`, and visit the application URL.
+### Consumables & software licenses (SAM)
 
-### Role-based access control (RBAC)
+- Consumables stock with checkout/restock.
+- Licenses with seat capacity; seats map to a device **or** a person.
+- Asset detail can list licenses assigned to that hardware.
 
-BT Yönetim Sistemi (ITMS) enforces three session-scoped roles stored on the `users.role` column. `RoleMiddleware` guards API routes; the dashboard hides navigation and actions based on the active role.
+### Network & IP management (Ağ & IP Yönetimi)
 
-| Role | Scope |
-|------|--------|
-| **Super Admin** (`super_admin`) | Full access: Sistem Ayarları, auth driver configuration, permanent asset deletion, and all technician capabilities |
-| **Technician** (`technician`) | Operational access: create/edit/assign assets, print zimmet tutanak forms, search personnel, offboarding workflow, executive analytics |
-| **End User** (`end_user`) | Self-service only: simplified dashboard listing assets where `user_id` matches the signed-in user; may view history and print tutanak for own assignments |
+- IP networks (subnets/VLANs) with utilization meters.
+- Per-network IP address grid: status filters, bulk edit, notes, hostname, MAC, asset tag.
+- ICMP **ping heartbeat** status and **rogue device** flags on IPs.
+- **Import from Excel/CSV** (networks or addresses) and **Export to Excel/CSV**:
+  - Networks list: `GET /api/ip-networks/export`
+  - Single network addresses: `GET /api/ip-networks/{id}/export`
 
-The seeded local administrator (`admin@betech.local`) receives the `super_admin` role. SSO/LDAP auto-provisioned accounts default to `end_user` (Personnel) until promoted under **Sistem Kullanıcıları**.
+### Switch port management (Switch Port Yönetimi)
 
-### System Users vs Personnel (Operators vs Asset Holders)
+- Switch directory built from inventory switch asset types (including legacy table discovery).
+- Visual **port matrix** per switch.
+- Port configuration stores a **free-text description** of what is connected (no inventory device linking required).
+- Routes: `/network/switch-ports`, `/network/port-config`, `/switch-ports.php`.
 
-ITMS separates **who operates the platform** from **who receives assets**:
+### Maintenance tracking
 
-| Concept | Turkish UI | Role | Purpose |
-|---------|------------|------|---------|
-| **System Users** | Sistem Kullanıcıları | `super_admin`, `technician` | Accounts that sign in to the BTMS operations dashboard. Super Admins manage these accounts and assign roles. |
-| **Personnel** | Personel / Personel Rehberi | `end_user` | Employees synced from LDAP/Google (or added manually for zimmet). Used for asset assignment, transfer, and offboarding—not for granting dashboard operator access. |
+- Maintenance / repair logs API and schema for assets under repair (provider, cost, dates, status).
 
-API endpoints:
+### Personnel & system users
 
-- `GET /api/system-users`, `POST /api/system-users`, `PUT /api/system-users/{id}` — Super Admin only; operator account lifecycle.
-- `GET /api/personnel` (alias: `GET /api/users`) — Technicians and Super Admins; paginated personnel directory (`page`, `per_page` default 50, optional `q` search against the local database).
-- `POST /api/personnel/sync` — Pulls the full LDAP/Google directory into the local `users` table (upsert by `email` / `external_id`, role `end_user`). Uses LDAP paged results and Google `nextPageToken` for large directories.
-- `POST /api/users` — Manual personnel record for zimmet when directory search has no match (`end_user`).
+- **System users** (`admin`): operators of the ITMS dashboard.
+- **Personnel** (`user` / end users): directory people used for zimmet; self-service portal only.
+- LDAP / Google directory **sync** into the local personnel table (paged).
+- Manual personnel creation when directory search has no match.
 
-The main sidebar stays operational (**Envanterler**, **Yazılım & Lisanslar**, **Personel**, **Sistem Kullanıcıları**). Configuration (**Kategoriler**, **Lokasyonlar**, auth, zimmet template) lives under **Sistem Ayarları** tabs.
-
-### Directory synchronization (Personel Rehberi)
-
-Personnel are **not** queried live from LDAP/Google on every page load. Instead:
-
-1. Configure **Kimlik Doğrulama Sürücüsü** to `ldap` or `google` under **Sistem Ayarları**.
-2. Open **Personel** and click **Rehberi Senkronize Et** (`POST /api/personnel/sync`).
-3. The active driver fetches the full directory (LDAP paged search / Google Admin SDK pagination) and upserts rows into the local `users` table with role `end_user`.
-4. The personnel table reads from the local database with **50 records per page** (`GET /api/personnel?page=1&per_page=50`). Search (`q`) filters name, email, and department locally.
-
-Operational accounts (`super_admin`, `technician`) are never overwritten during sync. Offboarded personnel keep their status but name/department/email may refresh on the next sync.
-
-Asset assignment search (`GET /api/users/search`) may still hit the directory for quick picker lookups; the **Personel** list always uses synced local data.
-
-### Enterprise multi-provider authentication
-
-Self-hosted sign-in with admin-configurable providers (no shared identity pool):
+### Authentication
 
 | Provider | Method |
 |----------|--------|
-| **Local database** | Email and password (`users.password_hash`) |
-| **LDAP / Active Directory** | Direct user bind against your directory |
-| **Google Workspace** | OAuth 2.0 authorization code flow |
-| **Microsoft 365** | Azure AD OAuth 2.0 + Microsoft Graph |
+| Local database | Email and password |
+| LDAP / Active Directory | Direct user bind |
+| Google Workspace | OAuth 2.0 |
+| Microsoft 365 | Azure AD OAuth 2.0 + Graph |
 
-First-time SSO/LDAP users are **auto-provisioned** into the local `users` table with provider metadata. Directory integration for personnel search (LDAP, Google Admin SDK) is configured separately under **Kimlik Doğrulama Sürücüsü**.
+Optional **Cloudflare Turnstile** on the login page.
 
-### Lifecycle audit logging
+### Analytics, reports, audit & backups
 
-- Every create, update, assignment, status change, and offboarding event is recorded in `asset_histories`.
-- Full timeline available via `GET /api/assets/{id}/history`.
+- Dashboard overview cards and activity.
+- Help desk / operational reports.
+- System audit logs.
+- Database backups (local + optional **Cloudflare R2** remote storage).
+- CLI: daily summary mail, health scan (Telegram), on-demand backup.
 
-### Asset reclamation & offboarding
+### Automated database setup
 
-- **İşten Çıkış Sürecini Başlat** reclaims all assigned assets, sets asset status to `storage`, marks the user as `offboarded`, and writes audit entries automatically.
-
-### One-click asset return and direct personnel transfer
-
-Operational staff (**Super Admin** and **Technician**) can manage active assignments without editing the full asset form:
-
-| Workflow | API | Behavior |
-|----------|-----|----------|
-| **Depoya İade Al** (Return to Storage) | `POST /api/assets/{id}/return` | Clears `user_id`, sets status to `ready`, and logs `Asset returned to IT storage.` in `asset_histories` |
-| **Personele Devret** (Direct Transfer) | `POST /api/assets/{id}/transfer` | Accepts `{ "user_id": <id> }` and reassigns the asset directly to the new user; logs `Asset transferred from [Old User] to [New User].` |
-
-Both actions are available from the asset list and the history/detail modal when an asset is currently assigned. The transfer dialog reuses the Alpine.js personnel search component for fast handoffs between employees.
-
-### Manual local user creation (non-LDAP assignment)
-
-When directory search (LDAP, Google Workspace, etc.) does not return a match, technicians can click **Manuel Kullanıcı Ekle** in the assignment picker to create a local user on the fly:
-
-- Mini-form captures **Name** and **Email**.
-- `POST /api/users` inserts a local `end_user` with `auth_provider = local`.
-- The new user is selected immediately for zimmet assignment in the same modal flow.
-
-### QR labels & mobile asset views
-
-- **Print-ready SVG QR codes** for thermal labels (asset tag encoded in QR payload).
-- Public, mobile-responsive asset detail page at `/assets/view/{id}` (ideal for field scans without logging into the dashboard).
-
-### Executive analytics
-
-- Dashboard summary cards, status distribution, category breakdown, and assignment metrics via `/api/analytics/summary`.
-
-### Zimmet (assignment) tutanak
-
-- **Rich text (WYSIWYG) corporate templates** via [Quill.js](https://quilljs.com/) (CDN)—bold text, ordered/unordered lists, alignment, and clean formatting without bloated dependencies.
-- Templates are stored as HTML in the `settings` table and rendered on print with preserved structure.
-- Placeholders: `{personnel_name}`, `{asset_name}`, `{serial_number}`, `{date}` (values are escaped for safe HTML output).
-- Print-optimized output at `/api/assets/{id}/tutanak`.
-- Legacy plain-text templates remain supported and are auto-formatted for print.
-
-### System settings (Sistem Ayarları)
-
-Administrators configure the self-hosted instance from the dashboard without code changes:
-
-| Area | Capabilities |
-|------|----------------|
-| **Directory integration** | Active auth driver (local, LDAP, Google Workspace, Azure) for personnel search |
-| **Login providers** | Enable local, LDAP, Google SSO, Microsoft 365 OAuth2 |
-| **Zimmet template** | Quill.js rich text editor for corporate assignment forms |
-| **Global custom fields** | Optional extra asset fields across all categories |
-| **LDAP / Google directory** | Connection credentials for user search and zimmet assignment |
-
-All settings persist in the `settings` table. Secrets are never returned by the API after save.
+On first request, `public/index.php` runs `DatabaseInitializer`, which applies `database/schema.sql`, incremental migrations under `database/migrations/`, and `database/seeds.sql`. No separate installer wizard.
 
 ---
 
-## Architecture (self-hosted)
+## Roles and navigation
+
+ITMS uses two session roles (legacy names such as `super_admin` / `technician` / `end_user` normalize to these):
+
+| Role | UI | Access |
+|------|-----|--------|
+| **Admin** (`admin`) | Operations dashboard | Full operational UI: inventory, help desk, IPAM, switch ports, licenses, settings, reports, backups |
+| **User** (`user`) | End-user portal | Own assets, own tickets, published knowledge base |
+
+Typical admin sidebar sections:
+
+- **Operations** — Help desk, knowledge base, reports, quality documents  
+- **Asset management** — Per-type inventory lists, consumables, licenses, personnel  
+- **Infrastructure** — Ağ & IP Yönetimi, Switch Port Yönetimi  
+- **System** — Settings / backups, system users, audit logs, asset type configuration  
+
+Default seeded local admin (change immediately in production):
+
+| Field | Value |
+|-------|-------|
+| Email | `admin@betech.local` |
+| Password | `admin123` |
+
+---
+
+## Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -170,12 +140,13 @@ All settings persist in the `settings` table. Secrets are never returned by the 
 │                                                             │
 │  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐  │
 │  │ Nginx/Apache │───▶│  PHP-FPM     │───▶│  MySQL       │  │
-│  │  → public/   │    │  Slim 4 app  │    │  (JSON cols) │  │
+│  │  → public/   │    │  Slim 4 app  │    │              │  │
 │  └──────────────┘    └──────────────┘    └──────────────┘  │
-│         │                    │                            │
-│         │                    ├── LDAP (optional)           │
-│         │                    ├── Google OAuth (optional)   │
-│         │                    └── Microsoft OAuth (optional)│
+│                              │                              │
+│                              ├── LDAP (optional)            │
+│                              ├── Google / Microsoft OAuth   │
+│                              ├── SMTP / IMAP (optional)     │
+│                              └── R2 / Telegram (optional)   │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -187,17 +158,18 @@ All application state lives in your MySQL instance. ITMS does not require a vend
 
 | Component | Requirement |
 |-----------|-------------|
-| **PHP** | 8.1 or newer (`ext-json`, `ext-pdo_mysql`, `ext-curl`; `ext-ldap` optional for LDAP login/directory) |
-| **Database** | MySQL 5.7.8+ or MariaDB 10.2+ (JSON column support required) |
+| **PHP** | 8.1+ (`ext-json`, `ext-pdo_mysql`, `ext-curl`; optional: `ext-ldap`, `ext-imap`, `ext-gd`/`ext-zip` for spreadsheets) |
+| **Database** | MySQL 5.7.8+ or MariaDB 10.2+ |
 | **Composer** | 2.x |
-| **Web server** | Apache 2.4+ with `mod_rewrite`, or Nginx 1.18+ |
-| **OS** | Linux recommended (macOS suitable for development) |
+| **Web server** | Apache 2.4+ (`mod_rewrite`) or Nginx 1.18+ |
+| **Node (dev)** | Optional, for Tailwind CSS builds (`npm run build`) |
+| **OS** | Linux recommended (macOS fine for development) |
 
 ---
 
-## Installation (self-hosted)
+## Installation
 
-### 1. Clone the repository
+### 1. Clone
 
 ```bash
 git clone https://github.com/ardacetin/betech.git
@@ -210,15 +182,13 @@ cd betech
 composer install --no-dev --optimize-autoloader
 ```
 
-For local development you may omit `--no-dev`.
-
 ### 3. Configure environment
 
 ```bash
 cp .env.example .env
 ```
 
-Edit `.env` with your instance values:
+Minimum `.env` values:
 
 ```env
 APP_ENV=production
@@ -234,7 +204,7 @@ DB_PASSWORD=your_secure_password
 DB_CHARSET=utf8mb4
 ```
 
-Create the empty database before first boot:
+Create the database:
 
 ```sql
 CREATE DATABASE betech CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
@@ -243,11 +213,13 @@ GRANT ALL PRIVILEGES ON betech.* TO 'betech'@'localhost';
 FLUSH PRIVILEGES;
 ```
 
-### 4. Configure the web server
+Optional `.env` areas (also partly configurable in Admin UI): SMTP, IMAP inbox, Telegram health alerts, Turnstile, Cloudflare R2. See `.env.example`.
 
-The **document root must be the `public/` directory**, not the project root.
+### 4. Web server document root
 
-#### Nginx
+Point the vhost **document root at `public/`** (not the repo root).
+
+#### Nginx (sketch)
 
 ```nginx
 server {
@@ -266,116 +238,69 @@ server {
         fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
     }
 
-    location ~ /\. {
-        deny all;
-    }
+    location ~ /\. { deny all; }
 }
 ```
 
 #### Apache
 
-Enable `mod_rewrite` and use a virtual host similar to:
+Enable `mod_rewrite`. `public/.htaccess` routes requests to `index.php`.
 
-```apache
-<VirtualHost *:80>
-    ServerName itms.yourcompany.local
-    DocumentRoot /var/www/betech/public
+### 5. First boot
 
-    <Directory /var/www/betech/public>
-        AllowOverride All
-        Require all granted
-    </Directory>
-</VirtualHost>
-```
+Open the application URL. `DatabaseInitializer` creates/upgrades schema and seeds defaults. On failure, check web logs for `[Betech]` messages.
 
-The included `public/.htaccess` forwards all requests to `index.php`.
+### 6. Sign in and harden
 
-### 5. First boot (automated database setup)
-
-Open your application URL in a browser (e.g. `https://itms.yourcompany.local`).
-
-On the first request, ITMS will:
-
-1. Validate database credentials from `.env`.
-2. Create tables from `database/schema.sql` if they do not exist.
-3. Apply incremental migrations for existing installations.
-4. Load default categories, sample users, and system settings from `database/seeds.sql`.
-
-If initialization fails, the response is JSON with a descriptive error (check web server error logs for `[Betech]` or `[ITMS]` entries).
-
-### 6. Sign in
-
-Default local administrator (from seeds—**change immediately in production**):
-
-| Field | Value |
-|-------|-------|
-| Email | `admin@betech.local` |
-| Password | `admin123` |
-
-Navigate to **Sistem Ayarları** to enable LDAP, Google, or Microsoft sign-in and configure integration credentials.
-
-#### OAuth redirect URIs (when enabling SSO)
-
-Register these in Google Cloud Console / Azure Portal, matching `APP_URL`:
-
-- `{APP_URL}/auth/callback/google`
-- `{APP_URL}/auth/callback/microsoft`
+1. Sign in with the seeded admin account and change the password.
+2. Configure auth, SMTP, and directory sync under **Settings**.
+3. OAuth redirect URIs (when enabling SSO), matching `APP_URL`:
+   - `{APP_URL}/auth/callback/google`
+   - `{APP_URL}/auth/callback/microsoft`
 
 ---
 
-## Upgrading an existing installation
+## Upgrading
 
-Use the deployment script on your server:
+On the production host:
 
 ```bash
 ./deploy.sh
 ```
 
-The script:
-
-1. Pulls the latest `main` branch from GitHub.
-2. Runs `composer install --no-dev --optimize-autoloader`.
-3. Clears `var/cache/` if present.
-
-After deployment, visit the application URL once so `DatabaseInitializer` can apply any pending migrations.
-
-If you upgraded from a release **before** multi-provider authentication, manually apply the auth migration once:
-
-```bash
-mysql -u betech -p betech < database/migrations/005_add_user_auth_columns.sql
-```
+This pulls `origin/main`, runs `composer install --no-dev --optimize-autoloader`, and clears `var/cache/` if present. Then open the site once so pending migrations apply.
 
 ---
 
-## Deployment script (`deploy.sh`)
+## CLI tools
 
-`deploy.sh` is intended for **production servers** that already have the repository cloned and configured:
+Run from the project root:
 
 ```bash
-chmod +x deploy.sh
-./deploy.sh
+php cli.php make:admin <username>     # Promote LDAP personnel to admin after first login
+php cli.php mail:fetch_inbox          # Pull support inbox → tickets (needs ext-imap + config)
+php cli.php notify:daily_summary      # Email daily operational summary
+php cli.php notify:health_scan        # Health scan alerts (optional Telegram)
+php cli.php backup:database           # Database backup (optional R2 upload)
 ```
 
-Prerequisites on the server:
-
-- Git remote configured for `origin` (`main` branch).
-- Composer available in `PATH`.
-- Writable application directory for Composer vendor updates.
-
-The script does not modify `.env` or web server configuration—those remain under your operational control.
+Schedule IMAP fetch and health scan via cron as needed (every 5–15 minutes for inbox).
 
 ---
 
-## Localization (i18n)
+## Localization
 
-ITMS ships with built-in internationalization:
-
-| Locale | Code | Role |
-|--------|------|------|
-| Turkish | `tr` | **Default** UI language |
+| Locale | Code | Notes |
+|--------|------|--------|
+| Turkish | `tr` | Default UI language |
 | English | `en` | Alternate UI language |
 
-Translation files live in `lang/tr.php` and `lang/en.php`. Users can switch locale via `?lang=en` or `?lang=tr` (stored in session). The login page is presented in Turkish by design.
+Files: `lang/tr.php`, `lang/en.php`. Switch with `?lang=tr` or `?lang=en` (session).
+
+Documentation:
+
+- English: this file (`README.md`)
+- Turkish: [`README.tr.md`](README.tr.md)
 
 ---
 
@@ -384,55 +309,42 @@ Translation files live in `lang/tr.php` and `lang/en.php`. Users can switch loca
 ```
 betech/
 ├── app/
-│   ├── Controllers/      # HTTP endpoints (assets, auth, settings, users)
-│   ├── Middleware/       # Language, authentication
+│   ├── Commands/         # CLI commands
+│   ├── Controllers/      # HTTP / API endpoints
+│   ├── Middleware/       # Auth, roles, CSRF, rate limit, security headers
 │   ├── Models/           # Medoo data access
-│   └── Services/         # Auth, QR, analytics, database bootstrap
-├── config/               # app.php, database.php, bootstrap.php
+│   └── Services/         # Domain services, IPAM, mail, backups, QR, …
+├── config/               # app, database, bootstrap, r2
 ├── database/
-│   ├── schema.sql        # Full schema for fresh installs
-│   ├── seeds.sql         # Default data
-│   └── migrations/       # Incremental upgrades
+│   ├── schema.sql
+│   ├── seeds.sql
+│   └── migrations/       # Incremental upgrades (001–033+)
 ├── lang/                 # tr.php, en.php
-├── public/               # Web root (index.php, .htaccess)
-├── views/                # PHP templates + Alpine.js dashboard
-├── deploy.sh             # Production update helper
-└── composer.json
+├── public/               # Web root (index.php, .htaccess, assets)
+├── resources/css/        # Tailwind source
+├── views/                # PHP templates + Alpine.js UI
+├── cli.php               # CLI entrypoint
+├── deploy.sh             # Production pull + composer
+├── README.md             # English documentation
+└── README.tr.md          # Turkish documentation
 ```
 
 ---
 
-## Security notes (self-hosted operators)
+## Security notes
 
-### Transport and session hardening
-
-- Run ITMS behind HTTPS in production; set `APP_URL` to the canonical HTTPS origin.
-- Session cookies use `HttpOnly`, `SameSite=Lax`, and `Secure` when the request is served over HTTPS (`public/index.php`).
-
-### Application-layer protections (public internet)
-
-- **Login rate limiting** — `RateLimitMiddleware` blocks brute-force attempts on `POST /api/login` and `POST /login`. Each client IP may trigger at most **5 failed login attempts within 15 minutes**; further attempts receive HTTP **429** with `{"error":"Çok fazla hatalı giriş denemesi. Lütfen 15 dakika sonra tekrar deneyin."}`. Attempts are stored in the `login_attempts` table (migration `010_create_login_attempts_table.sql`) and cleared after a successful login. Client IPs are resolved via `ClientIpResolver` (Cloudflare `CF-Connecting-IP`, then `X-Forwarded-For`, then `REMOTE_ADDR`) when the request comes through a trusted proxy (`TRUSTED_PROXIES` in `.env`).
-- **Security response headers** — `SecurityHeadersMiddleware` applies globally:
-  - `Strict-Transport-Security: max-age=31536000; includeSubDomains` (HTTPS deployments only)
-  - `X-Frame-Options: DENY`
-  - `X-Content-Type-Options: nosniff`
-  - `Content-Security-Policy` allowing scripts/styles from `'self'`, Tailwind CDN, jsDelivr (Alpine.js, Quill.js), and Google Fonts
-- **CSRF protection** — state-changing requests require a valid session CSRF token (`CsrfMiddleware`); `POST /api/login` is exempt so programmatic clients can authenticate.
-- **Error disclosure** — set `APP_ENV=production` and `DISPLAY_ERROR_DETAILS=false` so stack traces are not shown to browsers; unhandled exceptions are logged to `logs/app.log` via `AppLogger` (includes resolved `client_ip`).
-- **Trusted proxies** — set `TRUSTED_PROXIES=*` when ITMS sits behind Cloudflare and a Fortigate WAF, or restrict to your edge IP ranges (for example `203.0.113.0/24,198.51.100.10`) so forwarded headers are only honored from infrastructure you control.
-
-### Operational hygiene
-
-- Change the default `admin@betech.local` password immediately after first login.
-- Store LDAP bind passwords and OAuth client secrets only in the database settings table (never commit `.env` or secrets to Git).
-- Restrict network access to MySQL and LDAP to application servers only.
-- Keep PHP, MySQL, and ITMS updated via `deploy.sh` and your OS patch cycle.
+- Prefer HTTPS in production; set `APP_URL` to the canonical HTTPS origin.
+- Session cookies: `HttpOnly`, `SameSite=Lax`, `Secure` on HTTPS.
+- Login rate limiting (`login_attempts`), CSRF on state-changing requests, security headers (HSTS on HTTPS, CSP, frame deny).
+- Set `APP_ENV=production` and `DISPLAY_ERROR_DETAILS=false`.
+- Configure `TRUSTED_PROXIES` when behind Cloudflare/WAF.
+- Never commit `.env` or secrets; keep MySQL/LDAP reachable only from app servers.
 
 ---
 
 ## License
 
-BT Yönetim Sistemi (ITMS) is released under the **GNU General Public License v3.0 or later** (GPL-3.0-or-later). See `composer.json` for the SPDX identifier.
+Released under **GNU GPL v3.0 or later** (`GPL-3.0-or-later`). See `composer.json` and `LICENSE`.
 
 ---
 
