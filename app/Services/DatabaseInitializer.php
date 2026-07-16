@@ -124,6 +124,10 @@ class DatabaseInitializer
                 foreach ($this->patchIpam($connection) as $warning) {
                     $warnings[] = $warning;
                 }
+
+                foreach ($this->patchAutomationRules($connection) as $warning) {
+                    $warnings[] = $warning;
+                }
             }
 
             foreach ($this->patchPersonnelSeparation($connection) as $warning) {
@@ -1460,6 +1464,77 @@ class DatabaseInitializer
     private function getTicketsTableMigrationPath(): string
     {
         return dirname($this->schemaPath) . '/migrations/014_create_tickets_tables.sql';
+    }
+
+    /**
+     * Self-heal automation rule tables and warranty_expires_at columns.
+     *
+     * @param object $connection Medoo instance
+     *
+     * @return list<string>
+     */
+    private function patchAutomationRules(object $connection): array
+    {
+        $warnings = [];
+        $migrationPath = dirname($this->schemaPath) . '/migrations/034_automation_rules_and_warranty.sql';
+
+        if (!$this->tableExists($connection, 'automation_rules') && is_readable($migrationPath)) {
+            $this->applySqlFile($connection, $migrationPath);
+            $warnings[] = 'Self-healed database: created automation_rules and automation_rule_firings tables.';
+        } elseif ($this->tableExists($connection, 'automation_rules')
+            && !$this->tableExists($connection, 'automation_rule_firings')
+            && is_readable($migrationPath)
+        ) {
+            $this->applySqlFile($connection, $migrationPath);
+            $warnings[] = 'Self-healed database: created automation_rule_firings table.';
+        }
+
+        if ($this->tableExists($connection, 'assets')
+            && !$this->columnExists($connection, 'assets', 'warranty_expires_at')
+        ) {
+            $afterColumn = $this->columnExists($connection, 'assets', 'mac_address_2')
+                ? 'mac_address_2'
+                : ($this->columnExists($connection, 'assets', 'assigned_to') ? 'assigned_to' : 'status');
+
+            $connection->query(sprintf(
+                'ALTER TABLE assets ADD COLUMN warranty_expires_at DATE NULL DEFAULT NULL AFTER `%s`',
+                $this->escapeIdentifier($afterColumn)
+            ));
+            $warnings[] = 'Self-healed assets table: added warranty_expires_at column.';
+        }
+
+        $tablesStatement = $connection->query("SHOW TABLES LIKE 'assets\\_%'");
+
+        if ($tablesStatement !== false) {
+            while ($row = $tablesStatement->fetch(\PDO::FETCH_NUM)) {
+                $tableName = (string) ($row[0] ?? '');
+
+                if ($tableName === '' || $tableName === 'assets_global_registry') {
+                    continue;
+                }
+
+                if (!preg_match('/^assets_[a-z0-9_]+$/', $tableName)) {
+                    continue;
+                }
+
+                if ($this->columnExists($connection, $tableName, 'warranty_expires_at')) {
+                    continue;
+                }
+
+                $afterColumn = $this->columnExists($connection, $tableName, 'mac_address_2')
+                    ? 'mac_address_2'
+                    : ($this->columnExists($connection, $tableName, 'assigned_to') ? 'assigned_to' : 'status');
+
+                $connection->query(sprintf(
+                    'ALTER TABLE `%s` ADD COLUMN warranty_expires_at DATE NULL DEFAULT NULL AFTER `%s`',
+                    $this->escapeIdentifier($tableName),
+                    $this->escapeIdentifier($afterColumn)
+                ));
+                $warnings[] = sprintf('Self-healed `%s`: added warranty_expires_at column.', $tableName);
+            }
+        }
+
+        return $warnings;
     }
 
     /**

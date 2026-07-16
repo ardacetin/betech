@@ -281,10 +281,11 @@ php cli.php make:admin <username>     # Promote LDAP personnel to admin after fi
 php cli.php mail:fetch_inbox          # Pull support inbox → tickets (needs ext-imap + config)
 php cli.php notify:daily_summary      # Email daily operational summary
 php cli.php notify:health_scan        # Health scan alerts (optional Telegram)
+php cli.php automation:run            # Evaluate scheduled automation rules (license/warranty/stock)
 php cli.php backup:database           # Database backup (optional R2 upload)
 ```
 
-Schedule IMAP fetch and health scan via cron as needed (every 5–15 minutes for inbox).
+Schedule IMAP fetch and health scan via cron as needed (every 5–15 minutes for inbox). Run `automation:run` daily (e.g. once in the morning) so license, warranty, and low-stock rules can email. Critical ticket rules fire immediately when a ticket is created.
 
 ---
 

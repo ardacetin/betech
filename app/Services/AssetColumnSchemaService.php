@@ -34,6 +34,7 @@ class AssetColumnSchemaService
         'assigned_to' => 'Zimmetli Kişi',
         'mac_address_1' => 'Mac Adresi 1',
         'mac_address_2' => 'Mac Adresi 2',
+        'warranty_expires_at' => 'Garanti Bitiş Tarihi',
         'total_ports' => 'Toplam Port',
     ];
 

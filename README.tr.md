@@ -281,10 +281,11 @@ php cli.php make:admin <username>     # LDAP personelini admin yap (önce bir ke
 php cli.php mail:fetch_inbox          # Destek gelen kutusu → talepler (ext-imap + config)
 php cli.php notify:daily_summary      # Günlük operasyon özeti e-postası
 php cli.php notify:health_scan        # Sağlık tarama uyarıları (isteğe bağlı Telegram)
+php cli.php automation:run            # Zamanlanmış otomasyon kurallarını çalıştır (lisans/garanti/stok)
 php cli.php backup:database           # Veritabanı yedeği (isteğe bağlı R2)
 ```
 
-IMAP çekimini ve sağlık taramasını cron ile zamanlayın (gelen kutu için 5–15 dakika).
+IMAP çekimini ve sağlık taramasını cron ile zamanlayın (gelen kutu için 5–15 dakika). Lisans, garanti ve düşük stok kuralları için `automation:run` komutunu günde bir kez (ör. sabah) çalıştırın. Kritik talep kuralları talep oluşturulduğunda anında tetiklenir.
 
 ---
 

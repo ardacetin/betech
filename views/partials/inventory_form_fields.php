@@ -69,6 +69,10 @@ declare(strict_types=1);
                     <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('label_mac_address_2'), ENT_QUOTES, 'UTF-8') ?></span>
                     <input x-model="form.mac_address_2" type="text" class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 font-mono text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4">
                 </label>
+                <label class="block sm:col-span-2">
+                    <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('label_warranty_expires_at'), ENT_QUOTES, 'UTF-8') ?></span>
+                    <input x-model="form.warranty_expires_at" type="date" class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4">
+                </label>
             </div>
         </section>
 

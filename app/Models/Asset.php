@@ -31,6 +31,7 @@ class Asset
         'assigned_to',
         'mac_address_1',
         'mac_address_2',
+        'warranty_expires_at',
     ];
 
     public function __construct(
@@ -306,6 +307,96 @@ class Asset
     public function findByIdForView(int $assetId): ?array
     {
         return $this->findById($assetId);
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    public function findWarrantyExpiringWithinDays(int $days = 60): array
+    {
+        if ($days < 1) {
+            return [];
+        }
+
+        $tables = [];
+
+        if ($this->tableExists('assets') && $this->columnExists('assets', 'warranty_expires_at')) {
+            $tables[] = 'assets';
+        }
+
+        $typeRows = $this->db()->select('asset_types', ['id', 'slug'], [
+            'ORDER' => ['id' => 'ASC'],
+        ]);
+
+        if (is_array($typeRows)) {
+            foreach ($typeRows as $typeRow) {
+                if (!is_array($typeRow)) {
+                    continue;
+                }
+
+                $tableName = $this->assetTypeTableService->tableNameForTypeId((int) ($typeRow['id'] ?? 0));
+
+                if ($tableName === null || in_array($tableName, $tables, true)) {
+                    continue;
+                }
+
+                if ($this->tableExists($tableName) && $this->columnExists($tableName, 'warranty_expires_at')) {
+                    $tables[] = $tableName;
+                }
+            }
+        }
+
+        $results = [];
+        $seen = [];
+
+        foreach ($tables as $tableName) {
+            $statement = $this->db()->query(
+                sprintf(
+                    'SELECT id, asset_tag, name, warranty_expires_at
+                    FROM `%s`
+                    WHERE warranty_expires_at IS NOT NULL
+                      AND warranty_expires_at >= CURDATE()
+                      AND warranty_expires_at <= DATE_ADD(CURDATE(), INTERVAL :days DAY)
+                    ORDER BY warranty_expires_at ASC, asset_tag ASC',
+                    $tableName
+                ),
+                [':days' => $days]
+            );
+
+            if ($statement === false) {
+                continue;
+            }
+
+            foreach ($statement->fetchAll() as $row) {
+                if (!is_array($row)) {
+                    continue;
+                }
+
+                $assetId = (int) ($row['id'] ?? 0);
+
+                if ($assetId <= 0 || isset($seen[$assetId])) {
+                    continue;
+                }
+
+                $seen[$assetId] = true;
+                $results[] = [
+                    'id' => $assetId,
+                    'asset_tag' => (string) ($row['asset_tag'] ?? ''),
+                    'name' => (string) ($row['name'] ?? ''),
+                    'warranty_expires_at' => (string) ($row['warranty_expires_at'] ?? ''),
+                ];
+            }
+        }
+
+        usort(
+            $results,
+            static fn (array $left, array $right): int => strcmp(
+                (string) ($left['warranty_expires_at'] ?? ''),
+                (string) ($right['warranty_expires_at'] ?? '')
+            )
+        );
+
+        return $results;
     }
 
     /**
@@ -653,7 +744,7 @@ class Asset
         }
 
         foreach (array_merge(
-            ['model', 'brand', 'type', 'location', 'building', 'assigned_to', 'mac_address_1', 'mac_address_2'],
+            ['model', 'brand', 'type', 'location', 'building', 'assigned_to', 'mac_address_1', 'mac_address_2', 'warranty_expires_at'],
             array_diff($this->columnSchemaService->getWritableColumnNames($typeId > 0 ? $typeId : null), self::FLAT_COLUMNS)
         ) as $nullableStringField) {
             if (!array_key_exists($nullableStringField, $updateData)) {

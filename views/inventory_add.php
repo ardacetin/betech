@@ -90,6 +90,7 @@ declare(strict_types=1);
                 building: '',
                 mac_address_1: '',
                 mac_address_2: '',
+                warranty_expires_at: '',
             },
             isSubmitting: false,
             errorMessage: '',
@@ -164,7 +165,7 @@ declare(strict_types=1);
                     asset_type_id: Number(this.selectedTypeId),
                 };
 
-                ['model', 'brand', 'serial_number', 'type', 'location', 'building', 'mac_address_1', 'mac_address_2'].forEach((field) => {
+                ['model', 'brand', 'serial_number', 'type', 'location', 'building', 'mac_address_1', 'mac_address_2', 'warranty_expires_at'].forEach((field) => {
                     const value = String(this.form[field] || '').trim();
 
                     if (value !== '') {

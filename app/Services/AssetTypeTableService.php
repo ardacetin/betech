@@ -19,6 +19,7 @@ class AssetTypeTableService
         'serial_number',
         'status',
         'assigned_to',
+        'warranty_expires_at',
     ];
 
     /** @var list<string> */
@@ -202,6 +203,7 @@ class AssetTypeTableService
             'serial_number VARCHAR(128) DEFAULT NULL',
             'status VARCHAR(32) NOT NULL DEFAULT \'ready\'',
             'assigned_to VARCHAR(255) DEFAULT NULL',
+            'warranty_expires_at DATE DEFAULT NULL',
         ];
 
         if ($extended) {

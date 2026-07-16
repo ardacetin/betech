@@ -43,6 +43,7 @@ class AssetController
         'assigned_to',
         'mac_address_1',
         'mac_address_2',
+        'warranty_expires_at',
     ];
 
     public function __construct(

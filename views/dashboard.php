@@ -187,6 +187,27 @@ $i18nScript = json_encode([
     'backup_fetch_error' => __('backup_fetch_error'),
     'backup_network_error' => __('backup_network_error'),
     'backup_download_error' => __('backup_download_error'),
+    'automation_enabled' => __('automation_enabled'),
+    'automation_disabled' => __('automation_disabled'),
+    'automation_last_run' => __('automation_last_run'),
+    'automation_add_rule' => __('automation_add_rule'),
+    'automation_edit_rule' => __('automation_edit_rule'),
+    'automation_delete_confirm' => __('automation_delete_confirm'),
+    'automation_fetch_error' => __('automation_fetch_error'),
+    'automation_save_error' => __('automation_save_error'),
+    'automation_delete_error' => __('automation_delete_error'),
+    'automation_run_error' => __('automation_run_error'),
+    'automation_network_error' => __('automation_network_error'),
+    'automation_type_license_expiring' => __('automation_type_license_expiring'),
+    'automation_type_warranty_expiring' => __('automation_type_warranty_expiring'),
+    'automation_type_consumable_low_stock' => __('automation_type_consumable_low_stock'),
+    'automation_type_ticket_priority' => __('automation_type_ticket_priority'),
+    'automation_recipient_admins' => __('automation_recipient_admins'),
+    'automation_recipient_support' => __('automation_recipient_support'),
+    'automation_recipient_custom' => __('automation_recipient_custom'),
+    'automation_config_days_summary' => __('automation_config_days_summary'),
+    'automation_config_priority_summary' => __('automation_config_priority_summary'),
+    'automation_config_stock_summary' => __('automation_config_stock_summary'),
     'settings_auth_local' => __('settings_auth_local'),
     'settings_auth_local_hint' => __('settings_auth_local_hint'),
     'settings_auth_ldap' => __('settings_auth_ldap'),
@@ -734,6 +755,7 @@ $i18nScript = json_encode([
                 <?php require __DIR__ . '/partials/quality_documents_panel.php'; ?>
                 <?php require __DIR__ . '/partials/audit_logs_panel.php'; ?>
                 <?php require __DIR__ . '/partials/settings_panel.php'; ?>
+                <?php require __DIR__ . '/partials/automation_rules_panel.php'; ?>
                 <?php require __DIR__ . '/partials/categories_panel.php'; ?>
                 <?php require __DIR__ . '/partials/asset_types_panel.php'; ?>
                 <?php require __DIR__ . '/partials/asset_custom_fields_panel.php'; ?>
@@ -2206,6 +2228,7 @@ $i18nScript = json_encode([
                 personnel: <?= json_encode(__('personnel_page_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 smtp: <?= json_encode(__('settings_tab_smtp'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 backup: <?= json_encode(__('settings_tab_backup'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
+                automation: <?= json_encode(__('settings_tab_automation'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 audit_logs: <?= json_encode(__('audit_logs_page_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
             },
             pageSubtitles: {
@@ -2228,6 +2251,7 @@ $i18nScript = json_encode([
                 personnel: <?= json_encode(__('personnel_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 smtp: <?= json_encode(__('settings_smtp_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 backup: <?= json_encode(__('settings_backup_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
+                automation: <?= json_encode(__('automation_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 audit_logs: <?= json_encode(__('audit_logs_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
             },
             isImportOpen: false,
@@ -2576,6 +2600,24 @@ $i18nScript = json_encode([
             backupRetentionDays: 7,
             backupErrorMessage: '',
             backupSuccessMessage: '',
+            automationRules: [],
+            automationTemplates: [],
+            automationLoading: false,
+            automationRunning: false,
+            automationSaving: false,
+            automationError: '',
+            automationSuccessMessage: '',
+            automationModalError: '',
+            isAutomationRuleModalOpen: false,
+            automationRuleForm: {
+                id: null,
+                name: '',
+                rule_type: 'license_expiring',
+                is_enabled: true,
+                config: { days: 30, priority: 'critical' },
+                recipient_mode: 'admins',
+                custom_recipients: '',
+            },
             authDrivers: [
                 {
                     id: 'local',
@@ -2745,6 +2787,7 @@ $i18nScript = json_encode([
                         ticket_categories: this.pageTitles.ticket_categories,
                         smtp: this.pageTitles.smtp,
                         backup: this.pageTitles.backup,
+                        automation: this.pageTitles.automation,
                     };
 
                     return tabTitles[this.settingsTab] || this.pageTitles.settings;
@@ -2787,6 +2830,7 @@ $i18nScript = json_encode([
                         ticket_categories: this.pageSubtitles.ticket_categories,
                         smtp: this.pageSubtitles.smtp,
                         backup: this.pageSubtitles.backup,
+                        automation: this.pageSubtitles.automation,
                     };
 
                     return tabSubtitles[this.settingsTab] || this.pageSubtitles.settings;
@@ -3175,6 +3219,10 @@ $i18nScript = json_encode([
 
                     if (this.activeView === 'settings' && this.settingsTab === 'backup') {
                         this.fetchBackups();
+                    }
+
+                    if (this.activeView === 'settings' && this.settingsTab === 'automation') {
+                        this.fetchAutomationRules();
                     }
 
                     if (this.activeView === 'dashboard') {
@@ -8442,6 +8490,288 @@ $i18nScript = json_encode([
                     this.backups = [];
                 } finally {
                     this.isLoadingBackups = false;
+                }
+            },
+            async fetchAutomationRules() {
+                if (!this.canAccessSettings) {
+                    return;
+                }
+
+                this.automationLoading = true;
+                this.automationError = '';
+
+                try {
+                    const response = await fetch('/api/automation-rules', {
+                        headers: { Accept: 'application/json' },
+                    });
+                    const result = await response.json();
+
+                    if (!response.ok) {
+                        this.automationError = result.message || window.__i18n.automation_fetch_error;
+                        this.automationRules = [];
+                        return;
+                    }
+
+                    this.automationRules = Array.isArray(result.data) ? result.data : [];
+                    this.automationTemplates = Array.isArray(result.meta?.templates) ? result.meta.templates : [];
+                } catch (error) {
+                    this.automationError = window.__i18n.automation_network_error;
+                    this.automationRules = [];
+                } finally {
+                    this.automationLoading = false;
+                }
+            },
+            automationRuleTypeLabel(ruleType) {
+                const labels = {
+                    license_expiring: window.__i18n.automation_type_license_expiring,
+                    warranty_expiring: window.__i18n.automation_type_warranty_expiring,
+                    consumable_low_stock: window.__i18n.automation_type_consumable_low_stock,
+                    ticket_priority: window.__i18n.automation_type_ticket_priority,
+                };
+
+                return labels[ruleType] || ruleType;
+            },
+            automationRuleConfigSummary(rule) {
+                if (rule.rule_type === 'license_expiring' || rule.rule_type === 'warranty_expiring') {
+                    return (window.__i18n.automation_config_days_summary || ':days').replace(':days', String(rule.config?.days ?? ''));
+                }
+
+                if (rule.rule_type === 'ticket_priority') {
+                    return (window.__i18n.automation_config_priority_summary || ':priority').replace(':priority', String(rule.config?.priority ?? ''));
+                }
+
+                if (rule.rule_type === 'consumable_low_stock') {
+                    return window.__i18n.automation_config_stock_summary || '';
+                }
+
+                return '—';
+            },
+            automationRecipientLabel(rule) {
+                if (rule.recipient_mode === 'custom') {
+                    return rule.custom_recipients || window.__i18n.automation_recipient_custom;
+                }
+
+                if (rule.recipient_mode === 'support') {
+                    return window.__i18n.automation_recipient_support;
+                }
+
+                return window.__i18n.automation_recipient_admins;
+            },
+            openAutomationRuleModal(rule = null) {
+                this.automationModalError = '';
+                this.automationSuccessMessage = '';
+
+                if (rule) {
+                    this.automationRuleForm = {
+                        id: rule.id,
+                        name: rule.name || '',
+                        rule_type: rule.rule_type || 'license_expiring',
+                        is_enabled: !!rule.is_enabled,
+                        config: {
+                            days: Number(rule.config?.days || (rule.rule_type === 'warranty_expiring' ? 60 : 30)),
+                            priority: rule.config?.priority || 'critical',
+                        },
+                        recipient_mode: rule.recipient_mode || 'admins',
+                        custom_recipients: rule.custom_recipients || '',
+                    };
+                } else {
+                    const template = this.automationTemplates[0] || null;
+                    this.automationRuleForm = {
+                        id: null,
+                        name: template?.name || '',
+                        rule_type: template?.rule_type || 'license_expiring',
+                        is_enabled: true,
+                        config: {
+                            days: Number(template?.config?.days || 30),
+                            priority: template?.config?.priority || 'critical',
+                        },
+                        recipient_mode: template?.recipient_mode || 'admins',
+                        custom_recipients: '',
+                    };
+                }
+
+                this.isAutomationRuleModalOpen = true;
+            },
+            closeAutomationRuleModal() {
+                this.isAutomationRuleModalOpen = false;
+                this.automationModalError = '';
+            },
+            onAutomationRuleTypeChange() {
+                const type = this.automationRuleForm.rule_type;
+
+                if (type === 'warranty_expiring' && !this.automationRuleForm.config.days) {
+                    this.automationRuleForm.config.days = 60;
+                }
+
+                if (type === 'license_expiring' && !this.automationRuleForm.config.days) {
+                    this.automationRuleForm.config.days = 30;
+                }
+
+                if (type === 'ticket_priority' && !this.automationRuleForm.config.priority) {
+                    this.automationRuleForm.config.priority = 'critical';
+                }
+
+                if (!this.automationRuleForm.id) {
+                    const template = (this.automationTemplates || []).find((item) => item.rule_type === type);
+
+                    if (template && !String(this.automationRuleForm.name || '').trim()) {
+                        this.automationRuleForm.name = template.name || '';
+                        this.automationRuleForm.recipient_mode = template.recipient_mode || this.automationRuleForm.recipient_mode;
+                    }
+                }
+            },
+            async saveAutomationRule() {
+                if (!this.canAccessSettings) {
+                    return;
+                }
+
+                this.automationSaving = true;
+                this.automationModalError = '';
+                this.automationError = '';
+
+                const payload = {
+                    name: String(this.automationRuleForm.name || '').trim(),
+                    rule_type: this.automationRuleForm.rule_type,
+                    is_enabled: !!this.automationRuleForm.is_enabled,
+                    recipient_mode: this.automationRuleForm.recipient_mode,
+                    custom_recipients: this.automationRuleForm.custom_recipients || null,
+                    config: {},
+                };
+
+                if (payload.rule_type === 'license_expiring' || payload.rule_type === 'warranty_expiring') {
+                    payload.config.days = Number(this.automationRuleForm.config.days || 30);
+                }
+
+                if (payload.rule_type === 'ticket_priority') {
+                    payload.config.priority = this.automationRuleForm.config.priority || 'critical';
+                }
+
+                const isEdit = !!this.automationRuleForm.id;
+                const url = isEdit
+                    ? `/api/automation-rules/${encodeURIComponent(this.automationRuleForm.id)}`
+                    : '/api/automation-rules';
+
+                try {
+                    const response = await fetch(url, {
+                        method: isEdit ? 'PUT' : 'POST',
+                        headers: {
+                            Accept: 'application/json',
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify(payload),
+                    });
+                    const result = await response.json();
+
+                    if (!response.ok) {
+                        this.automationModalError = result.message || window.__i18n.automation_save_error;
+                        return;
+                    }
+
+                    this.automationSuccessMessage = result.message || '';
+                    this.closeAutomationRuleModal();
+                    await this.fetchAutomationRules();
+                } catch (error) {
+                    this.automationModalError = window.__i18n.automation_network_error;
+                } finally {
+                    this.automationSaving = false;
+                }
+            },
+            async toggleAutomationRule(rule) {
+                if (!this.canAccessSettings || !rule?.id) {
+                    return;
+                }
+
+                this.automationError = '';
+                this.automationSuccessMessage = '';
+
+                try {
+                    const response = await fetch(`/api/automation-rules/${encodeURIComponent(rule.id)}`, {
+                        method: 'PUT',
+                        headers: {
+                            Accept: 'application/json',
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            name: rule.name,
+                            rule_type: rule.rule_type,
+                            is_enabled: !rule.is_enabled,
+                            config: rule.config || {},
+                            recipient_mode: rule.recipient_mode,
+                            custom_recipients: rule.custom_recipients,
+                        }),
+                    });
+                    const result = await response.json();
+
+                    if (!response.ok) {
+                        this.automationError = result.message || window.__i18n.automation_save_error;
+                        return;
+                    }
+
+                    this.automationSuccessMessage = result.message || '';
+                    await this.fetchAutomationRules();
+                } catch (error) {
+                    this.automationError = window.__i18n.automation_network_error;
+                }
+            },
+            async deleteAutomationRule(rule) {
+                if (!this.canAccessSettings || !rule?.id) {
+                    return;
+                }
+
+                const confirmMessage = (window.__i18n.automation_delete_confirm || '').replace('%s', rule.name || '');
+
+                if (!window.confirm(confirmMessage)) {
+                    return;
+                }
+
+                this.automationError = '';
+                this.automationSuccessMessage = '';
+
+                try {
+                    const response = await fetch(`/api/automation-rules/${encodeURIComponent(rule.id)}`, {
+                        method: 'DELETE',
+                        headers: { Accept: 'application/json' },
+                    });
+                    const result = await response.json();
+
+                    if (!response.ok) {
+                        this.automationError = result.message || window.__i18n.automation_delete_error;
+                        return;
+                    }
+
+                    this.automationSuccessMessage = result.message || '';
+                    await this.fetchAutomationRules();
+                } catch (error) {
+                    this.automationError = window.__i18n.automation_network_error;
+                }
+            },
+            async runAutomationRulesNow() {
+                if (!this.canAccessSettings) {
+                    return;
+                }
+
+                this.automationRunning = true;
+                this.automationError = '';
+                this.automationSuccessMessage = '';
+
+                try {
+                    const response = await fetch('/api/automation-rules/run', {
+                        method: 'POST',
+                        headers: { Accept: 'application/json' },
+                    });
+                    const result = await response.json();
+
+                    if (!response.ok) {
+                        this.automationError = result.message || window.__i18n.automation_run_error;
+                        return;
+                    }
+
+                    this.automationSuccessMessage = result.message || '';
+                    await this.fetchAutomationRules();
+                } catch (error) {
+                    this.automationError = window.__i18n.automation_network_error;
+                } finally {
+                    this.automationRunning = false;
                 }
             },
             async createBackup() {
