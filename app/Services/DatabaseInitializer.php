@@ -1316,26 +1316,48 @@ class DatabaseInitializer
             );
         }
 
-        $legacyTables = ['assets_ag_anahtarlari', 'assets_ag_anahtari_switch'];
+        $legacyTables = [
+            'assets_ag_anahtarlari',
+            'assets_ag_anahtari_switch',
+            'assets_switches',
+        ];
 
         foreach ($legacyTables as $legacyTable) {
-            if (
-                $this->tableExists($connection, $legacyTable)
-                && !$this->tableExists($connection, 'assets_switchler')
-            ) {
+            if (!$this->tableExists($connection, $legacyTable)) {
+                continue;
+            }
+
+            if (!$this->tableExists($connection, 'assets_switchler')) {
                 $connection->query(sprintf(
                     'RENAME TABLE `%s` TO `assets_switchler`',
                     $this->escapeIdentifier($legacyTable)
                 ));
                 $warnings[] = sprintf('Renamed legacy switch table `%s` to `assets_switchler`.', $legacyTable);
+                continue;
+            }
+
+            // Slug standardization may have created an empty assets_switchler while
+            // real inventory rows remained in the legacy table.
+            $legacyCount = $this->countTableRows($connection, $legacyTable);
+            $canonicalCount = $this->countTableRows($connection, 'assets_switchler');
+
+            if ($legacyCount > 0 && $canonicalCount === 0) {
+                $connection->query(sprintf(
+                    'DROP TABLE `%s`',
+                    $this->escapeIdentifier('assets_switchler')
+                ));
+                $connection->query(sprintf(
+                    'RENAME TABLE `%s` TO `assets_switchler`',
+                    $this->escapeIdentifier($legacyTable)
+                ));
+                $warnings[] = sprintf(
+                    'Replaced empty `assets_switchler` with legacy switch rows from `%s`.',
+                    $legacyTable
+                );
             }
         }
 
-        if ($warnings !== []) {
-            return $warnings;
-        }
-
-        return [];
+        return $warnings;
     }
 
     /**
@@ -1345,7 +1367,40 @@ class DatabaseInitializer
      */
     private function resolveSwitchTypeTableNames(object $connection): array
     {
-        return ['assets_switchler'];
+        $tables = [
+            'assets_switchler',
+            'assets_ag_anahtarlari',
+            'assets_ag_anahtari_switch',
+            'assets_switches',
+        ];
+
+        return array_values(array_filter(
+            $tables,
+            fn (string $table): bool => $this->tableExists($connection, $table)
+        ));
+    }
+
+    /**
+     * @param object $connection Medoo instance
+     */
+    private function countTableRows(object $connection, string $table): int
+    {
+        try {
+            $statement = $connection->query(sprintf(
+                'SELECT COUNT(*) AS row_count FROM `%s`',
+                $this->escapeIdentifier($table)
+            ));
+
+            if ($statement === false) {
+                return 0;
+            }
+
+            $row = $statement->fetch(\PDO::FETCH_ASSOC);
+
+            return is_array($row) ? (int) ($row['row_count'] ?? 0) : 0;
+        } catch (\Throwable) {
+            return 0;
+        }
     }
 
     private function getIpamMigrationPath(): string

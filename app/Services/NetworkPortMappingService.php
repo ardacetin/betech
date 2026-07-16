@@ -11,9 +11,32 @@ use RuntimeException;
 
 class NetworkPortMappingService
 {
-    private const SWITCH_TABLE = 'assets_switchler';
-
     private const SWITCH_TYPE_SLUG = 'switchler';
+
+    /**
+     * Canonical + legacy switch type slugs used by inventory / migrations.
+     *
+     * @var list<string>
+     */
+    private const SWITCH_TYPE_SLUGS = [
+        'switchler',
+        'ag_anahtarlari',
+        'switches',
+        'ag-anahtarlari',
+        'ag-anahtari-switch',
+    ];
+
+    /**
+     * Orphan tables that may still hold switch rows after a slug rename
+     * created an empty assets_switchler without migrating data.
+     *
+     * @var array<string, string> table => fallback slug
+     */
+    private const LEGACY_SWITCH_TABLES = [
+        'assets_ag_anahtarlari' => 'ag_anahtarlari',
+        'assets_ag_anahtari_switch' => 'ag-anahtari-switch',
+        'assets_switches' => 'switches',
+    ];
 
     private const DEFAULT_TOTAL_PORTS = 24;
 
@@ -426,14 +449,98 @@ class NetworkPortMappingService
      */
     private function collectSwitchRows(): array
     {
-        $tableName = self::SWITCH_TABLE;
-        $slug = self::SWITCH_TYPE_SLUG;
-
         try {
-            if (!$this->tableExists($tableName)) {
-                return [];
+            $switches = [];
+            $seenTables = [];
+            $seenKeys = [];
+
+            foreach ($this->resolveSwitchTypeSources() as $source) {
+                $tableName = $source['table'];
+                $slug = $source['slug'];
+
+                if (isset($seenTables[$tableName])) {
+                    continue;
+                }
+
+                $seenTables[$tableName] = true;
+
+                foreach ($this->readSwitchRowsFromTable($tableName, $slug) as $switch) {
+                    $dedupeKey = $this->switchDedupeKey($switch);
+
+                    if (isset($seenKeys[$dedupeKey])) {
+                        continue;
+                    }
+
+                    $seenKeys[$dedupeKey] = true;
+                    $switches[] = $switch;
+                }
             }
 
+            if ($switches !== []) {
+                usort($switches, static fn (array $a, array $b): int => strcmp($a['label'], $b['label']));
+            }
+
+            return array_map(static function (array $switch): array {
+                unset($switch['_source_table']);
+
+                return $switch;
+            }, $switches);
+        } catch (\Throwable) {
+            return [];
+        }
+    }
+
+    /**
+     * @return list<array{slug: string, table: string}>
+     */
+    private function resolveSwitchTypeSources(): array
+    {
+        $sources = [];
+        $seenTables = [];
+
+        foreach ($this->resolveSwitchTypeSlugs() as $slug) {
+            $typeContext = $this->assetTypeTableService->resolveWhitelistedType($slug);
+            $tableName = is_array($typeContext)
+                ? (string) ($typeContext['table'] ?? '')
+                : $this->assetTypeTableService->tableNameForSlug($slug);
+
+            if ($tableName === '' || isset($seenTables[$tableName]) || !$this->tableExists($tableName)) {
+                continue;
+            }
+
+            $resolvedSlug = is_array($typeContext) && trim((string) ($typeContext['slug'] ?? '')) !== ''
+                ? (string) $typeContext['slug']
+                : $slug;
+
+            $seenTables[$tableName] = true;
+            $sources[] = [
+                'slug' => $resolvedSlug,
+                'table' => $tableName,
+            ];
+        }
+
+        // Safety net: slug may already be "switchler" while rows remain in a legacy table.
+        foreach (self::LEGACY_SWITCH_TABLES as $legacyTable => $fallbackSlug) {
+            if (isset($seenTables[$legacyTable]) || !$this->tableExists($legacyTable)) {
+                continue;
+            }
+
+            $seenTables[$legacyTable] = true;
+            $sources[] = [
+                'slug' => $this->canonicalSwitchSlug($fallbackSlug),
+                'table' => $legacyTable,
+            ];
+        }
+
+        return $sources;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function readSwitchRowsFromTable(string $tableName, string $slug): array
+    {
+        try {
             $tableColumns = $this->describeTableColumns($tableName);
 
             if ($tableColumns === [] || !in_array('id', $tableColumns, true)) {
@@ -487,17 +594,51 @@ class NetworkPortMappingService
                     'asset_type_slug' => $slug,
                     'asset_type_name' => $this->resolveTypeName($slug),
                     'label' => $this->formatSwitchLabel($row),
+                    '_source_table' => $tableName,
                 ];
-            }
-
-            if ($switches !== []) {
-                usort($switches, static fn (array $a, array $b): int => strcmp($a['label'], $b['label']));
             }
 
             return $switches;
         } catch (\Throwable) {
             return [];
         }
+    }
+
+    /**
+     * @param array<string, mixed> $switch
+     */
+    private function switchDedupeKey(array $switch): string
+    {
+        $assetTag = trim((string) ($switch['asset_tag'] ?? ''));
+
+        if ($assetTag !== '') {
+            return 'tag:' . strtolower($assetTag);
+        }
+
+        $serial = trim((string) ($switch['serial_number'] ?? ''));
+
+        if ($serial !== '') {
+            return 'serial:' . strtolower($serial);
+        }
+
+        return sprintf(
+            'row:%s:%d',
+            (string) ($switch['_source_table'] ?? $switch['asset_type_slug'] ?? 'unknown'),
+            (int) ($switch['id'] ?? 0)
+        );
+    }
+
+    private function canonicalSwitchSlug(string $fallbackSlug): string
+    {
+        foreach ($this->assetTypeModel->findAll() as $assetType) {
+            $slug = strtolower(trim((string) ($assetType['slug'] ?? '')));
+
+            if ($slug === self::SWITCH_TYPE_SLUG) {
+                return self::SWITCH_TYPE_SLUG;
+            }
+        }
+
+        return $fallbackSlug;
     }
 
     /**
@@ -644,7 +785,7 @@ class NetworkPortMappingService
 
     private function isSwitchTypeSlug(string $slug): bool
     {
-        return $slug === self::SWITCH_TYPE_SLUG;
+        return in_array(strtolower(trim($slug)), $this->resolveSwitchTypeSlugs(), true);
     }
 
     /**
@@ -652,7 +793,27 @@ class NetworkPortMappingService
      */
     private function resolveSwitchTypeSlugs(): array
     {
-        return [self::SWITCH_TYPE_SLUG];
+        $slugs = self::SWITCH_TYPE_SLUGS;
+
+        foreach ($this->assetTypeModel->findAll() as $assetType) {
+            $slug = strtolower(trim((string) ($assetType['slug'] ?? '')));
+            $name = strtolower(trim((string) ($assetType['name'] ?? '')));
+
+            if ($slug === '') {
+                continue;
+            }
+
+            if (
+                str_contains($slug, 'switch')
+                || str_contains($slug, 'anahtar')
+                || str_contains($name, 'anahtar')
+                || str_contains($name, 'switch')
+            ) {
+                $slugs[] = $slug;
+            }
+        }
+
+        return array_values(array_unique(array_filter($slugs)));
     }
 
     /**
