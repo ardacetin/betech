@@ -1,14 +1,33 @@
 <?php
 
-ini_set('display_errors', '1');
-ini_set('display_startup_errors', '1');
+declare(strict_types=1);
+
+use App\Services\DatabaseInitializer;
+use App\Services\DeferredTaskRunner;
+use Dotenv\Dotenv;
+
+$rootPath = dirname(__DIR__);
+
+require $rootPath . '/vendor/autoload.php';
+
+Dotenv::createImmutable($rootPath)->safeLoad();
+
+$appEnv = strtolower(trim((string) ($_ENV['APP_ENV'] ?? 'local')));
+$isProduction = $appEnv === 'production';
+$displayErrorDetails = !$isProduction && filter_var(
+    $_ENV['DISPLAY_ERROR_DETAILS'] ?? $_ENV['APP_DEBUG'] ?? false,
+    FILTER_VALIDATE_BOOLEAN
+);
+
+ini_set('display_errors', $displayErrorDetails ? '1' : '0');
+ini_set('display_startup_errors', $displayErrorDetails ? '1' : '0');
 error_reporting(E_ALL);
 
 while (ob_get_level() > 0) {
     ob_end_clean();
 }
 
-register_shutdown_function(static function (): void {
+register_shutdown_function(static function () use ($displayErrorDetails): void {
     $error = error_get_last();
 
     if ($error === null) {
@@ -19,26 +38,31 @@ register_shutdown_function(static function (): void {
         return;
     }
 
+    $detail = sprintf(
+        'FATAL: %s in %s:%d',
+        (string) $error['message'],
+        (string) $error['file'],
+        (int) $error['line']
+    );
+    error_log('[Betech] ' . $detail);
+
     if (!headers_sent()) {
         header('Content-Type: text/html; charset=utf-8');
         http_response_code(500);
     }
 
-    echo '<pre style="margin:1rem;padding:1rem;background:#fee;border:1px solid #f99;color:#900;white-space:pre-wrap;">';
-    echo 'FATAL: ' . htmlspecialchars((string) $error['message'], ENT_QUOTES, 'UTF-8') . "\n";
-    echo 'in ' . htmlspecialchars((string) $error['file'], ENT_QUOTES, 'UTF-8') . ':' . (int) $error['line'];
-    echo '</pre>';
+    if ($displayErrorDetails) {
+        echo '<pre style="margin:1rem;padding:1rem;background:#fee;border:1px solid #f99;color:#900;white-space:pre-wrap;">';
+        echo htmlspecialchars($detail, ENT_QUOTES, 'UTF-8');
+        echo '</pre>';
+
+        return;
+    }
+
+    echo '<!DOCTYPE html><html lang="tr"><head><meta charset="utf-8"><title>Hata</title></head><body>';
+    echo '<p style="font-family:sans-serif;margin:2rem;">Beklenmeyen bir hata oluştu. Lütfen Bilgi İşlem birimiyle iletişime geçin.</p>';
+    echo '</body></html>';
 });
-
-require __DIR__ . '/../vendor/autoload.php';
-
-use App\Services\DatabaseInitializer;
-use App\Services\DeferredTaskRunner;
-use Dotenv\Dotenv;
-
-$rootPath = dirname(__DIR__);
-
-Dotenv::createImmutable($rootPath)->safeLoad();
 
 $isHttps = request_is_https();
 
@@ -68,7 +92,6 @@ $initializationResult = $databaseInitializer->initialize();
 
 if (!$initializationResult->isSuccessful()) {
     $message = $initializationResult->getMessage() ?? 'Database initialization failed.';
-    $isProduction = strtolower(trim((string) ($_ENV['APP_ENV'] ?? 'local'))) === 'production';
 
     error_log('[Betech] ' . $message);
 

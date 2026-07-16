@@ -75,6 +75,26 @@ class ClientIpResolver
         return false;
     }
 
+    /**
+     * @param list<string> $cidrs
+     */
+    public function ipMatchesAnyCidr(string $ipAddress, array $cidrs): bool
+    {
+        $ipAddress = $this->normalizeIpAddress($ipAddress);
+
+        if ($ipAddress === '' || $cidrs === []) {
+            return false;
+        }
+
+        foreach ($cidrs as $cidr) {
+            if ($this->ipMatchesTrustedProxy($ipAddress, (string) $cidr)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private function ipMatchesTrustedProxy(string $remoteAddr, string $trustedEntry): bool
     {
         $trustedEntry = trim($trustedEntry);
@@ -91,27 +111,58 @@ class ClientIpResolver
             return false;
         }
 
-        if (filter_var($remoteAddr, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) === false) {
+        if (filter_var($remoteAddr, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) !== false) {
+            [$subnet, $maskBitsRaw] = explode('/', $trustedEntry, 2);
+            $maskBits = (int) $maskBitsRaw;
+
+            if (filter_var($subnet, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) === false || $maskBits < 0 || $maskBits > 32) {
+                return false;
+            }
+
+            $ipLong = ip2long($remoteAddr);
+            $subnetLong = ip2long($subnet);
+
+            if ($ipLong === false || $subnetLong === false) {
+                return false;
+            }
+
+            $mask = $maskBits === 0 ? 0 : (-1 << (32 - $maskBits));
+
+            return ($ipLong & $mask) === ($subnetLong & $mask);
+        }
+
+        if (filter_var($remoteAddr, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6) === false) {
             return false;
         }
 
         [$subnet, $maskBitsRaw] = explode('/', $trustedEntry, 2);
         $maskBits = (int) $maskBitsRaw;
 
-        if (filter_var($subnet, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) === false || $maskBits < 0 || $maskBits > 32) {
+        if (filter_var($subnet, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6) === false || $maskBits < 0 || $maskBits > 128) {
             return false;
         }
 
-        $ipLong = ip2long($remoteAddr);
-        $subnetLong = ip2long($subnet);
+        $ipBinary = inet_pton($remoteAddr);
+        $subnetBinary = inet_pton($subnet);
 
-        if ($ipLong === false || $subnetLong === false) {
+        if ($ipBinary === false || $subnetBinary === false) {
             return false;
         }
 
-        $mask = $maskBits === 0 ? 0 : (-1 << (32 - $maskBits));
+        $bytes = intdiv($maskBits, 8);
+        $remainingBits = $maskBits % 8;
 
-        return ($ipLong & $mask) === ($subnetLong & $mask);
+        if ($bytes > 0 && substr($ipBinary, 0, $bytes) !== substr($subnetBinary, 0, $bytes)) {
+            return false;
+        }
+
+        if ($remainingBits === 0) {
+            return true;
+        }
+
+        $mask = (~((1 << (8 - $remainingBits)) - 1)) & 0xFF;
+
+        return (ord($ipBinary[$bytes]) & $mask) === (ord($subnetBinary[$bytes]) & $mask);
     }
 
     private function normalizeIpAddress(string $ipAddress): string

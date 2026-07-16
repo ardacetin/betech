@@ -881,6 +881,22 @@ $i18nScript = json_encode([
                     <div class="mt-4 flex justify-center rounded-xl border border-dashed border-zinc-200 bg-white p-4">
                         <div class="h-36 w-36" x-html="detailQrSvg"></div>
                     </div>
+                    <div class="mt-4 flex flex-wrap gap-2">
+                        <button
+                            type="button"
+                            @click="regenerateAssetPublicViewToken()"
+                            :disabled="isAssetPublicTokenBusy"
+                            class="rounded-lg border border-zinc-200 bg-white px-3 py-2 text-xs font-medium text-zinc-700 hover:bg-zinc-100 disabled:opacity-60"
+                        ><?= htmlspecialchars(__('asset_public_view_regenerate'), ENT_QUOTES, 'UTF-8') ?></button>
+                        <button
+                            type="button"
+                            @click="revokeAssetPublicViewToken()"
+                            :disabled="isAssetPublicTokenBusy"
+                            class="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-700 hover:bg-rose-100 disabled:opacity-60"
+                        ><?= htmlspecialchars(__('asset_public_view_revoke'), ENT_QUOTES, 'UTF-8') ?></button>
+                    </div>
+                    <p x-show="assetPublicTokenMessage" x-cloak class="mt-2 text-xs text-emerald-700" x-text="assetPublicTokenMessage"></p>
+                    <p x-show="assetPublicTokenError" x-cloak class="mt-2 text-xs text-rose-700" x-text="assetPublicTokenError"></p>
                 </div>
 
                 <div class="mt-6">
@@ -2505,6 +2521,9 @@ $i18nScript = json_encode([
             isSubmitting: false,
             detailAsset: null,
             detailQrSvg: '',
+            isAssetPublicTokenBusy: false,
+            assetPublicTokenMessage: '',
+            assetPublicTokenError: '',
             assetHistory: [],
             historyLoading: false,
             historyError: '',
@@ -2567,6 +2586,48 @@ $i18nScript = json_encode([
                     encryption: window.__settings?.smtp_config?.encryption || 'tls',
                     support_to: window.__settings?.smtp_config?.support_to || '',
                 },
+                qr_public_view_config: {
+                    access_mode: window.__settings?.qr_public_view_config?.access_mode || 'public',
+                    allowed_cidrs: Array.isArray(window.__settings?.qr_public_view_config?.allowed_cidrs)
+                        ? [...window.__settings.qr_public_view_config.allowed_cidrs]
+                        : [],
+                    visible_fields: {
+                        status: Boolean(window.__settings?.qr_public_view_config?.visible_fields?.status ?? true),
+                        assigned_to: Boolean(window.__settings?.qr_public_view_config?.visible_fields?.assigned_to ?? true),
+                        model: Boolean(window.__settings?.qr_public_view_config?.visible_fields?.model ?? true),
+                        brand: Boolean(window.__settings?.qr_public_view_config?.visible_fields?.brand ?? true),
+                        type: Boolean(window.__settings?.qr_public_view_config?.visible_fields?.type ?? true),
+                        location: Boolean(window.__settings?.qr_public_view_config?.visible_fields?.location ?? true),
+                        building: Boolean(window.__settings?.qr_public_view_config?.visible_fields?.building ?? true),
+                        serial_number: Boolean(window.__settings?.qr_public_view_config?.visible_fields?.serial_number ?? false),
+                        mac_address_1: Boolean(window.__settings?.qr_public_view_config?.visible_fields?.mac_address_1 ?? false),
+                        mac_address_2: Boolean(window.__settings?.qr_public_view_config?.visible_fields?.mac_address_2 ?? false),
+                    },
+                },
+            },
+            qrPublicViewFieldOptions: [
+                { key: 'status', label: <?= json_encode(__('col_status'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?> },
+                { key: 'assigned_to', label: <?= json_encode(__('col_assigned_user'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?> },
+                { key: 'model', label: <?= json_encode(__('col_model'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?> },
+                { key: 'brand', label: <?= json_encode(__('col_brand'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?> },
+                { key: 'type', label: <?= json_encode(__('col_category'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?> },
+                { key: 'location', label: <?= json_encode(__('col_location'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?> },
+                { key: 'building', label: <?= json_encode(__('col_building'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?> },
+                { key: 'serial_number', label: <?= json_encode(__('label_serial_number'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?> },
+                { key: 'mac_address_1', label: <?= json_encode(__('label_mac_address_1'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?> },
+                { key: 'mac_address_2', label: <?= json_encode(__('label_mac_address_2'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?> },
+            ],
+            get qrAllowedCidrsText() {
+                return Array.isArray(this.settingsForm.qr_public_view_config.allowed_cidrs)
+                    ? this.settingsForm.qr_public_view_config.allowed_cidrs.join('\n')
+                    : '';
+            },
+            set qrAllowedCidrsText(value) {
+                const lines = String(value || '')
+                    .split(/[\n,]+/)
+                    .map((entry) => entry.trim())
+                    .filter((entry) => entry !== '');
+                this.settingsForm.qr_public_view_config.allowed_cidrs = lines;
             },
             smtpTestRecipient: <?= json_encode($currentUserEmail ?? '', JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
             isSendingSmtpTest: false,
@@ -4746,6 +4807,9 @@ $i18nScript = json_encode([
             async openDetailModal(asset) {
                 this.detailAsset = asset;
                 this.detailQrSvg = window.__assetQrCodes?.[asset.id] || '';
+                this.assetPublicTokenMessage = '';
+                this.assetPublicTokenError = '';
+                this.isAssetPublicTokenBusy = false;
                 this.assetHistory = [];
                 this.historyError = '';
                 this.historyLoading = true;
@@ -4873,6 +4937,91 @@ $i18nScript = json_encode([
 </body>
 </html>`);
                 printWindow.document.close();
+            },
+            async regenerateAssetPublicViewToken() {
+                if (!this.detailAsset?.id || this.isAssetPublicTokenBusy) {
+                    return;
+                }
+
+                if (!window.confirm(<?= json_encode(__('asset_public_view_regenerate_confirm'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>)) {
+                    return;
+                }
+
+                this.isAssetPublicTokenBusy = true;
+                this.assetPublicTokenMessage = '';
+                this.assetPublicTokenError = '';
+
+                try {
+                    const response = await fetch(`/api/assets/${this.detailAsset.id}/public-view-token/regenerate`, {
+                        method: 'POST',
+                        headers: { Accept: 'application/json' },
+                    });
+                    const result = await this.parseApiResponse(response);
+
+                    if (!response.ok) {
+                        this.assetPublicTokenError = this.apiErrorMessage(
+                            result,
+                            <?= json_encode(__('asset_public_view_token_error'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>
+                        );
+                        return;
+                    }
+
+                    const baseMessage = this.apiErrorMessage(
+                        result,
+                        <?= json_encode(__('asset_public_view_token_regenerated'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>
+                    );
+                    this.assetPublicTokenMessage = result?.data?.url
+                        ? `${baseMessage} ${result.data.url}`
+                        : baseMessage;
+                    this.detailQrSvg = '';
+                    window.__assetQrCodes = window.__assetQrCodes || {};
+                    delete window.__assetQrCodes[this.detailAsset.id];
+                } catch (error) {
+                    this.assetPublicTokenError = <?= json_encode(__('asset_public_view_token_error'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>;
+                } finally {
+                    this.isAssetPublicTokenBusy = false;
+                }
+            },
+            async revokeAssetPublicViewToken() {
+                if (!this.detailAsset?.id || this.isAssetPublicTokenBusy) {
+                    return;
+                }
+
+                if (!window.confirm(<?= json_encode(__('asset_public_view_revoke_confirm'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>)) {
+                    return;
+                }
+
+                this.isAssetPublicTokenBusy = true;
+                this.assetPublicTokenMessage = '';
+                this.assetPublicTokenError = '';
+
+                try {
+                    const response = await fetch(`/api/assets/${this.detailAsset.id}/public-view-token/revoke`, {
+                        method: 'POST',
+                        headers: { Accept: 'application/json' },
+                    });
+                    const result = await this.parseApiResponse(response);
+
+                    if (!response.ok) {
+                        this.assetPublicTokenError = this.apiErrorMessage(
+                            result,
+                            <?= json_encode(__('asset_public_view_token_error'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>
+                        );
+                        return;
+                    }
+
+                    this.assetPublicTokenMessage = this.apiErrorMessage(
+                        result,
+                        <?= json_encode(__('asset_public_view_token_revoked'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>
+                    );
+                    this.detailQrSvg = '';
+                    window.__assetQrCodes = window.__assetQrCodes || {};
+                    delete window.__assetQrCodes[this.detailAsset.id];
+                } catch (error) {
+                    this.assetPublicTokenError = <?= json_encode(__('asset_public_view_token_error'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>;
+                } finally {
+                    this.isAssetPublicTokenBusy = false;
+                }
             },
             resolveHistoryAction(action) {
                 const labels = {
@@ -8270,6 +8419,7 @@ $i18nScript = json_encode([
                             ldap_config: this.settingsForm.ldap_config,
                             google_config: this.settingsForm.google_config,
                             login_config: this.settingsForm.login_config,
+                            qr_public_view_config: this.settingsForm.qr_public_view_config,
                         }),
                     });
 

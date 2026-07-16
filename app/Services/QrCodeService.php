@@ -10,7 +10,8 @@ use chillerlan\QRCode\QROptions;
 class QrCodeService
 {
     public function __construct(
-        private readonly string $appUrl
+        private readonly string $appUrl,
+        private readonly ?AssetPublicViewService $assetPublicViewService = null
     ) {
     }
 
@@ -27,6 +28,16 @@ class QrCodeService
 
     public function buildAssetViewUrl(int $assetId): string
     {
-        return rtrim($this->appUrl, '/') . '/assets/view/' . $assetId;
+        if ($this->assetPublicViewService !== null) {
+            try {
+                $token = $this->assetPublicViewService->ensureActiveToken($assetId);
+
+                return $this->assetPublicViewService->buildPublicUrl($token);
+            } catch (\Throwable) {
+                // Fall through to a non-enumerable placeholder rather than leaking numeric IDs.
+            }
+        }
+
+        return rtrim($this->appUrl, '/') . '/assets/view/unavailable';
     }
 }

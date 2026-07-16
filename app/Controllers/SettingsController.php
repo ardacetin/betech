@@ -8,6 +8,7 @@ use App\Models\AuditLog;
 use App\Models\Setting;
 use App\Models\User;
 use App\Services\AssetColumnSchemaService;
+use App\Services\AssetPublicViewService;
 use App\Services\AuditLogger;
 use App\Services\Auth\SessionAuthService;
 use App\Services\Mail\MailConfigResolver;
@@ -34,14 +35,18 @@ class SettingsController
         private readonly string $appUrl,
         private readonly AuditLogger $auditLogger,
         private readonly AssetColumnSchemaService $assetColumnSchemaService,
+        private readonly AssetPublicViewService $assetPublicViewService,
     ) {
     }
 
     public function show(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
     {
+        $bundle = $this->settingModel->getAdminBundle();
+        $bundle['qr_public_view_config'] = $this->assetPublicViewService->getConfig();
+
         return $this->jsonResponse($response, 200, [
             'status' => 'success',
-            'data' => $this->settingModel->getAdminBundle(),
+            'data' => $bundle,
         ]);
     }
 
@@ -67,6 +72,7 @@ class SettingsController
         }
 
         $beforeSettings = $this->settingModel->getAdminBundle();
+        $beforeSettings['qr_public_view_config'] = $this->assetPublicViewService->getConfig();
         $changedSections = [];
 
         if (array_key_exists('active_auth_driver', $payload)) {
@@ -95,6 +101,10 @@ class SettingsController
 
         if (array_key_exists('smtp_config', $payload)) {
             $changedSections[] = 'smtp_config';
+        }
+
+        if (array_key_exists('qr_public_view_config', $payload)) {
+            $changedSections[] = 'qr_public_view_config';
         }
 
         if (array_key_exists('active_auth_driver', $payload)) {
@@ -142,8 +152,13 @@ class SettingsController
             $this->settingModel->saveSmtpConfig($payload['smtp_config']);
         }
 
+        if (array_key_exists('qr_public_view_config', $payload) && is_array($payload['qr_public_view_config'])) {
+            $this->assetPublicViewService->saveConfig($payload['qr_public_view_config']);
+        }
+
         if ($changedSections !== []) {
             $afterSettings = $this->settingModel->getAdminBundle();
+            $afterSettings['qr_public_view_config'] = $this->assetPublicViewService->getConfig();
             $diff = $this->auditLogger->buildSettingsDiff($beforeSettings, $afterSettings, $changedSections);
             $this->auditLogger->logFromRequest(
                 $request,

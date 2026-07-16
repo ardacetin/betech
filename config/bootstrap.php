@@ -92,6 +92,7 @@ use App\Services\Mail\MailConfigResolver;
 use App\Services\Mail\MailService;
 use App\Services\Mail\TicketNotificationService;
 use App\Services\NetworkPortMappingService;
+use App\Services\AssetPublicViewService;
 use App\Services\QualityDocumentStorageService;
 use App\Services\QrCodeService;
 use App\Services\Translator;
@@ -141,7 +142,7 @@ $publicPaths = [
     '/login',
     '/api/login',
     '/logout',
-    '/assets/view/{id}',
+    '/assets/view/{token}',
 ];
 $app->add(new RoleMiddleware($sessionAuthService, $httpErrorResponses, $publicPaths, RoleMiddleware::defaultRules()));
 $app->add(new AuthMiddleware($sessionAuthService, $publicPaths, $personnelModel));
@@ -220,7 +221,15 @@ $qualityDocumentStorageService = new QualityDocumentStorageService($rootPath);
 $qualityDocumentModel = new QualityDocument($databaseService, $qualityDocumentStorageService);
 $ticketCategoryModel = new TicketCategory($databaseService);
 $userIntegrationFactory = new UserIntegrationFactory($databaseService, $settingModel);
-$qrCodeService = new QrCodeService($appConfig['url']);
+$assetPublicViewService = new AssetPublicViewService(
+    $databaseService,
+    $assetModel,
+    $settingModel,
+    $sessionAuthService,
+    $clientIpResolver,
+    $appConfig['url']
+);
+$qrCodeService = new QrCodeService($appConfig['url'], $assetPublicViewService);
 $analyticsService = new AnalyticsService($databaseService);
 $zimmetTutanakService = new ZimmetTutanakService();
 $assetCsvImportService = new AssetCsvImportService($assetColumnSchemaService);
@@ -253,12 +262,12 @@ $inventoryImportController = new InventoryImportController(
         $appLogger,
         $turnstileVerifier
     );
-$healthController = new HealthController($appConfig, $assetModel, $assetTypeModel, $categoryModel, $viewRenderer, $qrCodeService, $analyticsService, $settingModel, $userModel, $personnelModel, $sessionAuthService, $endUserContextService, $locationModel, $assetFilterSchemaService, $licenseModel, $licenseFilterSchemaService, $consumableModel, $consumableFilterSchemaService, $assetCustomFieldModel, $assetTypeTableService, $networkPortMappingService);
+$healthController = new HealthController($appConfig, $assetModel, $assetTypeModel, $categoryModel, $viewRenderer, $qrCodeService, $analyticsService, $settingModel, $userModel, $personnelModel, $sessionAuthService, $endUserContextService, $locationModel, $assetFilterSchemaService, $licenseModel, $licenseFilterSchemaService, $consumableModel, $consumableFilterSchemaService, $assetCustomFieldModel, $assetTypeTableService, $networkPortMappingService, $assetPublicViewService);
 $inventoryFormController = new InventoryFormController($assetModel, $assetTypeModel, $assetCustomFieldModel, $assetTypeTableService, $viewRenderer, $sessionAuthService, $userModel);
 $networkPortMappingController = new NetworkPortMappingController($networkPortMappingService);
 $switchPortController = new SwitchPortController($networkPortMappingService, $viewRenderer, $sessionAuthService, $userModel);
-$assetController = new AssetController($assetModel, $assetHistoryModel, $userIntegrationFactory, $personnelModel, $userModel, $locationModel, $categoryModel, $assetCsvImportService, $inventoryImportService, $sessionAuthService, $clientIpResolver, $endUserContextService, $auditLogger, $assetFilterSchemaService, $settingModel, $assetCustomFieldModel, $assetTypeTableService, $networkPortMappingService);
-$assetViewController = new AssetViewController($appConfig, $assetModel, $viewRenderer);
+$assetController = new AssetController($assetModel, $assetHistoryModel, $userIntegrationFactory, $personnelModel, $userModel, $locationModel, $categoryModel, $assetCsvImportService, $inventoryImportService, $sessionAuthService, $clientIpResolver, $endUserContextService, $auditLogger, $assetFilterSchemaService, $settingModel, $assetCustomFieldModel, $assetTypeTableService, $networkPortMappingService, $assetPublicViewService);
+$assetViewController = new AssetViewController($appConfig, $assetModel, $assetPublicViewService, $viewRenderer);
 $assetTutanakController = new AssetTutanakController($assetModel, $settingModel, $personnelModel, $userModel, $userIntegrationFactory, $zimmetTutanakService, $viewRenderer, $sessionAuthService, $endUserContextService);
 $userController = new UserController($userIntegrationFactory, $personnelModel, $assetModel, $assetHistoryModel, $settingModel, $sessionAuthService, $clientIpResolver);
 $analyticsController = new AnalyticsController($analyticsService);
@@ -275,7 +284,8 @@ $settingsController = new SettingsController(
     $userModel,
     $appConfig['url'],
     $auditLogger,
-    $assetColumnSchemaService
+    $assetColumnSchemaService,
+    $assetPublicViewService
 );
 $categoryController = new CategoryController($categoryModel, $sessionAuthService, $auditLogger);
 $assetTypeController = new AssetTypeController($assetTypeModel, $sessionAuthService, $auditLogger);
@@ -355,7 +365,7 @@ $app->get('/network/switch-ports', [$healthController, 'switchPorts']);
 $app->get('/network/port-config', [$switchPortController, 'portConfig']);
 $app->get('/inventory/{typeId}', [$healthController, 'inventorySection']);
 $app->get('/documents', [$healthController, 'documents']);
-$app->get('/assets/view/{id}', [$assetViewController, 'show']);
+$app->get('/assets/view/{token}', [$assetViewController, 'show']);
 
 $app->group('', function ($group) use ($endUserController): void {
     $group->get('/api/my/assets', [$endUserController, 'assets']);
@@ -500,6 +510,8 @@ $app->group('', function ($group) use (
     $group->post('/api/assets/{id}/assign', [$assetController, 'assign']);
     $group->post('/api/assets/{id}/return', [$assetController, 'returnToStorage']);
     $group->post('/api/assets/{id}/transfer', [$assetController, 'transfer']);
+    $group->post('/api/assets/{id}/public-view-token/regenerate', [$assetController, 'regeneratePublicViewToken']);
+    $group->post('/api/assets/{id}/public-view-token/revoke', [$assetController, 'revokePublicViewToken']);
     $group->delete('/api/assets/{id}', [$assetController, 'destroy']);
 })->add($adminMiddleware);
 

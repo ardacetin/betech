@@ -518,6 +518,16 @@ class RoleMiddleware implements MiddlewareInterface
                 'roles' => $operational,
             ],
             [
+                'methods' => ['POST'],
+                'pattern' => '/api/assets/{id}/public-view-token/regenerate',
+                'roles' => $operational,
+            ],
+            [
+                'methods' => ['POST'],
+                'pattern' => '/api/assets/{id}/public-view-token/revoke',
+                'roles' => $operational,
+            ],
+            [
                 'methods' => ['DELETE'],
                 'pattern' => '/api/assets/{id}',
                 'roles' => [User::ROLE_ADMIN],
