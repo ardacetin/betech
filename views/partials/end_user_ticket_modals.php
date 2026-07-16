@@ -88,6 +88,16 @@ $adminLabelClass = 'mb-1.5 block text-sm font-medium text-zinc-700';
                                 <time class="text-xs text-zinc-400" x-text="formatPortalDate(comment.created_at)"></time>
                             </div>
                             <p class="mt-2 whitespace-pre-wrap text-sm text-zinc-700" x-text="comment.body"></p>
+                            <div class="mt-2 space-y-1" x-show="Array.isArray(comment.attachments) && comment.attachments.length > 0">
+                                <p class="text-xs font-medium uppercase tracking-wide text-zinc-400"><?= htmlspecialchars(__('ticket_attachments_label'), ENT_QUOTES, 'UTF-8') ?></p>
+                                <template x-for="attachment in comment.attachments" :key="attachment.id">
+                                    <a
+                                        class="block text-sm text-sky-700 hover:underline"
+                                        :href="`/api/tickets/${portalTicketDetail.id}/attachments/${attachment.id}/download`"
+                                        x-text="attachment.original_filename"
+                                    ></a>
+                                </template>
+                            </div>
                         </article>
                     </template>
                 </div>
@@ -95,6 +105,16 @@ $adminLabelClass = 'mb-1.5 block text-sm font-medium text-zinc-700';
                     <label class="block">
                         <span class="<?= $adminLabelClass ?>"><?= htmlspecialchars(__('ticket_comment_label'), ENT_QUOTES, 'UTF-8') ?></span>
                         <textarea x-model="portalTicketCommentBody" rows="3" class="<?= $adminFieldClass ?>"></textarea>
+                    </label>
+                    <label class="block">
+                        <span class="<?= $adminLabelClass ?>"><?= htmlspecialchars(__('ticket_attachments_label'), ENT_QUOTES, 'UTF-8') ?></span>
+                        <input
+                            type="file"
+                            multiple
+                            accept=".pdf,.docx,.xlsx,.pptx,.txt,.csv,.jpg,.jpeg,.png,.gif,.webp,image/*"
+                            @change="onPortalTicketCommentFilesChange($event)"
+                            class="block w-full text-sm text-zinc-600 file:mr-3 file:rounded-lg file:border-0 file:bg-zinc-100 file:px-3 file:py-2 file:text-sm file:font-medium file:text-zinc-700 hover:file:bg-zinc-200"
+                        >
                     </label>
                     <p x-show="portalTicketCommentError" x-cloak class="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700" x-text="portalTicketCommentError"></p>
                     <button type="submit" :disabled="isPortalTicketCommentSubmitting" class="inline-flex items-center gap-2 rounded-xl bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60">

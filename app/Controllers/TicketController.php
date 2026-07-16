@@ -13,8 +13,11 @@ use App\Services\Auth\SessionAuthService;
 use App\Services\EndUserContextService;
 use App\Services\ListPagination;
 use App\Services\Mail\TicketNotificationService;
+use App\Services\TicketAttachmentStorageService;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
+use Psr\Http\Message\UploadedFileInterface;
+use Slim\Psr7\Stream;
 
 class TicketController
 {
@@ -25,6 +28,7 @@ class TicketController
         private readonly SessionAuthService $sessionAuthService,
         private readonly EndUserContextService $endUserContextService,
         private readonly TicketNotificationService $ticketNotificationService,
+        private readonly TicketAttachmentStorageService $ticketAttachmentStorageService,
         private readonly AuditLogger $auditLogger
     ) {
     }
@@ -356,7 +360,9 @@ class TicketController
             ]);
         }
 
-        if ($this->endUserContextService->isEndUser()) {
+        $isEndUser = $this->endUserContextService->isEndUser();
+
+        if ($isEndUser) {
             $personnelId = $this->endUserContextService->resolvePersonnelId();
 
             if ($personnelId === null || !$this->ticketModel->belongsToPersonnel($ticketId, $personnelId)) {
@@ -367,16 +373,13 @@ class TicketController
             }
         }
 
-        $payload = $this->resolvePayload($request);
-
-        if ($payload === null) {
-            return $this->jsonResponse($response, 400, [
-                'status' => 'error',
-                'message' => __('ticket_invalid_payload'),
-            ]);
-        }
-
+        $payload = $this->resolvePayload($request) ?? [];
         $body = trim((string) ($payload['body'] ?? ''));
+        $isInternal = !$isEndUser && (
+            (string) ($payload['is_internal'] ?? '') === '1'
+            || (string) ($payload['is_internal'] ?? '') === 'true'
+            || ($payload['is_internal'] ?? false) === true
+        );
 
         if ($body === '') {
             return $this->jsonResponse($response, 422, [
@@ -387,9 +390,39 @@ class TicketController
 
         $userId = $this->endUserContextService->resolveLegacyUserId();
         $authorName = $this->resolveAuthorName($userId);
+        $uploadedFiles = $this->collectUploadedFiles($request);
 
         try {
-            $comment = $this->ticketModel->addComment($ticketId, $body, $userId, $authorName);
+            $comment = $this->ticketModel->addComment(
+                $ticketId,
+                $body,
+                $userId,
+                $authorName,
+                $isInternal
+            );
+
+            if ($uploadedFiles !== []) {
+                $stored = [];
+
+                foreach ($uploadedFiles as $file) {
+                    $stored[] = $this->ticketAttachmentStorageService->storeUploadedFile($file);
+                }
+
+                $attachments = $this->ticketModel->addCommentAttachments(
+                    $ticketId,
+                    (int) $comment['id'],
+                    array_map(static fn (array $item): array => [
+                        'original_filename' => $item['original_filename'],
+                        'stored_filename' => $item['stored_filename'],
+                        'file_path' => $item['relative_path'],
+                        'file_size' => $item['file_size'],
+                        'mime_type' => $item['mime_type'] ?? null,
+                    ], $stored),
+                    $userId
+                );
+
+                $comment['attachments'] = $attachments;
+            }
         } catch (\InvalidArgumentException $exception) {
             return $this->jsonResponse($response, 422, [
                 'status' => 'error',
@@ -402,7 +435,7 @@ class TicketController
             ]);
         }
 
-        if (!$this->endUserContextService->isEndUser()) {
+        if (!$isEndUser && !$isInternal) {
             $ticket = $this->ticketModel->findById($ticketId);
 
             if ($ticket !== null) {
@@ -415,6 +448,314 @@ class TicketController
             'success' => true,
             'message' => __('ticket_comment_create_success'),
             'data' => $comment,
+        ]);
+    }
+
+    public function downloadAttachment(
+        ServerRequestInterface $request,
+        ResponseInterface $response,
+        array $args
+    ): ResponseInterface {
+        $ticketId = (int) ($args['id'] ?? 0);
+        $attachmentId = (int) ($args['attachmentId'] ?? 0);
+
+        if ($ticketId <= 0 || $attachmentId <= 0) {
+            return $this->jsonResponse($response, 400, [
+                'status' => 'error',
+                'message' => __('ticket_invalid_id'),
+            ]);
+        }
+
+        if (!$this->canAccessTicket($ticketId)) {
+            return $this->jsonResponse($response, 404, [
+                'status' => 'error',
+                'message' => __('ticket_not_found'),
+            ]);
+        }
+
+        $attachment = $this->ticketModel->findAttachmentById($attachmentId);
+
+        if ($attachment === null || (int) ($attachment['ticket_id'] ?? 0) !== $ticketId) {
+            return $this->jsonResponse($response, 404, [
+                'status' => 'error',
+                'message' => __('ticket_attachment_not_found'),
+            ]);
+        }
+
+        if ($this->endUserContextService->isEndUser()) {
+            $comment = $this->ticketModel->findCommentById((int) ($attachment['comment_id'] ?? 0));
+
+            if ($comment === null || !empty($comment['is_internal'])) {
+                return $this->jsonResponse($response, 404, [
+                    'status' => 'error',
+                    'message' => __('ticket_attachment_not_found'),
+                ]);
+            }
+        }
+
+        try {
+            $absolutePath = $this->ticketAttachmentStorageService->resolveAbsolutePath(
+                (string) ($attachment['file_path'] ?? '')
+            );
+        } catch (\Throwable) {
+            return $this->jsonResponse($response, 404, [
+                'status' => 'error',
+                'message' => __('ticket_attachment_not_found'),
+            ]);
+        }
+
+        $stream = fopen($absolutePath, 'rb');
+
+        if ($stream === false) {
+            return $this->jsonResponse($response, 500, [
+                'status' => 'error',
+                'message' => __('ticket_attachment_not_found'),
+            ]);
+        }
+
+        $filename = (string) ($attachment['original_filename'] ?? 'attachment');
+        $mime = (string) ($attachment['mime_type'] ?? 'application/octet-stream');
+
+        return $response
+            ->withBody(new Stream($stream))
+            ->withHeader('Content-Type', $mime)
+            ->withHeader(
+                'Content-Disposition',
+                'attachment; filename="' . str_replace('"', '', $filename) . '"'
+            );
+    }
+
+    public function followers(
+        ServerRequestInterface $request,
+        ResponseInterface $response,
+        array $args
+    ): ResponseInterface {
+        $ticketId = (int) ($args['id'] ?? 0);
+
+        if ($ticketId <= 0) {
+            return $this->jsonResponse($response, 400, [
+                'status' => 'error',
+                'message' => __('ticket_invalid_id'),
+            ]);
+        }
+
+        if ($this->endUserContextService->isEndUser()) {
+            return $this->jsonResponse($response, 403, [
+                'status' => 'error',
+                'message' => __('portal_action_not_allowed'),
+            ]);
+        }
+
+        if ($this->ticketModel->findById($ticketId) === null) {
+            return $this->jsonResponse($response, 404, [
+                'status' => 'error',
+                'message' => __('ticket_not_found'),
+            ]);
+        }
+
+        return $this->jsonResponse($response, 200, [
+            'status' => 'success',
+            'data' => $this->ticketModel->findFollowersByTicketId($ticketId),
+        ]);
+    }
+
+    public function updateFollowers(
+        ServerRequestInterface $request,
+        ResponseInterface $response,
+        array $args
+    ): ResponseInterface {
+        if ($this->endUserContextService->isEndUser()) {
+            return $this->jsonResponse($response, 403, [
+                'status' => 'error',
+                'message' => __('portal_action_not_allowed'),
+            ]);
+        }
+
+        $ticketId = (int) ($args['id'] ?? 0);
+
+        if ($ticketId <= 0) {
+            return $this->jsonResponse($response, 400, [
+                'status' => 'error',
+                'message' => __('ticket_invalid_id'),
+            ]);
+        }
+
+        $payload = $this->resolvePayload($request) ?? [];
+        $items = $payload['items'] ?? [];
+
+        if (!is_array($items)) {
+            return $this->jsonResponse($response, 422, [
+                'status' => 'error',
+                'message' => __('ticket_followers_invalid_payload'),
+            ]);
+        }
+
+        try {
+            $followers = $this->ticketModel->replaceFollowers($ticketId, $items);
+        } catch (\InvalidArgumentException $exception) {
+            return $this->jsonResponse($response, 422, [
+                'status' => 'error',
+                'message' => $exception->getMessage(),
+            ]);
+        } catch (\Throwable) {
+            return $this->jsonResponse($response, 500, [
+                'status' => 'error',
+                'message' => __('ticket_followers_update_error'),
+            ]);
+        }
+
+        return $this->jsonResponse($response, 200, [
+            'status' => 'success',
+            'message' => __('ticket_followers_update_success'),
+            'data' => $followers,
+        ]);
+    }
+
+    public function transfer(
+        ServerRequestInterface $request,
+        ResponseInterface $response,
+        array $args
+    ): ResponseInterface {
+        if ($this->endUserContextService->isEndUser()) {
+            return $this->jsonResponse($response, 403, [
+                'status' => 'error',
+                'message' => __('portal_action_not_allowed'),
+            ]);
+        }
+
+        $ticketId = (int) ($args['id'] ?? 0);
+        $payload = $this->resolvePayload($request) ?? [];
+        $categoryId = (int) ($payload['category_id'] ?? 0);
+        $note = isset($payload['note']) ? trim((string) $payload['note']) : null;
+
+        if ($ticketId <= 0 || $categoryId <= 0) {
+            return $this->jsonResponse($response, 422, [
+                'status' => 'error',
+                'message' => __('ticket_transfer_invalid_payload'),
+            ]);
+        }
+
+        $userId = $this->sessionAuthService->userId();
+        $authorName = $this->resolveAuthorName($userId);
+
+        try {
+            $ticket = $this->ticketModel->transferToCategory(
+                $ticketId,
+                $categoryId,
+                $userId,
+                $authorName,
+                $note
+            );
+        } catch (\InvalidArgumentException $exception) {
+            return $this->jsonResponse($response, 422, [
+                'status' => 'error',
+                'message' => $exception->getMessage(),
+            ]);
+        } catch (\Throwable) {
+            return $this->jsonResponse($response, 500, [
+                'status' => 'error',
+                'message' => __('ticket_transfer_error'),
+            ]);
+        }
+
+        return $this->jsonResponse($response, 200, [
+            'status' => 'success',
+            'message' => __('ticket_transfer_success'),
+            'data' => $ticket,
+        ]);
+    }
+
+    public function attachEmail(
+        ServerRequestInterface $request,
+        ResponseInterface $response,
+        array $args
+    ): ResponseInterface {
+        if ($this->endUserContextService->isEndUser()) {
+            return $this->jsonResponse($response, 403, [
+                'status' => 'error',
+                'message' => __('portal_action_not_allowed'),
+            ]);
+        }
+
+        $ticketId = (int) ($args['id'] ?? 0);
+        $payload = $this->resolvePayload($request) ?? [];
+
+        if ($ticketId <= 0) {
+            return $this->jsonResponse($response, 400, [
+                'status' => 'error',
+                'message' => __('ticket_invalid_id'),
+            ]);
+        }
+
+        $ticket = $this->ticketModel->findById($ticketId);
+
+        if ($ticket === null) {
+            return $this->jsonResponse($response, 404, [
+                'status' => 'error',
+                'message' => __('ticket_not_found'),
+            ]);
+        }
+
+        $body = trim((string) ($payload['body'] ?? ''));
+        $fromAddress = trim((string) ($payload['from_address'] ?? ''));
+        $subject = trim((string) ($payload['subject'] ?? ''));
+        $messageId = trim((string) ($payload['message_id'] ?? ''));
+        $inReplyTo = trim((string) ($payload['in_reply_to'] ?? ''));
+
+        if ($body === '') {
+            return $this->jsonResponse($response, 422, [
+                'status' => 'error',
+                'message' => __('ticket_comment_required'),
+            ]);
+        }
+
+        if ($messageId !== '' && $this->ticketModel->emailMessageExists($messageId)) {
+            return $this->jsonResponse($response, 409, [
+                'status' => 'error',
+                'message' => __('ticket_email_already_attached'),
+            ]);
+        }
+
+        $authorName = $fromAddress !== '' ? $fromAddress : __('ticket_email_author');
+
+        try {
+            $comment = $this->ticketModel->addComment(
+                $ticketId,
+                $body,
+                null,
+                $authorName,
+                false,
+                $messageId !== '' ? $messageId : null,
+                $inReplyTo !== '' ? $inReplyTo : null
+            );
+
+            if ($messageId !== '') {
+                $this->ticketModel->recordEmailMessage(
+                    $ticketId,
+                    $messageId,
+                    Ticket::EMAIL_DIRECTION_INBOUND,
+                    $inReplyTo !== '' ? $inReplyTo : null,
+                    (int) $comment['id'],
+                    $fromAddress !== '' ? $fromAddress : null,
+                    $subject !== '' ? $subject : null
+                );
+            }
+        } catch (\InvalidArgumentException $exception) {
+            return $this->jsonResponse($response, 422, [
+                'status' => 'error',
+                'message' => $exception->getMessage(),
+            ]);
+        } catch (\Throwable) {
+            return $this->jsonResponse($response, 500, [
+                'status' => 'error',
+                'message' => __('ticket_email_attach_error'),
+            ]);
+        }
+
+        return $this->jsonResponse($response, 201, [
+            'status' => 'success',
+            'message' => __('ticket_email_attach_success'),
+            'data' => $this->ticketModel->findById($ticketId, true),
         ]);
     }
 
@@ -564,6 +905,49 @@ class TicketController
         $id = (int) $value;
 
         return $id > 0 ? $id : null;
+    }
+
+    private function canAccessTicket(int $ticketId): bool
+    {
+        if ($ticketId <= 0) {
+            return false;
+        }
+
+        if ($this->endUserContextService->isEndUser()) {
+            $personnelId = $this->endUserContextService->resolvePersonnelId();
+
+            return $personnelId !== null
+                && $this->ticketModel->belongsToPersonnel($ticketId, $personnelId);
+        }
+
+        return $this->ticketModel->findById($ticketId) !== null;
+    }
+
+    /**
+     * @return list<UploadedFileInterface>
+     */
+    private function collectUploadedFiles(ServerRequestInterface $request): array
+    {
+        $uploaded = $request->getUploadedFiles();
+        $files = $uploaded['files'] ?? $uploaded['files[]'] ?? [];
+
+        if ($files instanceof UploadedFileInterface) {
+            return [$files];
+        }
+
+        if (!is_array($files)) {
+            return [];
+        }
+
+        $list = [];
+
+        foreach ($files as $file) {
+            if ($file instanceof UploadedFileInterface) {
+                $list[] = $file;
+            }
+        }
+
+        return $list;
     }
 
     /**

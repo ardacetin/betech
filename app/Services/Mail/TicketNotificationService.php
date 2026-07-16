@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\Mail;
 
+use App\Models\Ticket;
 use App\Models\User;
 use App\Services\AppLogger;
 use App\Services\DeferredTaskRunner;
@@ -20,6 +21,7 @@ class TicketNotificationService
         private readonly MailConfigResolver $mailConfigResolver,
         private readonly ViewRenderer $viewRenderer,
         private readonly User $userModel,
+        private readonly Ticket $ticketModel,
         private readonly AppLogger $appLogger,
         private readonly string $appUrl
     ) {
@@ -92,7 +94,14 @@ class TicketNotificationService
                 'footer' => __('mail_ticket_footer'),
             ], 'emails/layout');
 
-            $sent = $this->mailService->sendHtml($recipients, $subject, $html);
+            $sent = $this->dispatchTicketMail(
+                $ticket,
+                $recipients,
+                $subject,
+                $html,
+                [],
+                null
+            );
 
             if (!$sent) {
                 $this->appLogger->error('mail.ticket_new.failed', [
@@ -146,7 +155,15 @@ class TicketNotificationService
                 'detailHtml' => '',
             ], 'emails/layout');
 
-            $sent = $this->mailService->sendHtml([$recipient], $subject, $html);
+            $followerCc = $this->followerCcForTicket((int) ($ticket['id'] ?? 0), [$recipient]);
+            $sent = $this->dispatchTicketMail(
+                $ticket,
+                [$recipient],
+                $subject,
+                $html,
+                $followerCc,
+                null
+            );
 
             if (!$sent) {
                 $this->appLogger->error('mail.ticket_status.failed', [
@@ -170,6 +187,15 @@ class TicketNotificationService
     private function sendStaffReplyAlert(array $ticket, array $comment): void
     {
         try {
+            if (!empty($comment['is_internal'])) {
+                $this->appLogger->log('mail.ticket_reply.skipped', [
+                    'ticket_id' => $ticket['id'] ?? null,
+                    'reason' => 'internal_comment',
+                ]);
+
+                return;
+            }
+
             $recipient = strtolower(trim((string) ($ticket['personnel_email'] ?? '')));
 
             if ($recipient === '' || filter_var($recipient, FILTER_VALIDATE_EMAIL) === false) {
@@ -207,7 +233,15 @@ class TicketNotificationService
                 ], null),
             ], 'emails/layout');
 
-            $sent = $this->mailService->sendHtml([$recipient], $subject, $html);
+            $followerCc = $this->followerCcForTicket((int) ($ticket['id'] ?? 0), [$recipient]);
+            $sent = $this->dispatchTicketMail(
+                $ticket,
+                [$recipient],
+                $subject,
+                $html,
+                $followerCc,
+                isset($comment['id']) ? (int) $comment['id'] : null
+            );
 
             if (!$sent) {
                 $this->appLogger->error('mail.ticket_reply.failed', [
@@ -222,6 +256,113 @@ class TicketNotificationService
                 'error' => $exception->getMessage(),
             ]);
         }
+    }
+
+    /**
+     * @param array<string, mixed> $ticket
+     * @param list<string> $recipients
+     * @param list<string> $cc
+     */
+    private function dispatchTicketMail(
+        array $ticket,
+        array $recipients,
+        string $subject,
+        string $html,
+        array $cc,
+        ?int $commentId
+    ): bool {
+        $ticketId = (int) ($ticket['id'] ?? 0);
+        $thread = $this->resolveThreadHeaders($ticket);
+        $config = $this->mailConfigResolver->resolve();
+        $replyTo = $config['support_addresses'][0] ?? null;
+
+        $sent = $this->mailService->sendHtml($recipients, $subject, $html, null, [
+            'cc' => $cc,
+            'inReplyTo' => $thread['in_reply_to'],
+            'references' => $thread['references'],
+            'replyTo' => is_string($replyTo) ? $replyTo : null,
+        ]);
+
+        if (!$sent || $ticketId <= 0) {
+            return $sent;
+        }
+
+        $messageId = $this->mailService->getLastMessageId();
+
+        if ($messageId === null || $messageId === '') {
+            return true;
+        }
+
+        $this->ticketModel->recordEmailMessage(
+            $ticketId,
+            $messageId,
+            Ticket::EMAIL_DIRECTION_OUTBOUND,
+            $thread['in_reply_to'],
+            $commentId,
+            $config['from_address'] ?? null,
+            $subject
+        );
+
+        return true;
+    }
+
+    /**
+     * @param array<string, mixed> $ticket
+     *
+     * @return array{in_reply_to: ?string, references: list<string>}
+     */
+    private function resolveThreadHeaders(array $ticket): array
+    {
+        $ticketId = (int) ($ticket['id'] ?? 0);
+        $chain = $ticketId > 0 ? $this->ticketModel->emailReferenceChain($ticketId) : [];
+        $rootMessageId = trim((string) ($ticket['email_message_id'] ?? ''));
+
+        if ($rootMessageId !== '' && !in_array($rootMessageId, $chain, true)) {
+            array_unshift($chain, $rootMessageId);
+        }
+
+        $inReplyTo = $chain !== [] ? $chain[array_key_last($chain)] : ($rootMessageId !== '' ? $rootMessageId : null);
+
+        return [
+            'in_reply_to' => $inReplyTo,
+            'references' => $chain,
+        ];
+    }
+
+    /**
+     * @param list<string> $exclude
+     *
+     * @return list<string>
+     */
+    private function followerCcForTicket(int $ticketId, array $exclude = []): array
+    {
+        if ($ticketId <= 0) {
+            return [];
+        }
+
+        $excludeMap = [];
+
+        foreach ($exclude as $email) {
+            $normalized = strtolower(trim($email));
+
+            if ($normalized !== '') {
+                $excludeMap[$normalized] = true;
+            }
+        }
+
+        $cc = [];
+
+        foreach ($this->ticketModel->followerEmailsForTicket($ticketId) as $email) {
+            $normalized = strtolower(trim($email));
+
+            if ($normalized === '' || isset($excludeMap[$normalized])) {
+                continue;
+            }
+
+            $cc[] = $normalized;
+        }
+
+        return array_values(array_unique($cc));
     }
 
     /**

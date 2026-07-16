@@ -10,6 +10,9 @@ composer.phar
 /storage/documents/*
 !/storage/documents/.htaccess
 !/storage/documents/.gitkeep
+/storage/ticket_attachments/*
+!/storage/ticket_attachments/.htaccess
+!/storage/ticket_attachments/.gitkeep
 
 # IDE and editor files
 /.vscode/

@@ -14,10 +14,17 @@ class MailService
     /** @var list<string> */
     private array $smtpTrace = [];
 
+    private ?string $lastMessageId = null;
+
     public function __construct(
         private readonly MailConfigResolver $configResolver,
         private readonly AppLogger $appLogger
     ) {
+    }
+
+    public function getLastMessageId(): ?string
+    {
+        return $this->lastMessageId;
     }
 
     /**
@@ -41,10 +48,23 @@ class MailService
     /**
      * @param list<string> $recipients
      * @param array<string, mixed>|null $configOverride
+     * @param array{
+     *     cc?: list<string>|null,
+     *     messageId?: string|null,
+     *     inReplyTo?: string|null,
+     *     references?: string|list<string>|null,
+     *     replyTo?: string|null
+     * } $options
      */
-    public function sendHtml(array $recipients, string $subject, string $htmlBody, ?array $configOverride = null): bool
-    {
+    public function sendHtml(
+        array $recipients,
+        string $subject,
+        string $htmlBody,
+        ?array $configOverride = null,
+        array $options = []
+    ): bool {
         $this->smtpTrace = [];
+        $this->lastMessageId = null;
         $config = $this->configResolver->resolve($configOverride);
 
         $this->appLogger->log('mail.dispatch.start', [
@@ -75,11 +95,19 @@ class MailService
         }
 
         $normalizedRecipients = $this->normalizeRecipients($recipients);
+        $normalizedCc = $this->normalizeRecipients(
+            is_array($options['cc'] ?? null) ? $options['cc'] : []
+        );
+        $normalizedCc = array_values(array_filter(
+            $normalizedCc,
+            static fn (string $email): bool => !in_array($email, $normalizedRecipients, true)
+        ));
 
         $this->appLogger->log('mail.dispatch.recipients', [
             'subject' => $subject,
             'stage' => 'recipients_normalized',
             'recipients' => $normalizedRecipients,
+            'cc' => $normalizedCc,
         ]);
 
         if ($normalizedRecipients === []) {
@@ -91,6 +119,11 @@ class MailService
 
             return false;
         }
+
+        $messageId = $this->normalizeMessageId(
+            isset($options['messageId']) ? (string) $options['messageId'] : null,
+            $config['from_address']
+        );
 
         try {
             $mailer = $this->createMailer($config);
@@ -105,6 +138,36 @@ class MailService
                 $mailer->addAddress($recipient);
             }
 
+            foreach ($normalizedCc as $cc) {
+                $mailer->addCC($cc);
+            }
+
+            $replyTo = trim((string) ($options['replyTo'] ?? ''));
+
+            if ($replyTo === '' && $config['support_addresses'] !== []) {
+                $replyTo = (string) $config['support_addresses'][0];
+            }
+
+            if ($replyTo !== '' && filter_var($replyTo, FILTER_VALIDATE_EMAIL) !== false) {
+                $mailer->addReplyTo($replyTo);
+            }
+
+            $mailer->MessageID = $messageId;
+
+            $inReplyTo = $this->normalizeOptionalMessageId(
+                isset($options['inReplyTo']) ? (string) $options['inReplyTo'] : null
+            );
+
+            if ($inReplyTo !== null) {
+                $mailer->addCustomHeader('In-Reply-To', $inReplyTo);
+            }
+
+            $references = $this->normalizeReferences($options['references'] ?? null);
+
+            if ($references !== '') {
+                $mailer->addCustomHeader('References', $references);
+            }
+
             $mailer->Subject = $subject;
             $mailer->Body = $htmlBody;
             $mailer->AltBody = trim(strip_tags(str_replace(['<br>', '<br/>', '<br />'], "\n", $htmlBody)));
@@ -112,13 +175,17 @@ class MailService
             $this->appLogger->log('mail.dispatch.sending', [
                 'subject' => $subject,
                 'stage' => 'smtp_send',
+                'message_id' => $messageId,
             ]);
 
             $mailer->send();
+            $this->lastMessageId = $messageId;
 
             $this->appLogger->log('mail.sent', [
                 'subject' => $subject,
                 'recipients' => $normalizedRecipients,
+                'cc' => $normalizedCc,
+                'message_id' => $messageId,
                 'stage' => 'completed',
             ]);
 
@@ -225,5 +292,67 @@ class MailService
         }
 
         return array_keys($unique);
+    }
+
+    private function normalizeMessageId(?string $messageId, string $fromAddress): string
+    {
+        $normalized = $this->normalizeOptionalMessageId($messageId);
+
+        if ($normalized !== null) {
+            return $normalized;
+        }
+
+        $domain = 'localhost';
+
+        if (str_contains($fromAddress, '@')) {
+            $domain = substr($fromAddress, (int) strrpos($fromAddress, '@') + 1) ?: 'localhost';
+        }
+
+        return '<' . bin2hex(random_bytes(12)) . '.' . time() . '@' . $domain . '>';
+    }
+
+    private function normalizeOptionalMessageId(?string $messageId): ?string
+    {
+        $value = trim((string) $messageId);
+
+        if ($value === '') {
+            return null;
+        }
+
+        if ($value[0] !== '<') {
+            $value = '<' . $value;
+        }
+
+        if (!str_ends_with($value, '>')) {
+            $value .= '>';
+        }
+
+        return $value;
+    }
+
+    /**
+     * @param mixed $references
+     */
+    private function normalizeReferences(mixed $references): string
+    {
+        if (is_string($references)) {
+            $parts = preg_split('/\s+/', trim($references)) ?: [];
+        } elseif (is_array($references)) {
+            $parts = $references;
+        } else {
+            return '';
+        }
+
+        $normalized = [];
+
+        foreach ($parts as $part) {
+            $messageId = $this->normalizeOptionalMessageId(is_string($part) ? $part : null);
+
+            if ($messageId !== null) {
+                $normalized[$messageId] = true;
+            }
+        }
+
+        return implode(' ', array_keys($normalized));
     }
 }

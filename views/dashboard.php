@@ -379,6 +379,17 @@ $i18nScript = json_encode([
     'quality_document_delete_confirm' => __('quality_document_delete_confirm'),
     'ticket_comment_create_success' => __('ticket_comment_create_success'),
     'ticket_comment_create_error' => __('ticket_comment_create_error'),
+    'ticket_internal_note_label' => __('ticket_internal_note_label'),
+    'ticket_internal_badge' => __('ticket_internal_badge'),
+    'ticket_attachments_label' => __('ticket_attachments_label'),
+    'ticket_attachment_download' => __('ticket_attachment_download'),
+    'ticket_followers_update_success' => __('ticket_followers_update_success'),
+    'ticket_followers_update_error' => __('ticket_followers_update_error'),
+    'ticket_follower_email_invalid' => __('ticket_follower_email_invalid'),
+    'ticket_transfer_success' => __('ticket_transfer_success'),
+    'ticket_transfer_error' => __('ticket_transfer_error'),
+    'ticket_transfer_confirm' => __('ticket_transfer_confirm'),
+    'ticket_transfer_invalid_payload' => __('ticket_transfer_invalid_payload'),
     'helpdesk_filter_all' => __('helpdesk_filter_all'),
     'helpdesk_filter_active' => __('helpdesk_filter_active'),
     'helpdesk_filter_closed' => __('helpdesk_filter_closed'),
@@ -2089,19 +2100,113 @@ $i18nScript = json_encode([
                             <option value="critical"><?= htmlspecialchars(__('ticket_priority_critical'), ENT_QUOTES, 'UTF-8') ?></option>
                         </select>
                     </label>
+                    <label class="block sm:col-span-2">
+                        <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('ticket_transfer_note_label'), ENT_QUOTES, 'UTF-8') ?></span>
+                        <input type="text" x-model="ticketTransferNote" class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4">
+                    </label>
                 </div>
+                <div class="mt-3 flex justify-end">
+                    <button
+                        type="button"
+                        @click="transferTicketCategory()"
+                        :disabled="isTicketTransferSubmitting || !ticketDetailForm.category_id"
+                        class="rounded-xl border border-zinc-300 bg-white px-4 py-2.5 text-sm font-medium text-zinc-800 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                        <span x-show="isTicketTransferSubmitting"><?= htmlspecialchars(__('saving'), ENT_QUOTES, 'UTF-8') ?></span>
+                        <span x-show="!isTicketTransferSubmitting"><?= htmlspecialchars(__('ticket_transfer_action'), ENT_QUOTES, 'UTF-8') ?></span>
+                    </button>
+                </div>
+
+                <div class="mt-6 rounded-xl border border-zinc-200 px-4 py-4">
+                    <h4 class="text-sm font-semibold text-zinc-900"><?= htmlspecialchars(__('ticket_followers_title'), ENT_QUOTES, 'UTF-8') ?></h4>
+                    <p class="mt-1 text-xs text-zinc-500"><?= htmlspecialchars(__('ticket_followers_subtitle'), ENT_QUOTES, 'UTF-8') ?></p>
+                    <div class="mt-3 flex flex-wrap gap-2" x-show="ticketFollowers.length > 0">
+                        <template x-for="(follower, index) in ticketFollowers" :key="followerKey(follower, index)">
+                            <span class="inline-flex items-center gap-2 rounded-lg border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-xs text-zinc-700">
+                                <span x-text="followerLabel(follower)"></span>
+                                <button type="button" class="text-zinc-400 hover:text-rose-600" @click="removeTicketFollower(index)">&times;</button>
+                            </span>
+                        </template>
+                    </div>
+                    <div class="mt-3 grid gap-3 sm:grid-cols-2">
+                        <div class="relative">
+                            <input
+                                type="text"
+                                x-model="ticketFollowerSearchQuery"
+                                @input.debounce.300ms="searchTicketFollowerPersonnel()"
+                                @focus="showTicketFollowerResults = true"
+                                @blur="hideTicketFollowerResultsSoon()"
+                                class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4"
+                                placeholder="<?= htmlspecialchars(__('ticket_follower_search_placeholder'), ENT_QUOTES, 'UTF-8') ?>"
+                            >
+                            <div
+                                x-show="showTicketFollowerResults && ticketFollowerSearchResults.length > 0"
+                                x-cloak
+                                class="absolute z-10 mt-1 max-h-48 w-full overflow-y-auto rounded-xl border border-zinc-200 bg-white shadow-lg"
+                            >
+                                <template x-for="person in ticketFollowerSearchResults" :key="person.id">
+                                    <button
+                                        type="button"
+                                        class="block w-full px-3 py-2 text-left text-sm hover:bg-zinc-50"
+                                        @mousedown.prevent="addPersonnelFollower(person)"
+                                    >
+                                        <span class="font-medium text-zinc-900" x-text="person.name"></span>
+                                        <span class="ml-2 text-xs text-zinc-500" x-text="person.email"></span>
+                                    </button>
+                                </template>
+                            </div>
+                        </div>
+                        <div class="flex gap-2">
+                            <input
+                                type="email"
+                                x-model="ticketFollowerEmailInput"
+                                @keydown.enter.prevent="addEmailFollower()"
+                                class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4"
+                                placeholder="<?= htmlspecialchars(__('ticket_follower_email_placeholder'), ENT_QUOTES, 'UTF-8') ?>"
+                            >
+                            <button type="button" @click="addEmailFollower()" class="rounded-xl border border-zinc-300 px-3 py-2.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50"><?= htmlspecialchars(__('ticket_follower_add_email'), ENT_QUOTES, 'UTF-8') ?></button>
+                        </div>
+                    </div>
+                    <p x-show="ticketFollowersError" x-cloak class="mt-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700" x-text="ticketFollowersError"></p>
+                    <div class="mt-3 flex justify-end">
+                        <button
+                            type="button"
+                            @click="saveTicketFollowers()"
+                            :disabled="isTicketFollowersSubmitting"
+                            class="rounded-xl bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                            <span x-show="isTicketFollowersSubmitting"><?= htmlspecialchars(__('saving'), ENT_QUOTES, 'UTF-8') ?></span>
+                            <span x-show="!isTicketFollowersSubmitting"><?= htmlspecialchars(__('ticket_followers_save'), ENT_QUOTES, 'UTF-8') ?></span>
+                        </button>
+                    </div>
+                </div>
+
                 <div class="mt-6">
                     <h4 class="text-sm font-semibold text-zinc-900"><?= htmlspecialchars(__('ticket_comments_title'), ENT_QUOTES, 'UTF-8') ?></h4>
                     <p x-show="ticketDetailLoading" x-cloak class="mt-4 text-sm text-zinc-500"><?= htmlspecialchars(__('helpdesk_loading'), ENT_QUOTES, 'UTF-8') ?></p>
                     <p x-show="!ticketDetailLoading && ticketComments.length === 0" x-cloak class="mt-4 rounded-xl border border-dashed border-zinc-200 bg-zinc-50 px-4 py-3 text-sm text-zinc-500"><?= htmlspecialchars(__('ticket_no_comments'), ENT_QUOTES, 'UTF-8') ?></p>
                     <div x-show="!ticketDetailLoading && ticketComments.length > 0" x-cloak class="mt-4 space-y-3">
                         <template x-for="comment in ticketComments" :key="comment.id">
-                            <article class="rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3">
+                            <article class="rounded-xl border px-4 py-3" :class="comment.is_internal ? 'border-amber-200 bg-amber-50' : 'border-zinc-200 bg-zinc-50'">
                                 <div class="flex flex-wrap items-center gap-2">
                                     <span class="text-sm font-medium text-zinc-900" x-text="comment.author_name"></span>
+                                    <span
+                                        x-show="comment.is_internal"
+                                        class="rounded bg-amber-100 px-1.5 py-0.5 text-[11px] font-medium uppercase tracking-wide text-amber-800"
+                                    ><?= htmlspecialchars(__('ticket_internal_badge'), ENT_QUOTES, 'UTF-8') ?></span>
                                     <time class="text-xs text-zinc-400" x-text="formatTicketDate(comment.created_at)"></time>
                                 </div>
                                 <p class="mt-2 whitespace-pre-wrap text-sm text-zinc-700" x-text="comment.body"></p>
+                                <div class="mt-2 space-y-1" x-show="Array.isArray(comment.attachments) && comment.attachments.length > 0">
+                                    <p class="text-xs font-medium uppercase tracking-wide text-zinc-400"><?= htmlspecialchars(__('ticket_attachments_label'), ENT_QUOTES, 'UTF-8') ?></p>
+                                    <template x-for="attachment in comment.attachments" :key="attachment.id">
+                                        <a
+                                            class="block text-sm text-sky-700 hover:underline"
+                                            :href="ticketAttachmentUrl(attachment.id)"
+                                            x-text="attachment.original_filename"
+                                        ></a>
+                                    </template>
+                                </div>
                             </article>
                         </template>
                     </div>
@@ -2109,6 +2214,20 @@ $i18nScript = json_encode([
                         <label class="block">
                             <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('ticket_comment_label'), ENT_QUOTES, 'UTF-8') ?></span>
                             <textarea x-model="ticketCommentBody" rows="3" class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4"></textarea>
+                        </label>
+                        <label class="inline-flex items-center gap-2 text-sm text-zinc-700">
+                            <input type="checkbox" x-model="ticketCommentIsInternal" class="rounded border-zinc-300 text-zinc-900 focus:ring-zinc-500">
+                            <span><?= htmlspecialchars(__('ticket_internal_note_label'), ENT_QUOTES, 'UTF-8') ?></span>
+                        </label>
+                        <label class="block">
+                            <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('ticket_attachments_label'), ENT_QUOTES, 'UTF-8') ?></span>
+                            <input
+                                type="file"
+                                multiple
+                                accept=".pdf,.docx,.xlsx,.pptx,.txt,.csv,.jpg,.jpeg,.png,.gif,.webp,image/*"
+                                @change="onTicketCommentFilesChange($event)"
+                                class="block w-full text-sm text-zinc-600 file:mr-3 file:rounded-lg file:border-0 file:bg-zinc-100 file:px-3 file:py-2 file:text-sm file:font-medium file:text-zinc-700 hover:file:bg-zinc-200"
+                            >
                         </label>
                         <p x-show="ticketCommentError" x-cloak class="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700" x-text="ticketCommentError"></p>
                         <button type="submit" :disabled="isTicketCommentSubmitting" class="inline-flex items-center gap-2 rounded-xl bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60">
@@ -2496,8 +2615,19 @@ $i18nScript = json_encode([
             isTicketDetailSubmitting: false,
             ticketComments: [],
             ticketCommentBody: '',
+            ticketCommentIsInternal: false,
+            ticketCommentFiles: [],
             ticketCommentError: '',
             isTicketCommentSubmitting: false,
+            ticketFollowers: [],
+            ticketFollowerSearchQuery: '',
+            ticketFollowerSearchResults: [],
+            ticketFollowerEmailInput: '',
+            showTicketFollowerResults: false,
+            ticketFollowersError: '',
+            isTicketFollowersSubmitting: false,
+            ticketTransferNote: '',
+            isTicketTransferSubmitting: false,
             assetOptions: Array.isArray(window.__assetOptions) ? window.__assetOptions : [],
             assetLicenses: [],
             assetLicensesLoading: false,
@@ -2733,6 +2863,7 @@ $i18nScript = json_encode([
             portalTicketDetail: null,
             portalTicketComments: [],
             portalTicketCommentBody: '',
+            portalTicketCommentFiles: [],
             portalTicketCommentError: '',
             isPortalTicketCommentSubmitting: false,
             resolvePageTitle() {
@@ -3500,6 +3631,7 @@ $i18nScript = json_encode([
                 this.portalTicketDetail = ticket;
                 this.portalTicketComments = [];
                 this.portalTicketCommentBody = '';
+                this.portalTicketCommentFiles = [];
                 this.portalTicketCommentError = '';
 
                 try {
@@ -3524,6 +3656,10 @@ $i18nScript = json_encode([
                 this.isPortalTicketDetailOpen = false;
                 this.portalTicketDetail = null;
             },
+            onPortalTicketCommentFilesChange(event) {
+                const files = event?.target?.files;
+                this.portalTicketCommentFiles = files ? Array.from(files) : [];
+            },
             async submitPortalTicketComment() {
                 if (!this.portalTicketDetail?.id || this.isPortalTicketCommentSubmitting) {
                     return;
@@ -3540,10 +3676,17 @@ $i18nScript = json_encode([
                 this.portalTicketCommentError = '';
 
                 try {
+                    const formData = new FormData();
+                    formData.append('body', body);
+
+                    (this.portalTicketCommentFiles || []).forEach((file) => {
+                        formData.append('files[]', file);
+                    });
+
                     const response = await fetch(`/api/tickets/${this.portalTicketDetail.id}/comments`, {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-                        body: JSON.stringify({ body }),
+                        headers: { Accept: 'application/json' },
+                        body: formData,
                     });
                     const result = await this.parseApiResponse(response);
 
@@ -3553,6 +3696,7 @@ $i18nScript = json_encode([
                     }
 
                     this.portalTicketCommentBody = '';
+                    this.portalTicketCommentFiles = [];
                     this.portalTicketComments = this.appendTicketComment(this.portalTicketComments, result.data);
                     this.showPortalToast(this.apiErrorMessage(result, window.__i18n.ticket_comment_create_success));
                 } catch (error) {
@@ -7727,7 +7871,15 @@ $i18nScript = json_encode([
                 };
                 this.ticketComments = [];
                 this.ticketCommentBody = '';
+                this.ticketCommentIsInternal = false;
+                this.ticketCommentFiles = [];
                 this.ticketCommentError = '';
+                this.ticketFollowers = [];
+                this.ticketFollowerSearchQuery = '';
+                this.ticketFollowerSearchResults = [];
+                this.ticketFollowerEmailInput = '';
+                this.ticketFollowersError = '';
+                this.ticketTransferNote = '';
 
                 try {
                     const response = await fetch(`/api/tickets/${ticket.id}`, {
@@ -7747,6 +7899,9 @@ $i18nScript = json_encode([
                         category_id: result.data.category_id ? String(result.data.category_id) : '',
                     };
                     this.ticketComments = Array.isArray(result.data?.comments) ? result.data.comments : [];
+                    this.ticketFollowers = Array.isArray(result.data?.followers)
+                        ? result.data.followers.map((follower) => ({ ...follower }))
+                        : [];
                 } catch (error) {
                     this.ticketsError = window.__i18n.helpdesk_network_error;
                 } finally {
@@ -7756,8 +7911,220 @@ $i18nScript = json_encode([
             closeTicketDetail() {
                 this.isTicketDetailSubmitting = false;
                 this.isTicketCommentSubmitting = false;
+                this.isTicketFollowersSubmitting = false;
+                this.isTicketTransferSubmitting = false;
                 this.isTicketDetailOpen = false;
                 this.ticketDetail = null;
+            },
+            ticketAttachmentUrl(attachmentId) {
+                if (!this.ticketDetail?.id || !attachmentId) {
+                    return '#';
+                }
+
+                return `/api/tickets/${this.ticketDetail.id}/attachments/${attachmentId}/download`;
+            },
+            onTicketCommentFilesChange(event) {
+                const files = event?.target?.files;
+                this.ticketCommentFiles = files ? Array.from(files) : [];
+            },
+            followerKey(follower, index) {
+                return [
+                    follower?.personnel_id || '',
+                    follower?.user_id || '',
+                    follower?.email || '',
+                    index,
+                ].join(':');
+            },
+            followerLabel(follower) {
+                if (follower?.email) {
+                    return follower.email;
+                }
+
+                if (follower?.personnel_name) {
+                    return follower.personnel_name;
+                }
+
+                if (follower?.user_name) {
+                    return follower.user_name;
+                }
+
+                if (follower?.personnel_id) {
+                    return `#${follower.personnel_id}`;
+                }
+
+                if (follower?.user_id) {
+                    return `U#${follower.user_id}`;
+                }
+
+                return '—';
+            },
+            async searchTicketFollowerPersonnel() {
+                const query = (this.ticketFollowerSearchQuery || '').trim();
+
+                if (query.length < 2) {
+                    this.ticketFollowerSearchResults = [];
+                    return;
+                }
+
+                const result = await this.fetchPersonnelSearchOptions(query);
+                this.ticketFollowerSearchResults = Array.isArray(result.data) ? result.data : [];
+            },
+            hideTicketFollowerResultsSoon() {
+                window.setTimeout(() => {
+                    this.showTicketFollowerResults = false;
+                }, 150);
+            },
+            addPersonnelFollower(person) {
+                if (!person?.id) {
+                    return;
+                }
+
+                const exists = this.ticketFollowers.some(
+                    (follower) => Number(follower.personnel_id) === Number(person.id)
+                );
+
+                if (!exists) {
+                    this.ticketFollowers.push({
+                        personnel_id: Number(person.id),
+                        user_id: null,
+                        email: person.email || null,
+                        personnel_name: person.name || '',
+                        notify_email: true,
+                    });
+                }
+
+                this.ticketFollowerSearchQuery = '';
+                this.ticketFollowerSearchResults = [];
+                this.showTicketFollowerResults = false;
+            },
+            addEmailFollower() {
+                const email = (this.ticketFollowerEmailInput || '').trim().toLowerCase();
+
+                if (email === '' || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+                    this.ticketFollowersError = window.__i18n.ticket_follower_email_invalid;
+                    return;
+                }
+
+                const exists = this.ticketFollowers.some(
+                    (follower) => String(follower.email || '').toLowerCase() === email
+                );
+
+                if (!exists) {
+                    this.ticketFollowers.push({
+                        personnel_id: null,
+                        user_id: null,
+                        email,
+                        notify_email: true,
+                    });
+                }
+
+                this.ticketFollowerEmailInput = '';
+                this.ticketFollowersError = '';
+            },
+            removeTicketFollower(index) {
+                this.ticketFollowers.splice(index, 1);
+            },
+            async saveTicketFollowers() {
+                if (!this.ticketDetail?.id || this.isTicketFollowersSubmitting) {
+                    return;
+                }
+
+                this.isTicketFollowersSubmitting = true;
+                this.ticketFollowersError = '';
+
+                try {
+                    const items = this.ticketFollowers.map((follower) => ({
+                        personnel_id: follower.personnel_id ? Number(follower.personnel_id) : null,
+                        user_id: follower.user_id ? Number(follower.user_id) : null,
+                        email: follower.email || null,
+                        notify_email: follower.notify_email !== false,
+                    }));
+
+                    const response = await fetch(`/api/tickets/${this.ticketDetail.id}/followers`, {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            Accept: 'application/json',
+                        },
+                        body: JSON.stringify({ items }),
+                    });
+                    const result = await this.parseApiResponse(response);
+
+                    if (!response.ok) {
+                        this.ticketFollowersError = this.apiErrorMessage(
+                            result,
+                            window.__i18n.ticket_followers_update_error
+                        );
+                        return;
+                    }
+
+                    this.ticketFollowers = Array.isArray(result.data)
+                        ? result.data.map((follower) => ({ ...follower }))
+                        : [];
+                    this.ticketsSuccessMessage = this.apiErrorMessage(
+                        result,
+                        window.__i18n.ticket_followers_update_success
+                    );
+                } catch (error) {
+                    this.ticketFollowersError = window.__i18n.helpdesk_network_error;
+                } finally {
+                    this.isTicketFollowersSubmitting = false;
+                }
+            },
+            async transferTicketCategory() {
+                if (!this.ticketDetail?.id || this.isTicketTransferSubmitting) {
+                    return;
+                }
+
+                const categoryId = Number(this.ticketDetailForm.category_id || 0);
+
+                if (!categoryId) {
+                    this.ticketsError = window.__i18n.ticket_transfer_invalid_payload;
+                    return;
+                }
+
+                if (!window.confirm(window.__i18n.ticket_transfer_confirm)) {
+                    return;
+                }
+
+                this.isTicketTransferSubmitting = true;
+
+                try {
+                    const response = await fetch(`/api/tickets/${this.ticketDetail.id}/transfer`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            Accept: 'application/json',
+                        },
+                        body: JSON.stringify({
+                            category_id: categoryId,
+                            note: (this.ticketTransferNote || '').trim() || null,
+                        }),
+                    });
+                    const result = await this.parseApiResponse(response);
+
+                    if (!response.ok) {
+                        this.ticketsError = this.apiErrorMessage(result, window.__i18n.ticket_transfer_error);
+                        return;
+                    }
+
+                    this.ticketDetail = result.data;
+                    this.ticketDetailForm.category_id = result.data?.category_id
+                        ? String(result.data.category_id)
+                        : '';
+                    this.ticketComments = Array.isArray(result.data?.comments) ? result.data.comments : this.ticketComments;
+                    this.ticketTransferNote = '';
+                    this.ticketsSuccessMessage = this.apiErrorMessage(
+                        result,
+                        window.__i18n.ticket_transfer_success
+                    );
+                    this.mergeTicketIntoList(result.data);
+                    this.fetchTickets({ silent: true });
+                } catch (error) {
+                    this.ticketsError = window.__i18n.helpdesk_network_error;
+                } finally {
+                    this.isTicketTransferSubmitting = false;
+                }
             },
             openTicketLinkedAsset() {
                 const ticket = this.ticketDetail;
@@ -7838,13 +8205,20 @@ $i18nScript = json_encode([
                 this.ticketCommentError = '';
 
                 try {
+                    const formData = new FormData();
+                    formData.append('body', body);
+                    formData.append('is_internal', this.ticketCommentIsInternal ? '1' : '0');
+
+                    (this.ticketCommentFiles || []).forEach((file) => {
+                        formData.append('files[]', file);
+                    });
+
                     const response = await fetch(`/api/tickets/${this.ticketDetail.id}/comments`, {
                         method: 'POST',
                         headers: {
-                            'Content-Type': 'application/json',
                             Accept: 'application/json',
                         },
-                        body: JSON.stringify({ body }),
+                        body: formData,
                     });
                     const result = await this.parseApiResponse(response);
 
@@ -7854,6 +8228,8 @@ $i18nScript = json_encode([
                     }
 
                     this.ticketCommentBody = '';
+                    this.ticketCommentIsInternal = false;
+                    this.ticketCommentFiles = [];
                     this.ticketComments = this.appendTicketComment(this.ticketComments, result.data);
                     this.ticketsSuccessMessage = this.apiErrorMessage(result, window.__i18n.ticket_comment_create_success);
                 } catch (error) {
