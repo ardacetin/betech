@@ -34,7 +34,7 @@
 - Tip bazında özel alanlar ve donanım bileşenleri.
 - Tip farkındalığı olan bağımsız **Ekle / Düzenle** sayfaları (`/inventory/add`, `/inventory/edit`).
 - Envanter için CSV/Excel **içe aktarma** ve **dışa aktarma**.
-- QR etiketleri ve `/assets/view/{id}` genel (mobil) varlık sayfası.
+- Opak ve iptal edilebilir token’lı QR etiketleri: `/assets/view/{token}` (yönetici alan görünürlüğünü kontrol eder; seri/MAC varsayılan gizli).
 - Zimmet akışları: atama, depoya iade, personele devir, işten çıkış geri toplama, zimmet tutanağı (Quill HTML şablonları).
 
 ### Yardım masası
@@ -336,7 +336,8 @@ betech/
 - Üretimde HTTPS kullanın; `APP_URL` kanonik HTTPS adresi olsun.
 - Oturum çerezleri: `HttpOnly`, `SameSite=Lax`, HTTPS’te `Secure`.
 - Giriş hız sınırlama (`login_attempts`), durum değiştiren isteklerde CSRF, güvenlik başlıkları (HTTPS’te HSTS, CSP, frame deny).
-- `APP_ENV=production` ve `DISPLAY_ERROR_DETAILS=false` ayarlayın.
+- `APP_ENV=production` ve `DISPLAY_ERROR_DETAILS=false` ayarlayın; fatal/çalışma zamanı ayrıntıları kullanıcıya değil log’a yazılsın.
+- QR envanter sayfaları ardışık ID yerine tahmin edilemeyen token kullanır; bağlantıyı envanter detayından iptal/yenileyin, erişim ve alanları Ayarlar’dan yönetin.
 - Cloudflare/WAF arkasındaysanız `TRUSTED_PROXIES` tanımlayın.
 - `.env` ve sırları asla commit etmeyin; MySQL/LDAP erişimini yalnızca uygulama sunucularına açın.
 

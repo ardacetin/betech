@@ -22,6 +22,7 @@ use App\Services\LicenseFilterSchemaService;
 use App\Services\ListPagination;
 use App\Services\Auth\SessionAuthService;
 use App\Services\EndUserContextService;
+use App\Services\AssetPublicViewService;
 use App\Services\NetworkPortMappingService;
 use App\Services\QrCodeService;
 use App\Services\Translator;
@@ -56,6 +57,7 @@ class HealthController
         private readonly AssetCustomField $assetCustomFieldModel,
         private readonly AssetTypeTableService $assetTypeTableService,
         private readonly NetworkPortMappingService $networkPortMappingService,
+        private readonly AssetPublicViewService $assetPublicViewService,
     ) {
     }
 
@@ -188,6 +190,7 @@ class HealthController
             $locations = $this->locationModel->findAll();
             $analytics = $this->analyticsService->getDashboardStats();
             $settings = $this->settingModel->getAdminBundle();
+            $settings['qr_public_view_config'] = $this->assetPublicViewService->getConfig();
             $globalCustomFields = $activeAssetTypeId !== null
                 ? array_map(
                     static fn (array $field): array => [

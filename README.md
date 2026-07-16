@@ -34,7 +34,7 @@ Built with **PHP 8.1+**, **Slim 4**, **Medoo**, **MySQL**, **Alpine.js**, and **
 - Custom fields and hardware components are managed per asset type.
 - Standalone **Add / Edit** inventory pages (`/inventory/add`, `/inventory/edit`) with type-aware forms.
 - CSV/Excel **import** and **export** for inventory records.
-- QR labels and a public mobile asset page at `/assets/view/{id}`.
+- QR labels with opaque, revocable public tokens at `/assets/view/{token}` (admin-controlled visible fields; serial/MAC hidden by default).
 - Assignment workflows: assign, return to storage, direct transfer, offboarding reclaim, zimmet tutanak (Quill HTML templates).
 
 ### Help desk (Yardım Masası)
@@ -336,7 +336,8 @@ betech/
 - Prefer HTTPS in production; set `APP_URL` to the canonical HTTPS origin.
 - Session cookies: `HttpOnly`, `SameSite=Lax`, `Secure` on HTTPS.
 - Login rate limiting (`login_attempts`), CSRF on state-changing requests, security headers (HSTS on HTTPS, CSP, frame deny).
-- Set `APP_ENV=production` and `DISPLAY_ERROR_DETAILS=false`.
+- Set `APP_ENV=production` and `DISPLAY_ERROR_DETAILS=false` so fatal/runtime details are logged, not shown to users.
+- QR asset pages use unguessable tokens (not sequential IDs); revoke/regenerate links from the asset detail modal and configure access/fields under Settings.
 - Configure `TRUSTED_PROXIES` when behind Cloudflare/WAF.
 - Never commit `.env` or secrets; keep MySQL/LDAP reachable only from app servers.
 

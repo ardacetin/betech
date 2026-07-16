@@ -242,6 +242,45 @@ declare(strict_types=1);
         </article>
 
         <article class="rounded-2xl border border-zinc-200 bg-white p-6 shadow-soft">
+            <h3 class="text-sm font-semibold text-zinc-900"><?= htmlspecialchars(__('settings_qr_public_view_title'), ENT_QUOTES, 'UTF-8') ?></h3>
+            <p class="mt-1 text-xs text-zinc-500"><?= htmlspecialchars(__('settings_qr_public_view_hint'), ENT_QUOTES, 'UTF-8') ?></p>
+
+            <div class="mt-5 grid gap-4 sm:grid-cols-2">
+                <label class="block sm:col-span-2">
+                    <span class="mb-1 block text-xs font-medium text-zinc-600"><?= htmlspecialchars(__('settings_qr_access_mode'), ENT_QUOTES, 'UTF-8') ?></span>
+                    <select x-model="settingsForm.qr_public_view_config.access_mode" class="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-400">
+                        <option value="public"><?= htmlspecialchars(__('settings_qr_access_public'), ENT_QUOTES, 'UTF-8') ?></option>
+                        <option value="authenticated"><?= htmlspecialchars(__('settings_qr_access_authenticated'), ENT_QUOTES, 'UTF-8') ?></option>
+                        <option value="network"><?= htmlspecialchars(__('settings_qr_access_network'), ENT_QUOTES, 'UTF-8') ?></option>
+                    </select>
+                </label>
+                <label class="block sm:col-span-2" x-show="settingsForm.qr_public_view_config.access_mode === 'network'" x-cloak>
+                    <span class="mb-1 block text-xs font-medium text-zinc-600"><?= htmlspecialchars(__('settings_qr_allowed_cidrs'), ENT_QUOTES, 'UTF-8') ?></span>
+                    <textarea
+                        x-model="qrAllowedCidrsText"
+                        rows="3"
+                        class="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-400"
+                        placeholder="10.0.0.0/8&#10;192.168.0.0/16"
+                    ></textarea>
+                    <p class="mt-1 text-xs text-zinc-400"><?= htmlspecialchars(__('settings_qr_allowed_cidrs_hint'), ENT_QUOTES, 'UTF-8') ?></p>
+                </label>
+            </div>
+
+            <div class="mt-5">
+                <p class="text-xs font-medium uppercase tracking-wide text-zinc-500"><?= htmlspecialchars(__('settings_qr_visible_fields'), ENT_QUOTES, 'UTF-8') ?></p>
+                <p class="mt-1 text-xs text-zinc-400"><?= htmlspecialchars(__('settings_qr_visible_fields_hint'), ENT_QUOTES, 'UTF-8') ?></p>
+                <div class="mt-3 grid gap-2 sm:grid-cols-2">
+                    <template x-for="field in qrPublicViewFieldOptions" :key="field.key">
+                        <label class="inline-flex items-center gap-2 rounded-lg border border-zinc-200 px-3 py-2 text-sm text-zinc-700">
+                            <input type="checkbox" class="rounded border-zinc-300 text-zinc-900 focus:ring-zinc-500" x-model="settingsForm.qr_public_view_config.visible_fields[field.key]">
+                            <span x-text="field.label"></span>
+                        </label>
+                    </template>
+                </div>
+            </div>
+        </article>
+
+        <article class="rounded-2xl border border-zinc-200 bg-white p-6 shadow-soft">
             <h3 class="text-sm font-semibold text-zinc-900"><?= htmlspecialchars(__('settings_zimmet_title'), ENT_QUOTES, 'UTF-8') ?></h3>
             <p class="mt-1 text-xs text-zinc-500"><?= htmlspecialchars(__('settings_zimmet_hint'), ENT_QUOTES, 'UTF-8') ?></p>
             <p class="mt-1 text-xs text-zinc-400"><?= htmlspecialchars(__('settings_zimmet_rich_hint'), ENT_QUOTES, 'UTF-8') ?></p>

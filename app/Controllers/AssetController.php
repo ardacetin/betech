@@ -15,6 +15,7 @@ use App\Models\Setting;
 use App\Models\User;
 use App\Services\AssetCsvImportService;
 use App\Services\AssetFilterSchemaService;
+use App\Services\AssetPublicViewService;
 use App\Services\AssetTypeTableService;
 use App\Services\InventoryImportService;
 use App\Services\ListPagination;
@@ -64,6 +65,7 @@ class AssetController
         private readonly AssetCustomField $assetCustomFieldModel,
         private readonly AssetTypeTableService $assetTypeTableService,
         private readonly NetworkPortMappingService $networkPortMappingService,
+        private readonly AssetPublicViewService $assetPublicViewService,
     ) {
     }
 
@@ -182,6 +184,12 @@ class AssetController
         try {
             $asset = $this->assetModel->create($coreFields, $assetTypeId);
             $this->logAssetCreation($request, $asset, $coreFields);
+
+            try {
+                $this->assetPublicViewService->ensureActiveToken((int) ($asset['id'] ?? 0));
+            } catch (\Throwable) {
+                // Token creation must not block asset creation.
+            }
         } catch (\RuntimeException $exception) {
             return $this->jsonResponse($response, 422, [
                 'status' => 'error',
@@ -193,6 +201,72 @@ class AssetController
             'status' => 'success',
             'message' => 'Asset created successfully.',
             'data' => $asset,
+        ]);
+    }
+
+    public function regeneratePublicViewToken(
+        ServerRequestInterface $request,
+        ResponseInterface $response,
+        array $args
+    ): ResponseInterface {
+        $assetId = (int) ($args['id'] ?? 0);
+
+        if ($assetId <= 0 || $this->assetModel->findById($assetId) === null) {
+            return $this->jsonResponse($response, 404, [
+                'status' => 'error',
+                'message' => __('assign_asset_not_found'),
+            ]);
+        }
+
+        try {
+            $token = $this->assetPublicViewService->rotateToken($assetId);
+        } catch (\Throwable $exception) {
+            return $this->jsonResponse($response, 500, [
+                'status' => 'error',
+                'message' => $exception->getMessage() !== ''
+                    ? $exception->getMessage()
+                    : __('asset_public_view_token_error'),
+            ]);
+        }
+
+        return $this->jsonResponse($response, 200, [
+            'status' => 'success',
+            'message' => __('asset_public_view_token_regenerated'),
+            'data' => [
+                'token' => $token,
+                'url' => $this->assetPublicViewService->buildPublicUrl($token),
+            ],
+        ]);
+    }
+
+    public function revokePublicViewToken(
+        ServerRequestInterface $request,
+        ResponseInterface $response,
+        array $args
+    ): ResponseInterface {
+        $assetId = (int) ($args['id'] ?? 0);
+
+        if ($assetId <= 0 || $this->assetModel->findById($assetId) === null) {
+            return $this->jsonResponse($response, 404, [
+                'status' => 'error',
+                'message' => __('assign_asset_not_found'),
+            ]);
+        }
+
+        try {
+            $this->assetPublicViewService->revokeToken($assetId);
+        } catch (\Throwable $exception) {
+            return $this->jsonResponse($response, 500, [
+                'status' => 'error',
+                'message' => $exception->getMessage() !== ''
+                    ? $exception->getMessage()
+                    : __('asset_public_view_token_error'),
+            ]);
+        }
+
+        return $this->jsonResponse($response, 200, [
+            'status' => 'success',
+            'message' => __('asset_public_view_token_revoked'),
         ]);
     }
 
@@ -358,6 +432,12 @@ class AssetController
                     'status' => 'error',
                     'message' => 'Asset not found.',
                 ]);
+            }
+
+            try {
+                $this->assetPublicViewService->revokeToken($assetId);
+            } catch (\Throwable) {
+                // Token cleanup is best-effort after permanent delete.
             }
         } catch (\Throwable $exception) {
             return $this->jsonResponse($response, 422, [

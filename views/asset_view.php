@@ -8,7 +8,12 @@ declare(strict_types=1);
  * @var string $locale
  * @var array<string, mixed> $asset
  * @var list<array{label: string, value: string}> $attributeRows
+ * @var bool $showAssignedTo
+ * @var bool $showStatus
  */
+
+$showAssignedTo = $showAssignedTo ?? true;
+$showStatus = $showStatus ?? true;
 
 $statusStyles = [
     'ready' => 'bg-sky-50 text-sky-700 ring-sky-600/20',
@@ -43,13 +48,17 @@ $typeLabel = trim((string) ($asset['type'] ?? $asset['category_name'] ?? ''));
             </div>
 
             <div class="space-y-5 px-5 py-6">
+                <?php if ($showType || $showStatus): ?>
                 <div class="grid grid-cols-2 gap-4">
+                    <?php if ($showType): ?>
                     <div>
                         <p class="text-xs uppercase tracking-wide text-zinc-400"><?= htmlspecialchars(__('col_category'), ENT_QUOTES, 'UTF-8') ?></p>
                         <p class="mt-1 text-sm font-medium text-zinc-800">
                             <?= htmlspecialchars($typeLabel !== '' ? $typeLabel : __('unknown_category'), ENT_QUOTES, 'UTF-8') ?>
                         </p>
                     </div>
+                    <?php endif; ?>
+                    <?php if ($showStatus): ?>
                     <div>
                         <p class="text-xs uppercase tracking-wide text-zinc-400"><?= htmlspecialchars(__('col_status'), ENT_QUOTES, 'UTF-8') ?></p>
                         <p class="mt-2">
@@ -58,8 +67,11 @@ $typeLabel = trim((string) ($asset['type'] ?? $asset['category_name'] ?? ''));
                             </span>
                         </p>
                     </div>
+                    <?php endif; ?>
                 </div>
+                <?php endif; ?>
 
+                <?php if ($showAssignedTo): ?>
                 <div>
                     <p class="text-xs uppercase tracking-wide text-zinc-400"><?= htmlspecialchars(__('col_assigned_user'), ENT_QUOTES, 'UTF-8') ?></p>
                     <p class="mt-1 text-sm text-zinc-800">
@@ -70,6 +82,7 @@ $typeLabel = trim((string) ($asset['type'] ?? $asset['category_name'] ?? ''));
                         <?php endif; ?>
                     </p>
                 </div>
+                <?php endif; ?>
 
                 <?php if ($attributeRows !== []): ?>
                 <div>
