@@ -441,6 +441,7 @@ $app->group('', function ($group) use (
     $group->get('/api/licenses/{id}/assignments', [$licenseController, 'assignments']);
     $group->get('/api/ip-networks', [$ipNetworkController, 'index']);
     $group->post('/api/ip-networks', [$ipNetworkController, 'store']);
+    $group->get('/api/ip-networks/export', [$ipNetworkController, 'exportNetworks']);
     $group->get('/api/ip-networks/import/template', [$ipNetworkController, 'networkImportTemplate']);
     $group->post('/api/ip-networks/import', [$ipNetworkController, 'importNetworks']);
     $group->get('/api/ip-addresses/import/template', [$ipNetworkController, 'addressImportTemplate']);

@@ -207,6 +207,18 @@ class IpNetworkController
         ]);
     }
 
+    public function exportNetworks(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
+    {
+        $csv = $this->ipamCsvImportService->exportNetworksToCsv($this->ipNetworkModel->findAll());
+        $filename = 'ip-networks-' . date('Y-m-d') . '.csv';
+
+        $response->getBody()->write("\xEF\xBB\xBF" . $csv);
+
+        return $response
+            ->withHeader('Content-Type', 'text/csv; charset=utf-8')
+            ->withHeader('Content-Disposition', 'attachment; filename="' . $filename . '"');
+    }
+
     public function exportNetworkAddresses(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
     {
         $networkId = (int) ($args['id'] ?? 0);

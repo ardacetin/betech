@@ -97,6 +97,30 @@ class IpamCsvImportService
     }
 
     /**
+     * @param list<array<string, mixed>> $networks
+     */
+    public function exportNetworksToCsv(array $networks): string
+    {
+        $headers = ['name', 'network_address', 'cidr', 'gateway', 'vlan_id', 'description'];
+        $lines = [self::buildCsvLine($headers)];
+
+        foreach ($networks as $network) {
+            $lines[] = self::buildCsvLine([
+                (string) ($network['name'] ?? ''),
+                (string) ($network['network_address'] ?? ''),
+                (string) ($network['cidr'] ?? ''),
+                (string) ($network['gateway'] ?? ''),
+                isset($network['vlan_id']) && $network['vlan_id'] !== null && $network['vlan_id'] !== ''
+                    ? (string) $network['vlan_id']
+                    : '',
+                (string) ($network['description'] ?? ''),
+            ]);
+        }
+
+        return implode('', $lines);
+    }
+
+    /**
      * @param list<array<string, mixed>> $addresses
      */
     public function exportNetworkAddressesToCsv(array $addresses): string

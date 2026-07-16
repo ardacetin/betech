@@ -219,6 +219,11 @@ class RoleMiddleware implements MiddlewareInterface
             ],
             [
                 'methods' => ['GET'],
+                'pattern' => '/api/ip-networks/export',
+                'roles' => $operational,
+            ],
+            [
+                'methods' => ['GET'],
                 'pattern' => '/api/ip-networks/import/template',
                 'roles' => $operational,
             ],
