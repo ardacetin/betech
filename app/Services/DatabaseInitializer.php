@@ -1319,15 +1319,37 @@ class DatabaseInitializer
                 continue;
             }
 
-            if ($this->columnExists($connection, $tableName, 'total_ports')) {
+            if (!$this->columnExists($connection, $tableName, 'total_ports')) {
+                $connection->query(sprintf(
+                    'ALTER TABLE `%s` ADD COLUMN total_ports INT UNSIGNED DEFAULT 48',
+                    $this->escapeIdentifier($tableName)
+                ));
+                $warnings[] = sprintf('Added total_ports column on `%s`.', $tableName);
                 continue;
             }
 
-            $connection->query(sprintf(
-                'ALTER TABLE `%s` ADD COLUMN total_ports INT UNSIGNED DEFAULT 24',
+            // One-time bump from the old 24-port default to 48 for new and previously auto-defaulted switches.
+            $defaultStatement = $connection->query(sprintf(
+                "SELECT COLUMN_DEFAULT FROM information_schema.COLUMNS
+                 WHERE TABLE_SCHEMA = DATABASE()
+                   AND TABLE_NAME = '%s'
+                   AND COLUMN_NAME = 'total_ports'
+                 LIMIT 1",
                 $this->escapeIdentifier($tableName)
             ));
-            $warnings[] = sprintf('Added total_ports column on `%s`.', $tableName);
+            $columnDefault = $defaultStatement !== false ? $defaultStatement->fetchColumn() : null;
+
+            if ((string) $columnDefault === '24') {
+                $connection->query(sprintf(
+                    'ALTER TABLE `%s` ALTER COLUMN total_ports SET DEFAULT 48',
+                    $this->escapeIdentifier($tableName)
+                ));
+                $connection->query(sprintf(
+                    'UPDATE `%s` SET total_ports = 48 WHERE total_ports IS NULL OR total_ports = 0 OR total_ports = 24',
+                    $this->escapeIdentifier($tableName)
+                ));
+                $warnings[] = sprintf('Updated `%s` total_ports default from 24 to 48.', $tableName);
+            }
         }
 
         foreach ($this->patchSwitchAssetTypeTerminology($connection) as $warning) {

@@ -38,7 +38,7 @@ class NetworkPortMappingService
         'assets_switches' => 'switches',
     ];
 
-    private const DEFAULT_TOTAL_PORTS = 24;
+    private const DEFAULT_TOTAL_PORTS = 48;
 
     public function __construct(
         private readonly DatabaseService $databaseService,
