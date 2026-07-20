@@ -13,7 +13,9 @@ composer.phar
 
 # IDE and editor files
 /.vscode/
-/.cursor/
+/.cursor/*
+!/.cursor/skills/
+!/.cursor/skills/**
 /.idea/
 *.swp
 *.swo
