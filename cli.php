@@ -11,16 +11,35 @@ if (PHP_SAPI !== 'cli') {
 require __DIR__ . '/vendor/autoload.php';
 
 use App\Commands\FetchEmailsCommand;
+use App\Models\Asset;
+use App\Models\AssetComponent;
+use App\Models\AssetCustomField;
+use App\Models\AssetRegistry;
+use App\Models\AssetsGlobalRegistry;
+use App\Models\AssetType;
+use App\Models\AuditLog;
+use App\Models\AutomationRule;
 use App\Models\Consumable;
 use App\Models\IpNetwork;
 use App\Models\License;
 use App\Models\Personnel;
 use App\Models\Setting;
 use App\Models\Ticket;
+use App\Models\User;
 use App\Services\AppLogger;
+use App\Services\AssetColumnSchemaService;
+use App\Services\AssetMutationLogger;
+use App\Services\AssetTypeTableService;
+use App\Services\AuditChangeFormatter;
+use App\Services\AuditLogger;
+use App\Services\Auth\SessionAuthService;
+use App\Services\Automation\AutomationEngine;
 use App\Services\ClientIpResolver;
 use App\Services\DatabaseBackupService;
 use App\Services\DatabaseService;
+use App\Services\DdlIdentifierGuard;
+use App\Services\EndUserContextService;
+use App\Services\FileStorageCache;
 use App\Services\IpAddressGenerator;
 use App\Services\R2BackupStorage;
 use App\Services\Mail\DailySummaryNotificationService;
@@ -184,10 +203,78 @@ if ($command === 'backup:database') {
     exit(1);
 }
 
+if ($command === 'automation:run') {
+    $settingModel = new Setting($databaseService);
+    $mailConfigResolver = new MailConfigResolver($settingModel);
+    $mailService = new MailService($mailConfigResolver, $appLogger);
+    $viewRenderer = new ViewRenderer($rootPath . '/views');
+    $ddlIdentifierGuard = new DdlIdentifierGuard();
+    $fileStorageCache = new FileStorageCache($rootPath . '/storage/cache');
+    $assetTypeTableService = new AssetTypeTableService($databaseService, $ddlIdentifierGuard, $fileStorageCache);
+    $assetTypeModel = new AssetType($databaseService, $assetTypeTableService, $ddlIdentifierGuard);
+    $assetRegistryModel = new AssetRegistry($databaseService);
+    $assetsGlobalRegistryModel = new AssetsGlobalRegistry($databaseService);
+    $assetCustomFieldModel = new AssetCustomField($databaseService, $assetTypeTableService, $assetTypeModel, $ddlIdentifierGuard);
+    $assetComponentModel = new AssetComponent($databaseService, $assetTypeModel, $assetTypeTableService);
+    $userModel = new User($databaseService);
+    $personnelModel = new Personnel($databaseService);
+    $endUserContextService = new EndUserContextService(new SessionAuthService(), $userModel, $personnelModel);
+    $auditLogger = new AuditLogger(new AuditLog($databaseService), new AuditChangeFormatter(), $clientIpResolver);
+    $assetMutationLogger = new AssetMutationLogger($auditLogger, $endUserContextService, $userModel, $assetTypeModel);
+    $assetColumnSchemaService = new AssetColumnSchemaService(
+        $databaseService,
+        $settingModel,
+        $assetTypeTableService,
+        $assetCustomFieldModel,
+        $assetComponentModel,
+        $fileStorageCache
+    );
+    $assetModel = new Asset(
+        $databaseService,
+        $assetColumnSchemaService,
+        $assetTypeTableService,
+        $assetRegistryModel,
+        $assetsGlobalRegistryModel,
+        $assetTypeModel,
+        $assetMutationLogger
+    );
+
+    $engine = new AutomationEngine(
+        new AutomationRule($databaseService),
+        new License($databaseService),
+        new Consumable($databaseService),
+        $assetModel,
+        $settingModel,
+        $personnelModel,
+        $userModel,
+        $mailService,
+        $mailConfigResolver,
+        $viewRenderer,
+        $appLogger,
+        (string) $appConfig['url']
+    );
+
+    $result = $engine->runScheduled();
+
+    if ($result['skipped'] && !$result['success']) {
+        echo $result['message'] . "\n";
+        exit(0);
+    }
+
+    if ($result['success']) {
+        echo $result['message'] . "\n";
+        exit(0);
+    }
+
+    fwrite(STDERR, $result['message'] . "\n");
+    exit(1);
+}
+
 fwrite(STDERR, "Usage:\n");
 fwrite(STDERR, "  php cli.php make:admin <username>\n");
 fwrite(STDERR, "  php cli.php mail:fetch_inbox\n");
 fwrite(STDERR, "  php cli.php notify:daily_summary\n");
 fwrite(STDERR, "  php cli.php notify:health_scan\n");
 fwrite(STDERR, "  php cli.php backup:database\n");
+fwrite(STDERR, "  php cli.php automation:run\n");
 exit(1);

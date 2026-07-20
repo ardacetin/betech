@@ -68,6 +68,14 @@ declare(strict_types=1);
         <?php if ($canAccessSettings): ?>
         <button
             type="button"
+            @click="settingsTab = 'automation'; fetchAutomationRules()"
+            class="rounded-lg px-3 py-2 text-sm font-medium transition"
+            :class="settingsTab === 'automation' ? 'bg-zinc-900 text-white' : 'text-zinc-600 hover:bg-zinc-100'"
+        >
+            <?= htmlspecialchars(__('settings_tab_automation'), ENT_QUOTES, 'UTF-8') ?>
+        </button>
+        <button
+            type="button"
             @click="settingsTab = 'smtp'"
             class="rounded-lg px-3 py-2 text-sm font-medium transition"
             :class="settingsTab === 'smtp' ? 'bg-zinc-900 text-white' : 'text-zinc-600 hover:bg-zinc-100'"

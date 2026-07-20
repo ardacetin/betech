@@ -22,6 +22,7 @@ use App\Controllers\QualityDocumentController;
 use App\Controllers\DashboardController;
 use App\Controllers\EndUserController;
 use App\Controllers\ReportController;
+use App\Controllers\AutomationRuleController;
 use App\Controllers\TicketCategoryController;
 use App\Controllers\TicketController;
 use App\Controllers\HealthController;
@@ -57,6 +58,7 @@ use App\Models\IpAddress;
 use App\Models\IpNetwork;
 use App\Models\License;
 use App\Models\Location;
+use App\Models\AutomationRule;
 use App\Models\TicketCategory;
 use App\Models\Ticket;
 use App\Models\NetworkPortMapping;
@@ -65,6 +67,7 @@ use App\Models\Personnel;
 use App\Models\User;
 use App\Services\AnalyticsService;
 use App\Services\AppLogger;
+use App\Services\Automation\AutomationEngine;
 use App\Services\AssetColumnSchemaService;
 use App\Services\AssetMutationLogger;
 use App\Services\DdlIdentifierGuard;
@@ -315,6 +318,22 @@ $qualityDocumentController = new QualityDocumentController(
     $appLogger
 );
 $ticketModel = new Ticket($databaseService, $assetsGlobalRegistryModel, $assetRegistryModel);
+$automationRuleModel = new AutomationRule($databaseService);
+$automationEngine = new AutomationEngine(
+    $automationRuleModel,
+    $licenseModel,
+    $consumableModel,
+    $assetModel,
+    $settingModel,
+    $personnelModel,
+    $userModel,
+    $mailService,
+    $mailConfigResolver,
+    $viewRenderer,
+    $appLogger,
+    $appConfig['url']
+);
+$automationRuleController = new AutomationRuleController($automationRuleModel, $automationEngine);
 $ticketNotificationService = new TicketNotificationService(
     $mailService,
     $mailConfigResolver,
@@ -330,6 +349,7 @@ $ticketController = new TicketController(
     $sessionAuthService,
     $endUserContextService,
     $ticketNotificationService,
+    $automationEngine,
     $auditLogger
 );
 $endUserController = new EndUserController($assetModel, $endUserContextService);
@@ -394,7 +414,8 @@ $app->group('', function ($group) use (
     $userController,
     $assetController,
     $inventoryImportController,
-    $networkPortMappingController
+    $networkPortMappingController,
+    $automationRuleController
 ): void {
     $group->get('/api/analytics/summary', [$analyticsController, 'summary']);
     $group->get('/api/reports/helpdesk', [$reportController, 'helpDesk']);
@@ -402,6 +423,11 @@ $app->group('', function ($group) use (
     $group->get('/api/settings', [$settingsController, 'show']);
     $group->put('/api/settings', [$settingsController, 'update']);
     $group->post('/api/settings/smtp/test', [$settingsController, 'sendTestSmtp']);
+    $group->get('/api/automation-rules', [$automationRuleController, 'index']);
+    $group->post('/api/automation-rules', [$automationRuleController, 'store']);
+    $group->put('/api/automation-rules/{id}', [$automationRuleController, 'update']);
+    $group->delete('/api/automation-rules/{id}', [$automationRuleController, 'destroy']);
+    $group->post('/api/automation-rules/run', [$automationRuleController, 'runNow']);
     $group->get('/api/backups', [$backupController, 'index']);
     $group->post('/api/backups', [$backupController, 'store']);
     $group->get('/api/backups/{filename}/download', [$backupController, 'download']);

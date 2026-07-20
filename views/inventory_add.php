@@ -90,6 +90,8 @@ declare(strict_types=1);
                 building: '',
                 mac_address_1: '',
                 mac_address_2: '',
+                warranty_expires_at: '',
+                total_ports: 48,
             },
             isSubmitting: false,
             errorMessage: '',
@@ -109,11 +111,39 @@ declare(strict_types=1);
                 }
             },
             canSubmit() {
-                return this.selectedTypeId !== '' && String(this.form.name || '').trim() !== '';
+                if (this.selectedTypeId === '' || String(this.form.name || '').trim() === '') {
+                    return false;
+                }
+
+                if (this.showTotalPortsField()) {
+                    const ports = Number(this.form.total_ports);
+
+                    return Number.isFinite(ports) && ports >= 1 && ports <= 512;
+                }
+
+                return true;
+            },
+            selectedAssetType() {
+                return (this.assetTypes || []).find((type) => String(type.id) === String(this.selectedTypeId)) || null;
+            },
+            isSwitchType() {
+                const slug = String(this.selectedAssetType()?.slug || '').toLowerCase().replace(/-/g, '_');
+
+                return ['switchler', 'ag_anahtarlari', 'switches', 'ag_anahtari_switch'].includes(slug)
+                    || slug.includes('switch')
+                    || slug.includes('anahtar');
+            },
+            showTotalPortsField() {
+                if (this.isSwitchType()) {
+                    return true;
+                }
+
+                return (Array.isArray(this.inventorySchema) ? this.inventorySchema : [])
+                    .some((column) => column.column === 'total_ports');
             },
             extensionColumns() {
                 return (Array.isArray(this.inventorySchema) ? this.inventorySchema : [])
-                    .filter((column) => column.is_custom || column.is_component);
+                    .filter((column) => (column.is_custom || column.is_component) && column.column !== 'total_ports');
             },
             syncExtensionFields() {
                 this.extensionColumns().forEach((field) => {
@@ -121,6 +151,10 @@ declare(strict_types=1);
                         this.form[field.column] = '';
                     }
                 });
+
+                if (this.showTotalPortsField() && (!this.form.total_ports || Number(this.form.total_ports) <= 0)) {
+                    this.form.total_ports = 48;
+                }
             },
             async onTypeChange() {
                 this.schemaError = '';
@@ -164,13 +198,17 @@ declare(strict_types=1);
                     asset_type_id: Number(this.selectedTypeId),
                 };
 
-                ['model', 'brand', 'serial_number', 'type', 'location', 'building', 'mac_address_1', 'mac_address_2'].forEach((field) => {
+                ['model', 'brand', 'serial_number', 'type', 'location', 'building', 'mac_address_1', 'mac_address_2', 'warranty_expires_at'].forEach((field) => {
                     const value = String(this.form[field] || '').trim();
 
                     if (value !== '') {
                         payload[field] = value;
                     }
                 });
+
+                if (this.showTotalPortsField()) {
+                    payload.total_ports = Number(this.form.total_ports) || 48;
+                }
 
                 this.extensionColumns().forEach((field) => {
                     payload[field.column] = String(this.form[field.column] || '').trim();

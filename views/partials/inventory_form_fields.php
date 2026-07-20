@@ -69,6 +69,23 @@ declare(strict_types=1);
                     <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('label_mac_address_2'), ENT_QUOTES, 'UTF-8') ?></span>
                     <input x-model="form.mac_address_2" type="text" class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 font-mono text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4">
                 </label>
+                <label class="block sm:col-span-2">
+                    <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('label_warranty_expires_at'), ENT_QUOTES, 'UTF-8') ?></span>
+                    <input x-model="form.warranty_expires_at" type="date" class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4">
+                </label>
+                <label class="block sm:col-span-2" x-show="showTotalPortsField()" x-cloak>
+                    <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('label_total_ports'), ENT_QUOTES, 'UTF-8') ?> <span class="text-rose-600">*</span></span>
+                    <input
+                        x-model.number="form.total_ports"
+                        type="number"
+                        min="1"
+                        max="512"
+                        step="1"
+                        :required="showTotalPortsField()"
+                        class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4"
+                    >
+                    <p class="mt-1.5 text-xs text-zinc-500"><?= htmlspecialchars(__('label_total_ports_hint'), ENT_QUOTES, 'UTF-8') ?></p>
+                </label>
             </div>
         </section>
 

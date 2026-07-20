@@ -124,6 +124,10 @@ class DatabaseInitializer
                 foreach ($this->patchIpam($connection) as $warning) {
                     $warnings[] = $warning;
                 }
+
+                foreach ($this->patchAutomationRules($connection) as $warning) {
+                    $warnings[] = $warning;
+                }
             }
 
             foreach ($this->patchPersonnelSeparation($connection) as $warning) {
@@ -1315,15 +1319,39 @@ class DatabaseInitializer
                 continue;
             }
 
-            if ($this->columnExists($connection, $tableName, 'total_ports')) {
-                continue;
+            if (!$this->columnExists($connection, $tableName, 'total_ports')) {
+                $connection->query(sprintf(
+                    'ALTER TABLE `%s` ADD COLUMN total_ports INT UNSIGNED NOT NULL DEFAULT 48',
+                    $this->escapeIdentifier($tableName)
+                ));
+                $warnings[] = sprintf('Added total_ports column on `%s`.', $tableName);
+            } else {
+                $connection->query(sprintf(
+                    'ALTER TABLE `%s` ALTER COLUMN total_ports SET DEFAULT 48',
+                    $this->escapeIdentifier($tableName)
+                ));
+            }
+        }
+
+        // One-time: every switch previously auto-defaulted to 24 (no UI existed to choose otherwise).
+        if ($this->settingsTableExists($connection)
+            && !$this->settingsKeyExists($connection, 'switch_total_ports_migrated_to_48')
+        ) {
+            foreach ($this->resolveSwitchTypeTableNames($connection) as $tableName) {
+                if (!$this->tableExists($connection, $tableName)
+                    || !$this->columnExists($connection, $tableName, 'total_ports')
+                ) {
+                    continue;
+                }
+
+                $connection->query(sprintf(
+                    'UPDATE `%s` SET total_ports = 48 WHERE total_ports IS NULL OR total_ports <= 0 OR total_ports = 24',
+                    $this->escapeIdentifier($tableName)
+                ));
+                $warnings[] = sprintf('Migrated `%s` switch port counts from legacy 24 to 48.', $tableName);
             }
 
-            $connection->query(sprintf(
-                'ALTER TABLE `%s` ADD COLUMN total_ports INT UNSIGNED DEFAULT 24',
-                $this->escapeIdentifier($tableName)
-            ));
-            $warnings[] = sprintf('Added total_ports column on `%s`.', $tableName);
+            $this->upsertSetting($connection, 'switch_total_ports_migrated_to_48', '1');
         }
 
         foreach ($this->patchSwitchAssetTypeTerminology($connection) as $warning) {
@@ -1460,6 +1488,77 @@ class DatabaseInitializer
     private function getTicketsTableMigrationPath(): string
     {
         return dirname($this->schemaPath) . '/migrations/014_create_tickets_tables.sql';
+    }
+
+    /**
+     * Self-heal automation rule tables and warranty_expires_at columns.
+     *
+     * @param object $connection Medoo instance
+     *
+     * @return list<string>
+     */
+    private function patchAutomationRules(object $connection): array
+    {
+        $warnings = [];
+        $migrationPath = dirname($this->schemaPath) . '/migrations/034_automation_rules_and_warranty.sql';
+
+        if (!$this->tableExists($connection, 'automation_rules') && is_readable($migrationPath)) {
+            $this->applySqlFile($connection, $migrationPath);
+            $warnings[] = 'Self-healed database: created automation_rules and automation_rule_firings tables.';
+        } elseif ($this->tableExists($connection, 'automation_rules')
+            && !$this->tableExists($connection, 'automation_rule_firings')
+            && is_readable($migrationPath)
+        ) {
+            $this->applySqlFile($connection, $migrationPath);
+            $warnings[] = 'Self-healed database: created automation_rule_firings table.';
+        }
+
+        if ($this->tableExists($connection, 'assets')
+            && !$this->columnExists($connection, 'assets', 'warranty_expires_at')
+        ) {
+            $afterColumn = $this->columnExists($connection, 'assets', 'mac_address_2')
+                ? 'mac_address_2'
+                : ($this->columnExists($connection, 'assets', 'assigned_to') ? 'assigned_to' : 'status');
+
+            $connection->query(sprintf(
+                'ALTER TABLE assets ADD COLUMN warranty_expires_at DATE NULL DEFAULT NULL AFTER `%s`',
+                $this->escapeIdentifier($afterColumn)
+            ));
+            $warnings[] = 'Self-healed assets table: added warranty_expires_at column.';
+        }
+
+        $tablesStatement = $connection->query("SHOW TABLES LIKE 'assets\\_%'");
+
+        if ($tablesStatement !== false) {
+            while ($row = $tablesStatement->fetch(\PDO::FETCH_NUM)) {
+                $tableName = (string) ($row[0] ?? '');
+
+                if ($tableName === '' || $tableName === 'assets_global_registry') {
+                    continue;
+                }
+
+                if (!preg_match('/^assets_[a-z0-9_]+$/', $tableName)) {
+                    continue;
+                }
+
+                if ($this->columnExists($connection, $tableName, 'warranty_expires_at')) {
+                    continue;
+                }
+
+                $afterColumn = $this->columnExists($connection, $tableName, 'mac_address_2')
+                    ? 'mac_address_2'
+                    : ($this->columnExists($connection, $tableName, 'assigned_to') ? 'assigned_to' : 'status');
+
+                $connection->query(sprintf(
+                    'ALTER TABLE `%s` ADD COLUMN warranty_expires_at DATE NULL DEFAULT NULL AFTER `%s`',
+                    $this->escapeIdentifier($tableName),
+                    $this->escapeIdentifier($afterColumn)
+                ));
+                $warnings[] = sprintf('Self-healed `%s`: added warranty_expires_at column.', $tableName);
+            }
+        }
+
+        return $warnings;
     }
 
     /**
@@ -1635,6 +1734,52 @@ class DatabaseInitializer
         $statement = $connection->query("SHOW TABLES LIKE 'settings'");
 
         return $statement !== false && $statement->rowCount() > 0;
+    }
+
+    /**
+     * @param object $connection Medoo instance
+     */
+    private function settingsKeyExists(object $connection, string $key): bool
+    {
+        if (!$this->settingsTableExists($connection)) {
+            return false;
+        }
+
+        $statement = $connection->query(sprintf(
+            "SELECT 1 FROM settings WHERE `key` = '%s' LIMIT 1",
+            str_replace("'", "''", $key)
+        ));
+
+        return $statement !== false && $statement->rowCount() > 0;
+    }
+
+    /**
+     * @param object $connection Medoo instance
+     */
+    private function upsertSetting(object $connection, string $key, string $value): void
+    {
+        if (!$this->settingsTableExists($connection)) {
+            return;
+        }
+
+        $escapedKey = str_replace("'", "''", $key);
+        $escapedValue = str_replace("'", "''", $value);
+
+        if ($this->settingsKeyExists($connection, $key)) {
+            $connection->query(sprintf(
+                "UPDATE settings SET `value` = '%s' WHERE `key` = '%s'",
+                $escapedValue,
+                $escapedKey
+            ));
+
+            return;
+        }
+
+        $connection->query(sprintf(
+            "INSERT INTO settings (`key`, `value`) VALUES ('%s', '%s')",
+            $escapedKey,
+            $escapedValue
+        ));
     }
 
     /**

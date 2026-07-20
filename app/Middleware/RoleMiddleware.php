@@ -89,6 +89,21 @@ class RoleMiddleware implements MiddlewareInterface
             ],
             [
                 'methods' => ['GET', 'POST'],
+                'pattern' => '/api/automation-rules',
+                'roles' => [User::ROLE_ADMIN],
+            ],
+            [
+                'methods' => ['PUT', 'DELETE'],
+                'pattern' => '/api/automation-rules/{id}',
+                'roles' => [User::ROLE_ADMIN],
+            ],
+            [
+                'methods' => ['POST'],
+                'pattern' => '/api/automation-rules/run',
+                'roles' => [User::ROLE_ADMIN],
+            ],
+            [
+                'methods' => ['GET', 'POST'],
                 'pattern' => '/api/backups',
                 'roles' => [User::ROLE_ADMIN],
             ],

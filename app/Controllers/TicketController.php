@@ -12,6 +12,8 @@ use App\Services\AuditLogger;
 use App\Services\Auth\SessionAuthService;
 use App\Services\EndUserContextService;
 use App\Services\ListPagination;
+use App\Services\Automation\AutomationEngine;
+use App\Services\DeferredTaskRunner;
 use App\Services\Mail\TicketNotificationService;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
@@ -25,6 +27,7 @@ class TicketController
         private readonly SessionAuthService $sessionAuthService,
         private readonly EndUserContextService $endUserContextService,
         private readonly TicketNotificationService $ticketNotificationService,
+        private readonly AutomationEngine $automationEngine,
         private readonly AuditLogger $auditLogger
     ) {
     }
@@ -186,6 +189,7 @@ class TicketController
         }
 
         $this->safeDeferNewTicketAlert($ticket);
+        $this->safeDeferAutomationTicketCreated($ticket);
 
         $this->auditLogger->logFromRequest(
             $request,
@@ -427,6 +431,20 @@ class TicketController
             $this->ticketNotificationService->deferNewTicketAlert($ticket);
         } catch (\Throwable) {
             // Notification scheduling must never block ticket creation.
+        }
+    }
+
+    /**
+     * @param array<string, mixed> $ticket
+     */
+    private function safeDeferAutomationTicketCreated(array $ticket): void
+    {
+        try {
+            DeferredTaskRunner::defer(function () use ($ticket): void {
+                $this->automationEngine->handleTicketCreated($ticket);
+            });
+        } catch (\Throwable) {
+            // Automation must never block ticket creation.
         }
     }
 
