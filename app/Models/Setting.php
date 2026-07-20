@@ -81,6 +81,7 @@ class Setting
      *     active_auth_driver: string,
      *     zimmet_template: string,
      *     custom_fields: list<array<string, mixed>>,
+     *     landing_content: array{hero_title: string, hero_subtitle: string, hero_cta_label: string},
      *     ldap_config: array<string, mixed>,
      *     google_config: array<string, mixed>,
      *     login_config: array<string, mixed>,
@@ -95,11 +96,40 @@ class Setting
             'active_auth_driver' => $this->get('active_auth_driver', 'local') ?? 'local',
             'zimmet_template' => $this->get('zimmet_template', '') ?? '',
             'custom_fields' => is_array($customFields) ? $customFields : [],
+            'landing_content' => $this->getLandingContent(),
             'ldap_config' => $this->getLdapConfigForAdmin(),
             'google_config' => $this->getGoogleConfigForAdmin(),
             'login_config' => $this->getLoginConfigForAdmin(),
             'smtp_config' => $this->getSmtpConfigForAdmin(),
         ];
+    }
+
+    /**
+     * Public-safe landing page copy (no secrets).
+     *
+     * @return array{
+     *     hero_title: string,
+     *     hero_subtitle: string,
+     *     hero_cta_label: string
+     * }
+     */
+    public function getLandingContent(): array
+    {
+        return [
+            'hero_title' => trim((string) ($this->get('landing_hero_title', '') ?? '')),
+            'hero_subtitle' => trim((string) ($this->get('landing_hero_subtitle', '') ?? '')),
+            'hero_cta_label' => trim((string) ($this->get('landing_hero_cta_label', '') ?? '')),
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     */
+    public function saveLandingContent(array $payload): void
+    {
+        $this->set('landing_hero_title', trim((string) ($payload['hero_title'] ?? '')));
+        $this->set('landing_hero_subtitle', trim((string) ($payload['hero_subtitle'] ?? '')));
+        $this->set('landing_hero_cta_label', trim((string) ($payload['hero_cta_label'] ?? '')));
     }
 
     /**

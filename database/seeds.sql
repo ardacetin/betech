@@ -141,6 +141,18 @@ INSERT INTO settings (`key`, value) VALUES
 (
     'azure_sso_client_secret',
     ''
+),
+(
+    'landing_hero_title',
+    ''
+),
+(
+    'landing_hero_subtitle',
+    ''
+),
+(
+    'landing_hero_cta_label',
+    ''
 )
 ON DUPLICATE KEY UPDATE
     value = IF(settings.value IS NULL OR settings.value = '', VALUES(value), settings.value);

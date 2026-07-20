@@ -97,6 +97,10 @@ class SettingsController
             $changedSections[] = 'smtp_config';
         }
 
+        if (array_key_exists('landing_content', $payload)) {
+            $changedSections[] = 'landing_content';
+        }
+
         if (array_key_exists('active_auth_driver', $payload)) {
             $this->settingModel->set(
                 'active_auth_driver',
@@ -140,6 +144,10 @@ class SettingsController
 
         if (array_key_exists('smtp_config', $payload) && is_array($payload['smtp_config'])) {
             $this->settingModel->saveSmtpConfig($payload['smtp_config']);
+        }
+
+        if (array_key_exists('landing_content', $payload) && is_array($payload['landing_content'])) {
+            $this->settingModel->saveLandingContent($payload['landing_content']);
         }
 
         if ($changedSections !== []) {
@@ -323,6 +331,28 @@ class SettingsController
             } else {
                 foreach ($this->validateSmtpConfig($payload['smtp_config']) as $field => $messages) {
                     $errors[$field] = $messages;
+                }
+            }
+        }
+
+        if (array_key_exists('landing_content', $payload)) {
+            if (!is_array($payload['landing_content'])) {
+                $errors['landing_content'][] = __('settings_landing_validation_object');
+            } else {
+                $title = trim((string) ($payload['landing_content']['hero_title'] ?? ''));
+                $subtitle = trim((string) ($payload['landing_content']['hero_subtitle'] ?? ''));
+                $cta = trim((string) ($payload['landing_content']['hero_cta_label'] ?? ''));
+
+                if (mb_strlen($title) > 180) {
+                    $errors['landing_content'][] = __('settings_landing_title_too_long');
+                }
+
+                if (mb_strlen($subtitle) > 500) {
+                    $errors['landing_content'][] = __('settings_landing_subtitle_too_long');
+                }
+
+                if (mb_strlen($cta) > 80) {
+                    $errors['landing_content'][] = __('settings_landing_cta_too_long');
                 }
             }
         }

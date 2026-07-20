@@ -2541,6 +2541,11 @@ $i18nScript = json_encode([
                 custom_fields: Array.isArray(window.__settings?.custom_fields)
                     ? JSON.parse(JSON.stringify(window.__settings.custom_fields))
                     : [],
+                landing_content: {
+                    hero_title: window.__settings?.landing_content?.hero_title || '',
+                    hero_subtitle: window.__settings?.landing_content?.hero_subtitle || '',
+                    hero_cta_label: window.__settings?.landing_content?.hero_cta_label || '',
+                },
                 ldap_config: {
                     host: window.__settings?.ldap_config?.host || '',
                     port: window.__settings?.ldap_config?.port || '389',
@@ -8315,6 +8320,7 @@ $i18nScript = json_encode([
                             active_auth_driver: this.settingsForm.active_auth_driver,
                             zimmet_template: this.settingsForm.zimmet_template,
                             custom_fields: this.prepareCustomFieldsForSave(),
+                            landing_content: this.settingsForm.landing_content,
                             ldap_config: this.settingsForm.ldap_config,
                             google_config: this.settingsForm.google_config,
                             login_config: this.settingsForm.login_config,
@@ -8340,6 +8346,14 @@ $i18nScript = json_encode([
                         ? result.data.custom_fields
                         : this.settingsForm.custom_fields;
                     window.__globalCustomFields = this.globalCustomFields;
+
+                    if (result.data?.landing_content) {
+                        this.settingsForm.landing_content = {
+                            hero_title: result.data.landing_content.hero_title || '',
+                            hero_subtitle: result.data.landing_content.hero_subtitle || '',
+                            hero_cta_label: result.data.landing_content.hero_cta_label || '',
+                        };
+                    }
 
                     if (result.data?.ldap_config) {
                         this.settingsForm.ldap_config = {

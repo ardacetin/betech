@@ -95,6 +95,44 @@ declare(strict_types=1);
 
     <form x-show="settingsTab === 'general'" @submit.prevent="saveSettings" class="space-y-6">
         <article class="rounded-2xl border border-zinc-200 bg-white p-6 shadow-soft">
+            <h3 class="text-sm font-semibold text-zinc-900"><?= htmlspecialchars(__('settings_landing_title'), ENT_QUOTES, 'UTF-8') ?></h3>
+            <p class="mt-1 text-xs text-zinc-500"><?= htmlspecialchars(__('settings_landing_hint'), ENT_QUOTES, 'UTF-8') ?></p>
+
+            <div class="mt-5 grid gap-4">
+                <label class="block">
+                    <span class="mb-1 block text-xs font-medium text-zinc-600"><?= htmlspecialchars(__('settings_landing_hero_title'), ENT_QUOTES, 'UTF-8') ?></span>
+                    <input
+                        type="text"
+                        maxlength="180"
+                        x-model="settingsForm.landing_content.hero_title"
+                        class="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-400"
+                        placeholder="<?= htmlspecialchars(__('landing_default_hero_title'), ENT_QUOTES, 'UTF-8') ?>"
+                    >
+                </label>
+                <label class="block">
+                    <span class="mb-1 block text-xs font-medium text-zinc-600"><?= htmlspecialchars(__('settings_landing_hero_subtitle'), ENT_QUOTES, 'UTF-8') ?></span>
+                    <textarea
+                        rows="3"
+                        maxlength="500"
+                        x-model="settingsForm.landing_content.hero_subtitle"
+                        class="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-400"
+                        placeholder="<?= htmlspecialchars(__('landing_default_hero_subtitle'), ENT_QUOTES, 'UTF-8') ?>"
+                    ></textarea>
+                </label>
+                <label class="block sm:max-w-md">
+                    <span class="mb-1 block text-xs font-medium text-zinc-600"><?= htmlspecialchars(__('settings_landing_hero_cta'), ENT_QUOTES, 'UTF-8') ?></span>
+                    <input
+                        type="text"
+                        maxlength="80"
+                        x-model="settingsForm.landing_content.hero_cta_label"
+                        class="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-400"
+                        placeholder="<?= htmlspecialchars(__('landing_default_hero_cta'), ENT_QUOTES, 'UTF-8') ?>"
+                    >
+                </label>
+            </div>
+        </article>
+
+        <article class="rounded-2xl border border-zinc-200 bg-white p-6 shadow-soft">
             <h3 class="text-sm font-semibold text-zinc-900"><?= htmlspecialchars(__('settings_auth_title'), ENT_QUOTES, 'UTF-8') ?></h3>
             <p class="mt-1 text-xs text-zinc-500"><?= htmlspecialchars(__('settings_auth_hint'), ENT_QUOTES, 'UTF-8') ?></p>
 

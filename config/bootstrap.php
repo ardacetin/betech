@@ -26,6 +26,7 @@ use App\Controllers\AutomationRuleController;
 use App\Controllers\TicketCategoryController;
 use App\Controllers\TicketController;
 use App\Controllers\HealthController;
+use App\Controllers\LandingController;
 use App\Controllers\InventoryFormController;
 use App\Controllers\InventoryImportController;
 use App\Controllers\NetworkPortMappingController;
@@ -141,10 +142,12 @@ $auditLogModel = new AuditLog($databaseService);
 $auditChangeFormatter = new AuditChangeFormatter();
 $auditLogger = new AuditLogger($auditLogModel, $auditChangeFormatter, $clientIpResolver);
 $publicPaths = [
+    '/',
     '/login',
     '/api/login',
     '/logout',
     '/assets/view/{id}',
+    '/api/knowledge-base/published',
 ];
 $app->add(new RoleMiddleware($sessionAuthService, $httpErrorResponses, $publicPaths, RoleMiddleware::defaultRules()));
 $app->add(new AuthMiddleware($sessionAuthService, $publicPaths, $personnelModel));
@@ -257,6 +260,14 @@ $inventoryImportController = new InventoryImportController(
         $turnstileVerifier
     );
 $healthController = new HealthController($appConfig, $assetModel, $assetTypeModel, $categoryModel, $viewRenderer, $qrCodeService, $analyticsService, $settingModel, $userModel, $personnelModel, $sessionAuthService, $endUserContextService, $locationModel, $assetFilterSchemaService, $licenseModel, $licenseFilterSchemaService, $consumableModel, $consumableFilterSchemaService, $assetCustomFieldModel, $assetTypeTableService, $networkPortMappingService);
+$landingController = new LandingController(
+    $appConfig,
+    $viewRenderer,
+    $settingModel,
+    $knowledgeBaseArticleModel,
+    $sessionAuthService,
+    $healthController
+);
 $inventoryFormController = new InventoryFormController($assetModel, $assetTypeModel, $assetCustomFieldModel, $assetTypeTableService, $viewRenderer, $sessionAuthService, $userModel);
 $networkPortMappingController = new NetworkPortMappingController($networkPortMappingService);
 $switchPortController = new SwitchPortController($networkPortMappingService, $viewRenderer, $sessionAuthService, $userModel);
@@ -368,7 +379,7 @@ $app->post('/login', [$authController, 'login']);
 $app->post('/api/login', [$authController, 'apiLogin']);
 $app->get('/logout', [$authController, 'logout']);
 $app->get('/unauthorized', [$authController, 'showUnauthorized']);
-$app->get('/', [$healthController, 'index']);
+$app->get('/', [$landingController, 'index']);
 $app->get('/inventory/add', [$inventoryFormController, 'add']);
 $app->get('/inventory/edit', [$inventoryFormController, 'edit']);
 $app->get('/network/switch-ports', [$healthController, 'switchPorts']);
