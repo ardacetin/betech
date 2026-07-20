@@ -189,6 +189,10 @@ class AssetTypeTableService
         $tableName = $this->tableNameForSlug($slug);
 
         if ($this->tableExists($tableName)) {
+            if ($this->isSwitchTypeSlug($slug)) {
+                $this->ensureTotalPortsColumn($tableName);
+            }
+
             $this->ensurePerformanceIndexesForTable($tableName);
 
             return $tableName;
@@ -216,6 +220,10 @@ class AssetTypeTableService
                 'mac_address_1 VARCHAR(255) DEFAULT NULL',
                 'mac_address_2 VARCHAR(255) DEFAULT NULL',
             ]);
+        }
+
+        if ($this->isSwitchTypeSlug($normalizedSlug)) {
+            $columnDefinitions[] = 'total_ports INT UNSIGNED NOT NULL DEFAULT 48';
         }
 
         $columnDefinitions[] = 'created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP';
@@ -525,6 +533,31 @@ class AssetTypeTableService
     public function usesExtendedSchema(string $slug): bool
     {
         return $this->normalizeSlug($slug) === self::DEFAULT_EXTENDED_TYPE_SLUG;
+    }
+
+    public function isSwitchTypeSlug(string $slug): bool
+    {
+        $normalized = $this->normalizeSlug($slug);
+
+        return in_array($normalized, [
+            'switchler',
+            'ag_anahtarlari',
+            'switches',
+            'ag_anahtari_switch',
+        ], true) || str_contains($normalized, 'switch') || str_contains($normalized, 'anahtar');
+    }
+
+    public function ensureTotalPortsColumn(string $tableName): void
+    {
+        if (!$this->tableExists($tableName) || $this->columnExists($tableName, 'total_ports')) {
+            return;
+        }
+
+        $this->db()->query(sprintf(
+            'ALTER TABLE `%s` ADD COLUMN `total_ports` INT UNSIGNED NOT NULL DEFAULT 48',
+            $tableName
+        ));
+        unset($this->tableColumnsCache[$tableName]);
     }
 
     public function countRows(string $tableName): int

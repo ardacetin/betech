@@ -32,6 +32,7 @@ class Asset
         'mac_address_1',
         'mac_address_2',
         'warranty_expires_at',
+        'total_ports',
     ];
 
     public function __construct(
@@ -680,6 +681,20 @@ class Asset
 
         $insert['status'] = trim((string) ($insert['status'] ?? 'ready')) ?: 'ready';
 
+        $typeRow = $this->assetTypeModel->findById($typeId);
+        $typeSlug = is_array($typeRow) ? (string) ($typeRow['slug'] ?? '') : '';
+
+        if ($typeSlug !== '' && $this->assetTypeTableService->isSwitchTypeSlug($typeSlug)) {
+            $this->assetTypeTableService->ensureTotalPortsColumn($tableName);
+        }
+
+        if ($this->columnExists($tableName, 'total_ports')) {
+            $ports = (int) ($insert['total_ports'] ?? 48);
+            $insert['total_ports'] = $ports > 0 ? min(512, $ports) : 48;
+        } else {
+            unset($insert['total_ports']);
+        }
+
         $this->db()->insert($tableName, $insert);
 
         $insertedId = (int) $this->db()->id();
@@ -743,11 +758,16 @@ class Asset
             $updateData['status'] = $status !== '' ? $status : 'ready';
         }
 
+        if (array_key_exists('total_ports', $updateData)) {
+            $ports = (int) $updateData['total_ports'];
+            $updateData['total_ports'] = $ports > 0 ? min(512, $ports) : null;
+        }
+
         foreach (array_merge(
             ['model', 'brand', 'type', 'location', 'building', 'assigned_to', 'mac_address_1', 'mac_address_2', 'warranty_expires_at'],
             array_diff($this->columnSchemaService->getWritableColumnNames($typeId > 0 ? $typeId : null), self::FLAT_COLUMNS)
         ) as $nullableStringField) {
-            if (!array_key_exists($nullableStringField, $updateData)) {
+            if (!array_key_exists($nullableStringField, $updateData) || $nullableStringField === 'total_ports') {
                 continue;
             }
 

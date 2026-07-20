@@ -83,6 +83,7 @@ declare(strict_types=1);
                 mac_address_1: '',
                 mac_address_2: '',
                 warranty_expires_at: '',
+                total_ports: 48,
             },
             isSubmitting: false,
             errorMessage: '',
@@ -113,6 +114,7 @@ declare(strict_types=1);
                     mac_address_1: asset.mac_address_1 || '',
                     mac_address_2: asset.mac_address_2 || '',
                     warranty_expires_at: asset.warranty_expires_at || '',
+                    total_ports: Number(asset.total_ports) > 0 ? Number(asset.total_ports) : 48,
                 };
 
                 this.extensionColumns().forEach((field) => {
@@ -130,11 +132,36 @@ declare(strict_types=1);
 
             },
             canSubmit() {
-                return this.assetId > 0 && String(this.form.name || '').trim() !== '';
+                if (!(this.assetId > 0) || String(this.form.name || '').trim() === '') {
+                    return false;
+                }
+
+                if (this.showTotalPortsField()) {
+                    const ports = Number(this.form.total_ports);
+
+                    return Number.isFinite(ports) && ports >= 1 && ports <= 512;
+                }
+
+                return true;
+            },
+            isSwitchType() {
+                const slug = String(this.assetTypeSlug || '').toLowerCase().replace(/-/g, '_');
+
+                return ['switchler', 'ag_anahtarlari', 'switches', 'ag_anahtari_switch'].includes(slug)
+                    || slug.includes('switch')
+                    || slug.includes('anahtar');
+            },
+            showTotalPortsField() {
+                if (this.isSwitchType()) {
+                    return true;
+                }
+
+                return (Array.isArray(this.inventorySchema) ? this.inventorySchema : [])
+                    .some((column) => column.column === 'total_ports');
             },
             extensionColumns() {
                 return (Array.isArray(this.inventorySchema) ? this.inventorySchema : [])
-                    .filter((column) => column.is_custom || column.is_component);
+                    .filter((column) => (column.is_custom || column.is_component) && column.column !== 'total_ports');
             },
             buildPayload() {
                 const payload = {
@@ -146,6 +173,10 @@ declare(strict_types=1);
                 ['model', 'brand', 'serial_number', 'type', 'location', 'building', 'mac_address_1', 'mac_address_2', 'warranty_expires_at'].forEach((field) => {
                     payload[field] = String(this.form[field] || '').trim();
                 });
+
+                if (this.showTotalPortsField()) {
+                    payload.total_ports = Number(this.form.total_ports) || 48;
+                }
 
                 this.extensionColumns().forEach((field) => {
                     payload[field.column] = String(this.form[field.column] || '').trim();

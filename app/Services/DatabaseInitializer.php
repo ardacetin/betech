@@ -1321,35 +1321,37 @@ class DatabaseInitializer
 
             if (!$this->columnExists($connection, $tableName, 'total_ports')) {
                 $connection->query(sprintf(
-                    'ALTER TABLE `%s` ADD COLUMN total_ports INT UNSIGNED DEFAULT 48',
+                    'ALTER TABLE `%s` ADD COLUMN total_ports INT UNSIGNED NOT NULL DEFAULT 48',
                     $this->escapeIdentifier($tableName)
                 ));
                 $warnings[] = sprintf('Added total_ports column on `%s`.', $tableName);
-                continue;
-            }
-
-            // One-time bump from the old 24-port default to 48 for new and previously auto-defaulted switches.
-            $defaultStatement = $connection->query(sprintf(
-                "SELECT COLUMN_DEFAULT FROM information_schema.COLUMNS
-                 WHERE TABLE_SCHEMA = DATABASE()
-                   AND TABLE_NAME = '%s'
-                   AND COLUMN_NAME = 'total_ports'
-                 LIMIT 1",
-                $this->escapeIdentifier($tableName)
-            ));
-            $columnDefault = $defaultStatement !== false ? $defaultStatement->fetchColumn() : null;
-
-            if ((string) $columnDefault === '24') {
+            } else {
                 $connection->query(sprintf(
                     'ALTER TABLE `%s` ALTER COLUMN total_ports SET DEFAULT 48',
                     $this->escapeIdentifier($tableName)
                 ));
+            }
+        }
+
+        // One-time: every switch previously auto-defaulted to 24 (no UI existed to choose otherwise).
+        if ($this->settingsTableExists($connection)
+            && !$this->settingsKeyExists($connection, 'switch_total_ports_migrated_to_48')
+        ) {
+            foreach ($this->resolveSwitchTypeTableNames($connection) as $tableName) {
+                if (!$this->tableExists($connection, $tableName)
+                    || !$this->columnExists($connection, $tableName, 'total_ports')
+                ) {
+                    continue;
+                }
+
                 $connection->query(sprintf(
-                    'UPDATE `%s` SET total_ports = 48 WHERE total_ports IS NULL OR total_ports = 0 OR total_ports = 24',
+                    'UPDATE `%s` SET total_ports = 48 WHERE total_ports IS NULL OR total_ports <= 0 OR total_ports = 24',
                     $this->escapeIdentifier($tableName)
                 ));
-                $warnings[] = sprintf('Updated `%s` total_ports default from 24 to 48.', $tableName);
+                $warnings[] = sprintf('Migrated `%s` switch port counts from legacy 24 to 48.', $tableName);
             }
+
+            $this->upsertSetting($connection, 'switch_total_ports_migrated_to_48', '1');
         }
 
         foreach ($this->patchSwitchAssetTypeTerminology($connection) as $warning) {
@@ -1732,6 +1734,52 @@ class DatabaseInitializer
         $statement = $connection->query("SHOW TABLES LIKE 'settings'");
 
         return $statement !== false && $statement->rowCount() > 0;
+    }
+
+    /**
+     * @param object $connection Medoo instance
+     */
+    private function settingsKeyExists(object $connection, string $key): bool
+    {
+        if (!$this->settingsTableExists($connection)) {
+            return false;
+        }
+
+        $statement = $connection->query(sprintf(
+            "SELECT 1 FROM settings WHERE `key` = '%s' LIMIT 1",
+            str_replace("'", "''", $key)
+        ));
+
+        return $statement !== false && $statement->rowCount() > 0;
+    }
+
+    /**
+     * @param object $connection Medoo instance
+     */
+    private function upsertSetting(object $connection, string $key, string $value): void
+    {
+        if (!$this->settingsTableExists($connection)) {
+            return;
+        }
+
+        $escapedKey = str_replace("'", "''", $key);
+        $escapedValue = str_replace("'", "''", $value);
+
+        if ($this->settingsKeyExists($connection, $key)) {
+            $connection->query(sprintf(
+                "UPDATE settings SET `value` = '%s' WHERE `key` = '%s'",
+                $escapedValue,
+                $escapedKey
+            ));
+
+            return;
+        }
+
+        $connection->query(sprintf(
+            "INSERT INTO settings (`key`, `value`) VALUES ('%s', '%s')",
+            $escapedKey,
+            $escapedValue
+        ));
     }
 
     /**

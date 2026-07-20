@@ -44,6 +44,7 @@ class AssetController
         'mac_address_1',
         'mac_address_2',
         'warranty_expires_at',
+        'total_ports',
     ];
 
     public function __construct(
@@ -1397,6 +1398,12 @@ class AssetController
             $errors['status'][] = 'The status field cannot be empty when provided.';
         }
 
+        if (array_key_exists('total_ports', $coreFields) && $coreFields['total_ports'] !== null && $coreFields['total_ports'] !== '') {
+            if (!is_numeric($coreFields['total_ports']) || (int) $coreFields['total_ports'] < 1 || (int) $coreFields['total_ports'] > 512) {
+                $errors['total_ports'][] = __('asset_total_ports_invalid');
+            }
+        }
+
         return $errors;
     }
 
@@ -1453,6 +1460,16 @@ class AssetController
             if ($field === 'status') {
                 $status = trim((string) ($value ?? 'ready'));
                 $normalized[$field] = $status !== '' ? $status : 'ready';
+
+                continue;
+            }
+
+            if ($field === 'total_ports') {
+                if ($value === null || $value === '') {
+                    continue;
+                }
+
+                $normalized[$field] = max(1, min(512, (int) $value));
 
                 continue;
             }
