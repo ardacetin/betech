@@ -398,6 +398,17 @@ $i18nScript = json_encode([
     'quality_document_delete_success' => __('quality_document_delete_success'),
     'quality_document_delete_error' => __('quality_document_delete_error'),
     'quality_document_delete_confirm' => __('quality_document_delete_confirm'),
+    'quality_document_update_error' => __('quality_document_update_error'),
+    'quality_document_visibility_updated' => __('quality_document_visibility_updated'),
+    'announcement_fetch_error' => __('announcement_fetch_error'),
+    'announcement_title_required' => __('announcement_title_required'),
+    'announcement_create_error' => __('announcement_create_error'),
+    'announcement_create_success' => __('announcement_create_success'),
+    'announcement_update_error' => __('announcement_update_error'),
+    'announcement_update_success' => __('announcement_update_success'),
+    'announcement_delete_error' => __('announcement_delete_error'),
+    'announcement_delete_success' => __('announcement_delete_success'),
+    'announcement_delete_confirm' => __('announcement_delete_confirm'),
     'ticket_comment_create_success' => __('ticket_comment_create_success'),
     'ticket_comment_create_error' => __('ticket_comment_create_error'),
     'helpdesk_filter_all' => __('helpdesk_filter_all'),
@@ -551,13 +562,64 @@ $i18nScript = json_encode([
     'list_pagination_info' => __('list_pagination_info'),
 ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
 ?>
-<div class="min-h-screen bg-gray-50" x-data="assetDashboard()" x-init="parseInventoryRoute(); parseDocumentsRoute(); parseSwitchPortsRoute(); parseListSortFromUrl(); restoreDashboardView(); syncDocumentTitle(); $watch('activeView', () => syncDocumentTitle()); $watch('settingsTab', () => syncDocumentTitle()); if (isEndUser) { initEndUserPortal(); } else if (canManageAssets) { fetchCategories(); fetchLocations(); fetchTicketCategories(); fetchLicenses(); fetchConsumables(); fetchTickets(); if (activeView === 'dashboard') { fetchDashboardStats(); } if (activeView === 'assets') { fetchAssetTypeSchema().then(() => fetchInventoryList(false)); } if (activeView === 'switch_ports') { initSwitchPorts(); } } if (canAccessSettings && activeView === 'reports') { fetchReports(); } if (canAccessSettings && activeView === 'documents') { fetchQualityDocuments(); } this.isAssignLicenseModalOpen = false;">
-    <div class="flex h-screen overflow-hidden bg-gray-50">
-        <aside class="hidden h-full w-64 min-h-0 flex-shrink-0 flex-col border-r border-gray-200 bg-white lg:flex">
-            <div class="flex h-16 shrink-0 items-center gap-3 border-b border-gray-200 px-5">
-                <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gray-900 text-sm font-semibold text-white">B</div>
+<style>
+    :root {
+        --brand: #7a242c;
+        --brand-hover: #641c23;
+        --bg: #f7f7f5;
+        --surface: #ffffff;
+        --border: #e5e7eb;
+        --ink: #171717;
+        --muted: #667085;
+    }
+    .app-panel-shell {
+        background: var(--bg) !important;
+        color: var(--ink);
+    }
+    .app-panel-shell .panel-nav-active {
+        background: var(--brand) !important;
+        color: #fff !important;
+    }
+    .app-panel-shell .panel-nav-active svg {
+        color: #fff !important;
+    }
+    /* Align primary actions with landing brand (maroon) */
+    .app-panel-shell .bg-zinc-900,
+    .app-panel-shell .bg-gray-900,
+    .app-panel-shell .file\:bg-zinc-900::file-selector-button {
+        background-color: var(--brand) !important;
+    }
+    .app-panel-shell .hover\:bg-zinc-800:hover,
+    .app-panel-shell .hover\:bg-gray-800:hover,
+    .app-panel-shell .hover\:bg-gray-900:hover {
+        background-color: var(--brand-hover) !important;
+    }
+    .app-panel-shell .border-zinc-900 {
+        border-color: var(--brand) !important;
+    }
+    .app-panel-shell .focus\:border-zinc-900:focus {
+        border-color: var(--brand) !important;
+    }
+    .app-panel-shell .focus\:ring-zinc-900:focus,
+    .app-panel-shell .ring-zinc-900 {
+        --tw-ring-color: color-mix(in srgb, var(--brand) 35%, transparent) !important;
+    }
+    .app-panel-shell .text-zinc-900 {
+        color: var(--ink) !important;
+    }
+    .app-panel-shell .bg-gray-50,
+    .app-panel-shell .bg-zinc-50 {
+        background-color: var(--bg) !important;
+    }
+</style>
+<div class="app-panel-shell min-h-screen bg-[var(--bg)]" x-data="assetDashboard()" x-init="parseInventoryRoute(); parseDocumentsRoute(); parseSwitchPortsRoute(); parseListSortFromUrl(); restoreDashboardView(); syncDocumentTitle(); $watch('activeView', () => syncDocumentTitle()); $watch('settingsTab', () => syncDocumentTitle()); if (isEndUser) { initEndUserPortal(); } else if (canManageAssets) { fetchCategories(); fetchLocations(); fetchTicketCategories(); fetchLicenses(); fetchConsumables(); fetchTickets(); if (activeView === 'dashboard') { fetchDashboardStats(); } if (activeView === 'assets') { fetchAssetTypeSchema().then(() => fetchInventoryList(false)); } if (activeView === 'switch_ports') { initSwitchPorts(); } } if (canAccessSettings && activeView === 'reports') { fetchReports(); } if (canAccessSettings && activeView === 'documents') { fetchQualityDocuments(); } if (canAccessSettings && activeView === 'announcements') { fetchAnnouncements(); } this.isAssignLicenseModalOpen = false;">
+    <div class="flex h-screen overflow-hidden bg-[var(--bg)]">
+        <aside class="hidden h-full w-64 min-h-0 flex-shrink-0 flex-col border-r border-[var(--border)] bg-white lg:flex">
+            <div class="flex h-16 shrink-0 items-center gap-3 border-b border-[var(--border)] px-5">
+                <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[var(--brand)] text-sm font-semibold text-white">B</div>
                 <div class="flex min-w-0 flex-col">
-                    <span class="text-xl font-bold tracking-tight text-gray-900">Betech</span>
+                    <span class="text-lg font-bold tracking-tight text-[var(--ink)]"><?= htmlspecialchars(__('app_name'), ENT_QUOTES, 'UTF-8') ?></span>
+                    <span class="truncate text-[10px] text-[var(--muted)]"><?= htmlspecialchars(__('app_subtitle'), ENT_QUOTES, 'UTF-8') ?></span>
                 </div>
             </div>
 
@@ -567,10 +629,10 @@ $i18nScript = json_encode([
                 $sidebarPrimaryLabel = $userName !== '' ? $userName : ($userEmail !== '' ? $userEmail : __('app_name'));
                 $sidebarRoleLabel = $isEndUser ? __('personnel_role_user') : __('personnel_role_admin');
             ?>
-            <div class="mt-auto flex shrink-0 items-center justify-between border-t border-gray-200 bg-gray-50/50 p-4">
+            <div class="mt-auto flex shrink-0 items-center justify-between border-t border-[var(--border)] bg-[var(--bg)] p-4">
                 <div class="min-w-0">
-                    <p class="truncate text-sm font-medium text-gray-900"><?= htmlspecialchars($sidebarPrimaryLabel, ENT_QUOTES, 'UTF-8') ?></p>
-                    <p class="truncate text-xs text-gray-500"><?= htmlspecialchars($sidebarRoleLabel, ENT_QUOTES, 'UTF-8') ?></p>
+                    <p class="truncate text-sm font-medium text-[var(--ink)]"><?= htmlspecialchars($sidebarPrimaryLabel, ENT_QUOTES, 'UTF-8') ?></p>
+                    <p class="truncate text-xs text-[var(--muted)]"><?= htmlspecialchars($sidebarRoleLabel, ENT_QUOTES, 'UTF-8') ?></p>
                 </div>
                 <a
                     href="/logout"
@@ -603,11 +665,11 @@ $i18nScript = json_encode([
                             <span class="sr-only"><?= htmlspecialchars(__('language'), ENT_QUOTES, 'UTF-8') ?></span>
                             <a
                                 href="<?= htmlspecialchars(lang_url('tr'), ENT_QUOTES, 'UTF-8') ?>"
-                                class="<?= ($locale ?? 'tr') === 'tr' ? 'bg-zinc-900 text-white' : 'text-zinc-600 hover:bg-zinc-100' ?> rounded-lg px-3 py-1.5 text-xs font-semibold transition"
+                                class="<?= ($locale ?? 'tr') === 'tr' ? 'bg-[var(--brand)] text-white' : 'text-zinc-600 hover:bg-zinc-100' ?> rounded-lg px-3 py-1.5 text-xs font-semibold transition"
                             >TR</a>
                             <a
                                 href="<?= htmlspecialchars(lang_url('en'), ENT_QUOTES, 'UTF-8') ?>"
-                                class="<?= ($locale ?? 'tr') === 'en' ? 'bg-zinc-900 text-white' : 'text-zinc-600 hover:bg-zinc-100' ?> rounded-lg px-3 py-1.5 text-xs font-semibold transition"
+                                class="<?= ($locale ?? 'tr') === 'en' ? 'bg-[var(--brand)] text-white' : 'text-zinc-600 hover:bg-zinc-100' ?> rounded-lg px-3 py-1.5 text-xs font-semibold transition"
                             >EN</a>
                         </div>
                         <button
@@ -753,6 +815,7 @@ $i18nScript = json_encode([
                 <?php if ($canAccessSettings): ?>
                 <?php require __DIR__ . '/partials/admin_reports.php'; ?>
                 <?php require __DIR__ . '/partials/quality_documents_panel.php'; ?>
+                <?php require __DIR__ . '/partials/announcements_panel.php'; ?>
                 <?php require __DIR__ . '/partials/audit_logs_panel.php'; ?>
                 <?php require __DIR__ . '/partials/settings_panel.php'; ?>
                 <?php require __DIR__ . '/partials/automation_rules_panel.php'; ?>
@@ -2216,6 +2279,8 @@ $i18nScript = json_encode([
                 licenses: <?= json_encode(__('licenses_page_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 consumables: <?= json_encode(__('consumables_page_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 knowledge_base: <?= json_encode(__('portal_knowledge_base_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
+                announcements: <?= json_encode(__('announcements_page_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
+                documents: <?= json_encode(__('quality_documents_page_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 helpdesk: <?= json_encode(__('helpdesk_page_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 reports: <?= json_encode(__('reports_page_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 ipam: <?= json_encode(__('ipam_page_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
@@ -2239,6 +2304,8 @@ $i18nScript = json_encode([
                 licenses: <?= json_encode(__('licenses_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 consumables: <?= json_encode(__('consumables_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 knowledge_base: <?= json_encode(__('kb_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
+                announcements: <?= json_encode(__('announcements_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
+                documents: <?= json_encode(__('quality_documents_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 helpdesk: <?= json_encode(__('helpdesk_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 reports: <?= json_encode(__('reports_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 ipam: <?= json_encode(__('ipam_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
@@ -2396,8 +2463,23 @@ $i18nScript = json_encode([
             qualityDocumentForm: {
                 title: '',
                 file: null,
+                is_public: false,
             },
             qualityDocumentFormError: '',
+            announcements: [],
+            announcementsLoading: false,
+            announcementsError: '',
+            announcementsSuccessMessage: '',
+            isAnnouncementModalOpen: false,
+            isAnnouncementSubmitting: false,
+            announcementForm: {
+                id: null,
+                title: '',
+                summary: '',
+                category: '',
+                is_published: false,
+            },
+            announcementFormError: '',
             licenses: [],
             licensesLoading: false,
             licensesError: '',
@@ -6177,6 +6259,7 @@ $i18nScript = json_encode([
                 this.qualityDocumentForm = {
                     title: '',
                     file: null,
+                    is_public: false,
                 };
                 this.qualityDocumentFormError = '';
                 this.qualityDocumentsSuccessMessage = '';
@@ -6207,6 +6290,7 @@ $i18nScript = json_encode([
                 const formData = new FormData();
                 formData.append('title', this.qualityDocumentForm.title.trim());
                 formData.append('file', this.qualityDocumentForm.file);
+                formData.append('is_public', this.qualityDocumentForm.is_public ? '1' : '0');
 
                 try {
                     const requestInit = this.apiFetchInit('POST');
@@ -6252,6 +6336,139 @@ $i18nScript = json_encode([
                     await this.fetchQualityDocuments();
                 } catch (error) {
                     this.qualityDocumentsError = window.__i18n.helpdesk_network_error;
+                }
+            },
+            async toggleQualityDocumentPublic(document, isPublic) {
+                if (!document?.id) {
+                    return;
+                }
+
+                try {
+                    const response = await fetch(`/api/quality-documents/${document.id}/visibility`, {
+                        ...this.apiFetchInit('PUT'),
+                        body: JSON.stringify({ is_public: Boolean(isPublic) }),
+                    });
+                    const result = await this.parseApiResponse(response);
+
+                    if (!response.ok) {
+                        this.qualityDocumentsError = this.apiErrorMessage(result, window.__i18n.quality_document_update_error);
+                        await this.fetchQualityDocuments();
+                        return;
+                    }
+
+                    document.is_public = Boolean(result.data?.is_public);
+                    this.qualityDocumentsSuccessMessage = this.apiErrorMessage(result, window.__i18n.quality_document_visibility_updated);
+                } catch (error) {
+                    this.qualityDocumentsError = window.__i18n.helpdesk_network_error;
+                    await this.fetchQualityDocuments();
+                }
+            },
+            async fetchAnnouncements() {
+                this.announcementsLoading = true;
+                this.announcementsError = '';
+
+                try {
+                    const response = await fetch('/api/announcements', this.apiFetchInit('GET'));
+                    const result = await this.parseApiResponse(response);
+
+                    if (!response.ok) {
+                        this.announcements = [];
+                        this.announcementsError = this.apiErrorMessage(result, window.__i18n.announcement_fetch_error);
+                        return;
+                    }
+
+                    this.announcements = Array.isArray(result.data) ? result.data : [];
+                } catch (error) {
+                    this.announcements = [];
+                    this.announcementsError = window.__i18n.helpdesk_network_error;
+                } finally {
+                    this.announcementsLoading = false;
+                }
+            },
+            openAnnouncementModal(item = null) {
+                this.announcementForm = {
+                    id: item?.id || null,
+                    title: item?.title || '',
+                    summary: item?.summary || '',
+                    category: item?.category || '',
+                    is_published: Boolean(item?.is_published),
+                };
+                this.announcementFormError = '';
+                this.announcementsSuccessMessage = '';
+                this.isAnnouncementModalOpen = true;
+            },
+            closeAnnouncementModal() {
+                if (this.isAnnouncementSubmitting) {
+                    return;
+                }
+
+                this.isAnnouncementModalOpen = false;
+            },
+            async submitAnnouncementForm() {
+                if (!this.announcementForm.title?.trim()) {
+                    this.announcementFormError = window.__i18n.announcement_title_required;
+                    return;
+                }
+
+                this.isAnnouncementSubmitting = true;
+                this.announcementFormError = '';
+
+                const payload = {
+                    title: this.announcementForm.title.trim(),
+                    summary: this.announcementForm.summary || '',
+                    category: this.announcementForm.category || '',
+                    is_published: Boolean(this.announcementForm.is_published),
+                };
+
+                try {
+                    const isEdit = Boolean(this.announcementForm.id);
+                    const response = await fetch(
+                        isEdit ? `/api/announcements/${this.announcementForm.id}` : '/api/announcements',
+                        {
+                            ...this.apiFetchInit(isEdit ? 'PUT' : 'POST'),
+                            body: JSON.stringify(payload),
+                        }
+                    );
+                    const result = await this.parseApiResponse(response);
+
+                    if (!response.ok) {
+                        this.announcementFormError = this.apiErrorMessage(
+                            result,
+                            isEdit ? window.__i18n.announcement_update_error : window.__i18n.announcement_create_error
+                        );
+                        return;
+                    }
+
+                    this.isAnnouncementModalOpen = false;
+                    this.announcementsSuccessMessage = this.apiErrorMessage(
+                        result,
+                        isEdit ? window.__i18n.announcement_update_success : window.__i18n.announcement_create_success
+                    );
+                    await this.fetchAnnouncements();
+                } catch (error) {
+                    this.announcementFormError = window.__i18n.helpdesk_network_error;
+                } finally {
+                    this.isAnnouncementSubmitting = false;
+                }
+            },
+            async deleteAnnouncement(item) {
+                if (!item?.id || !window.confirm(window.__i18n.announcement_delete_confirm)) {
+                    return;
+                }
+
+                try {
+                    const response = await fetch(`/api/announcements/${item.id}`, this.apiFetchInit('DELETE'));
+                    const result = await this.parseApiResponse(response);
+
+                    if (!response.ok) {
+                        this.announcementsError = this.apiErrorMessage(result, window.__i18n.announcement_delete_error);
+                        return;
+                    }
+
+                    this.announcementsSuccessMessage = this.apiErrorMessage(result, window.__i18n.announcement_delete_success);
+                    await this.fetchAnnouncements();
+                } catch (error) {
+                    this.announcementsError = window.__i18n.helpdesk_network_error;
                 }
             },
             formatQualityDocumentDate(value) {

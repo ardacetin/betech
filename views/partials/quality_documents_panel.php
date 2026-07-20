@@ -3,17 +3,17 @@
 declare(strict_types=1);
 ?>
 <section x-show="activeView === 'documents'" x-cloak class="space-y-4">
-    <div class="overflow-hidden rounded-2xl border border-zinc-200 bg-gradient-to-br from-zinc-900 via-zinc-800 to-zinc-900 p-6 text-white shadow-soft">
+    <div class="overflow-hidden rounded-2xl border border-[var(--border,#e5e7eb)] bg-white p-6">
         <div class="flex flex-wrap items-start justify-between gap-4">
             <div>
-                <p class="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-400"><?= htmlspecialchars(__('quality_documents_badge'), ENT_QUOTES, 'UTF-8') ?></p>
-                <h2 class="mt-2 text-2xl font-bold tracking-tight"><?= htmlspecialchars(__('quality_documents_page_title'), ENT_QUOTES, 'UTF-8') ?></h2>
-                <p class="mt-2 max-w-2xl text-sm leading-relaxed text-zinc-300"><?= htmlspecialchars(__('quality_documents_page_subtitle'), ENT_QUOTES, 'UTF-8') ?></p>
+                <p class="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--brand,#7a242c)]"><?= htmlspecialchars(__('quality_documents_badge'), ENT_QUOTES, 'UTF-8') ?></p>
+                <h2 class="mt-2 text-2xl font-bold tracking-tight text-zinc-900"><?= htmlspecialchars(__('quality_documents_page_title'), ENT_QUOTES, 'UTF-8') ?></h2>
+                <p class="mt-2 max-w-2xl text-sm leading-relaxed text-zinc-500"><?= htmlspecialchars(__('quality_documents_page_subtitle'), ENT_QUOTES, 'UTF-8') ?></p>
             </div>
             <button
                 type="button"
                 @click="openQualityDocumentModal()"
-                class="inline-flex items-center gap-2 rounded-xl border border-white/15 bg-white/10 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-white/15"
+                class="inline-flex items-center gap-2 rounded-xl bg-[var(--brand,#7a242c)] px-4 py-2.5 text-sm font-medium text-white transition hover:bg-[var(--brand-hover,#641c23)]"
             >
                 <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"></path>
@@ -65,6 +65,7 @@ declare(strict_types=1);
                                 <span class="inline-flex shrink-0 text-[10px] leading-none" :class="sortIndicatorClasses(documentsSort, 'uploaded_by')" x-text="sortIndicatorSymbol(documentsSort, 'uploaded_by')" aria-hidden="true"></span>
                             </button>
                         </th>
+                        <th class="whitespace-nowrap px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-zinc-500"><?= htmlspecialchars(__('quality_documents_col_public'), ENT_QUOTES, 'UTF-8') ?></th>
                         <th class="whitespace-nowrap px-4 py-2 text-right text-[11px] font-semibold uppercase tracking-wide text-zinc-500"><?= htmlspecialchars(__('col_actions'), ENT_QUOTES, 'UTF-8') ?></th>
                     </tr>
                 </thead>
@@ -75,6 +76,12 @@ declare(strict_types=1);
                             <td class="px-4 py-1.5 tabular-nums text-zinc-600" x-text="formatQualityDocumentDate(document.created_at)"></td>
                             <td class="px-4 py-1.5 tabular-nums text-zinc-600" x-text="document.file_size || '—'"></td>
                             <td class="px-4 py-1.5 text-zinc-600" x-text="document.uploaded_by_name || '—'"></td>
+                            <td class="px-4 py-1.5">
+                                <label class="inline-flex items-center gap-2 text-xs text-zinc-600">
+                                    <input type="checkbox" class="rounded border-zinc-300" :checked="document.is_public" @change="toggleQualityDocumentPublic(document, $event.target.checked)">
+                                    <?= htmlspecialchars(__('quality_documents_public_label'), ENT_QUOTES, 'UTF-8') ?>
+                                </label>
+                            </td>
                             <td class="px-4 py-1.5">
                                 <div class="flex items-center justify-end gap-1">
                                     <a
@@ -150,6 +157,10 @@ declare(strict_types=1);
                             class="block w-full text-sm text-zinc-600 file:mr-4 file:rounded-lg file:border-0 file:bg-zinc-100 file:px-4 file:py-2 file:text-sm file:font-medium file:text-zinc-700 hover:file:bg-zinc-200"
                         >
                         <span class="mt-1.5 block text-xs text-zinc-500"><?= htmlspecialchars(__('quality_documents_allowed_types'), ENT_QUOTES, 'UTF-8') ?></span>
+                    </label>
+                    <label class="inline-flex items-center gap-2 text-sm text-zinc-700">
+                        <input type="checkbox" x-model="qualityDocumentForm.is_public" class="rounded border-zinc-300">
+                        <?= htmlspecialchars(__('quality_documents_public_checkbox'), ENT_QUOTES, 'UTF-8') ?>
                     </label>
                 </div>
 
