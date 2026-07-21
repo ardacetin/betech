@@ -83,27 +83,30 @@ class InventoryFormController
             return $this->notFound($response);
         }
 
-        $typeContext = $this->assetTypeTableService->resolveWhitelistedType($typeIdentifier);
-
-        if ($typeContext === null) {
-            return $this->notFound($response);
-        }
-
         $asset = $this->assetModel->findById($assetId);
 
         if ($asset === null) {
             return $this->notFound($response);
         }
 
+        // Prefer the asset's own type when the query type is missing or mismatched.
+        $resolvedTypeId = (int) ($asset['asset_type_id'] ?? 0);
         $resolvedSlug = trim((string) ($asset['asset_type_slug'] ?? ''));
+        $typeContext = null;
 
-        if ($resolvedSlug !== '' && $resolvedSlug !== $typeContext['slug']) {
-            return $this->notFound($response);
+        if ($resolvedTypeId > 0) {
+            $typeContext = $this->assetTypeTableService->resolveWhitelistedType((string) $resolvedTypeId);
         }
 
-        $resolvedTypeId = (int) ($asset['asset_type_id'] ?? 0);
+        if ($typeContext === null && $resolvedSlug !== '') {
+            $typeContext = $this->assetTypeTableService->resolveWhitelistedType($resolvedSlug);
+        }
 
-        if ($resolvedTypeId > 0 && $resolvedTypeId !== $typeContext['id']) {
+        if ($typeContext === null && $typeIdentifier !== '') {
+            $typeContext = $this->assetTypeTableService->resolveWhitelistedType($typeIdentifier);
+        }
+
+        if ($typeContext === null) {
             return $this->notFound($response);
         }
 
@@ -167,6 +170,8 @@ class InventoryFormController
         $html = $this->viewRenderer->render('errors/404', [
             'appName' => __('app_name'),
             'pageTitle' => __('error_404_title'),
+            'heading' => __('error_404_title'),
+            'message' => __('error_404_message'),
             'locale' => Translator::instance()->getLocale(),
         ]);
 
