@@ -24,7 +24,7 @@ $appSubtitle = $appSubtitle ?? __('app_subtitle');
             <a class="nav-link" href="/knowledge-base"><?= htmlspecialchars(__('nav_knowledge_base'), ENT_QUOTES, 'UTF-8') ?></a>
             <a class="nav-link" href="/public-documents"><?= htmlspecialchars(__('landing_nav_documents'), ENT_QUOTES, 'UTF-8') ?></a>
             <a class="nav-link" href="/#duyurular"><?= htmlspecialchars(__('landing_nav_announcements'), ENT_QUOTES, 'UTF-8') ?></a>
-            <a class="nav-link" href="/login?redirect=/"><?= htmlspecialchars(__('landing_nav_requests'), ENT_QUOTES, 'UTF-8') ?></a>
+            <a class="nav-link" href="/#talep"><?= htmlspecialchars(__('landing_nav_requests'), ENT_QUOTES, 'UTF-8') ?></a>
             <a class="nav-link" href="/#hakkinda"><?= htmlspecialchars(__('landing_nav_about'), ENT_QUOTES, 'UTF-8') ?></a>
         </nav>
 
@@ -33,7 +33,11 @@ $appSubtitle = $appSubtitle ?? __('app_subtitle');
                 <a href="<?= htmlspecialchars(lang_url('tr'), ENT_QUOTES, 'UTF-8') ?>" class="<?= $locale === 'tr' ? 'is-active' : '' ?>">TR</a>
                 <a href="<?= htmlspecialchars(lang_url('en'), ENT_QUOTES, 'UTF-8') ?>" class="<?= $locale === 'en' ? 'is-active' : '' ?>">EN</a>
             </div>
-            <a href="/login" class="btn btn-primary"><?= htmlspecialchars(__('landing_login'), ENT_QUOTES, 'UTF-8') ?></a>
+            <button
+                type="button"
+                class="btn btn-primary"
+                @click.prevent="typeof openLogin === 'function' ? openLogin() : (window.location.href = '/login')"
+            ><?= htmlspecialchars(__('landing_login'), ENT_QUOTES, 'UTF-8') ?></button>
             <button
                 type="button"
                 class="menu-toggle"
@@ -50,8 +54,14 @@ $appSubtitle = $appSubtitle ?? __('app_subtitle');
             <a class="nav-link" href="/knowledge-base" @click="mobileOpen = false"><?= htmlspecialchars(__('nav_knowledge_base'), ENT_QUOTES, 'UTF-8') ?></a>
             <a class="nav-link" href="/public-documents" @click="mobileOpen = false"><?= htmlspecialchars(__('landing_nav_documents'), ENT_QUOTES, 'UTF-8') ?></a>
             <a class="nav-link" href="/#duyurular" @click="mobileOpen = false"><?= htmlspecialchars(__('landing_nav_announcements'), ENT_QUOTES, 'UTF-8') ?></a>
-            <a class="nav-link" href="/login?redirect=/" @click="mobileOpen = false"><?= htmlspecialchars(__('landing_nav_requests'), ENT_QUOTES, 'UTF-8') ?></a>
+            <a class="nav-link" href="/#talep" @click="mobileOpen = false"><?= htmlspecialchars(__('landing_nav_requests'), ENT_QUOTES, 'UTF-8') ?></a>
             <a class="nav-link" href="/#hakkinda" @click="mobileOpen = false"><?= htmlspecialchars(__('landing_nav_about'), ENT_QUOTES, 'UTF-8') ?></a>
+            <button
+                type="button"
+                class="btn btn-primary"
+                style="margin-top:0.5rem;"
+                @click.prevent="mobileOpen = false; typeof openLogin === 'function' ? openLogin() : (window.location.href = '/login')"
+            ><?= htmlspecialchars(__('landing_login'), ENT_QUOTES, 'UTF-8') ?></button>
         </div>
     </div>
 </header>

@@ -28,13 +28,6 @@ declare(strict_types=1);
                         <h2 class="text-xl font-bold tracking-tight text-gray-900"><?= htmlspecialchars(__('dashboard_overview_title'), ENT_QUOTES, 'UTF-8') ?></h2>
                         <p class="mt-1 text-sm text-gray-500"><?= htmlspecialchars(__('dashboard_overview_subtitle'), ENT_QUOTES, 'UTF-8') ?></p>
                     </div>
-                    <span class="inline-flex items-center gap-2 rounded-full border border-green-200/70 bg-green-50 px-3 py-1.5 text-xs font-medium text-green-700">
-                        <span class="relative flex h-2 w-2">
-                            <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75"></span>
-                            <span class="relative inline-flex h-2 w-2 rounded-full bg-green-500"></span>
-                        </span>
-                        <?= htmlspecialchars(__('dashboard_status_all_active'), ENT_QUOTES, 'UTF-8') ?>
-                    </span>
                 </div>
 
                 <!-- Top row: 3 unified stat cards -->
