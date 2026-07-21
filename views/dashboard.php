@@ -4752,6 +4752,25 @@ $i18nScript = json_encode([
                 this.inventoryPage = targetPage;
                 this.fetchInventoryList(false);
             },
+            syncFilterFieldsFromMeta(filterFields, fieldsKey, filtersKey) {
+                if (!Array.isArray(filterFields) || filterFields.length === 0) {
+                    return;
+                }
+
+                this[fieldsKey] = filterFields;
+
+                const nextFilters = { ...(this[filtersKey] || {}) };
+                filterFields.forEach((field) => {
+                    const name = String(field?.name || '');
+                    if (name === '') {
+                        return;
+                    }
+                    if (!(name in nextFilters)) {
+                        nextFilters[name] = '';
+                    }
+                });
+                this[filtersKey] = nextFilters;
+            },
             async fetchInventoryList(resetPage = false) {
                 if (!this.canManageAssets || this.assetFiltersLoading) {
                     return;
@@ -4779,6 +4798,7 @@ $i18nScript = json_encode([
                     this.inventoryAssets = Array.isArray(result.data) ? result.data : [];
                     this.inventoryPagination = result.pagination || this.defaultListPagination();
                     this.inventoryPage = Number(this.inventoryPagination.page || 1);
+                    this.syncFilterFieldsFromMeta(result?.meta?.filter_fields, 'assetFilterFields', 'assetFilters');
                     this.syncInventoryAssetOptions();
 
                     const nextUrl = new URL(window.location.href);
@@ -6545,6 +6565,7 @@ $i18nScript = json_encode([
                     this.licenses = Array.isArray(result.data) ? result.data : [];
                     this.licensesPagination = result.pagination || this.defaultListPagination();
                     this.licensesPage = Number(this.licensesPagination.page || 1);
+                    this.syncFilterFieldsFromMeta(result?.meta?.filter_fields, 'licenseFilterFields', 'licenseFilters');
                 } catch (error) {
                     this.licensesError = window.__i18n.licenses_network_error;
                     this.licenses = [];
@@ -7233,6 +7254,7 @@ $i18nScript = json_encode([
                     this.consumables = Array.isArray(result.data) ? result.data : [];
                     this.consumablesPagination = result.pagination || this.defaultListPagination();
                     this.consumablesPage = Number(this.consumablesPagination.page || 1);
+                    this.syncFilterFieldsFromMeta(result?.meta?.filter_fields, 'consumableFilterFields', 'consumableFilters');
                 } catch (error) {
                     this.consumablesError = window.__i18n.consumables_network_error;
                     this.consumables = [];

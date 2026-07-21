@@ -140,6 +140,7 @@ class AssetController
             'meta' => [
                 'total' => $result['pagination']['total'],
                 'filters' => $activeFilters,
+                'filter_fields' => $filterDefinitions,
                 'asset_type_id' => $assetTypeId,
                 'asset_type_slug' => $typeContext['slug'],
                 'asset_table' => $typeContext['table'],
