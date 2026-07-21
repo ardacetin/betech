@@ -101,10 +101,18 @@ class AuthMiddleware implements MiddlewareInterface
             return;
         }
 
+        // Avoid a DB round-trip on every authenticated request; refresh at most once per minute.
+        $lastSyncedAt = (int) ($_SESSION['_role_synced_at'] ?? 0);
+        if ($lastSyncedAt > 0 && (time() - $lastSyncedAt) < 60) {
+            return;
+        }
+
         $person = $this->personnelModel->findById($userId);
 
         if ($person !== null) {
             $this->sessionAuthService->setRole((string) ($person['role'] ?? User::ROLE_USER));
         }
+
+        $_SESSION['_role_synced_at'] = time();
     }
 }

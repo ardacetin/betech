@@ -236,6 +236,7 @@ return [
     'announcements_page_subtitle' => 'Create, edit, and publish public announcements.',
     'announcements_add' => 'Add announcement',
     'announcements_edit' => 'Edit announcement',
+    'announcements_save' => 'Save announcement',
     'announcements_delete' => 'Delete',
     'announcements_loading' => 'Loading announcements…',
     'announcements_empty' => 'No announcements yet.',

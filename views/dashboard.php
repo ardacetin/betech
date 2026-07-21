@@ -612,7 +612,7 @@ $i18nScript = json_encode([
         background-color: var(--bg) !important;
     }
 </style>
-<div class="app-panel-shell min-h-screen bg-[var(--bg)]" x-data="assetDashboard()" x-init="parseInventoryRoute(); parseDocumentsRoute(); parseSwitchPortsRoute(); parseListSortFromUrl(); restoreDashboardView(); syncDocumentTitle(); $watch('activeView', () => syncDocumentTitle()); $watch('settingsTab', () => syncDocumentTitle()); if (isEndUser) { initEndUserPortal(); } else if (canManageAssets) { fetchCategories(); fetchLocations(); fetchTicketCategories(); fetchLicenses(); fetchConsumables(); fetchTickets(); if (activeView === 'dashboard') { fetchDashboardStats(); } if (activeView === 'assets') { fetchAssetTypeSchema().then(() => fetchInventoryList(false)); } if (activeView === 'switch_ports') { initSwitchPorts(); } } if (canAccessSettings && activeView === 'reports') { fetchReports(); } if (canAccessSettings && activeView === 'documents') { fetchQualityDocuments(); } if (canAccessSettings && activeView === 'announcements') { fetchAnnouncements(); } this.isAssignLicenseModalOpen = false;">
+<div class="app-panel-shell min-h-screen bg-[var(--bg)]" x-data="assetDashboard()" x-init="restoreDashboardView(); parseInventoryRoute(); parseDocumentsRoute(); parseSwitchPortsRoute(); parseListSortFromUrl(); syncDocumentTitle(); $watch('activeView', () => syncDocumentTitle()); $watch('settingsTab', () => syncDocumentTitle()); bootstrapActiveViewData(); this.isAssignLicenseModalOpen = false;">
     <div class="flex h-screen overflow-hidden bg-[var(--bg)]">
         <aside class="hidden h-full w-64 min-h-0 flex-shrink-0 flex-col border-r border-[var(--border)] bg-white lg:flex">
             <div class="flex h-16 shrink-0 items-center gap-3 border-b border-[var(--border)] px-5">
@@ -780,6 +780,24 @@ $i18nScript = json_encode([
                         >
                             <span class="text-lg leading-none">+</span>
                             <?= htmlspecialchars(__('add_ticket'), ENT_QUOTES, 'UTF-8') ?>
+                        </button>
+                        <button
+                            type="button"
+                            x-show="activeView === 'documents' && canAccessSettings"
+                            @click="document.getElementById('quality-document-upload')?.scrollIntoView({ behavior: 'smooth', block: 'start' })"
+                            class="inline-flex items-center gap-2 rounded-xl bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white shadow-soft transition hover:bg-zinc-800"
+                        >
+                            <span class="text-lg leading-none">+</span>
+                            <?= htmlspecialchars(__('quality_documents_upload_button'), ENT_QUOTES, 'UTF-8') ?>
+                        </button>
+                        <button
+                            type="button"
+                            x-show="activeView === 'announcements' && canAccessSettings"
+                            @click="resetAnnouncementForm(); document.getElementById('announcement-form')?.scrollIntoView({ behavior: 'smooth', block: 'start' })"
+                            class="inline-flex items-center gap-2 rounded-xl bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white shadow-soft transition hover:bg-zinc-800"
+                        >
+                            <span class="text-lg leading-none">+</span>
+                            <?= htmlspecialchars(__('announcements_add'), ENT_QUOTES, 'UTF-8') ?>
                         </button>
                     </div>
                 </div>
@@ -2477,7 +2495,7 @@ $i18nScript = json_encode([
                 title: '',
                 summary: '',
                 category: '',
-                is_published: false,
+                is_published: true,
             },
             announcementFormError: '',
             licenses: [],
@@ -2964,6 +2982,82 @@ $i18nScript = json_encode([
                     this.activeView = 'switch_ports';
                 }
             },
+            bootstrapActiveViewData() {
+                if (this.isEndUser) {
+                    this.initEndUserPortal();
+                    return;
+                }
+
+                if (!this.canManageAssets && !this.canAccessSettings) {
+                    return;
+                }
+
+                if (this.canManageAssets) {
+                    // Shared lookups used by several panels.
+                    this.fetchCategories();
+                    this.fetchLocations();
+
+                    if (this.activeView === 'dashboard') {
+                        this.fetchDashboardStats();
+                    } else if (this.activeView === 'assets') {
+                        this.fetchAssetTypeSchema().then(() => this.fetchInventoryList(false));
+                    } else if (this.activeView === 'switch_ports') {
+                        this.initSwitchPorts();
+                    } else if (this.activeView === 'helpdesk') {
+                        this.fetchTicketCategories();
+                        this.fetchTickets();
+                    } else if (this.activeView === 'licenses') {
+                        this.fetchLicenses();
+                    } else if (this.activeView === 'consumables') {
+                        this.fetchConsumables();
+                    } else if (this.activeView === 'knowledge_base') {
+                        this.fetchKnowledgeBaseArticles();
+                    } else if (this.activeView === 'ipam') {
+                        this.ipamSubView = this.ipamSubView || 'networks';
+                        this.fetchIpNetworks();
+                    } else if (this.activeView === 'settings') {
+                        if (this.settingsTab === 'categories') {
+                            this.fetchCategories();
+                        } else if (this.settingsTab === 'asset_types') {
+                            this.fetchAssetTypes();
+                        } else if (this.settingsTab === 'asset_fields') {
+                            this.fetchAssetTypes().then(() => {
+                                this.selectedAssetFieldTypeId = this.selectedAssetFieldTypeId || this.activeAssetTypeId || (this.assetTypes[0]?.id ?? null);
+                                this.fetchAssetTypeCustomFields();
+                            });
+                        } else if (this.settingsTab === 'asset_components') {
+                            this.fetchAssetTypes().then(() => {
+                                this.selectedAssetComponentTypeId = this.selectedAssetComponentTypeId || this.activeAssetTypeId || (this.assetTypes[0]?.id ?? null);
+                                this.fetchAssetTypeComponents();
+                            });
+                        } else if (this.settingsTab === 'locations') {
+                            this.fetchLocations();
+                        } else if (this.settingsTab === 'ticket_categories') {
+                            this.fetchTicketCategories();
+                        } else if (this.settingsTab === 'backup') {
+                            this.fetchBackups();
+                        } else if (this.settingsTab === 'automation') {
+                            this.fetchAutomationRules();
+                        } else if (this.settingsTab === 'general') {
+                            this.$nextTick(() => this.initQuillEditor());
+                        }
+                    }
+                }
+
+                if (this.canAccessSettings) {
+                    if (this.activeView === 'reports') {
+                        this.fetchReports();
+                    } else if (this.activeView === 'documents') {
+                        this.fetchQualityDocuments();
+                    } else if (this.activeView === 'announcements') {
+                        this.fetchAnnouncements();
+                    } else if (this.activeView === 'audit_logs') {
+                        this.fetchAuditLogs();
+                    } else if (this.activeView === 'settings' && this.settingsTab === 'automation') {
+                        this.fetchAutomationRules();
+                    }
+                }
+            },
             openSwitchPorts() {
                 this.activeView = 'switch_ports';
                 this.initSwitchPorts();
@@ -3254,100 +3348,13 @@ $i18nScript = json_encode([
                         this.activeAssetTypeId = Number(saved.activeAssetTypeId);
                     }
 
-                    if (this.isEndUser) {
-                        if (this.activeView === 'knowledge_base') {
-                            this.fetchPublishedKnowledgeBase();
-                        }
-
-                        if (this.activeView === 'my_assets') {
-                            this.fetchPortalAssets();
-                        }
-
-                        if (this.activeView === 'my_tickets') {
-                            this.fetchPortalTickets();
-                        }
-
-                        return;
-                    }
-
-                    if (this.activeView === 'settings' && this.settingsTab === 'general') {
+                    // Data loading is handled once by bootstrapActiveViewData() after URL routes are applied.
+                    if (!this.isEndUser && this.activeView === 'settings' && this.settingsTab === 'general') {
                         this.$nextTick(() => this.initQuillEditor());
                     }
 
-                    if (this.activeView === 'settings' && this.settingsTab === 'categories') {
-                        this.fetchCategories();
-                    }
-
-                    if (this.activeView === 'settings' && this.settingsTab === 'asset_types') {
-                        this.fetchAssetTypes();
-                    }
-
-                    if (this.activeView === 'settings' && this.settingsTab === 'asset_fields') {
-                        this.fetchAssetTypes().then(() => {
-                            this.selectedAssetFieldTypeId = this.selectedAssetFieldTypeId || this.activeAssetTypeId || (this.assetTypes[0]?.id ?? null);
-                            this.fetchAssetTypeCustomFields();
-                        });
-                    }
-
-                    if (this.activeView === 'settings' && this.settingsTab === 'asset_components') {
-                        this.fetchAssetTypes().then(() => {
-                            this.selectedAssetComponentTypeId = this.selectedAssetComponentTypeId || this.activeAssetTypeId || (this.assetTypes[0]?.id ?? null);
-                            this.fetchAssetTypeComponents();
-                        });
-                    }
-
-                    if (this.activeView === 'settings' && this.settingsTab === 'locations') {
-                        this.fetchLocations();
-                    }
-
-                    if (this.activeView === 'settings' && this.settingsTab === 'ticket_categories') {
-                        this.fetchTicketCategories();
-                    }
-
-                    if (this.activeView === 'settings' && this.settingsTab === 'backup') {
-                        this.fetchBackups();
-                    }
-
-                    if (this.activeView === 'settings' && this.settingsTab === 'automation') {
-                        this.fetchAutomationRules();
-                    }
-
-                    if (this.activeView === 'dashboard') {
-                        this.fetchDashboardStats();
-                    }
-
-                    if (this.activeView === 'consumables') {
-                        this.fetchConsumables();
-                    }
-
-                    if (this.activeView === 'knowledge_base') {
-                        this.fetchKnowledgeBaseArticles();
-                    }
-
-                    if (this.activeView === 'helpdesk') {
-                        this.fetchTickets();
-                        this.fetchTicketCategories();
-                    }
-
-                    if (this.activeView === 'reports') {
-                        this.fetchReports();
-                    }
-
-                    if (this.activeView === 'documents' && this.canAccessSettings) {
-                        this.fetchQualityDocuments();
-                    }
-
-                    if (this.activeView === 'ipam') {
+                    if (!this.isEndUser && this.activeView === 'ipam') {
                         this.ipamSubView = 'networks';
-                        this.fetchIpNetworks();
-                    }
-
-                    if (this.activeView === 'switch_ports') {
-                        this.initSwitchPorts();
-                    }
-
-                    if (this.activeView === 'audit_logs' && this.canAccessSettings) {
-                        this.fetchAuditLogs();
                     }
                 } catch (error) {
                     // Ignore invalid persisted view state.
@@ -6263,7 +6270,10 @@ $i18nScript = json_encode([
                 };
                 this.qualityDocumentFormError = '';
                 this.qualityDocumentsSuccessMessage = '';
-                this.isQualityDocumentModalOpen = true;
+                this.isQualityDocumentModalOpen = false;
+                this.$nextTick(() => {
+                    document.getElementById('quality-document-upload')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                });
             },
             closeQualityDocumentModal() {
                 if (this.isQualityDocumentSubmitting) {
@@ -6306,7 +6316,12 @@ $i18nScript = json_encode([
                         return;
                     }
 
-                    this.isQualityDocumentModalOpen = false;
+                    this.qualityDocumentForm = { title: '', file: null, is_public: false };
+                    const uploadForm = document.getElementById('quality-document-upload');
+                    const fileInput = uploadForm?.querySelector('input[type="file"]');
+                    if (fileInput) {
+                        fileInput.value = '';
+                    }
                     this.qualityDocumentsSuccessMessage = this.apiErrorMessage(result, window.__i18n.quality_document_upload_success);
                     await this.fetchQualityDocuments();
                 } catch (error) {
@@ -6385,24 +6400,38 @@ $i18nScript = json_encode([
                     this.announcementsLoading = false;
                 }
             },
+            resetAnnouncementForm() {
+                this.announcementForm = {
+                    id: null,
+                    title: '',
+                    summary: '',
+                    category: '',
+                    is_published: true,
+                };
+                this.announcementFormError = '';
+                this.isAnnouncementModalOpen = false;
+            },
             openAnnouncementModal(item = null) {
                 this.announcementForm = {
                     id: item?.id || null,
                     title: item?.title || '',
                     summary: item?.summary || '',
                     category: item?.category || '',
-                    is_published: Boolean(item?.is_published),
+                    is_published: item ? Boolean(item.is_published) : true,
                 };
                 this.announcementFormError = '';
                 this.announcementsSuccessMessage = '';
-                this.isAnnouncementModalOpen = true;
+                this.isAnnouncementModalOpen = false;
+                this.$nextTick(() => {
+                    document.getElementById('announcement-form')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                });
             },
             closeAnnouncementModal() {
                 if (this.isAnnouncementSubmitting) {
                     return;
                 }
 
-                this.isAnnouncementModalOpen = false;
+                this.resetAnnouncementForm();
             },
             async submitAnnouncementForm() {
                 if (!this.announcementForm.title?.trim()) {
@@ -6439,7 +6468,7 @@ $i18nScript = json_encode([
                         return;
                     }
 
-                    this.isAnnouncementModalOpen = false;
+                    this.resetAnnouncementForm();
                     this.announcementsSuccessMessage = this.apiErrorMessage(
                         result,
                         isEdit ? window.__i18n.announcement_update_success : window.__i18n.announcement_create_success
