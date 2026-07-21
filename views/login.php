@@ -16,7 +16,7 @@ $turnstileEnabled = $turnstileEnabled ?? true;
 $turnstileSiteKey = trim((string) ($turnstileSiteKey ?? '0x4AAAAAACLf0FH4wQScyWEe'));
 ?>
 <!DOCTYPE html>
-<html lang="tr" class="h-full">
+<html lang="<?= htmlspecialchars($locale ?? 'tr', ENT_QUOTES, 'UTF-8') ?>" class="h-full">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -26,13 +26,16 @@ $turnstileSiteKey = trim((string) ($turnstileSiteKey ?? '0x4AAAAAACLf0FH4wQScyWE
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        body { font-family: Inter, ui-sans-serif, system-ui, sans-serif; }
+        :root { --brand: #7a242c; --brand-hover: #641c23; --bg: #f7f7f5; --ink: #171717; }
+        body { font-family: Inter, ui-sans-serif, system-ui, sans-serif; background: var(--bg); color: var(--ink); }
+        .login-submit { background: var(--brand); }
+        .login-submit:hover { background: var(--brand-hover); }
     </style>
 </head>
-<body class="min-h-full bg-[#f7f7f8] text-zinc-900 antialiased">
+<body class="min-h-full antialiased">
 <div class="flex min-h-full flex-col items-center justify-center px-4 py-12">
     <div class="mb-8 text-center">
-        <div class="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-zinc-900 text-base font-semibold text-white shadow-sm">B</div>
+        <div class="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-[#7A242C] text-base font-semibold text-white shadow-sm">B</div>
         <h1 class="text-2xl font-semibold tracking-tight text-zinc-900"><?= htmlspecialchars(__('login_heading'), ENT_QUOTES, 'UTF-8') ?></h1>
         <p class="mt-2 text-sm text-zinc-500"><?= htmlspecialchars(__('login_subheading'), ENT_QUOTES, 'UTF-8') ?></p>
     </div>
@@ -82,7 +85,7 @@ $turnstileSiteKey = trim((string) ($turnstileSiteKey ?? '0x4AAAAAACLf0FH4wQScyWE
 
             <button
                 type="submit"
-                class="mt-2 w-full rounded-xl bg-zinc-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-zinc-900/20"
+                class="login-submit mt-2 w-full rounded-xl px-4 py-3 text-sm font-semibold text-white transition focus:outline-none focus:ring-2"
             >
                 <?= htmlspecialchars(__('login_submit'), ENT_QUOTES, 'UTF-8') ?>
             </button>

@@ -619,6 +619,41 @@ class RoleMiddleware implements MiddlewareInterface
             ],
             [
                 'methods' => ['GET'],
+                'pattern' => '/api/announcements/published',
+                'roles' => $withEndUser,
+            ],
+            [
+                'methods' => ['GET'],
+                'pattern' => '/api/announcements',
+                'roles' => $operational,
+            ],
+            [
+                'methods' => ['POST'],
+                'pattern' => '/api/announcements',
+                'roles' => $operational,
+            ],
+            [
+                'methods' => ['PUT'],
+                'pattern' => '/api/announcements/{id}',
+                'roles' => $operational,
+            ],
+            [
+                'methods' => ['DELETE'],
+                'pattern' => '/api/announcements/{id}',
+                'roles' => $operational,
+            ],
+            [
+                'methods' => ['GET'],
+                'pattern' => '/api/quality-documents/public',
+                'roles' => $withEndUser,
+            ],
+            [
+                'methods' => ['GET'],
+                'pattern' => '/api/quality-documents/{id}/public-download',
+                'roles' => $withEndUser,
+            ],
+            [
+                'methods' => ['GET'],
                 'pattern' => '/api/quality-documents',
                 'roles' => [User::ROLE_ADMIN],
             ],
@@ -630,6 +665,11 @@ class RoleMiddleware implements MiddlewareInterface
             [
                 'methods' => ['GET'],
                 'pattern' => '/api/quality-documents/{id}/download',
+                'roles' => [User::ROLE_ADMIN],
+            ],
+            [
+                'methods' => ['PUT'],
+                'pattern' => '/api/quality-documents/{id}/visibility',
                 'roles' => [User::ROLE_ADMIN],
             ],
             [

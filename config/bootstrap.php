@@ -17,6 +17,7 @@ use App\Controllers\AssetTutanakController;
 use App\Controllers\AssetViewController;
 use App\Controllers\AuthController;
 use App\Controllers\ConsumableController;
+use App\Controllers\AnnouncementController;
 use App\Controllers\KnowledgeBaseController;
 use App\Controllers\QualityDocumentController;
 use App\Controllers\DashboardController;
@@ -53,6 +54,7 @@ use App\Models\AssetHistory;
 use App\Models\AuditLog;
 use App\Models\Category;
 use App\Models\Consumable;
+use App\Models\Announcement;
 use App\Models\KnowledgeBaseArticle;
 use App\Models\QualityDocument;
 use App\Models\IpAddress;
@@ -143,11 +145,16 @@ $auditChangeFormatter = new AuditChangeFormatter();
 $auditLogger = new AuditLogger($auditLogModel, $auditChangeFormatter, $clientIpResolver);
 $publicPaths = [
     '/',
+    '/knowledge-base',
+    '/public-documents',
     '/login',
     '/api/login',
     '/logout',
     '/assets/view/{id}',
     '/api/knowledge-base/published',
+    '/api/announcements/published',
+    '/api/quality-documents/public',
+    '/api/quality-documents/{id}/public-download',
 ];
 $app->add(new RoleMiddleware($sessionAuthService, $httpErrorResponses, $publicPaths, RoleMiddleware::defaultRules()));
 $app->add(new AuthMiddleware($sessionAuthService, $publicPaths, $personnelModel));
@@ -222,6 +229,7 @@ $networkPortMappingService = new NetworkPortMappingService(
 $ipamCsvImportService = new IpamCsvImportService($ipNetworkModel, $ipAddressModel, $assetModel, $ipAddressGenerator);
 $consumableModel = new Consumable($databaseService);
 $knowledgeBaseArticleModel = new KnowledgeBaseArticle($databaseService);
+$announcementModel = new Announcement($databaseService);
 $qualityDocumentStorageService = new QualityDocumentStorageService($rootPath);
 $qualityDocumentModel = new QualityDocument($databaseService, $qualityDocumentStorageService);
 $ticketCategoryModel = new TicketCategory($databaseService);
@@ -265,6 +273,8 @@ $landingController = new LandingController(
     $viewRenderer,
     $settingModel,
     $knowledgeBaseArticleModel,
+    $announcementModel,
+    $qualityDocumentModel,
     $sessionAuthService,
     $healthController
 );
@@ -321,6 +331,7 @@ $ipNetworkController = new IpNetworkController(
 );
 $consumableController = new ConsumableController($consumableModel, $locationModel, $consumableFilterSchemaService);
 $knowledgeBaseController = new KnowledgeBaseController($knowledgeBaseArticleModel, $sessionAuthService, $appLogger);
+$announcementController = new AnnouncementController($announcementModel, $sessionAuthService, $appLogger);
 $qualityDocumentController = new QualityDocumentController(
     $qualityDocumentModel,
     $qualityDocumentStorageService,
@@ -380,6 +391,11 @@ $app->post('/api/login', [$authController, 'apiLogin']);
 $app->get('/logout', [$authController, 'logout']);
 $app->get('/unauthorized', [$authController, 'showUnauthorized']);
 $app->get('/', [$landingController, 'index']);
+$app->get('/knowledge-base', [$landingController, 'knowledgeBase']);
+$app->get('/public-documents', [$landingController, 'documents']);
+$app->get('/api/announcements/published', [$announcementController, 'published']);
+$app->get('/api/quality-documents/public', [$qualityDocumentController, 'publicIndex']);
+$app->get('/api/quality-documents/{id}/public-download', [$qualityDocumentController, 'publicDownload']);
 $app->get('/inventory/add', [$inventoryFormController, 'add']);
 $app->get('/inventory/edit', [$inventoryFormController, 'edit']);
 $app->get('/network/switch-ports', [$healthController, 'switchPorts']);
@@ -420,6 +436,7 @@ $app->group('', function ($group) use (
     $ipNetworkController,
     $consumableController,
     $knowledgeBaseController,
+    $announcementController,
     $qualityDocumentController,
     $ticketController,
     $userController,
@@ -511,9 +528,14 @@ $app->group('', function ($group) use (
     $group->get('/api/knowledge-base/{id}', [$knowledgeBaseController, 'show']);
     $group->put('/api/knowledge-base/{id}', [$knowledgeBaseController, 'update']);
     $group->delete('/api/knowledge-base/{id}', [$knowledgeBaseController, 'destroy']);
+    $group->get('/api/announcements', [$announcementController, 'index']);
+    $group->post('/api/announcements', [$announcementController, 'store']);
+    $group->put('/api/announcements/{id}', [$announcementController, 'update']);
+    $group->delete('/api/announcements/{id}', [$announcementController, 'destroy']);
     $group->get('/api/quality-documents', [$qualityDocumentController, 'index']);
     $group->post('/api/quality-documents', [$qualityDocumentController, 'store']);
     $group->get('/api/quality-documents/{id}/download', [$qualityDocumentController, 'download']);
+    $group->put('/api/quality-documents/{id}/visibility', [$qualityDocumentController, 'updateVisibility']);
     $group->delete('/api/quality-documents/{id}', [$qualityDocumentController, 'destroy']);
     $group->put('/api/tickets/{id}', [$ticketController, 'update']);
     $group->delete('/api/tickets/{id}', [$ticketController, 'destroy']);

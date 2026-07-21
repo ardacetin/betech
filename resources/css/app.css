@@ -2,17 +2,28 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --brand: #7a242c;
+  --brand-hover: #641c23;
+  --bg: #f7f7f5;
+  --border: #e5e7eb;
+  --ink: #171717;
+  --muted: #667085;
+}
+
 [x-cloak] {
   display: none !important;
 }
 
 @layer components {
   .app-shell {
-    @apply flex min-h-screen w-full bg-gray-50;
+    @apply flex min-h-screen w-full;
+    background: var(--bg);
   }
 
   .app-sidebar {
-    @apply flex h-screen w-64 shrink-0 flex-col border-r border-gray-200 bg-white;
+    @apply flex h-screen w-64 shrink-0 flex-col bg-white;
+    border-right: 1px solid var(--border);
   }
 
   .app-main {

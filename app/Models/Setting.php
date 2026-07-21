@@ -420,7 +420,7 @@ class Setting
             'password' => $this->get('smtp_pass', '') ?? '',
             'encryption' => $this->normalizeSmtpEncryption($this->get('smtp_encryption', 'tls') ?? 'tls'),
             'from_address' => strtolower(trim($this->get('smtp_sender_email', '') ?? '')),
-            'from_name' => trim($this->get('smtp_sender_name', 'Betech ITMS') ?? 'Betech ITMS'),
+            'from_name' => trim($this->get('smtp_sender_name', 'BTECH ITMS') ?? 'BTECH ITMS'),
             'support_addresses' => $this->parseSmtpSupportAddresses($this->get('smtp_support_to', '') ?? ''),
         ];
     }
@@ -457,7 +457,7 @@ class Setting
         $this->set('smtp_user', trim((string) ($config['user'] ?? '')));
         $this->set('smtp_encryption', $this->normalizeSmtpEncryption((string) ($config['encryption'] ?? 'tls')));
         $this->set('smtp_sender_email', strtolower(trim((string) ($config['sender_email'] ?? ''))));
-        $this->set('smtp_sender_name', trim((string) ($config['sender_name'] ?? 'Betech ITMS')));
+        $this->set('smtp_sender_name', trim((string) ($config['sender_name'] ?? 'BTECH ITMS')));
         $this->set('smtp_support_to', trim((string) ($config['support_to'] ?? '')));
 
         $password = trim((string) ($config['pass'] ?? $config['password'] ?? ''));

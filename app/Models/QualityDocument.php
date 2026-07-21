@@ -81,6 +81,7 @@ class QualityDocument
             self::TABLE . '.file_path',
             self::TABLE . '.file_size',
             self::TABLE . '.uploaded_by',
+            self::TABLE . '.is_public',
             self::TABLE . '.created_at',
             'personnel.name(uploaded_by_name)',
         ], $selectOptions);
@@ -112,6 +113,7 @@ class QualityDocument
             self::TABLE . '.file_path',
             self::TABLE . '.file_size',
             self::TABLE . '.uploaded_by',
+            self::TABLE . '.is_public',
             self::TABLE . '.created_at',
             'personnel.name(uploaded_by_name)',
         ], [
@@ -128,12 +130,44 @@ class QualityDocument
     /**
      * @return array<string, mixed>
      */
+    /**
+     * @return list<array<string, mixed>>
+     */
+    public function findPublic(int $limit = 50): array
+    {
+        $limit = max(1, min(200, $limit));
+
+        $rows = $this->db()->select(self::TABLE, [
+            'id',
+            'title',
+            'filename',
+            'file_path',
+            'file_size',
+            'uploaded_by',
+            'is_public',
+            'created_at',
+        ], [
+            'is_public' => 1,
+            'ORDER' => [
+                'created_at' => 'DESC',
+                'id' => 'DESC',
+            ],
+            'LIMIT' => $limit,
+        ]);
+
+        return array_map(
+            fn (array $row): array => $this->normalizeRow($row),
+            is_array($rows) ? $rows : []
+        );
+    }
+
     public function create(
         string $title,
         string $filename,
         string $filePath,
         string $fileSize,
-        ?int $uploadedBy
+        ?int $uploadedBy,
+        bool $isPublic = false
     ): array {
         $title = trim($title);
 
@@ -151,6 +185,7 @@ class QualityDocument
             'file_path' => $filePath,
             'file_size' => $fileSize,
             'uploaded_by' => $uploadedBy !== null && $uploadedBy > 0 ? $uploadedBy : null,
+            'is_public' => $isPublic ? 1 : 0,
         ]);
 
         $id = (int) $this->db()->id();
@@ -166,6 +201,21 @@ class QualityDocument
         }
 
         return $document;
+    }
+
+    public function setPublic(int $id, bool $isPublic): ?array
+    {
+        if ($id <= 0 || $this->findById($id) === null) {
+            return null;
+        }
+
+        $this->db()->update(self::TABLE, [
+            'is_public' => $isPublic ? 1 : 0,
+        ], [
+            'id' => $id,
+        ]);
+
+        return $this->findById($id);
     }
 
     public function deleteById(int $id): bool
@@ -213,6 +263,7 @@ class QualityDocument
             'file_size' => (string) ($row['file_size'] ?? ''),
             'uploaded_by' => isset($row['uploaded_by']) ? (int) $row['uploaded_by'] : null,
             'uploaded_by_name' => trim((string) ($row['uploaded_by_name'] ?? '')),
+            'is_public' => (int) ($row['is_public'] ?? 0) === 1,
             'created_at' => (string) ($row['created_at'] ?? ''),
         ];
     }

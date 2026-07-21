@@ -74,6 +74,11 @@ class QualityDocumentController
             ]);
         }
 
+        $isPublic = filter_var(
+            $request->getParsedBody()['is_public'] ?? $_POST['is_public'] ?? false,
+            FILTER_VALIDATE_BOOLEAN
+        );
+
         try {
             $stored = $this->storageService->storeUploadedFile($file);
             $document = $this->qualityDocumentModel->create(
@@ -81,7 +86,8 @@ class QualityDocumentController
                 $stored['original_filename'],
                 $stored['relative_path'],
                 $stored['file_size'],
-                $this->sessionAuthService->userId()
+                $this->sessionAuthService->userId(),
+                $isPublic
             );
         } catch (InvalidArgumentException $exception) {
             return $this->jsonResponse($response, 422, [
@@ -123,10 +129,79 @@ class QualityDocumentController
         ]);
     }
 
+    public function publicIndex(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
+    {
+        try {
+            return $this->jsonResponse($response, 200, [
+                'status' => 'success',
+                'data' => $this->qualityDocumentModel->findPublic(),
+            ]);
+        } catch (Throwable $exception) {
+            $this->logger->error('quality_documents.public_index.failed', [
+                'message' => $exception->getMessage(),
+            ]);
+
+            return $this->jsonResponse($response, 500, [
+                'status' => 'error',
+                'message' => __('quality_document_fetch_error'),
+            ]);
+        }
+    }
+
     public function download(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
     {
-        $documentId = (int) ($args['id'] ?? 0);
+        return $this->streamDocument($response, (int) ($args['id'] ?? 0), false);
+    }
 
+    public function publicDownload(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
+    {
+        return $this->streamDocument($response, (int) ($args['id'] ?? 0), true);
+    }
+
+    public function updateVisibility(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
+    {
+        $documentId = (int) ($args['id'] ?? 0);
+        $payload = $request->getParsedBody();
+        $payload = is_array($payload) ? $payload : [];
+        $isPublic = filter_var($payload['is_public'] ?? false, FILTER_VALIDATE_BOOLEAN);
+
+        if ($documentId <= 0) {
+            return $this->jsonResponse($response, 400, [
+                'status' => 'error',
+                'message' => __('quality_document_invalid_id'),
+            ]);
+        }
+
+        try {
+            $document = $this->qualityDocumentModel->setPublic($documentId, $isPublic);
+        } catch (Throwable $exception) {
+            $this->logger->error('quality_documents.visibility.failed', [
+                'document_id' => $documentId,
+                'message' => $exception->getMessage(),
+            ]);
+
+            return $this->jsonResponse($response, 500, [
+                'status' => 'error',
+                'message' => __('quality_document_update_error'),
+            ]);
+        }
+
+        if ($document === null) {
+            return $this->jsonResponse($response, 404, [
+                'status' => 'error',
+                'message' => __('quality_document_not_found'),
+            ]);
+        }
+
+        return $this->jsonResponse($response, 200, [
+            'status' => 'success',
+            'message' => __('quality_document_visibility_updated'),
+            'data' => $document,
+        ]);
+    }
+
+    private function streamDocument(ResponseInterface $response, int $documentId, bool $publicOnly): ResponseInterface
+    {
         if ($documentId <= 0) {
             return $this->jsonResponse($response, 400, [
                 'status' => 'error',
@@ -149,6 +224,13 @@ class QualityDocumentController
         }
 
         if ($document === null) {
+            return $this->jsonResponse($response, 404, [
+                'status' => 'error',
+                'message' => __('quality_document_not_found'),
+            ]);
+        }
+
+        if ($publicOnly && empty($document['is_public'])) {
             return $this->jsonResponse($response, 404, [
                 'status' => 'error',
                 'message' => __('quality_document_not_found'),
