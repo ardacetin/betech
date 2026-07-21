@@ -88,6 +88,8 @@ class SwitchPortController
         $html = $this->viewRenderer->render('errors/404', [
             'appName' => __('app_name'),
             'pageTitle' => __('error_404_title'),
+            'heading' => __('error_404_title'),
+            'message' => __('error_404_message'),
             'locale' => Translator::instance()->getLocale(),
         ]);
 

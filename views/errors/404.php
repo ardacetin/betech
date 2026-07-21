@@ -9,6 +9,11 @@ declare(strict_types=1);
  * @var string $appName
  * @var string $locale
  */
+$pageTitle = (string) ($pageTitle ?? __('error_404_title'));
+$heading = (string) ($heading ?? __('error_404_title'));
+$message = (string) ($message ?? __('error_404_message'));
+$appName = (string) ($appName ?? __('app_name'));
+$locale = (string) ($locale ?? 'tr');
 ?>
 <!DOCTYPE html>
 <html lang="<?= htmlspecialchars($locale, ENT_QUOTES, 'UTF-8') ?>" class="h-full">
