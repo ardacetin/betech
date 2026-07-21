@@ -155,7 +155,7 @@ class Asset
      */
     public function buildSortOrderFromQuery(array $queryParams, ?int $assetTypeId = null): array
     {
-        return SortQuery::parse($queryParams, $this->resolveSortableColumns($assetTypeId), ['id' => 'DESC'])['order'];
+        return SortQuery::parse($queryParams, $this->resolveSortableColumns($assetTypeId), ['name' => 'ASC'])['order'];
     }
 
     /**

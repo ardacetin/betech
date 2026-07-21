@@ -117,8 +117,8 @@ $initialListSortColumn = trim((string) ($_GET['sort'] ?? ''));
 $initialListSortColumn = preg_match('/^[A-Za-z0-9_]+$/', $initialListSortColumn) ? $initialListSortColumn : '';
 $initialListSortDirection = strtolower(trim((string) ($_GET['direction'] ?? ''))) === 'asc' ? 'asc' : 'desc';
 $initialInventorySortJson = json_encode([
-    'column' => $initialListSortColumn,
-    'direction' => $initialListSortColumn !== '' ? $initialListSortDirection : '',
+    'column' => $initialListSortColumn !== '' ? $initialListSortColumn : 'name',
+    'direction' => $initialListSortColumn !== '' ? $initialListSortDirection : 'asc',
 ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
 
 $licenseFilterDefinitions = $licenseFilterDefinitions ?? [];

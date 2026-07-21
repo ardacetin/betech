@@ -9,6 +9,7 @@ use App\Models\KnowledgeBaseArticle;
 use App\Models\QualityDocument;
 use App\Models\Setting;
 use App\Services\Auth\SessionAuthService;
+use App\Services\TurnstileVerifier;
 use App\Services\ViewRenderer;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
@@ -27,6 +28,7 @@ class LandingController
         private readonly QualityDocument $qualityDocumentModel,
         private readonly SessionAuthService $sessionAuthService,
         private readonly HealthController $healthController,
+        private readonly TurnstileVerifier $turnstileVerifier,
     ) {
     }
 
@@ -89,6 +91,9 @@ class LandingController
                 ? $landing['hero_cta_label']
                 : __('landing_default_hero_cta'),
             'appUrl' => (string) ($this->appConfig['url'] ?? ''),
+            'csrfToken' => $this->sessionAuthService->getOrCreateCsrfToken(),
+            'turnstileEnabled' => $this->turnstileVerifier->isEnabled(),
+            'turnstileSiteKey' => $this->turnstileVerifier->siteKey(),
         ], $extra), null);
 
         $response->getBody()->write($html);

@@ -152,6 +152,20 @@ $locale = $locale ?? 'tr';
             float: right; border: 0; background: transparent; color: var(--muted); font-size: 1.1rem;
             cursor: pointer; border-radius: 8px; padding: 0.2rem 0.45rem;
         }
+        .login-modal { width: min(100%, 26rem); max-height: 90vh; }
+        .login-modal-brand { text-align: center; margin: 0.25rem 0 1.25rem; }
+        .login-modal-brand .brand-mark { margin: 0 auto 0.85rem; }
+        .login-modal-brand h2 { margin: 0; font-size: 1.35rem; letter-spacing: -0.02em; font-weight: 650; }
+        .login-modal-brand p { margin: 0.4rem 0 0; color: var(--muted); font-size: 0.9rem; line-height: 1.45; }
+        .login-modal-form { display: grid; gap: 0.9rem; }
+        .login-field { display: grid; gap: 0.4rem; }
+        .login-field span { font-size: 0.875rem; font-weight: 600; color: var(--ink); }
+        .login-field input {
+            width: 100%; border: 1px solid var(--border); border-radius: 12px; background: #fff;
+            padding: 0.8rem 0.95rem; font: inherit; color: var(--ink);
+        }
+        .login-field input:focus { outline: 2px solid rgba(122, 36, 44, 0.25); border-color: var(--brand); }
+        .login-modal .cf-turnstile { display: flex; justify-content: center; }
         .kb-prose { margin-top: 1.25rem; color: var(--muted); font-size: 0.975rem; line-height: 1.65; white-space: pre-wrap; word-break: break-word; }
         [x-cloak] { display: none !important; }
         @media (min-width: 640px) {

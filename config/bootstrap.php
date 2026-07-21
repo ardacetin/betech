@@ -276,7 +276,8 @@ $landingController = new LandingController(
     $announcementModel,
     $qualityDocumentModel,
     $sessionAuthService,
-    $healthController
+    $healthController,
+    $turnstileVerifier
 );
 $inventoryFormController = new InventoryFormController($assetModel, $assetTypeModel, $assetCustomFieldModel, $assetTypeTableService, $viewRenderer, $sessionAuthService, $userModel);
 $networkPortMappingController = new NetworkPortMappingController($networkPortMappingService);

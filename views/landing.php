@@ -10,6 +10,9 @@ declare(strict_types=1);
  * @var string $heroTitle
  * @var string $heroSubtitle
  * @var string $heroCtaLabel
+ * @var string $csrfToken
+ * @var bool $turnstileEnabled
+ * @var string $turnstileSiteKey
  * @var list<array<string, mixed>> $featuredArticles
  * @var list<array<string, mixed>> $announcements
  * @var list<array<string, mixed>> $documents
@@ -18,6 +21,9 @@ $locale = $locale ?? 'tr';
 $featuredArticles = is_array($featuredArticles ?? null) ? $featuredArticles : [];
 $announcements = is_array($announcements ?? null) ? $announcements : [];
 $documents = is_array($documents ?? null) ? $documents : [];
+$csrfToken = (string) ($csrfToken ?? '');
+$turnstileEnabled = (bool) ($turnstileEnabled ?? false);
+$turnstileSiteKey = (string) ($turnstileSiteKey ?? '');
 
 $articlesJson = json_encode(array_map(static function (array $article): array {
     return [
@@ -41,39 +47,20 @@ require __DIR__ . '/partials/public_head.php';
                     <h1 id="hero-title"><?= htmlspecialchars($heroTitle, ENT_QUOTES, 'UTF-8') ?></h1>
                     <p><?= htmlspecialchars($heroSubtitle, ENT_QUOTES, 'UTF-8') ?></p>
                     <div class="hero-actions">
-                        <a href="/login" class="btn btn-primary"><?= htmlspecialchars(__('landing_login'), ENT_QUOTES, 'UTF-8') ?></a>
+                        <button type="button" class="btn btn-primary" @click="openLogin()"><?= htmlspecialchars(__('landing_login'), ENT_QUOTES, 'UTF-8') ?></button>
                         <a href="/knowledge-base" class="btn btn-secondary"><?= htmlspecialchars($heroCtaLabel, ENT_QUOTES, 'UTF-8') ?></a>
                     </div>
                 </div>
             </section>
 
-            <section class="section" aria-label="<?= htmlspecialchars(__('landing_quick_access'), ENT_QUOTES, 'UTF-8') ?>">
+            <section class="section" id="talep">
                 <div class="section-inner">
-                    <div class="cards cards-3">
-                        <a class="card" href="/knowledge-base">
-                            <span class="card-icon" aria-hidden="true">
-                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v16H6.5A2.5 2.5 0 0 0 4 21.5V5.5Zm4 2h8M8 12h8M8 16h5"/></svg>
-                            </span>
-                            <h3><?= htmlspecialchars(__('nav_knowledge_base'), ENT_QUOTES, 'UTF-8') ?></h3>
-                            <p><?= htmlspecialchars(__('landing_card_kb_desc'), ENT_QUOTES, 'UTF-8') ?></p>
-                            <span class="card-link"><?= htmlspecialchars(__('landing_explore'), ENT_QUOTES, 'UTF-8') ?> →</span>
-                        </a>
-                        <a class="card" href="/public-documents">
-                            <span class="card-icon" aria-hidden="true">
-                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M8 3h7l5 5v13a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Zm7 0v5h5"/></svg>
-                            </span>
-                            <h3><?= htmlspecialchars(__('landing_nav_documents'), ENT_QUOTES, 'UTF-8') ?></h3>
-                            <p><?= htmlspecialchars(__('landing_card_docs_desc'), ENT_QUOTES, 'UTF-8') ?></p>
-                            <span class="card-link"><?= htmlspecialchars(__('landing_explore'), ENT_QUOTES, 'UTF-8') ?> →</span>
-                        </a>
-                        <a class="card" href="#duyurular">
-                            <span class="card-icon" aria-hidden="true">
-                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h10M4 18h13"/></svg>
-                            </span>
-                            <h3><?= htmlspecialchars(__('landing_nav_announcements'), ENT_QUOTES, 'UTF-8') ?></h3>
-                            <p><?= htmlspecialchars(__('landing_card_announcements_desc'), ENT_QUOTES, 'UTF-8') ?></p>
-                            <span class="card-link"><?= htmlspecialchars(__('landing_explore'), ENT_QUOTES, 'UTF-8') ?> →</span>
-                        </a>
+                    <div class="panel" style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:1.25rem;">
+                        <div style="max-width:36rem;">
+                            <h2 class="section-title" style="font-size:1.35rem;"><?= htmlspecialchars(__('landing_requests_title'), ENT_QUOTES, 'UTF-8') ?></h2>
+                            <p class="section-subtitle"><?= htmlspecialchars(__('landing_requests_subtitle'), ENT_QUOTES, 'UTF-8') ?></p>
+                        </div>
+                        <button type="button" class="btn btn-primary" @click="openLogin()"><?= htmlspecialchars(__('landing_requests_cta'), ENT_QUOTES, 'UTF-8') ?></button>
                     </div>
                 </div>
             </section>
@@ -142,7 +129,38 @@ require __DIR__ . '/partials/public_head.php';
                 </div>
             </section>
 
-            <section class="section" id="bilgi-bankasi">
+            <section class="section" aria-label="<?= htmlspecialchars(__('landing_quick_access'), ENT_QUOTES, 'UTF-8') ?>">
+                <div class="section-inner">
+                    <div class="cards cards-3">
+                        <a class="card" href="/knowledge-base">
+                            <span class="card-icon" aria-hidden="true">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v16H6.5A2.5 2.5 0 0 0 4 21.5V5.5Zm4 2h8M8 12h8M8 16h5"/></svg>
+                            </span>
+                            <h3><?= htmlspecialchars(__('nav_knowledge_base'), ENT_QUOTES, 'UTF-8') ?></h3>
+                            <p><?= htmlspecialchars(__('landing_card_kb_desc'), ENT_QUOTES, 'UTF-8') ?></p>
+                            <span class="card-link"><?= htmlspecialchars(__('landing_explore'), ENT_QUOTES, 'UTF-8') ?> →</span>
+                        </a>
+                        <a class="card" href="/public-documents">
+                            <span class="card-icon" aria-hidden="true">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M8 3h7l5 5v13a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Zm7 0v5h5"/></svg>
+                            </span>
+                            <h3><?= htmlspecialchars(__('landing_nav_documents'), ENT_QUOTES, 'UTF-8') ?></h3>
+                            <p><?= htmlspecialchars(__('landing_card_docs_desc'), ENT_QUOTES, 'UTF-8') ?></p>
+                            <span class="card-link"><?= htmlspecialchars(__('landing_explore'), ENT_QUOTES, 'UTF-8') ?> →</span>
+                        </a>
+                        <a class="card" href="#duyurular">
+                            <span class="card-icon" aria-hidden="true">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h10M4 18h13"/></svg>
+                            </span>
+                            <h3><?= htmlspecialchars(__('landing_nav_announcements'), ENT_QUOTES, 'UTF-8') ?></h3>
+                            <p><?= htmlspecialchars(__('landing_card_announcements_desc'), ENT_QUOTES, 'UTF-8') ?></p>
+                            <span class="card-link"><?= htmlspecialchars(__('landing_explore'), ENT_QUOTES, 'UTF-8') ?> →</span>
+                        </a>
+                    </div>
+                </div>
+            </section>
+
+            <section class="section" id="bilgi-info">
                 <div class="section-inner">
                     <div class="panel">
                         <div class="panel-head">
@@ -166,18 +184,6 @@ require __DIR__ . '/partials/public_head.php';
                 </div>
             </section>
 
-            <section class="section" id="talep">
-                <div class="section-inner">
-                    <div class="panel" style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:1.25rem;">
-                        <div style="max-width:36rem;">
-                            <h2 class="section-title" style="font-size:1.35rem;"><?= htmlspecialchars(__('landing_requests_title'), ENT_QUOTES, 'UTF-8') ?></h2>
-                            <p class="section-subtitle"><?= htmlspecialchars(__('landing_requests_subtitle'), ENT_QUOTES, 'UTF-8') ?></p>
-                        </div>
-                        <a href="/login?redirect=/" class="btn btn-primary"><?= htmlspecialchars(__('landing_requests_cta'), ENT_QUOTES, 'UTF-8') ?></a>
-                    </div>
-                </div>
-            </section>
-
             <section class="section" id="hakkinda">
                 <div class="section-inner">
                     <div class="panel">
@@ -193,7 +199,7 @@ require __DIR__ . '/partials/public_head.php';
                 <p><?= htmlspecialchars($appName, ENT_QUOTES, 'UTF-8') ?> · <?= htmlspecialchars($appSubtitle, ENT_QUOTES, 'UTF-8') ?></p>
                 <div class="footer-links">
                     <a href="#hakkinda"><?= htmlspecialchars(__('landing_nav_about'), ENT_QUOTES, 'UTF-8') ?></a>
-                    <a href="/login"><?= htmlspecialchars(__('landing_login'), ENT_QUOTES, 'UTF-8') ?></a>
+                    <button type="button" class="card-link" style="border:0;background:transparent;padding:0;cursor:pointer;font:inherit;" @click="openLogin()"><?= htmlspecialchars(__('landing_login'), ENT_QUOTES, 'UTF-8') ?></button>
                 </div>
             </div>
         </footer>
@@ -208,12 +214,24 @@ require __DIR__ . '/partials/public_head.php';
         </div>
     </div>
 
+    <?php require __DIR__ . '/partials/public_login_modal.php'; ?>
+
     <script>
         function publicLanding() {
             return {
                 mobileOpen: false,
+                loginOpen: false,
                 selectedArticle: null,
                 articles: <?= $articlesJson ?>,
+                openLogin() {
+                    this.mobileOpen = false;
+                    this.loginOpen = true;
+                    this.$nextTick(() => {
+                        const input = document.querySelector('.login-modal input[name="identifier"]');
+                        if (input) input.focus();
+                    });
+                },
+                closeLogin() { this.loginOpen = false; },
                 openArticleById(id) {
                     this.selectedArticle = this.articles.find((item) => Number(item.id) === Number(id)) || null;
                 },
