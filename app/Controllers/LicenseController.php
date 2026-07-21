@@ -36,6 +36,7 @@ class LicenseController
             'meta' => [
                 'total' => $result['pagination']['total'],
                 'filters' => $activeFilters,
+                'filter_fields' => $filterDefinitions,
             ],
         ]);
     }
