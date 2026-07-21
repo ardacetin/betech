@@ -183,59 +183,77 @@ class HealthController
             $activeAssetTable = $fallbackType['table'] ?? null;
         }
 
+        // Inventory list + QR codes are heavy; load them only for inventory routes.
+        $needsAssetBootstrap = $canManageAssets && ($forceAssetsView || $initialActiveView === 'assets');
+        $needsDashboardAnalytics = $canManageAssets && ($initialActiveView === null || $initialActiveView === 'dashboard');
+
         if ($canManageAssets) {
             $categories = $this->categoryModel->findAll();
             $locations = $this->locationModel->findAll();
-            $analytics = $this->analyticsService->getDashboardStats();
+            $analytics = $needsDashboardAnalytics
+                ? $this->analyticsService->getDashboardStats()
+                : $this->emptyAnalytics();
             $settings = $this->settingModel->getAdminBundle();
-            $globalCustomFields = $activeAssetTypeId !== null
-                ? array_map(
-                    static fn (array $field): array => [
-                        'name' => (string) ($field['column_name'] ?? ''),
-                        'label' => (string) ($field['label'] ?? ''),
-                        'type' => (string) ($field['field_type'] ?? 'varchar'),
-                    ],
-                    $this->assetCustomFieldModel->findByAssetTypeId($activeAssetTypeId)
-                )
-                : (is_array($settings['custom_fields'] ?? null) ? $settings['custom_fields'] : []);
 
-            $assetFilterDefinitions = $this->assetFilterSchemaService->buildDefinitions($categories, $globalCustomFields);
-            $assetFilterDefinitions = $this->assetFilterSchemaService->resolveOptions(
-                $assetFilterDefinitions,
-                $this->assetModel,
-                $categories,
-                $locations,
-                $activeAssetTypeId
-            );
-            $assetActiveFilters = $this->assetFilterSchemaService->parseRequestFilters($request->getQueryParams());
-            $assetPage = ListPagination::parsePage($request->getQueryParams());
-            $assetSortOrder = $this->assetModel->buildSortOrderFromQuery($request->getQueryParams(), $activeAssetTypeId);
-            $assetListResult = $this->assetModel->findPaginatedForDashboard(
-                $assetActiveFilters,
-                $assetFilterDefinitions,
-                $assetPage,
-                ListPagination::PAGE_SIZE,
-                $activeAssetTypeId,
-                $assetSortOrder,
-                $activeAssetTable
-            );
-            $assets = $assetListResult['data'];
-            $assetPagination = $assetListResult['pagination'];
+            if ($needsAssetBootstrap) {
+                $globalCustomFields = $activeAssetTypeId !== null
+                    ? array_map(
+                        static fn (array $field): array => [
+                            'name' => (string) ($field['column_name'] ?? ''),
+                            'label' => (string) ($field['label'] ?? ''),
+                            'type' => (string) ($field['field_type'] ?? 'varchar'),
+                        ],
+                        $this->assetCustomFieldModel->findByAssetTypeId($activeAssetTypeId)
+                    )
+                    : (is_array($settings['custom_fields'] ?? null) ? $settings['custom_fields'] : []);
 
-            $licenseFilterDefinitions = $this->licenseFilterSchemaService->buildDefinitions();
-            $licenseFilterDefinitions = $this->licenseFilterSchemaService->resolveOptions(
-                $licenseFilterDefinitions,
-                $this->licenseModel
-            );
-            $licenseActiveFilters = $this->licenseFilterSchemaService->parseRequestFilters($request->getQueryParams());
+                $assetFilterDefinitions = $this->assetFilterSchemaService->buildDefinitions($categories, $globalCustomFields);
+                $assetFilterDefinitions = $this->assetFilterSchemaService->resolveOptions(
+                    $assetFilterDefinitions,
+                    $this->assetModel,
+                    $categories,
+                    $locations,
+                    $activeAssetTypeId
+                );
+                $assetActiveFilters = $this->assetFilterSchemaService->parseRequestFilters($request->getQueryParams());
+                $assetPage = ListPagination::parsePage($request->getQueryParams());
+                $assetSortOrder = $this->assetModel->buildSortOrderFromQuery($request->getQueryParams(), $activeAssetTypeId);
+                $assetListResult = $this->assetModel->findPaginatedForDashboard(
+                    $assetActiveFilters,
+                    $assetFilterDefinitions,
+                    $assetPage,
+                    ListPagination::PAGE_SIZE,
+                    $activeAssetTypeId,
+                    $assetSortOrder,
+                    $activeAssetTable
+                );
+                $assets = $assetListResult['data'];
+                $assetPagination = $assetListResult['pagination'];
 
-            $consumableFilterDefinitions = $this->consumableFilterSchemaService->buildDefinitions($locations);
-            $consumableFilterDefinitions = $this->consumableFilterSchemaService->resolveOptions(
-                $consumableFilterDefinitions,
-                $this->consumableModel,
-                $locations
-            );
-            $consumableActiveFilters = $this->consumableFilterSchemaService->parseRequestFilters($request->getQueryParams());
+                $licenseFilterDefinitions = $this->licenseFilterSchemaService->buildDefinitions();
+                $licenseFilterDefinitions = $this->licenseFilterSchemaService->resolveOptions(
+                    $licenseFilterDefinitions,
+                    $this->licenseModel
+                );
+                $licenseActiveFilters = $this->licenseFilterSchemaService->parseRequestFilters($request->getQueryParams());
+
+                $consumableFilterDefinitions = $this->consumableFilterSchemaService->buildDefinitions($locations);
+                $consumableFilterDefinitions = $this->consumableFilterSchemaService->resolveOptions(
+                    $consumableFilterDefinitions,
+                    $this->consumableModel,
+                    $locations
+                );
+                $consumableActiveFilters = $this->consumableFilterSchemaService->parseRequestFilters($request->getQueryParams());
+            } else {
+                $assets = [];
+                $assetFilterDefinitions = [];
+                $assetActiveFilters = [];
+                $assetPagination = ListPagination::meta(1, 0);
+                $licenseFilterDefinitions = [];
+                $licenseActiveFilters = [];
+                $consumableFilterDefinitions = [];
+                $consumableActiveFilters = [];
+            }
         } else {
             $categories = [];
             $locations = [];
@@ -254,12 +272,15 @@ class HealthController
         $personnelRows = [];
         $assetQrCodes = [];
 
-        foreach ($assets as $asset) {
-            $assetId = (int) $asset['id'];
-            $assetQrCodes[$assetId] = $this->qrCodeService->generateForAsset(
-                (string) $asset['asset_tag'],
-                $assetId
-            );
+        // QR generation is expensive; only build when the inventory list is actually bootstrapped.
+        if ($needsAssetBootstrap) {
+            foreach ($assets as $asset) {
+                $assetId = (int) $asset['id'];
+                $assetQrCodes[$assetId] = $this->qrCodeService->generateForAsset(
+                    (string) $asset['asset_tag'],
+                    $assetId
+                );
+            }
         }
 
         $html = $this->viewRenderer->render('dashboard', [

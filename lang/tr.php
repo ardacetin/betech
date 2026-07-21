@@ -236,6 +236,7 @@ return [
     'announcements_page_subtitle' => 'Herkese açık duyuruları oluşturun, düzenleyin ve yayınlayın.',
     'announcements_add' => 'Duyuru Ekle',
     'announcements_edit' => 'Duyuruyu Düzenle',
+    'announcements_save' => 'Duyuruyu Kaydet',
     'announcements_delete' => 'Sil',
     'announcements_loading' => 'Duyurular yükleniyor…',
     'announcements_empty' => 'Henüz duyuru yok.',

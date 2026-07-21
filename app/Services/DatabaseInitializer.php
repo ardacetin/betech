@@ -9,6 +9,11 @@ use RuntimeException;
 
 class DatabaseInitializer
 {
+    /**
+     * Bump when new self-heal patches must run again on warm installs.
+     */
+    private const INIT_MARKER_VERSION = '2026-07-21-announcements-public-docs';
+
     public function __construct(
         private readonly DatabaseService $databaseService,
         private readonly string $schemaPath,
@@ -33,6 +38,11 @@ class DatabaseInitializer
 
         try {
             $connection = $this->databaseService->getConnection();
+
+            if ($this->isWarmInitialized($connection)) {
+                return new DatabaseInitializationResult(true);
+            }
+
             $warnings = [];
 
             if (!$this->assetsTableExists($connection)) {
@@ -164,6 +174,8 @@ class DatabaseInitializer
                 $warnings[] = $warning;
             }
 
+            $this->writeInitMarker($connection);
+
             return new DatabaseInitializationResult(true, null, $warnings);
         } catch (PDOException $exception) {
             return new DatabaseInitializationResult(
@@ -173,6 +185,62 @@ class DatabaseInitializer
         } catch (RuntimeException $exception) {
             return new DatabaseInitializationResult(false, $exception->getMessage());
         }
+    }
+
+    /**
+     * Skip expensive self-heal/seed work when the install is already warm.
+     */
+    private function isWarmInitialized(object $connection): bool
+    {
+        $force = strtolower(trim((string) ($_ENV['DB_FORCE_INIT'] ?? '')));
+        if (in_array($force, ['1', 'true', 'yes'], true)) {
+            return false;
+        }
+
+        $markerPath = $this->initMarkerPath();
+        $expected = $this->initMarkerToken();
+
+        if (is_readable($markerPath)) {
+            $cached = trim((string) @file_get_contents($markerPath));
+            if ($cached === $expected
+                && $this->assetsTableExists($connection)
+                && $this->tableExists($connection, 'announcements')
+                && $this->columnExists($connection, 'quality_documents', 'is_public')
+            ) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function writeInitMarker(object $connection): void
+    {
+        if (!$this->assetsTableExists($connection)) {
+            return;
+        }
+
+        $markerPath = $this->initMarkerPath();
+        $directory = dirname($markerPath);
+
+        if (!is_dir($directory)) {
+            @mkdir($directory, 0775, true);
+        }
+
+        @file_put_contents($markerPath, $this->initMarkerToken());
+    }
+
+    private function initMarkerPath(): string
+    {
+        return dirname($this->schemaPath, 2) . '/storage/cache/db-init.marker';
+    }
+
+    private function initMarkerToken(): string
+    {
+        $schemaMtime = is_readable($this->schemaPath) ? (string) (@filemtime($this->schemaPath) ?: 0) : '0';
+        $seedsMtime = is_readable($this->seedsPath) ? (string) (@filemtime($this->seedsPath) ?: 0) : '0';
+
+        return self::INIT_MARKER_VERSION . ':' . $schemaMtime . ':' . $seedsMtime;
     }
 
     /**
