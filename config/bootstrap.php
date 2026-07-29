@@ -403,6 +403,39 @@ $app->get('/network/switch-ports', [$healthController, 'switchPorts']);
 $app->get('/network/port-config', [$switchPortController, 'portConfig']);
 $app->get('/inventory/{typeId}', [$healthController, 'inventorySection']);
 $app->get('/documents', [$healthController, 'documents']);
+$app->get('/helpdesk', function ($request, $response) use ($healthController) {
+    return $healthController->panelView($request, $response, 'helpdesk');
+});
+$app->get('/reports', function ($request, $response) use ($healthController) {
+    return $healthController->panelView($request, $response, 'reports');
+});
+$app->get('/announcements', function ($request, $response) use ($healthController) {
+    return $healthController->panelView($request, $response, 'announcements');
+});
+$app->get('/licenses', function ($request, $response) use ($healthController) {
+    return $healthController->panelView($request, $response, 'licenses');
+});
+$app->get('/consumables', function ($request, $response) use ($healthController) {
+    return $healthController->panelView($request, $response, 'consumables');
+});
+$app->get('/ipam', function ($request, $response) use ($healthController) {
+    return $healthController->panelView($request, $response, 'ipam');
+});
+$app->get('/personnel', function ($request, $response) use ($healthController) {
+    return $healthController->panelView($request, $response, 'personnel');
+});
+$app->get('/audit-logs', function ($request, $response) use ($healthController) {
+    return $healthController->panelView($request, $response, 'audit_logs');
+});
+$app->get('/settings', function ($request, $response) use ($healthController) {
+    return $healthController->panelView($request, $response, 'settings');
+});
+$app->get('/my/tickets', function ($request, $response) use ($healthController) {
+    return $healthController->panelView($request, $response, 'my_tickets');
+});
+$app->get('/my/assets', function ($request, $response) use ($healthController) {
+    return $healthController->panelView($request, $response, 'my_assets');
+});
 $app->get('/assets/view/{id}', [$assetViewController, 'show']);
 
 $app->group('', function ($group) use ($endUserController): void {

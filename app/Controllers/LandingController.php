@@ -48,7 +48,7 @@ class LandingController
     public function knowledgeBase(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
     {
         if ($this->sessionAuthService->isAuthenticated()) {
-            return $this->healthController->index($request, $response);
+            return $this->healthController->panelView($request, $response, 'knowledge_base');
         }
 
         return $this->renderPublic($response, 'public_knowledge_base', [

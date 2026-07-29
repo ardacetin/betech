@@ -77,13 +77,7 @@ class HealthController
 
     public function documents(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
     {
-        return $this->renderDashboard(
-            $request,
-            $response,
-            null,
-            false,
-            'documents'
-        );
+        return $this->panelView($request, $response, 'documents');
     }
 
     public function switchPorts(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
@@ -126,6 +120,51 @@ class HealthController
                 'matrix' => $matrix,
             ]
         );
+    }
+
+    /**
+     * Render the authenticated SPA shell for a named panel section.
+     */
+    public function panelView(
+        ServerRequestInterface $request,
+        ResponseInterface $response,
+        string $view
+    ): ResponseInterface {
+        $view = trim($view);
+        $allowed = [
+            'dashboard',
+            'helpdesk',
+            'knowledge_base',
+            'reports',
+            'documents',
+            'announcements',
+            'licenses',
+            'consumables',
+            'ipam',
+            'switch_ports',
+            'personnel',
+            'audit_logs',
+            'settings',
+            'my_tickets',
+            'my_assets',
+        ];
+
+        if (!in_array($view, $allowed, true)) {
+            return $this->index($request, $response);
+        }
+
+        if ($view === 'switch_ports') {
+            return $this->switchPorts($request, $response);
+        }
+
+        $role = $this->sessionAuthService->role();
+        $isEndUser = $this->userModel->isEndUserRole($role);
+
+        if ($isEndUser && !in_array($view, ['knowledge_base', 'my_tickets', 'my_assets'], true)) {
+            return $this->renderDashboard($request, $response, null, false, 'knowledge_base');
+        }
+
+        return $this->renderDashboard($request, $response, null, false, $view);
     }
 
     public function inventorySection(
@@ -382,6 +421,26 @@ class HealthController
 
         if ($initialActiveView === 'switch_ports') {
             return __('switch_ports_page_title');
+        }
+
+        if ($initialActiveView === 'helpdesk') {
+            return __('helpdesk_page_title');
+        }
+
+        if ($initialActiveView === 'announcements') {
+            return __('announcements_page_title');
+        }
+
+        if ($initialActiveView === 'licenses') {
+            return __('licenses_page_title');
+        }
+
+        if ($initialActiveView === 'personnel') {
+            return __('personnel_page_title');
+        }
+
+        if ($initialActiveView === 'settings') {
+            return __('settings_page_title');
         }
 
         if ($forceAssetsView && $requestedAssetType !== null) {

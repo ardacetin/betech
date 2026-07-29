@@ -629,7 +629,7 @@ $i18nScript = json_encode([
         color: #fff !important;
     }
 </style>
-<div class="app-panel-shell min-h-screen bg-[var(--bg)]" x-data="assetDashboard()" x-init="restoreDashboardView(); parseInventoryRoute(); parseDocumentsRoute(); parseSwitchPortsRoute(); parseListSortFromUrl(); syncDocumentTitle(); $watch('activeView', () => syncDocumentTitle()); $watch('settingsTab', () => syncDocumentTitle()); bootstrapActiveViewData(); this.isAssignLicenseModalOpen = false;">
+<div class="app-panel-shell min-h-screen bg-[var(--bg)]" x-data="assetDashboard()" x-init="restoreDashboardView(); parsePanelRoute(); parseListSortFromUrl(); syncDocumentTitle(); $watch('activeView', () => syncDocumentTitle()); $watch('settingsTab', () => syncDocumentTitle()); bootstrapActiveViewData(); this.isAssignLicenseModalOpen = false;">
     <div class="flex h-screen overflow-hidden bg-[var(--bg)]">
         <aside class="hidden h-full w-64 min-h-0 flex-shrink-0 flex-col border-r border-[var(--border)] bg-white lg:flex">
             <div class="flex h-16 shrink-0 items-center gap-3 border-b border-[var(--border)] px-5">
@@ -2984,10 +2984,70 @@ $i18nScript = json_encode([
                 }));
             },
             parseInventoryRoute() {
-                const match = window.location.pathname.match(/^\/inventory\/([^/]+)\/?$/);
+                this.parsePanelRoute();
+            },
+            parseDocumentsRoute() {
+                this.parsePanelRoute();
+            },
+            parseSwitchPortsRoute() {
+                this.parsePanelRoute();
+            },
+            panelPathForView(view = this.activeView) {
+                const normalized = this.normalizeEndUserView(view);
 
-                if (match) {
-                    const identifier = decodeURIComponent(match[1]);
+                if (normalized === 'assets') {
+                    const activeType = (this.assetTypes || []).find((type) => Number(type.id) === Number(this.activeAssetTypeId));
+                    const slug = activeType?.slug || this.activeAssetTypeSlug || this.activeAssetTypeId;
+
+                    return slug ? `/inventory/${encodeURIComponent(slug)}` : '/';
+                }
+
+                const routes = {
+                    dashboard: '/',
+                    helpdesk: '/helpdesk',
+                    knowledge_base: '/knowledge-base',
+                    reports: '/reports',
+                    documents: '/documents',
+                    announcements: '/announcements',
+                    licenses: '/licenses',
+                    consumables: '/consumables',
+                    ipam: '/ipam',
+                    switch_ports: '/network/switch-ports',
+                    personnel: '/personnel',
+                    audit_logs: '/audit-logs',
+                    settings: '/settings',
+                    my_tickets: '/my/tickets',
+                    my_assets: '/my/assets',
+                };
+
+                return routes[normalized] || '/';
+            },
+            syncPanelUrl(queryString = null) {
+                const path = this.panelPathForView(this.activeView);
+                let search = '';
+
+                if (typeof queryString === 'string') {
+                    const trimmed = queryString.replace(/^\?/, '');
+                    search = trimmed !== '' ? `?${trimmed}` : '';
+                } else if (this.activeView === 'switch_ports' && this.switchPortsSelectedId) {
+                    search = `?switch_id=${encodeURIComponent(this.switchPortsSelectedId)}`;
+                }
+
+                const next = `${path}${search}`;
+                const current = `${window.location.pathname}${window.location.search}`;
+
+                if (current !== next) {
+                    window.history.replaceState({}, '', next);
+                }
+            },
+            parsePanelRoute() {
+                const rawPath = window.location.pathname || '/';
+                const path = rawPath.replace(/\/+$/, '') || '/';
+
+                const inventoryMatch = path.match(/^\/inventory\/([^/]+)$/);
+
+                if (inventoryMatch) {
+                    const identifier = decodeURIComponent(inventoryMatch[1]);
                     const bySlug = (this.assetTypes || []).find((type) => String(type.slug) === identifier);
                     const byId = (this.assetTypes || []).find((type) => String(type.id) === identifier);
 
@@ -2995,20 +3055,63 @@ $i18nScript = json_encode([
                     this.activeAssetTypeSlug = String((bySlug || byId)?.slug || identifier || this.activeAssetTypeSlug || '');
                     this.activeView = 'assets';
                     this.assetManagementOpen = true;
+                    return;
                 }
-            },
-            parseDocumentsRoute() {
-                const path = window.location.pathname;
 
-                if (path === '/documents' || path === '/documents.php' || path.endsWith('/documents.php')) {
-                    this.activeView = 'documents';
-                }
-            },
-            parseSwitchPortsRoute() {
-                const path = window.location.pathname;
-
-                if (path === '/network/switch-ports' || path.endsWith('/network/switch-ports')) {
+                if (path === '/network/switch-ports') {
                     this.activeView = 'switch_ports';
+                    return;
+                }
+
+                if (path === '/documents' || path === '/documents.php') {
+                    this.activeView = 'documents';
+                    return;
+                }
+
+                const routeMap = {
+                    '/': this.isEndUser ? 'knowledge_base' : 'dashboard',
+                    '/helpdesk': 'helpdesk',
+                    '/knowledge-base': 'knowledge_base',
+                    '/reports': 'reports',
+                    '/announcements': 'announcements',
+                    '/licenses': 'licenses',
+                    '/consumables': 'consumables',
+                    '/ipam': 'ipam',
+                    '/personnel': 'personnel',
+                    '/audit-logs': 'audit_logs',
+                    '/settings': 'settings',
+                    '/my/tickets': 'my_tickets',
+                    '/my/assets': 'my_assets',
+                };
+
+                if (Object.prototype.hasOwnProperty.call(routeMap, path)) {
+                    this.activeView = this.normalizeEndUserView(routeMap[path]);
+                }
+            },
+            openPanelView(view, options = {}) {
+                const nextView = this.normalizeEndUserView(view);
+
+                this.activeView = nextView;
+
+                if (options.settingsTab) {
+                    this.settingsTab = options.settingsTab;
+                }
+
+                if (nextView === 'assets') {
+                    this.assetManagementOpen = true;
+                }
+
+                if (nextView === 'ipam') {
+                    this.ipamSubView = options.ipamSubView || this.ipamSubView || 'networks';
+                }
+
+                this.syncPanelUrl(options.query ?? null);
+                this.persistDashboardView();
+                this.syncDocumentTitle();
+                this.bootstrapActiveViewData();
+
+                if (typeof options.after === 'function') {
+                    options.after.call(this);
                 }
             },
             bootstrapActiveViewData() {
@@ -3017,7 +3120,7 @@ $i18nScript = json_encode([
                     return;
                 }
 
-                if (!this.canManageAssets && !this.canAccessSettings) {
+                if (!this.canManageAssets && !this.canAccessSettings && !this.canAccessPersonnel) {
                     return;
                 }
 
@@ -3073,6 +3176,10 @@ $i18nScript = json_encode([
                     }
                 }
 
+                if (this.canAccessPersonnel && this.activeView === 'personnel') {
+                    this.fetchPersonnel();
+                }
+
                 if (this.canAccessSettings) {
                     if (this.activeView === 'reports') {
                         this.fetchReports();
@@ -3088,11 +3195,7 @@ $i18nScript = json_encode([
                 }
             },
             openSwitchPorts() {
-                this.activeView = 'switch_ports';
-                this.initSwitchPorts();
-                window.history.replaceState({}, '', '/network/switch-ports');
-                this.persistDashboardView();
-                this.syncDocumentTitle();
+                this.openPanelView('switch_ports');
             },
             initSwitchPorts() {
                 if (!this.switchPortsSwitches || this.switchPortsSwitches.length === 0) {
@@ -3446,10 +3549,10 @@ $i18nScript = json_encode([
                 this.activeView = 'assets';
                 this.assetManagementOpen = true;
                 this.inventoryPage = 1;
-                this.fetchAssetTypeSchema().then(() => this.fetchInventoryList(true));
-                window.history.replaceState({}, '', `/inventory/${encodeURIComponent(pathIdentifier)}`);
+                this.syncPanelUrl();
                 this.persistDashboardView();
                 this.syncDocumentTitle();
+                this.fetchAssetTypeSchema().then(() => this.fetchInventoryList(true));
             },
             restoreDashboardView() {
                 const inventoryRouteMatch = window.location.pathname.match(/^\/inventory\/([^/]+)\/?$/);
@@ -3528,6 +3631,8 @@ $i18nScript = json_encode([
                 } else if (this.activeView === 'my_tickets') {
                     this.fetchPortalTickets();
                 }
+
+                this.syncPanelUrl(ticketId ? `ticket=${encodeURIComponent(ticketId)}` : null);
             },
             async fetchPortalAssets() {
                 if (!this.isEndUser) {
@@ -6379,10 +6484,7 @@ $i18nScript = json_encode([
                     this.documentsPage = Number(this.documentsPagination.page || 1);
 
                     if (this.activeView === 'documents') {
-                        const nextUrl = new URL(window.location.href);
-                        nextUrl.pathname = '/documents.php';
-                        nextUrl.search = query ? `?${query}` : '';
-                        window.history.replaceState({}, '', `${nextUrl.pathname}${nextUrl.search}`);
+                        this.syncPanelUrl(query);
                     }
                 } catch (error) {
                     this.qualityDocumentsError = window.__i18n.helpdesk_network_error;
@@ -7937,6 +8039,11 @@ $i18nScript = json_encode([
                     this.tickets = Array.isArray(result.data) ? result.data : [];
                     this.ticketsPagination = result.pagination || this.defaultListPagination();
                     this.ticketsPage = Number(this.ticketsPagination.page || 1);
+
+                    if (this.activeView === 'helpdesk') {
+                        this.syncPanelUrl(params.toString());
+                    }
+
                     this.maybeOpenTicketFromUrl();
                 } catch (error) {
                     this.ticketsError = window.__i18n.helpdesk_network_error;

@@ -19,7 +19,7 @@ $sectionHeaderClass = 'mt-6 mb-2 px-3 text-[11px] font-bold uppercase tracking-w
     <?php if ($isEndUser): ?>
         <button
             type="button"
-            @click="activeView = 'knowledge_base'; fetchPublishedKnowledgeBase()"
+            @click="openPanelView('knowledge_base')"
             class="group flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900"
             :class="activeView === 'knowledge_base' ? 'panel-nav-active font-semibold text-white shadow-sm' : ''"
         >
@@ -30,7 +30,7 @@ $sectionHeaderClass = 'mt-6 mb-2 px-3 text-[11px] font-bold uppercase tracking-w
         </button>
         <button
             type="button"
-            @click="activeView = 'my_tickets'; fetchPortalTickets()"
+            @click="openPanelView('my_tickets')"
             class="group flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900"
             :class="activeView === 'my_tickets' ? 'panel-nav-active font-semibold text-white shadow-sm' : ''"
         >
@@ -41,7 +41,7 @@ $sectionHeaderClass = 'mt-6 mb-2 px-3 text-[11px] font-bold uppercase tracking-w
         </button>
         <button
             type="button"
-            @click="activeView = 'my_assets'; fetchPortalAssets()"
+            @click="openPanelView('my_assets')"
             class="group flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900"
             :class="activeView === 'my_assets' ? 'panel-nav-active font-semibold text-white shadow-sm' : ''"
         >
@@ -54,7 +54,7 @@ $sectionHeaderClass = 'mt-6 mb-2 px-3 text-[11px] font-bold uppercase tracking-w
         <?php if ($canManageAssets): ?>
         <button
             type="button"
-            @click="activeView = 'dashboard'; fetchDashboardStats()"
+            @click="openPanelView('dashboard')"
             class="group flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900"
             :class="activeView === 'dashboard' ? 'panel-nav-active font-semibold text-white shadow-sm' : ''"
         >
@@ -70,7 +70,7 @@ $sectionHeaderClass = 'mt-6 mb-2 px-3 text-[11px] font-bold uppercase tracking-w
         <div class="space-y-1">
             <button
                 type="button"
-                @click="activeView = 'helpdesk'; fetchTickets(); fetchTicketCategories()"
+                @click="openPanelView('helpdesk')"
                 class="group flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900"
                 :class="activeView === 'helpdesk' ? 'panel-nav-active font-semibold text-white shadow-sm' : ''"
             >
@@ -81,7 +81,7 @@ $sectionHeaderClass = 'mt-6 mb-2 px-3 text-[11px] font-bold uppercase tracking-w
             </button>
             <button
                 type="button"
-                @click="activeView = 'knowledge_base'; fetchKnowledgeBaseArticles()"
+                @click="openPanelView('knowledge_base')"
                 class="group flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900"
                 :class="activeView === 'knowledge_base' ? 'panel-nav-active font-semibold text-white shadow-sm' : ''"
             >
@@ -93,7 +93,7 @@ $sectionHeaderClass = 'mt-6 mb-2 px-3 text-[11px] font-bold uppercase tracking-w
             <?php if ($canAccessSettings): ?>
             <button
                 type="button"
-                @click="activeView = 'reports'; fetchReports(); window.history.replaceState({}, '', '/');"
+                @click="openPanelView('reports')"
                 class="group ml-4 flex w-[calc(100%-1rem)] items-center gap-3 rounded-lg border-l border-gray-200 px-3 py-2 pl-4 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900"
                 :class="activeView === 'reports' ? 'panel-nav-active font-semibold text-white shadow-sm' : ''"
             >
@@ -104,7 +104,7 @@ $sectionHeaderClass = 'mt-6 mb-2 px-3 text-[11px] font-bold uppercase tracking-w
             </button>
             <button
                 type="button"
-                @click="activeView = 'documents'; fetchQualityDocuments(); window.history.replaceState({}, '', '/documents.php');"
+                @click="openPanelView('documents')"
                 class="group ml-4 flex w-[calc(100%-1rem)] items-center gap-3 rounded-lg border-l border-gray-200 px-3 py-2 pl-4 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900"
                 :class="activeView === 'documents' ? 'panel-nav-active font-semibold text-white shadow-sm' : ''"
             >
@@ -115,7 +115,7 @@ $sectionHeaderClass = 'mt-6 mb-2 px-3 text-[11px] font-bold uppercase tracking-w
             </button>
             <button
                 type="button"
-                @click="activeView = 'announcements'; fetchAnnouncements(); window.history.replaceState({}, '', '/');"
+                @click="openPanelView('announcements')"
                 class="group ml-4 flex w-[calc(100%-1rem)] items-center gap-3 rounded-lg border-l border-gray-200 px-3 py-2 pl-4 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900"
                 :class="activeView === 'announcements' ? 'panel-nav-active font-semibold text-white shadow-sm' : ''"
             >
@@ -169,7 +169,7 @@ $sectionHeaderClass = 'mt-6 mb-2 px-3 text-[11px] font-bold uppercase tracking-w
         <?php if ($canManageAssets): ?>
         <button
             type="button"
-            @click="activeView = 'licenses'; fetchLicenses()"
+            @click="openPanelView('licenses')"
             class="group flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900"
             :class="activeView === 'licenses' ? 'panel-nav-active font-semibold text-white shadow-sm' : ''"
         >
@@ -180,7 +180,7 @@ $sectionHeaderClass = 'mt-6 mb-2 px-3 text-[11px] font-bold uppercase tracking-w
         </button>
         <button
             type="button"
-            @click="activeView = 'consumables'; fetchConsumables()"
+            @click="openPanelView('consumables')"
             class="group flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900"
             :class="activeView === 'consumables' ? 'panel-nav-active font-semibold text-white shadow-sm' : ''"
         >
@@ -195,7 +195,7 @@ $sectionHeaderClass = 'mt-6 mb-2 px-3 text-[11px] font-bold uppercase tracking-w
         <div class="<?= $sectionHeaderClass ?>"><?= htmlspecialchars(__('nav_section_infrastructure'), ENT_QUOTES, 'UTF-8') ?></div>
         <button
             type="button"
-            @click="activeView = 'ipam'; ipamSubView = 'networks'; fetchIpNetworks()"
+            @click="openPanelView('ipam')"
             class="group flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900"
             :class="activeView === 'ipam' ? 'panel-nav-active font-semibold text-white shadow-sm' : ''"
         >
@@ -222,7 +222,7 @@ $sectionHeaderClass = 'mt-6 mb-2 px-3 text-[11px] font-bold uppercase tracking-w
         <?php if ($canAccessPersonnel): ?>
         <button
             type="button"
-            @click="activeView = 'personnel'; fetchPersonnel()"
+            @click="openPanelView('personnel')"
             class="group flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900"
             :class="activeView === 'personnel' ? 'panel-nav-active font-semibold text-white shadow-sm' : ''"
         >
@@ -235,7 +235,7 @@ $sectionHeaderClass = 'mt-6 mb-2 px-3 text-[11px] font-bold uppercase tracking-w
         <?php if ($canAccessSettings): ?>
         <button
             type="button"
-            @click="activeView = 'audit_logs'; fetchAuditLogs()"
+            @click="openPanelView('audit_logs')"
             class="group flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900"
             :class="activeView === 'audit_logs' ? 'panel-nav-active font-semibold text-white shadow-sm' : ''"
         >
@@ -246,7 +246,7 @@ $sectionHeaderClass = 'mt-6 mb-2 px-3 text-[11px] font-bold uppercase tracking-w
         </button>
         <button
             type="button"
-            @click="activeView = 'settings'; settingsTab = 'general'; $nextTick(() => initQuillEditor())"
+            @click="openPanelView('settings', { settingsTab: 'general' })"
             class="group flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900"
             :class="activeView === 'settings' ? 'panel-nav-active font-semibold text-white shadow-sm' : ''"
         >
