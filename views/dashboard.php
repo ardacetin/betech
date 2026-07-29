@@ -6653,13 +6653,22 @@ $i18nScript = json_encode([
                     return '—';
                 }
 
-                const date = new Date(String(value).replace(' ', 'T'));
+                const raw = String(value).trim();
+                const date = new Date(raw.includes('T') ? raw : raw.replace(' ', 'T'));
 
                 if (Number.isNaN(date.getTime())) {
-                    return String(value);
+                    return raw;
                 }
 
-                return date.toLocaleString(window.__i18n.locale || 'tr-TR');
+                const locale = window.__i18n.locale === 'en' ? 'en-US' : 'tr-TR';
+
+                return new Intl.DateTimeFormat(locale, {
+                    day: '2-digit',
+                    month: '2-digit',
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                }).format(date);
             },
             async fetchLicenses(resetPage = false) {
                 if (!this.canManageAssets || this.licensesLoading) {

@@ -29,9 +29,17 @@ require __DIR__ . '/partials/public_head.php';
                 <?php else: ?>
                     <div class="cards" style="margin-top:1.5rem;">
                         <?php foreach ($documents as $doc): ?>
+                            <?php
+                            $uploadDate = format_display_date((string) ($doc['created_at'] ?? ''), $locale);
+                            $metaParts = array_values(array_filter([
+                                trim((string) ($doc['filename'] ?? '')),
+                                trim((string) ($doc['file_size'] ?? '')),
+                                $uploadDate !== '—' ? (__('quality_documents_col_upload_date') . ': ' . $uploadDate) : '',
+                            ], static fn (string $part): bool => $part !== ''));
+                            ?>
                             <a class="card" href="/api/quality-documents/<?= (int) ($doc['id'] ?? 0) ?>/public-download">
                                 <h3><?= htmlspecialchars((string) ($doc['title'] ?? ''), ENT_QUOTES, 'UTF-8') ?></h3>
-                                <p><?= htmlspecialchars((string) ($doc['filename'] ?? ''), ENT_QUOTES, 'UTF-8') ?> · <?= htmlspecialchars((string) ($doc['file_size'] ?? ''), ENT_QUOTES, 'UTF-8') ?></p>
+                                <p><?= htmlspecialchars(implode(' · ', $metaParts), ENT_QUOTES, 'UTF-8') ?></p>
                                 <span class="card-link"><?= htmlspecialchars(__('quality_documents_action_download'), ENT_QUOTES, 'UTF-8') ?> →</span>
                             </a>
                         <?php endforeach; ?>

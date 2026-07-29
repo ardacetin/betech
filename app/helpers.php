@@ -100,3 +100,27 @@ function custom_field_code_from_label(string $label): string
 
     return $name;
 }
+
+/**
+ * Format a datetime string for public/landing UI (date only).
+ */
+function format_display_date(?string $value, string $locale = 'tr'): string
+{
+    $value = trim((string) $value);
+
+    if ($value === '') {
+        return '—';
+    }
+
+    $timestamp = strtotime($value);
+
+    if ($timestamp === false) {
+        return $value;
+    }
+
+    if ($locale === 'en') {
+        return date('j M Y', $timestamp);
+    }
+
+    return date('d.m.Y', $timestamp);
+}

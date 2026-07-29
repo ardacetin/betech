@@ -96,7 +96,7 @@ declare(strict_types=1);
                     <template x-for="document in qualityDocuments" :key="document.id">
                         <tr class="hover:bg-zinc-50/80">
                             <td class="px-4 py-1.5 font-medium text-zinc-900" x-text="document.title"></td>
-                            <td class="px-4 py-1.5 tabular-nums text-zinc-600" x-text="formatQualityDocumentDate(document.created_at)"></td>
+                            <td class="whitespace-nowrap px-4 py-1.5 tabular-nums text-zinc-600" x-text="formatQualityDocumentDate(document.created_at)"></td>
                             <td class="px-4 py-1.5 tabular-nums text-zinc-600" x-text="document.file_size || '—'"></td>
                             <td class="px-4 py-1.5 text-zinc-600" x-text="document.uploaded_by_name || '—'"></td>
                             <td class="px-4 py-1.5">

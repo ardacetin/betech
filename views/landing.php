@@ -80,11 +80,7 @@ require __DIR__ . '/partials/public_head.php';
                                         <div class="list-meta">
                                             <?php
                                             $dateRaw = (string) ($item['published_at'] ?? $item['created_at'] ?? '');
-                                            $dateLabel = $dateRaw;
-                                            $ts = strtotime($dateRaw);
-                                            if ($ts !== false) {
-                                                $dateLabel = date($locale === 'en' ? 'j M Y' : 'j M Y', $ts);
-                                            }
+                                            $dateLabel = format_display_date($dateRaw, $locale);
                                             ?>
                                             <span><?= htmlspecialchars($dateLabel, ENT_QUOTES, 'UTF-8') ?></span>
                                             <?php if (!empty($item['category'])): ?>
@@ -113,7 +109,10 @@ require __DIR__ . '/partials/public_head.php';
                                 <?php foreach ($documents as $doc): ?>
                                     <div class="list-item">
                                         <div class="list-meta">
-                                            <span><?= htmlspecialchars((string) ($doc['file_size'] ?? ''), ENT_QUOTES, 'UTF-8') ?></span>
+                                            <span><?= htmlspecialchars(format_display_date((string) ($doc['created_at'] ?? ''), $locale), ENT_QUOTES, 'UTF-8') ?></span>
+                                            <?php if (!empty($doc['file_size'])): ?>
+                                                <span><?= htmlspecialchars((string) $doc['file_size'], ENT_QUOTES, 'UTF-8') ?></span>
+                                            <?php endif; ?>
                                         </div>
                                         <a class="list-title" href="/api/quality-documents/<?= (int) ($doc['id'] ?? 0) ?>/public-download">
                                             <?= htmlspecialchars((string) ($doc['title'] ?? ''), ENT_QUOTES, 'UTF-8') ?>
