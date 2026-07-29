@@ -2914,7 +2914,10 @@ $i18nScript = json_encode([
             resolvePageTitle() {
                 if (this.activeView === 'settings') {
                     const tabTitles = {
-                        general: this.pageTitles.settings,
+                        general: <?= json_encode(__('settings_tab_landing'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
+                        auth: <?= json_encode(__('settings_tab_auth'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
+                        zimmet: <?= json_encode(__('settings_tab_zimmet'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
+                        global_fields: <?= json_encode(__('settings_tab_global_fields'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                         categories: this.pageTitles.categories,
                         asset_types: this.pageTitles.asset_types,
                         locations: this.pageTitles.locations,
@@ -2958,6 +2961,9 @@ $i18nScript = json_encode([
                 if (this.activeView === 'settings') {
                     const tabSubtitles = {
                         general: this.pageSubtitles.settings,
+                        auth: this.pageSubtitles.settings,
+                        zimmet: this.pageSubtitles.settings,
+                        global_fields: this.pageSubtitles.settings,
                         categories: this.pageSubtitles.categories,
                         asset_types: this.pageSubtitles.asset_types,
                         locations: this.pageSubtitles.locations,
@@ -3170,8 +3176,10 @@ $i18nScript = json_encode([
                             this.fetchBackups();
                         } else if (this.settingsTab === 'automation') {
                             this.fetchAutomationRules();
-                        } else if (this.settingsTab === 'general') {
+                        } else if (this.settingsTab === 'zimmet') {
                             this.$nextTick(() => this.initQuillEditor());
+                        } else if (this.settingsTab === 'general') {
+                            // Landing page settings — no Quill editor.
                         }
                     }
                 }
@@ -3580,7 +3588,7 @@ $i18nScript = json_encode([
                     }
 
                     // Data loading is handled once by bootstrapActiveViewData() after URL routes are applied.
-                    if (!this.isEndUser && this.activeView === 'settings' && this.settingsTab === 'general') {
+                    if (!this.isEndUser && this.activeView === 'settings' && this.settingsTab === 'zimmet') {
                         this.$nextTick(() => this.initQuillEditor());
                     }
 

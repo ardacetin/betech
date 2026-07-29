@@ -15,7 +15,31 @@ declare(strict_types=1);
             class="rounded-lg px-3 py-2 text-sm font-medium transition"
             :class="settingsTab === 'general' ? 'bg-zinc-900 text-white' : 'text-zinc-600 hover:bg-zinc-100'"
         >
-            <?= htmlspecialchars(__('settings_tab_general'), ENT_QUOTES, 'UTF-8') ?>
+            <?= htmlspecialchars(__('settings_tab_landing'), ENT_QUOTES, 'UTF-8') ?>
+        </button>
+        <button
+            type="button"
+            @click="settingsTab = 'auth'"
+            class="rounded-lg px-3 py-2 text-sm font-medium transition"
+            :class="settingsTab === 'auth' ? 'bg-zinc-900 text-white' : 'text-zinc-600 hover:bg-zinc-100'"
+        >
+            <?= htmlspecialchars(__('settings_tab_auth'), ENT_QUOTES, 'UTF-8') ?>
+        </button>
+        <button
+            type="button"
+            @click="settingsTab = 'zimmet'; $nextTick(() => initQuillEditor())"
+            class="rounded-lg px-3 py-2 text-sm font-medium transition"
+            :class="settingsTab === 'zimmet' ? 'bg-zinc-900 text-white' : 'text-zinc-600 hover:bg-zinc-100'"
+        >
+            <?= htmlspecialchars(__('settings_tab_zimmet'), ENT_QUOTES, 'UTF-8') ?>
+        </button>
+        <button
+            type="button"
+            @click="settingsTab = 'global_fields'"
+            class="rounded-lg px-3 py-2 text-sm font-medium transition"
+            :class="settingsTab === 'global_fields' ? 'bg-zinc-900 text-white' : 'text-zinc-600 hover:bg-zinc-100'"
+        >
+            <?= htmlspecialchars(__('settings_tab_global_fields'), ENT_QUOTES, 'UTF-8') ?>
         </button>
         <button
             type="button"
@@ -132,6 +156,22 @@ declare(strict_types=1);
             </div>
         </article>
 
+        <div x-show="settingsErrorMessage" x-cloak class="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700" x-text="settingsErrorMessage"></div>
+        <div x-show="settingsSuccessMessage" x-cloak class="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700" x-text="settingsSuccessMessage"></div>
+
+        <div class="flex items-center justify-end gap-3">
+            <button
+                type="submit"
+                :disabled="isSavingSettings"
+                class="inline-flex items-center gap-2 rounded-xl bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+                <span x-show="isSavingSettings"><?= htmlspecialchars(__('saving'), ENT_QUOTES, 'UTF-8') ?></span>
+                <span x-show="!isSavingSettings"><?= htmlspecialchars(__('settings_save'), ENT_QUOTES, 'UTF-8') ?></span>
+            </button>
+        </div>
+    </form>
+
+    <form x-show="settingsTab === 'auth'" x-cloak @submit.prevent="saveSettings" class="space-y-6">
         <article class="rounded-2xl border border-zinc-200 bg-white p-6 shadow-soft">
             <h3 class="text-sm font-semibold text-zinc-900"><?= htmlspecialchars(__('settings_auth_title'), ENT_QUOTES, 'UTF-8') ?></h3>
             <p class="mt-1 text-xs text-zinc-500"><?= htmlspecialchars(__('settings_auth_hint'), ENT_QUOTES, 'UTF-8') ?></p>
@@ -287,6 +327,22 @@ declare(strict_types=1);
             </div>
         </article>
 
+        <div x-show="settingsErrorMessage" x-cloak class="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700" x-text="settingsErrorMessage"></div>
+        <div x-show="settingsSuccessMessage" x-cloak class="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700" x-text="settingsSuccessMessage"></div>
+
+        <div class="flex items-center justify-end gap-3">
+            <button
+                type="submit"
+                :disabled="isSavingSettings"
+                class="inline-flex items-center gap-2 rounded-xl bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+                <span x-show="isSavingSettings"><?= htmlspecialchars(__('saving'), ENT_QUOTES, 'UTF-8') ?></span>
+                <span x-show="!isSavingSettings"><?= htmlspecialchars(__('settings_save'), ENT_QUOTES, 'UTF-8') ?></span>
+            </button>
+        </div>
+    </form>
+
+    <form x-show="settingsTab === 'zimmet'" x-cloak @submit.prevent="saveSettings" class="space-y-6">
         <article class="rounded-2xl border border-zinc-200 bg-white p-6 shadow-soft">
             <h3 class="text-sm font-semibold text-zinc-900"><?= htmlspecialchars(__('settings_zimmet_title'), ENT_QUOTES, 'UTF-8') ?></h3>
             <p class="mt-1 text-xs text-zinc-500"><?= htmlspecialchars(__('settings_zimmet_hint'), ENT_QUOTES, 'UTF-8') ?></p>
@@ -301,6 +357,22 @@ declare(strict_types=1);
             <p class="mt-3 text-xs text-zinc-400"><?= htmlspecialchars(__('settings_zimmet_placeholders'), ENT_QUOTES, 'UTF-8') ?></p>
         </article>
 
+        <div x-show="settingsErrorMessage" x-cloak class="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700" x-text="settingsErrorMessage"></div>
+        <div x-show="settingsSuccessMessage" x-cloak class="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700" x-text="settingsSuccessMessage"></div>
+
+        <div class="flex items-center justify-end gap-3">
+            <button
+                type="submit"
+                :disabled="isSavingSettings"
+                class="inline-flex items-center gap-2 rounded-xl bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+                <span x-show="isSavingSettings"><?= htmlspecialchars(__('saving'), ENT_QUOTES, 'UTF-8') ?></span>
+                <span x-show="!isSavingSettings"><?= htmlspecialchars(__('settings_save'), ENT_QUOTES, 'UTF-8') ?></span>
+            </button>
+        </div>
+    </form>
+
+    <form x-show="settingsTab === 'global_fields'" x-cloak @submit.prevent="saveSettings" class="space-y-6">
         <article class="rounded-2xl border border-zinc-200 bg-white p-6 shadow-soft">
             <div class="flex flex-wrap items-start justify-between gap-3">
                 <div>
