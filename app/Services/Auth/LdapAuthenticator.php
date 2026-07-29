@@ -273,11 +273,18 @@ class LdapAuthenticator
      */
     private function firstAttribute(array $entry, string $attribute): ?string
     {
-        if (!isset($entry[$attribute])) {
+        // ldap_get_entries() lowercases attribute names.
+        $key = strtolower($attribute);
+
+        if (!array_key_exists($key, $entry) && array_key_exists($attribute, $entry)) {
+            $key = $attribute;
+        }
+
+        if (!array_key_exists($key, $entry)) {
             return null;
         }
 
-        $value = $entry[$attribute];
+        $value = $entry[$key];
 
         if (is_array($value)) {
             return isset($value[0]) && $value[0] !== '' ? (string) $value[0] : null;

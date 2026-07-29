@@ -91,7 +91,9 @@ class Personnel
                 'created' => 0,
                 'updated' => 0,
                 'skipped' => 0,
+                'errors' => 0,
                 'total' => $total,
+                'last_error' => '',
             ];
     }
 
@@ -106,7 +108,9 @@ class Personnel
             'created' => 0,
             'updated' => 0,
             'skipped' => 0,
+            'errors' => 0,
             'total' => $total,
+            'last_error' => '',
         ];
 
         $normalizedProvider = $this->normalizeProvider($provider);
@@ -131,8 +135,13 @@ class Personnel
                 } else {
                     $stats['skipped']++;
                 }
-            } catch (\Throwable) {
+            } catch (\Throwable $exception) {
                 $stats['skipped']++;
+                $stats['errors']++;
+
+                if ($stats['last_error'] === '') {
+                    $stats['last_error'] = $exception->getMessage();
+                }
             }
         }
 

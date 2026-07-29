@@ -14,11 +14,9 @@ class LdapDriver implements UserIntegrationInterface
     private const SYNC_PAGE_SIZE = 500;
 
     /**
-     * Directory persons/users for sync.
-     * Intentionally includes disabled AD accounts so newly provisioned users are imported.
-     * Computer objects are excluded via objectCategory/objectClass checks.
+     * Active AD users only (excludes disabled accounts and computer objects).
      */
-    private const ACTIVE_PERSONNEL_FILTER = '(&(objectClass=user)(objectCategory=person))';
+    private const ACTIVE_PERSONNEL_FILTER = '(&(objectClass=user)(objectCategory=person)(!(userAccountControl:1.2.840.113556.1.4.803:=2)))';
 
     private const FALLBACK_PERSONNEL_FILTER = '(&(objectClass=person)(!(objectClass=computer)))';
 
@@ -206,8 +204,7 @@ class LdapDriver implements UserIntegrationInterface
                 if ($supportsPagedResults) {
                     $controls = [[
                         'oid' => LDAP_CONTROL_PAGEDRESULTS,
-                        // Non-critical: if the server rejects paging we still get the first page.
-                        'iscritical' => false,
+                        'iscritical' => true,
                         'value' => [
                             'size' => self::SYNC_PAGE_SIZE,
                             'cookie' => $cookie,
@@ -305,38 +302,44 @@ class LdapDriver implements UserIntegrationInterface
             return '';
         }
 
+        $pagedOid = defined('LDAP_CONTROL_PAGEDRESULTS') ? (string) LDAP_CONTROL_PAGEDRESULTS : '1.2.840.113556.1.4.319';
         $candidates = [];
 
-        if (defined('LDAP_CONTROL_PAGEDRESULTS') && isset($controls[LDAP_CONTROL_PAGEDRESULTS])) {
-            $candidates[] = $controls[LDAP_CONTROL_PAGEDRESULTS];
-        }
-
-        if (isset($controls[0])) {
-            $candidates[] = $controls[0];
+        if (isset($controls[$pagedOid]) && is_array($controls[$pagedOid])) {
+            $candidates[] = $controls[$pagedOid];
         }
 
         foreach ($controls as $control) {
-            $candidates[] = $control;
+            if (is_array($control)) {
+                $candidates[] = $control;
+            }
         }
 
         foreach ($candidates as $control) {
-            if (!is_array($control)) {
-                continue;
-            }
-
             $oid = (string) ($control['oid'] ?? '');
 
-            if (
-                $oid !== ''
-                && defined('LDAP_CONTROL_PAGEDRESULTS')
-                && $oid !== LDAP_CONTROL_PAGEDRESULTS
-            ) {
+            if ($oid !== '' && $oid !== $pagedOid) {
                 continue;
             }
 
-            $cookie = $control['value']['cookie'] ?? null;
+            if (!isset($control['value'])) {
+                continue;
+            }
 
-            if (is_string($cookie) && $cookie !== '') {
+            $value = $control['value'];
+
+            if (is_string($value) && $value !== '') {
+                return $value;
+            }
+
+            if (!is_array($value)) {
+                continue;
+            }
+
+            $cookie = $value['cookie'] ?? null;
+
+            // Paged-result cookies are opaque binary strings; keep empty-string as "no more pages".
+            if (is_string($cookie)) {
                 return $cookie;
             }
         }
@@ -590,11 +593,18 @@ class LdapDriver implements UserIntegrationInterface
      */
     private function firstAttribute(array $entry, string $attribute): ?string
     {
-        if (!isset($entry[$attribute])) {
+        // ldap_get_entries() lowercases attribute names.
+        $key = strtolower($attribute);
+
+        if (!array_key_exists($key, $entry) && array_key_exists($attribute, $entry)) {
+            $key = $attribute;
+        }
+
+        if (!array_key_exists($key, $entry)) {
             return null;
         }
 
-        $value = $entry[$attribute];
+        $value = $entry[$key];
 
         if (is_array($value)) {
             return isset($value[0]) && $value[0] !== '' ? (string) $value[0] : null;

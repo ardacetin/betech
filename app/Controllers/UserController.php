@@ -205,9 +205,15 @@ class UserController
                 'message' => __(
                     'personnel_ldap_sync_success',
                     [
+                        'fetched' => (string) $stats['total'],
                         'created' => (string) $stats['created'],
                         'updated' => (string) $stats['updated'],
+                        'skipped' => (string) $stats['skipped'],
                     ]
+                ) . (
+                    !empty($stats['last_error'])
+                        ? (' ' . __('personnel_ldap_sync_error') . $stats['last_error'])
+                        : ''
                 ),
                 'data' => $stats,
             ]);

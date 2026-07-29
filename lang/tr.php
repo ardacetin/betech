@@ -1047,7 +1047,7 @@ return [
     'personnel_sync_failed' => 'Rehber senkronizasyonu başarısız: ',
     'personnel_ldap_sync_button' => 'LDAP Senkronizasyonu Başlat',
     'personnel_ldap_syncing' => 'LDAP senkronize ediliyor...',
-    'personnel_ldap_sync_success' => 'Senkronizasyon başarılı. :created yeni personel eklendi, :updated güncellendi.',
+    'personnel_ldap_sync_success' => 'Senkronizasyon başarılı. LDAP’den :fetched aktif kullanıcı okundu. :created yeni eklendi, :updated güncellendi, :skipped atlandı.',
     'personnel_ldap_sync_error' => 'LDAP senkronizasyonu başarısız: ',
     'personnel_ldap_sync_not_configured' => 'LDAP yapılandırması eksik. Ayarlar bölümünden LDAP sunucusunu yapılandırın.',
     'personnel_ldap_sync_empty' => 'LDAP dizininden aktif personel kaydı alınamadı. Senkronizasyon iptal edildi; mevcut personel verileri korundu.',

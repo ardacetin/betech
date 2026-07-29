@@ -4355,10 +4355,14 @@ $i18nScript = json_encode([
                     const stats = result.data || {};
                     const created = Number(stats.created || 0);
                     const updated = Number(stats.updated || 0);
+                    const skipped = Number(stats.skipped || 0);
+                    const fetched = Number(stats.total || 0);
 
                     this.personnelSyncMessage = result.message || window.__i18n.personnel_ldap_sync_success
+                        .replace(':fetched', String(fetched))
                         .replace(':created', String(created))
-                        .replace(':updated', String(updated));
+                        .replace(':updated', String(updated))
+                        .replace(':skipped', String(skipped));
                     this.personnelPage = 1;
                     await this.fetchPersonnel();
                 } catch (error) {

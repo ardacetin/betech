@@ -1010,7 +1010,7 @@ return [
     'personnel_sync_failed' => 'Directory synchronization failed: ',
     'personnel_ldap_sync_button' => 'Sync LDAP Now',
     'personnel_ldap_syncing' => 'Syncing LDAP...',
-    'personnel_ldap_sync_success' => 'Synchronization successful. :created new personnel added, :updated updated.',
+    'personnel_ldap_sync_success' => 'Synchronization successful. Read :fetched active users from LDAP. :created added, :updated updated, :skipped skipped.',
     'personnel_ldap_sync_error' => 'LDAP synchronization failed: ',
     'personnel_ldap_sync_not_configured' => 'LDAP is not configured. Set up the LDAP server in Settings.',
     'personnel_ldap_sync_empty' => 'No active personnel records were returned from LDAP. Sync aborted; existing personnel data was preserved.',
