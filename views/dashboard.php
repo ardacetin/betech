@@ -618,6 +618,16 @@ $i18nScript = json_encode([
     .btn-brand:hover:not(:disabled) {
         background: var(--brand-hover, #641c23) !important;
     }
+    .app-panel-shell .switch-dir-item-active,
+    .app-panel-shell .switch-dir-item-active:hover {
+        background: var(--brand, #7a242c) !important;
+        color: #fff !important;
+    }
+    .app-panel-shell .switch-dir-item-active .text-zinc-900,
+    .app-panel-shell .switch-dir-item-active .text-zinc-500,
+    .app-panel-shell .switch-dir-item-active .text-zinc-400 {
+        color: #fff !important;
+    }
 </style>
 <div class="app-panel-shell min-h-screen bg-[var(--bg)]" x-data="assetDashboard()" x-init="restoreDashboardView(); parseInventoryRoute(); parseDocumentsRoute(); parseSwitchPortsRoute(); parseListSortFromUrl(); syncDocumentTitle(); $watch('activeView', () => syncDocumentTitle()); $watch('settingsTab', () => syncDocumentTitle()); bootstrapActiveViewData(); this.isAssignLicenseModalOpen = false;">
     <div class="flex h-screen overflow-hidden bg-[var(--bg)]">
@@ -3234,8 +3244,11 @@ $i18nScript = json_encode([
                     this.switchPortsSwitches = this.switchPortsSwitches || [];
                 }
             },
+            isSwitchPortSelected(sw) {
+                return Number(this.switchPortsSelectedId || 0) === Number(sw?.id || 0) && Number(this.switchPortsSelectedId || 0) > 0;
+            },
             async selectSwitchPort(switchId, updateUrl = true) {
-                this.switchPortsSelectedId = switchId;
+                this.switchPortsSelectedId = Number(switchId) || null;
                 this.switchPortsMatrix = null;
                 this.switchPortsMatrixLoading = true;
                 this.switchPortsMatrixError = '';

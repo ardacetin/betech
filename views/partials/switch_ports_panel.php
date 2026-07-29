@@ -27,28 +27,27 @@ declare(strict_types=1);
                             type="button"
                             @click="selectSwitchPort(sw.id)"
                             class="w-full px-4 py-3 text-left transition"
-                            :class="switchPortsSelectedId === sw.id ? 'text-white' : 'hover:bg-zinc-50'"
-                            :style="switchPortsSelectedId === sw.id ? 'background:#7a242c;' : ''"
+                            :class="isSwitchPortSelected(sw) ? 'btn-brand switch-dir-item-active' : 'hover:bg-zinc-50'"
                         >
                             <div class="flex items-start justify-between gap-2">
                                 <div class="min-w-0">
-                                    <p class="truncate text-sm font-semibold leading-snug" :class="switchPortsSelectedId === sw.id ? 'text-white' : 'text-zinc-900'" x-text="sw.name || sw.asset_tag"></p>
-                                    <p class="mt-0.5 truncate text-xs leading-snug" :class="switchPortsSelectedId === sw.id ? 'text-white/75' : 'text-zinc-500'">
+                                    <p class="truncate text-sm font-semibold leading-snug" :class="isSwitchPortSelected(sw) ? 'text-white' : 'text-zinc-900'" x-text="sw.name || sw.asset_tag"></p>
+                                    <p class="mt-0.5 truncate text-xs leading-snug" :class="isSwitchPortSelected(sw) ? 'text-white' : 'text-zinc-500'" :style="isSwitchPortSelected(sw) ? 'opacity:0.8' : ''">
                                         <span x-text="sw.location || '—'"></span>
                                         <template x-if="sw.building"><span> · <span x-text="sw.building"></span></span></template>
                                     </p>
                                 </div>
-                                <span class="shrink-0 font-mono text-xs" :class="switchPortsSelectedId === sw.id ? 'text-white/70' : 'text-zinc-400'" x-text="sw.asset_tag"></span>
+                                <span class="shrink-0 font-mono text-xs" :class="isSwitchPortSelected(sw) ? 'text-white' : 'text-zinc-400'" :style="isSwitchPortSelected(sw) ? 'opacity:0.75' : ''" x-text="sw.asset_tag"></span>
                             </div>
                             <div class="mt-2">
-                                <div class="h-1.5 overflow-hidden rounded-full" :class="switchPortsSelectedId === sw.id ? 'bg-white/20' : 'bg-zinc-100'">
+                                <div class="h-1.5 overflow-hidden rounded-full" :class="isSwitchPortSelected(sw) ? '' : 'bg-zinc-100'" :style="isSwitchPortSelected(sw) ? 'background:rgba(255,255,255,0.2)' : ''">
                                     <div
                                         class="h-full rounded-full"
-                                        :class="switchPortsSelectedId === sw.id ? 'bg-white' : (sw.utilization_percent >= 90 ? 'bg-rose-500' : sw.utilization_percent >= 70 ? 'bg-amber-500' : 'bg-emerald-500')"
+                                        :class="isSwitchPortSelected(sw) ? 'bg-white' : (sw.utilization_percent >= 90 ? 'bg-rose-500' : sw.utilization_percent >= 70 ? 'bg-amber-500' : 'bg-emerald-500')"
                                         :style="`width: ${Math.min(100, sw.utilization_percent || 0)}%`"
                                     ></div>
                                 </div>
-                                <p class="mt-1 text-xs leading-none" :class="switchPortsSelectedId === sw.id ? 'text-white/75' : 'text-zinc-500'" x-text="formatSwitchPortUtilization(sw)"></p>
+                                <p class="mt-1 text-xs leading-none" :class="isSwitchPortSelected(sw) ? 'text-white' : 'text-zinc-500'" :style="isSwitchPortSelected(sw) ? 'opacity:0.8' : ''" x-text="formatSwitchPortUtilization(sw)"></p>
                             </div>
                         </button>
                     </li>
