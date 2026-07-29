@@ -2776,6 +2776,18 @@ $i18nScript = json_encode([
             switchPortsMatrixLoading: false,
             switchPortsMatrixError: '',
             switchPortsUtilizationLabel: <?= json_encode(__('switch_ports_utilization'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
+            isSwitchPortConfigModalOpen: false,
+            switchPortConfigSaving: false,
+            switchPortConfigClearing: false,
+            switchPortConfigError: '',
+            switchPortConfigSuccess: '',
+            switchPortConfigForm: {
+                switch_id: null,
+                switch_name: '',
+                port_number: '',
+                description: '',
+                has_saved_description: false,
+            },
             ipNetworks: [],
             ipNetworksLoading: false,
             ipNetworksError: '',
@@ -3106,6 +3118,102 @@ $i18nScript = json_encode([
             },
             switchPortConfigUrl(portNumber) {
                 return `/network/port-config?switch_id=${encodeURIComponent(this.switchPortsSelectedId)}&port=${encodeURIComponent(portNumber)}`;
+            },
+            openSwitchPortConfigModal(port) {
+                const switchMeta = this.switchPortsMatrix?.switch || {};
+                const description = String(port?.mapping?.description || port?.mapping?.asset_name || '').trim();
+
+                this.switchPortConfigForm = {
+                    switch_id: Number(switchMeta.id || this.switchPortsSelectedId || 0) || null,
+                    switch_name: String(switchMeta.name || switchMeta.asset_tag || ''),
+                    port_number: String(port?.port_number || ''),
+                    description,
+                    has_saved_description: description !== '',
+                };
+                this.switchPortConfigError = '';
+                this.switchPortConfigSuccess = '';
+                this.isSwitchPortConfigModalOpen = true;
+            },
+            closeSwitchPortConfigModal() {
+                if (this.switchPortConfigSaving || this.switchPortConfigClearing) {
+                    return;
+                }
+
+                this.isSwitchPortConfigModalOpen = false;
+            },
+            async saveSwitchPortDescription() {
+                if (!this.switchPortConfigForm.switch_id || !this.switchPortConfigForm.port_number) {
+                    return;
+                }
+
+                this.switchPortConfigSaving = true;
+                this.switchPortConfigError = '';
+                this.switchPortConfigSuccess = '';
+
+                try {
+                    const response = await fetch('/api/network/port-mappings', {
+                        ...this.apiFetchInit('POST'),
+                        body: JSON.stringify({
+                            switch_asset_id: this.switchPortConfigForm.switch_id,
+                            port_number: this.switchPortConfigForm.port_number,
+                            description: this.switchPortConfigForm.description,
+                        }),
+                    });
+                    const payload = await response.json().catch(() => ({}));
+
+                    if (!response.ok || payload.status !== 'success') {
+                        throw new Error(payload.message || <?= json_encode(__('switch_port_assign_error'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>);
+                    }
+
+                    const savedDescription = String(payload?.data?.mapping?.description || this.switchPortConfigForm.description || '').trim();
+                    this.switchPortConfigForm.description = savedDescription;
+                    this.switchPortConfigForm.has_saved_description = savedDescription !== '';
+                    this.switchPortConfigSuccess = payload.message || <?= json_encode(__('switch_port_assign_success'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>;
+                    await this.selectSwitchPort(this.switchPortConfigForm.switch_id, false);
+                    await this.fetchSwitchPortsDirectory();
+                } catch (error) {
+                    this.switchPortConfigError = error?.message || <?= json_encode(__('switch_port_assign_error'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>;
+                } finally {
+                    this.switchPortConfigSaving = false;
+                }
+            },
+            async clearSwitchPortDescription() {
+                if (!this.switchPortConfigForm.switch_id || !this.switchPortConfigForm.port_number) {
+                    return;
+                }
+
+                if (!window.confirm(<?= json_encode(__('switch_port_disconnect_confirm'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>)) {
+                    return;
+                }
+
+                this.switchPortConfigClearing = true;
+                this.switchPortConfigError = '';
+                this.switchPortConfigSuccess = '';
+
+                try {
+                    const response = await fetch('/api/network/port-mappings/disconnect', {
+                        ...this.apiFetchInit('POST'),
+                        body: JSON.stringify({
+                            switch_asset_id: this.switchPortConfigForm.switch_id,
+                            port_number: this.switchPortConfigForm.port_number,
+                        }),
+                    });
+                    const payload = await response.json().catch(() => ({}));
+
+                    if (!response.ok || payload.status !== 'success') {
+                        throw new Error(payload.message || <?= json_encode(__('switch_port_disconnect_error'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>);
+                    }
+
+                    this.switchPortConfigForm.description = '';
+                    this.switchPortConfigForm.has_saved_description = false;
+                    this.switchPortConfigSuccess = payload.message || <?= json_encode(__('switch_port_disconnect_success'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>;
+                    await this.selectSwitchPort(this.switchPortConfigForm.switch_id, false);
+                    await this.fetchSwitchPortsDirectory();
+                } catch (error) {
+                    this.switchPortConfigError = error?.message || <?= json_encode(__('switch_port_disconnect_error'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>;
+                } finally {
+                    this.switchPortConfigClearing = false;
+                }
             },
             async fetchSwitchPortsDirectory() {
                 try {
