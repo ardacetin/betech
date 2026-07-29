@@ -27,7 +27,8 @@ declare(strict_types=1);
                             type="button"
                             @click="selectSwitchPort(sw.id)"
                             class="w-full px-4 py-3 text-left transition"
-                            :class="switchPortsSelectedId === sw.id ? 'bg-[var(--brand,#7a242c)] text-white' : 'hover:bg-zinc-50'"
+                            :class="switchPortsSelectedId === sw.id ? 'text-white' : 'hover:bg-zinc-50'"
+                            :style="switchPortsSelectedId === sw.id ? 'background:#7a242c;' : ''"
                         >
                             <div class="flex items-start justify-between gap-2">
                                 <div class="min-w-0">
@@ -161,7 +162,7 @@ declare(strict_types=1);
                         <span class="font-medium text-zinc-800" x-text="switchPortConfigForm.switch_name || '—'"></span>
                         <span class="text-zinc-300"> · </span>
                         <?= htmlspecialchars(__('switch_port_config_port'), ENT_QUOTES, 'UTF-8') ?>
-                        <span class="font-semibold text-[var(--brand,#7a242c)]" x-text="switchPortConfigForm.port_number"></span>
+                        <span class="font-semibold" style="color:#7a242c;" x-text="switchPortConfigForm.port_number"></span>
                     </p>
                 </div>
                 <button type="button" @click="closeSwitchPortConfigModal()" class="rounded-lg p-2 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600" aria-label="<?= htmlspecialchars(__('portal_close'), ENT_QUOTES, 'UTF-8') ?>">&times;</button>
@@ -202,7 +203,7 @@ declare(strict_types=1);
                         type="button"
                         @click="saveSwitchPortDescription()"
                         :disabled="switchPortConfigSaving || switchPortConfigClearing"
-                        class="inline-flex items-center rounded-xl bg-[var(--brand,#7a242c)] px-4 py-2.5 text-sm font-medium text-white transition hover:bg-[var(--brand-hover,#641c23)] disabled:opacity-60"
+                        class="btn-brand inline-flex items-center rounded-xl px-4 py-2.5 text-sm font-medium text-white transition disabled:opacity-60"
                     >
                         <span x-show="!switchPortConfigSaving"><?= htmlspecialchars(__('switch_port_description_save'), ENT_QUOTES, 'UTF-8') ?></span>
                         <span x-show="switchPortConfigSaving" x-cloak><?= htmlspecialchars(__('saving'), ENT_QUOTES, 'UTF-8') ?></span>
