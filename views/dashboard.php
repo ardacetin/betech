@@ -623,7 +623,7 @@ $i18nScript = json_encode([
     <div class="flex h-screen overflow-hidden bg-[var(--bg)]">
         <aside class="hidden h-full w-64 min-h-0 flex-shrink-0 flex-col border-r border-[var(--border)] bg-white lg:flex">
             <div class="flex h-16 shrink-0 items-center gap-3 border-b border-[var(--border)] px-5">
-                <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[var(--brand)] text-sm font-semibold text-white">B</div>
+                <div class="btn-brand flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-sm font-semibold text-white">B</div>
                 <div class="flex min-w-0 flex-col">
                     <span class="text-lg font-bold tracking-tight text-[var(--ink)]"><?= htmlspecialchars(__('app_name'), ENT_QUOTES, 'UTF-8') ?></span>
                     <span class="truncate text-[10px] text-[var(--muted)]"><?= htmlspecialchars(__('app_subtitle'), ENT_QUOTES, 'UTF-8') ?></span>
@@ -672,11 +672,11 @@ $i18nScript = json_encode([
                             <span class="sr-only"><?= htmlspecialchars(__('language'), ENT_QUOTES, 'UTF-8') ?></span>
                             <a
                                 href="<?= htmlspecialchars(lang_url('tr'), ENT_QUOTES, 'UTF-8') ?>"
-                                class="<?= ($locale ?? 'tr') === 'tr' ? 'bg-[var(--brand)] text-white' : 'text-zinc-600 hover:bg-zinc-100' ?> rounded-lg px-3 py-1.5 text-xs font-semibold transition"
+                                class="<?= ($locale ?? 'tr') === 'tr' ? 'btn-brand text-white' : 'text-zinc-600 hover:bg-zinc-100' ?> rounded-lg px-3 py-1.5 text-xs font-semibold transition"
                             >TR</a>
                             <a
                                 href="<?= htmlspecialchars(lang_url('en'), ENT_QUOTES, 'UTF-8') ?>"
-                                class="<?= ($locale ?? 'tr') === 'en' ? 'bg-[var(--brand)] text-white' : 'text-zinc-600 hover:bg-zinc-100' ?> rounded-lg px-3 py-1.5 text-xs font-semibold transition"
+                                class="<?= ($locale ?? 'tr') === 'en' ? 'btn-brand text-white' : 'text-zinc-600 hover:bg-zinc-100' ?> rounded-lg px-3 py-1.5 text-xs font-semibold transition"
                             >EN</a>
                         </div>
                         <button
