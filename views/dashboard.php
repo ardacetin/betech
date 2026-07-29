@@ -6501,29 +6501,40 @@ $i18nScript = json_encode([
                     this.qualityDocumentsError = window.__i18n.helpdesk_network_error;
                 }
             },
-            async toggleQualityDocumentPublic(document, isPublic) {
-                if (!document?.id) {
+            async toggleQualityDocumentPublic(doc, isPublic) {
+                if (!doc?.id) {
                     return;
                 }
 
+                const previous = Boolean(doc.is_public);
+                doc.is_public = Boolean(isPublic);
+
                 try {
-                    const response = await fetch(`/api/quality-documents/${document.id}/visibility`, {
-                        ...this.apiFetchInit('PUT'),
-                        body: JSON.stringify({ is_public: Boolean(isPublic) }),
-                    });
+                    const response = await fetch(
+                        `/api/quality-documents/${doc.id}/visibility`,
+                        this.apiFetchJsonInit('PUT', { is_public: Boolean(isPublic) })
+                    );
                     const result = await this.parseApiResponse(response);
 
                     if (!response.ok) {
+                        doc.is_public = previous;
                         this.qualityDocumentsError = this.apiErrorMessage(result, window.__i18n.quality_document_update_error);
-                        await this.fetchQualityDocuments();
                         return;
                     }
 
-                    document.is_public = Boolean(result.data?.is_public);
+                    const nextPublic = Boolean(result.data?.is_public);
+                    doc.is_public = nextPublic;
+
+                    const index = (this.qualityDocuments || []).findIndex((item) => Number(item.id) === Number(doc.id));
+                    if (index >= 0) {
+                        this.qualityDocuments[index].is_public = nextPublic;
+                    }
+
+                    this.qualityDocumentsError = '';
                     this.qualityDocumentsSuccessMessage = this.apiErrorMessage(result, window.__i18n.quality_document_visibility_updated);
                 } catch (error) {
+                    doc.is_public = previous;
                     this.qualityDocumentsError = window.__i18n.helpdesk_network_error;
-                    await this.fetchQualityDocuments();
                 }
             },
             async fetchAnnouncements() {

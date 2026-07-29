@@ -161,8 +161,7 @@ class QualityDocumentController
     public function updateVisibility(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
     {
         $documentId = (int) ($args['id'] ?? 0);
-        $payload = $request->getParsedBody();
-        $payload = is_array($payload) ? $payload : [];
+        $payload = $this->resolvePayload($request);
         $isPublic = filter_var($payload['is_public'] ?? false, FILTER_VALIDATE_BOOLEAN);
 
         if ($documentId <= 0) {
@@ -346,6 +345,28 @@ class QualityDocumentController
         $file = $uploadedFiles['file'] ?? $uploadedFiles['document'] ?? null;
 
         return $file instanceof UploadedFileInterface ? $file : null;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function resolvePayload(ServerRequestInterface $request): array
+    {
+        $parsedBody = $request->getParsedBody();
+
+        if (is_array($parsedBody) && $parsedBody !== []) {
+            return $parsedBody;
+        }
+
+        $rawBody = trim((string) $request->getBody());
+
+        if ($rawBody === '') {
+            return is_array($parsedBody) ? $parsedBody : [];
+        }
+
+        $decoded = json_decode($rawBody, true);
+
+        return is_array($decoded) ? $decoded : [];
     }
 
     private function sanitizeDownloadFilename(string $filename): string
