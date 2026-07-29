@@ -38,7 +38,7 @@ declare(strict_types=1);
                     @click="resetAnnouncementForm()"
                     class="rounded-xl border border-zinc-200 bg-white px-4 py-2.5 text-sm font-medium text-zinc-700"
                 ><?= htmlspecialchars(__('cancel'), ENT_QUOTES, 'UTF-8') ?></button>
-                <button type="submit" :disabled="isAnnouncementSubmitting" class="rounded-xl bg-[var(--brand,#7a242c)] px-4 py-2.5 text-sm font-medium text-white disabled:opacity-60">
+                <button type="submit" :disabled="isAnnouncementSubmitting" class="btn-brand rounded-xl px-4 py-2.5 text-sm font-medium text-white disabled:opacity-60">
                     <span x-show="!isAnnouncementSubmitting"><?= htmlspecialchars(__('announcements_save'), ENT_QUOTES, 'UTF-8') ?></span>
                     <span x-show="isAnnouncementSubmitting" x-cloak><?= htmlspecialchars(__('saving'), ENT_QUOTES, 'UTF-8') ?></span>
                 </button>

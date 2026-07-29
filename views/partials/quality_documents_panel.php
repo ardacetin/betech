@@ -27,7 +27,7 @@ declare(strict_types=1);
                         accept=".pdf,.docx,.xlsx,.pptx,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.openxmlformats-officedocument.presentationml.presentation"
                         @change="qualityDocumentForm.file = $event.target.files[0] || null"
                         required
-                        class="block w-full text-sm text-zinc-600 file:mr-4 file:rounded-lg file:border-0 file:bg-[var(--brand,#7a242c)] file:px-4 file:py-2 file:text-sm file:font-medium file:text-white hover:file:bg-[var(--brand-hover,#641c23)]"
+                        class="block w-full text-sm text-zinc-600 file:mr-4 file:rounded-lg file:border-0 file:bg-zinc-900 file:px-4 file:py-2 file:text-sm file:font-medium file:text-white hover:file:bg-zinc-800"
                     >
                     <span class="mt-1.5 block text-xs text-zinc-500"><?= htmlspecialchars(__('quality_documents_allowed_types'), ENT_QUOTES, 'UTF-8') ?></span>
                 </label>
@@ -38,7 +38,7 @@ declare(strict_types=1);
             </div>
             <p x-show="qualityDocumentFormError" x-cloak class="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700" x-text="qualityDocumentFormError"></p>
             <div class="mt-4 flex justify-end">
-                <button type="submit" :disabled="isQualityDocumentSubmitting" class="inline-flex items-center gap-2 rounded-xl bg-[var(--brand,#7a242c)] px-4 py-2.5 text-sm font-medium text-white hover:bg-[var(--brand-hover,#641c23)] disabled:cursor-not-allowed disabled:opacity-60">
+                <button type="submit" :disabled="isQualityDocumentSubmitting" class="btn-brand inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-60">
                     <span x-show="isQualityDocumentSubmitting"><?= htmlspecialchars(__('saving'), ENT_QUOTES, 'UTF-8') ?></span>
                     <span x-show="!isQualityDocumentSubmitting"><?= htmlspecialchars(__('quality_documents_upload_submit'), ENT_QUOTES, 'UTF-8') ?></span>
                 </button>
