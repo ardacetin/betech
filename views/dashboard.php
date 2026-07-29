@@ -4344,11 +4344,8 @@ $i18nScript = json_encode([
                 this.personnelSyncError = '';
 
                 try {
-                    const response = await fetch('/api/personnel/sync-ldap', {
-                        method: 'POST',
-                        headers: { 'Accept': 'application/json' },
-                    });
-                    const result = await response.json();
+                    const response = await fetch('/api/personnel/sync-ldap', this.apiFetchInit('POST'));
+                    const result = await this.parseApiResponse(response);
 
                     if (!response.ok) {
                         this.personnelSyncError = result.message || window.__i18n.personnel_ldap_sync_error;

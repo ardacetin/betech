@@ -112,10 +112,17 @@ class Personnel
         $normalizedProvider = $this->normalizeProvider($provider);
         $existingIndex = $this->loadDirectorySyncIndex($db);
         $knownEmails = $existingIndex['by_email'];
+        $knownExternalIds = $existingIndex['by_external_id'];
 
         foreach ($directoryUsers as $directoryUser) {
             try {
-                $result = $this->syncDirectoryUser($db, $directoryUser, $normalizedProvider, $knownEmails);
+                $result = $this->syncDirectoryUser(
+                    $db,
+                    $directoryUser,
+                    $normalizedProvider,
+                    $knownEmails,
+                    $knownExternalIds
+                );
 
                 if ($result === 'created') {
                     $stats['created']++;
@@ -134,6 +141,7 @@ class Personnel
 
     /**
      * @param array<string, array<string, mixed>> $knownEmails
+     * @param array<string, array<string, mixed>> $knownExternalIds
      *
      * @return 'created'|'updated'|'skipped'
      */
@@ -141,7 +149,8 @@ class Personnel
         Medoo $db,
         array $directoryUser,
         string $normalizedProvider,
-        array &$knownEmails
+        array &$knownEmails,
+        array &$knownExternalIds
     ): string {
         $payload = $this->normalizeDirectoryPayload($directoryUser, $normalizedProvider);
 
@@ -150,19 +159,21 @@ class Personnel
         }
 
         $emailKey = strtolower(trim($payload['email']));
-        $existing = $knownEmails[$emailKey] ?? null;
+        $externalKey = strtolower(trim($payload['external_id']));
+        $existing = $knownExternalIds[$externalKey] ?? $knownEmails[$emailKey] ?? null;
 
         if ($existing !== null) {
-            return $this->updateDirectoryUserByEmail($db, $existing, $payload, $knownEmails, $emailKey);
+            return $this->updateDirectoryUserByEmail($db, $existing, $payload, $knownEmails, $knownExternalIds, $emailKey);
         }
 
-        return $this->insertDirectoryUser($db, $payload, $knownEmails, $emailKey);
+        return $this->insertDirectoryUser($db, $payload, $knownEmails, $knownExternalIds, $emailKey);
     }
 
     /**
      * @param array<string, mixed> $existing
      * @param array{name: string, email: string, department: string|null, title: string|null, provider: string, external_id: string} $payload
      * @param array<string, array<string, mixed>> $knownEmails
+     * @param array<string, array<string, mixed>> $knownExternalIds
      *
      * @return 'updated'|'skipped'
      */
@@ -171,6 +182,7 @@ class Personnel
         array $existing,
         array $payload,
         array &$knownEmails,
+        array &$knownExternalIds,
         string $emailKey
     ): string {
         $personnelId = (int) ($existing['id'] ?? 0);
@@ -181,6 +193,7 @@ class Personnel
 
         $updatePayload = [
             'name' => $payload['name'],
+            'email' => $payload['email'],
             'department' => $payload['department'],
             'title' => $payload['title'],
             'external_id' => $payload['external_id'],
@@ -196,9 +209,22 @@ class Personnel
 
         $db->update('personnel', $updatePayload, ['id' => $personnelId]);
 
-        $knownEmails[$emailKey] = array_merge($existing, $updatePayload, [
+        $merged = array_merge($existing, $updatePayload, [
             'email' => $payload['email'],
         ]);
+        $knownEmails[$emailKey] = $merged;
+        $knownExternalIds[strtolower(trim($payload['external_id']))] = $merged;
+
+        $previousEmail = strtolower(trim((string) ($existing['email'] ?? '')));
+        if ($previousEmail !== '' && $previousEmail !== $emailKey) {
+            unset($knownEmails[$previousEmail]);
+        }
+
+        $previousExternal = strtolower(trim((string) ($existing['external_id'] ?? '')));
+        $nextExternal = strtolower(trim($payload['external_id']));
+        if ($previousExternal !== '' && $previousExternal !== $nextExternal) {
+            unset($knownExternalIds[$previousExternal]);
+        }
 
         return 'updated';
     }
@@ -206,6 +232,7 @@ class Personnel
     /**
      * @param array{name: string, email: string, department: string|null, title: string|null, provider: string, external_id: string} $payload
      * @param array<string, array<string, mixed>> $knownEmails
+     * @param array<string, array<string, mixed>> $knownExternalIds
      *
      * @return 'created'|'updated'|'skipped'
      */
@@ -213,6 +240,7 @@ class Personnel
         Medoo $db,
         array $payload,
         array &$knownEmails,
+        array &$knownExternalIds,
         string $emailKey
     ): string {
         $insertPayload = [
@@ -246,13 +274,17 @@ class Personnel
             }
 
             $knownEmails[$emailKey] = $existing;
+            $externalKey = strtolower(trim((string) ($existing['external_id'] ?? '')));
+            if ($externalKey !== '') {
+                $knownExternalIds[$externalKey] = $existing;
+            }
 
-            return $this->updateDirectoryUserByEmail($db, $existing, $payload, $knownEmails, $emailKey) === 'updated'
+            return $this->updateDirectoryUserByEmail($db, $existing, $payload, $knownEmails, $knownExternalIds, $emailKey) === 'updated'
                 ? 'updated'
                 : 'skipped';
         }
 
-        $knownEmails[$emailKey] = [
+        $record = [
             'id' => (int) $db->id(),
             'status' => self::STATUS_ACTIVE,
             'external_id' => $payload['external_id'],
@@ -262,6 +294,8 @@ class Personnel
             'title' => $payload['title'],
             'provider' => $payload['provider'],
         ];
+        $knownEmails[$emailKey] = $record;
+        $knownExternalIds[strtolower(trim($payload['external_id']))] = $record;
 
         return 'created';
     }

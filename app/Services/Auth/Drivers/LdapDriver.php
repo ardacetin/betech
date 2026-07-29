@@ -13,8 +13,14 @@ class LdapDriver implements UserIntegrationInterface
     private const SEARCH_LIMIT = 20;
     private const SYNC_PAGE_SIZE = 500;
 
-    /** Active directory users only (excludes disabled accounts and computer objects). */
-    private const ACTIVE_PERSONNEL_FILTER = '(&(objectClass=user)(objectCategory=person)(!(userAccountControl:1.2.840.113556.1.4.803:=2)))';
+    /**
+     * Directory persons/users for sync.
+     * Intentionally includes disabled AD accounts so newly provisioned users are imported.
+     * Computer objects are excluded via objectCategory/objectClass checks.
+     */
+    private const ACTIVE_PERSONNEL_FILTER = '(&(objectClass=user)(objectCategory=person))';
+
+    private const FALLBACK_PERSONNEL_FILTER = '(&(objectClass=person)(!(objectClass=computer)))';
 
     /** @var list<string> */
     private const PERSONNEL_ATTRIBUTES = [
@@ -26,6 +32,7 @@ class LdapDriver implements UserIntegrationInterface
         'uid',
         'displayName',
         'sAMAccountName',
+        'userPrincipalName',
     ];
 
     public function __construct(
@@ -149,12 +156,24 @@ class LdapDriver implements UserIntegrationInterface
             try {
                 $this->bindStrict($connection, $config);
 
-                return $this->fetchAllEntries(
+                $users = $this->fetchAllEntries(
                     $connection,
                     (string) $config['base_dn'],
                     self::ACTIVE_PERSONNEL_FILTER,
-                    true
+                    false
                 );
+
+                // Some OpenLDAP / non-AD directories reject AD-specific filters; fall back.
+                if ($users === []) {
+                    $users = $this->fetchAllEntries(
+                        $connection,
+                        (string) $config['base_dn'],
+                        self::FALLBACK_PERSONNEL_FILTER,
+                        true
+                    );
+                }
+
+                return $users;
             } finally {
                 @ldap_unbind($connection);
             }
@@ -176,6 +195,7 @@ class LdapDriver implements UserIntegrationInterface
     ): array {
         try {
             $users = [];
+            $seenExternalIds = [];
             $cookie = '';
             // RFC 2696 / LDAP_CONTROL_PAGEDRESULTS keeps each LDAP response bounded (SYNC_PAGE_SIZE).
             $supportsPagedResults = defined('LDAP_CONTROL_PAGEDRESULTS');
@@ -186,7 +206,8 @@ class LdapDriver implements UserIntegrationInterface
                 if ($supportsPagedResults) {
                     $controls = [[
                         'oid' => LDAP_CONTROL_PAGEDRESULTS,
-                        'iscritical' => true,
+                        // Non-critical: if the server rejects paging we still get the first page.
+                        'iscritical' => false,
                         'value' => [
                             'size' => self::SYNC_PAGE_SIZE,
                             'cookie' => $cookie,
@@ -216,11 +237,14 @@ class LdapDriver implements UserIntegrationInterface
                     break;
                 }
 
+                $cookie = '';
+
                 if ($supportsPagedResults) {
                     $errorCode = 0;
                     $errorMessage = '';
                     $matchedDn = '';
                     $referrals = [];
+                    $responseControls = [];
                     @ldap_parse_result(
                         $connection,
                         $search,
@@ -228,12 +252,10 @@ class LdapDriver implements UserIntegrationInterface
                         $matchedDn,
                         $errorMessage,
                         $referrals,
-                        $controls
+                        $responseControls
                     );
 
-                    $cookie = (string) ($controls[0]['value']['cookie'] ?? '');
-                } else {
-                    $cookie = '';
+                    $cookie = $this->extractPagedResultsCookie($responseControls);
                 }
 
                 $entries = ldap_get_entries($connection, $search);
@@ -245,9 +267,18 @@ class LdapDriver implements UserIntegrationInterface
                 for ($index = 0; $index < (int) $entries['count']; $index++) {
                     $mapped = $this->mapEntry($entries[$index]);
 
-                    if ($mapped !== null) {
-                        $users[] = $mapped;
+                    if ($mapped === null) {
+                        continue;
                     }
+
+                    $externalKey = strtolower($mapped['external_id']);
+
+                    if (isset($seenExternalIds[$externalKey])) {
+                        continue;
+                    }
+
+                    $seenExternalIds[$externalKey] = true;
+                    $users[] = $mapped;
                 }
 
                 unset($entries, $search);
@@ -263,6 +294,54 @@ class LdapDriver implements UserIntegrationInterface
         } catch (\Exception $exception) {
             throw new LdapSyncException($exception->getMessage(), 0, $exception);
         }
+    }
+
+    /**
+     * @param array<int|string, mixed> $controls
+     */
+    private function extractPagedResultsCookie(array $controls): string
+    {
+        if ($controls === []) {
+            return '';
+        }
+
+        $candidates = [];
+
+        if (defined('LDAP_CONTROL_PAGEDRESULTS') && isset($controls[LDAP_CONTROL_PAGEDRESULTS])) {
+            $candidates[] = $controls[LDAP_CONTROL_PAGEDRESULTS];
+        }
+
+        if (isset($controls[0])) {
+            $candidates[] = $controls[0];
+        }
+
+        foreach ($controls as $control) {
+            $candidates[] = $control;
+        }
+
+        foreach ($candidates as $control) {
+            if (!is_array($control)) {
+                continue;
+            }
+
+            $oid = (string) ($control['oid'] ?? '');
+
+            if (
+                $oid !== ''
+                && defined('LDAP_CONTROL_PAGEDRESULTS')
+                && $oid !== LDAP_CONTROL_PAGEDRESULTS
+            ) {
+                continue;
+            }
+
+            $cookie = $control['value']['cookie'] ?? null;
+
+            if (is_string($cookie) && $cookie !== '') {
+                return $cookie;
+            }
+        }
+
+        return '';
     }
 
     public function getUserById(string $id): ?array
@@ -331,7 +410,7 @@ class LdapDriver implements UserIntegrationInterface
 
             @ldap_set_option($connection, LDAP_OPT_PROTOCOL_VERSION, 3);
             @ldap_set_option($connection, LDAP_OPT_REFERRALS, 0);
-            @ldap_set_option($connection, LDAP_OPT_NETWORK_TIMEOUT, 5);
+            @ldap_set_option($connection, LDAP_OPT_NETWORK_TIMEOUT, 30);
 
             if ($config['use_tls']) {
                 if (@ldap_start_tls($connection) !== true) {
@@ -473,13 +552,19 @@ class LdapDriver implements UserIntegrationInterface
      */
     private function mapEntry(array $entry): ?array
     {
-        $email = $this->firstAttribute($entry, 'mail');
+        $email = $this->firstAttribute($entry, 'mail')
+            ?: $this->firstAttribute($entry, 'userPrincipalName');
         $uid = $this->firstAttribute($entry, 'sAMAccountName')
             ?: $this->firstAttribute($entry, 'uid')
             ?: ($email !== null && $email !== '' ? strtolower($email) : null);
 
         if ($uid === null || $uid === '') {
             return null;
+        }
+
+        // Prefer local-part of UPN when mail is missing but keep a usable identity.
+        if (($email === null || $email === '') && str_contains($uid, '@')) {
+            $email = $uid;
         }
 
         $name = $this->firstAttribute($entry, 'displayName')
