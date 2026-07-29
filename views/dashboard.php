@@ -611,6 +611,13 @@ $i18nScript = json_encode([
     .app-panel-shell .bg-zinc-50 {
         background-color: var(--bg) !important;
     }
+    .btn-brand {
+        background: var(--brand, #7a242c) !important;
+        color: #fff !important;
+    }
+    .btn-brand:hover:not(:disabled) {
+        background: var(--brand-hover, #641c23) !important;
+    }
 </style>
 <div class="app-panel-shell min-h-screen bg-[var(--bg)]" x-data="assetDashboard()" x-init="restoreDashboardView(); parseInventoryRoute(); parseDocumentsRoute(); parseSwitchPortsRoute(); parseListSortFromUrl(); syncDocumentTitle(); $watch('activeView', () => syncDocumentTitle()); $watch('settingsTab', () => syncDocumentTitle()); bootstrapActiveViewData(); this.isAssignLicenseModalOpen = false;">
     <div class="flex h-screen overflow-hidden bg-[var(--bg)]">
