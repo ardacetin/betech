@@ -20,6 +20,7 @@ $turnstileSiteKey = trim((string) ($turnstileSiteKey ?? '0x4AAAAAACLf0FH4wQScyWE
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <?php require __DIR__ . '/partials/favicon_link.php'; ?>
     <title><?= htmlspecialchars($pageTitle . ' - ' . $appName, ENT_QUOTES, 'UTF-8') ?></title>
     <link rel="stylesheet" href="/css/app.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -35,7 +36,11 @@ $turnstileSiteKey = trim((string) ($turnstileSiteKey ?? '0x4AAAAAACLf0FH4wQScyWE
 <body class="min-h-full antialiased">
 <div class="flex min-h-full flex-col items-center justify-center px-4 py-12">
     <div class="mb-8 text-center">
-        <div class="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-[#7A242C] text-base font-semibold text-white shadow-sm">B</div>
+        <?php
+        $wrapperClass = 'mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--brand,#7a242c)] shadow-sm';
+        $iconSize = 24;
+        require __DIR__ . '/partials/brand_icon.php';
+        ?>
         <h1 class="text-2xl font-semibold tracking-tight text-zinc-900"><?= htmlspecialchars(__('login_heading'), ENT_QUOTES, 'UTF-8') ?></h1>
         <p class="mt-2 text-sm text-zinc-500"><?= htmlspecialchars(__('login_subheading'), ENT_QUOTES, 'UTF-8') ?></p>
     </div>

@@ -26,7 +26,11 @@ $typeLabel = trim((string) ($asset['type'] ?? $asset['category_name'] ?? ''));
 <div class="min-h-full bg-zinc-50">
     <header class="border-b border-zinc-200 bg-white">
         <div class="mx-auto flex max-w-lg items-center gap-3 px-4 py-4">
-            <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-zinc-900 text-sm font-semibold text-white">B</div>
+            <?php
+            $wrapperClass = 'flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--brand,#7a242c)] text-white';
+            $iconSize = 22;
+            require __DIR__ . '/partials/brand_icon.php';
+            ?>
             <div>
                 <p class="text-sm font-semibold text-zinc-900"><?= htmlspecialchars($appName, ENT_QUOTES, 'UTF-8') ?></p>
                 <p class="text-xs text-zinc-500"><?= htmlspecialchars(__('asset_view_subtitle'), ENT_QUOTES, 'UTF-8') ?></p>

@@ -21,7 +21,7 @@ $turnstileSiteKey = trim((string) ($turnstileSiteKey ?? ''));
     <div class="modal login-modal relative" role="dialog" aria-modal="true" aria-labelledby="login-modal-title" @click.stop>
         <button type="button" class="modal-close" @click="closeLogin()" aria-label="<?= htmlspecialchars(__('portal_close'), ENT_QUOTES, 'UTF-8') ?>">✕</button>
         <div class="login-modal-brand">
-            <div class="brand-mark">B</div>
+            <?php require __DIR__ . '/brand_icon.php'; ?>
             <h2 id="login-modal-title"><?= htmlspecialchars(__('login_heading'), ENT_QUOTES, 'UTF-8') ?></h2>
             <p><?= htmlspecialchars(__('login_subheading'), ENT_QUOTES, 'UTF-8') ?></p>
         </div>
