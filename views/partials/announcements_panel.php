@@ -15,16 +15,24 @@ declare(strict_types=1);
             <h3 class="text-sm font-semibold text-zinc-900" x-text="announcementForm.id ? '<?= htmlspecialchars(__('announcements_edit'), ENT_QUOTES, 'UTF-8') ?>' : '<?= htmlspecialchars(__('announcements_add'), ENT_QUOTES, 'UTF-8') ?>'"></h3>
             <label class="block">
                 <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('announcements_col_title'), ENT_QUOTES, 'UTF-8') ?></span>
-                <input type="text" x-model="announcementForm.title" required maxlength="255" class="w-full rounded-xl border border-zinc-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-zinc-400">
+                <input
+                    type="text"
+                    x-ref="announcementTitleInput"
+                    x-model="announcementForm.title"
+                    maxlength="255"
+                    class="w-full rounded-xl border border-zinc-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-zinc-400"
+                >
             </label>
             <label class="block">
                 <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('announcements_col_category'), ENT_QUOTES, 'UTF-8') ?></span>
                 <input type="text" x-model="announcementForm.category" maxlength="64" placeholder="<?= htmlspecialchars(__('landing_tag_maintenance'), ENT_QUOTES, 'UTF-8') ?>" class="w-full rounded-xl border border-zinc-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-zinc-400">
             </label>
-            <label class="block">
+            <div class="block">
                 <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('announcements_summary'), ENT_QUOTES, 'UTF-8') ?></span>
-                <textarea x-model="announcementForm.summary" rows="4" class="w-full rounded-xl border border-zinc-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-zinc-400"></textarea>
-            </label>
+                <div class="simple-quill-wrapper overflow-hidden rounded-xl border border-zinc-300 bg-white">
+                    <div id="announcement-summary-editor" class="min-h-[160px] text-sm text-zinc-800"></div>
+                </div>
+            </div>
             <label class="inline-flex items-center gap-2 text-sm text-zinc-700">
                 <input type="checkbox" x-model="announcementForm.is_published" class="rounded border-zinc-300">
                 <?= htmlspecialchars(__('announcements_publish'), ENT_QUOTES, 'UTF-8') ?>
@@ -75,7 +83,7 @@ declare(strict_types=1);
                     <tr class="hover:bg-zinc-50/80">
                         <td class="px-6 py-4">
                             <p class="text-sm font-medium text-zinc-900" x-text="item.title"></p>
-                            <p class="mt-1 line-clamp-2 text-xs text-zinc-500" x-text="item.summary"></p>
+                            <p class="mt-1 line-clamp-2 text-xs text-zinc-500" x-text="plainTextFromHtml(item.summary)"></p>
                         </td>
                         <td class="px-6 py-4 text-sm text-zinc-600" x-text="item.category || '—'"></td>
                         <td class="px-6 py-4">

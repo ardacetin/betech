@@ -153,9 +153,143 @@ class Ticket
 
         if ($withComments) {
             $ticket['comments'] = $this->findCommentsByTicketId($id);
+            $ticket['attachments'] = $this->findAttachmentsByTicketId($id);
         }
 
         return $ticket;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    public function findAttachmentsByTicketId(int $ticketId): array
+    {
+        if ($ticketId <= 0 || !$this->attachmentsTableExists()) {
+            return [];
+        }
+
+        $rows = $this->db()->select('ticket_attachments', [
+            'id',
+            'ticket_id',
+            'original_filename',
+            'stored_filename',
+            'file_path',
+            'file_size',
+            'mime_type',
+            'uploaded_by',
+            'created_at',
+        ], [
+            'ticket_id' => $ticketId,
+            'ORDER' => ['id' => 'ASC'],
+        ]);
+
+        if (!is_array($rows)) {
+            return [];
+        }
+
+        return array_map(
+            static function (array $row): array {
+                return [
+                    'id' => (int) ($row['id'] ?? 0),
+                    'ticket_id' => (int) ($row['ticket_id'] ?? 0),
+                    'original_filename' => (string) ($row['original_filename'] ?? ''),
+                    'stored_filename' => (string) ($row['stored_filename'] ?? ''),
+                    'file_path' => (string) ($row['file_path'] ?? ''),
+                    'file_size' => (int) ($row['file_size'] ?? 0),
+                    'mime_type' => (string) ($row['mime_type'] ?? ''),
+                    'uploaded_by' => isset($row['uploaded_by']) ? (int) $row['uploaded_by'] : null,
+                    'created_at' => (string) ($row['created_at'] ?? ''),
+                ];
+            },
+            $rows
+        );
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    public function findAttachmentById(int $attachmentId): ?array
+    {
+        if ($attachmentId <= 0 || !$this->attachmentsTableExists()) {
+            return null;
+        }
+
+        $row = $this->db()->get('ticket_attachments', [
+            'id',
+            'ticket_id',
+            'original_filename',
+            'stored_filename',
+            'file_path',
+            'file_size',
+            'mime_type',
+            'uploaded_by',
+            'created_at',
+        ], [
+            'id' => $attachmentId,
+        ]);
+
+        if (!is_array($row)) {
+            return null;
+        }
+
+        return [
+            'id' => (int) ($row['id'] ?? 0),
+            'ticket_id' => (int) ($row['ticket_id'] ?? 0),
+            'original_filename' => (string) ($row['original_filename'] ?? ''),
+            'stored_filename' => (string) ($row['stored_filename'] ?? ''),
+            'file_path' => (string) ($row['file_path'] ?? ''),
+            'file_size' => (int) ($row['file_size'] ?? 0),
+            'mime_type' => (string) ($row['mime_type'] ?? ''),
+            'uploaded_by' => isset($row['uploaded_by']) ? (int) $row['uploaded_by'] : null,
+            'created_at' => (string) ($row['created_at'] ?? ''),
+        ];
+    }
+
+    /**
+     * @param array{
+     *     original_filename: string,
+     *     stored_filename: string,
+     *     file_path: string,
+     *     file_size: int,
+     *     mime_type?: string,
+     *     uploaded_by?: int|null
+     * } $payload
+     *
+     * @return array<string, mixed>|null
+     */
+    public function createAttachment(int $ticketId, array $payload): ?array
+    {
+        if ($ticketId <= 0 || !$this->attachmentsTableExists()) {
+            return null;
+        }
+
+        $this->db()->insert('ticket_attachments', [
+            'ticket_id' => $ticketId,
+            'original_filename' => $payload['original_filename'],
+            'stored_filename' => $payload['stored_filename'],
+            'file_path' => $payload['file_path'],
+            'file_size' => (int) $payload['file_size'],
+            'mime_type' => (string) ($payload['mime_type'] ?? ''),
+            'uploaded_by' => $payload['uploaded_by'] ?? null,
+        ]);
+
+        $id = (int) $this->db()->id();
+
+        return $this->findAttachmentById($id);
+    }
+
+    private function attachmentsTableExists(): bool
+    {
+        static $exists = null;
+
+        if ($exists !== null) {
+            return $exists;
+        }
+
+        $statement = $this->db()->query("SHOW TABLES LIKE 'ticket_attachments'");
+        $exists = $statement !== false && $statement->rowCount() > 0;
+
+        return $exists;
     }
 
     /**
@@ -388,6 +522,7 @@ class Ticket
 
         if ($withComments) {
             $ticket['comments'] = $this->findCommentsByTicketId($id);
+            $ticket['attachments'] = $this->findAttachmentsByTicketId($id);
         }
 
         return $ticket;

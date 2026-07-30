@@ -423,6 +423,10 @@ $i18nScript = json_encode([
     'ticket_priority_high' => __('ticket_priority_high'),
     'ticket_priority_critical' => __('ticket_priority_critical'),
     'ticket_personnel_required' => __('ticket_personnel_required'),
+    'ticket_attachment_upload_error' => __('ticket_attachment_upload_error'),
+    'ticket_attachment_extension_not_allowed' => __('ticket_attachment_extension_not_allowed'),
+    'ticket_attachment_file_too_large' => __('ticket_attachment_file_too_large'),
+    'ticket_attachment_invalid' => __('ticket_attachment_invalid'),
     'add_manual_user' => __('add_manual_user'),
     'manual_user_create_button' => __('manual_user_create_button'),
     'manual_user_create_error' => __('manual_user_create_error'),
@@ -810,7 +814,7 @@ $i18nScript = json_encode([
                         <button
                             type="button"
                             x-show="activeView === 'announcements' && canAccessSettings"
-                            @click="resetAnnouncementForm(); document.getElementById('announcement-form')?.scrollIntoView({ behavior: 'smooth', block: 'start' })"
+                            @click="resetAnnouncementForm(); $nextTick(() => { initAnnouncementSummaryQuill(''); document.getElementById('announcement-form')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); })"
                             class="inline-flex items-center gap-2 rounded-xl bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white shadow-soft transition hover:bg-zinc-800"
                         >
                             <span class="text-lg leading-none">+</span>
@@ -2000,7 +2004,9 @@ $i18nScript = json_encode([
                 </label>
                 <label class="block">
                     <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('kb_content_label'), ENT_QUOTES, 'UTF-8') ?></span>
-                    <textarea x-model="knowledgeBaseForm.content" required rows="8" class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4"></textarea>
+                    <div class="simple-quill-wrapper overflow-hidden rounded-xl border border-zinc-300 bg-white">
+                        <div id="knowledge-base-content-editor" class="min-h-[220px] text-sm text-zinc-800"></div>
+                    </div>
                 </label>
                 <label class="flex items-start gap-3 rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3">
                     <input type="checkbox" x-model="knowledgeBaseForm.is_published" class="mt-1 rounded border-zinc-300 text-zinc-900 focus:ring-zinc-900">
@@ -2125,6 +2131,18 @@ $i18nScript = json_encode([
                             <option value="critical"><?= htmlspecialchars(__('ticket_priority_critical'), ENT_QUOTES, 'UTF-8') ?></option>
                         </select>
                     </label>
+                    <label class="block">
+                        <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('ticket_attachment_label'), ENT_QUOTES, 'UTF-8') ?></span>
+                        <input
+                            type="file"
+                            x-ref="ticketAttachmentInput"
+                            @change="onTicketAttachmentSelected($event)"
+                            accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.jpg,.jpeg,.png,.gif,.webp,.txt,.csv,.zip,application/pdf,image/*"
+                            class="w-full rounded-xl border border-zinc-300 bg-white px-3 py-2.5 text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-zinc-900 file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-white"
+                        >
+                        <span class="mt-1.5 block text-xs text-zinc-500"><?= htmlspecialchars(__('ticket_attachment_hint'), ENT_QUOTES, 'UTF-8') ?></span>
+                        <span x-show="ticketFormAttachmentName" x-cloak class="mt-1 block text-xs font-medium text-zinc-700" x-text="ticketFormAttachmentName"></span>
+                    </label>
                 </div>
                 <p x-show="ticketFormError" x-cloak class="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700" x-text="ticketFormError"></p>
                 <div class="mt-6 flex items-center justify-end gap-3 border-t border-zinc-200 pt-5">
@@ -2181,6 +2199,28 @@ $i18nScript = json_encode([
                     </div>
                 </div>
                 <p class="mt-4 rounded-xl border border-zinc-200 bg-white px-4 py-3 text-sm text-zinc-700" x-text="ticketDetail?.description"></p>
+                <div class="mt-4">
+                    <h4 class="text-sm font-semibold text-zinc-900"><?= htmlspecialchars(__('ticket_attachments_title'), ENT_QUOTES, 'UTF-8') ?></h4>
+                    <p
+                        x-show="!ticketDetailLoading && (!ticketAttachments || ticketAttachments.length === 0)"
+                        x-cloak
+                        class="mt-3 rounded-xl border border-dashed border-zinc-200 bg-zinc-50 px-4 py-3 text-sm text-zinc-500"
+                    ><?= htmlspecialchars(__('ticket_no_attachments'), ENT_QUOTES, 'UTF-8') ?></p>
+                    <div x-show="ticketAttachments && ticketAttachments.length > 0" x-cloak class="mt-3 space-y-2">
+                        <template x-for="attachment in ticketAttachments" :key="attachment.id">
+                            <div class="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3">
+                                <div class="min-w-0">
+                                    <p class="truncate text-sm font-medium text-zinc-900" x-text="attachment.original_filename"></p>
+                                    <p class="text-xs text-zinc-500" x-text="formatTicketAttachmentSize(attachment.file_size)"></p>
+                                </div>
+                                <a
+                                    :href="ticketAttachmentDownloadUrl(ticketDetail?.id, attachment.id)"
+                                    class="shrink-0 rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-xs font-medium text-zinc-700 transition hover:bg-zinc-50"
+                                ><?= htmlspecialchars(__('ticket_attachment_download'), ENT_QUOTES, 'UTF-8') ?></a>
+                            </div>
+                        </template>
+                    </div>
+                </div>
                 <div class="mt-4 grid gap-4 sm:grid-cols-2">
                     <label class="block">
                         <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('ticket_category_label'), ENT_QUOTES, 'UTF-8') ?></span>
@@ -2250,19 +2290,26 @@ $i18nScript = json_encode([
 </div>
 
 <style>
-    #zimmet-quill-wrapper .ql-toolbar.ql-snow {
+    #zimmet-quill-wrapper .ql-toolbar.ql-snow,
+    .simple-quill-wrapper .ql-toolbar.ql-snow {
         border: 0;
         border-bottom: 1px solid #e4e4e7;
         background: #fafafa;
     }
 
-    #zimmet-quill-wrapper .ql-container.ql-snow {
+    #zimmet-quill-wrapper .ql-container.ql-snow,
+    .simple-quill-wrapper .ql-container.ql-snow {
         border: 0;
         font-family: Inter, ui-sans-serif, system-ui, sans-serif;
     }
 
     #zimmet-quill-wrapper .ql-editor {
         min-height: 240px;
+        line-height: 1.6;
+    }
+
+    .simple-quill-wrapper .ql-editor {
+        min-height: 140px;
         line-height: 1.6;
     }
 </style>
@@ -2636,6 +2683,9 @@ $i18nScript = json_encode([
             },
             isTicketDetailSubmitting: false,
             ticketComments: [],
+            ticketAttachments: [],
+            ticketFormAttachment: null,
+            ticketFormAttachmentName: '',
             ticketCommentBody: '',
             ticketCommentError: '',
             isTicketCommentSubmitting: false,
@@ -2766,6 +2816,8 @@ $i18nScript = json_encode([
             settingsErrorMessage: '',
             settingsSuccessMessage: '',
             quillEditor: null,
+            announcementSummaryQuill: null,
+            knowledgeBaseContentQuill: null,
             globalCustomFields: Array.isArray(window.__globalCustomFields) ? window.__globalCustomFields : [],
             personnel: [],
             personnelLoading: false,
@@ -3186,7 +3238,9 @@ $i18nScript = json_encode([
                     } else if (this.activeView === 'documents') {
                         this.fetchQualityDocuments();
                     } else if (this.activeView === 'announcements') {
-                        this.fetchAnnouncements();
+                        this.fetchAnnouncements().then(() => {
+                            this.$nextTick(() => this.initAnnouncementSummaryQuill());
+                        });
                     } else if (this.activeView === 'audit_logs') {
                         this.fetchAuditLogs();
                     } else if (this.activeView === 'settings' && this.settingsTab === 'automation') {
@@ -6672,6 +6726,7 @@ $i18nScript = json_encode([
                 };
                 this.announcementFormError = '';
                 this.isAnnouncementModalOpen = false;
+                this.$nextTick(() => this.setQuillHtml(this.announcementSummaryQuill, ''));
             },
             openAnnouncementModal(item = null) {
                 this.announcementForm = {
@@ -6685,6 +6740,7 @@ $i18nScript = json_encode([
                 this.announcementsSuccessMessage = '';
                 this.isAnnouncementModalOpen = false;
                 this.$nextTick(() => {
+                    this.initAnnouncementSummaryQuill(this.announcementForm.summary || '');
                     document.getElementById('announcement-form')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
                 });
             },
@@ -6696,16 +6752,23 @@ $i18nScript = json_encode([
                 this.resetAnnouncementForm();
             },
             async submitAnnouncementForm() {
-                if (!this.announcementForm.title?.trim()) {
+                const titleFromModel = String(this.announcementForm.title || '').trim();
+                const titleFromInput = String(this.$refs.announcementTitleInput?.value || '').trim();
+                const title = titleFromModel || titleFromInput;
+
+                if (title === '') {
                     this.announcementFormError = window.__i18n.announcement_title_required;
                     return;
                 }
+
+                this.announcementForm.title = title;
+                this.syncAnnouncementSummaryFromQuill();
 
                 this.isAnnouncementSubmitting = true;
                 this.announcementFormError = '';
 
                 const payload = {
-                    title: this.announcementForm.title.trim(),
+                    title,
                     summary: this.announcementForm.summary || '',
                     category: this.announcementForm.category || '',
                     is_published: Boolean(this.announcementForm.is_published),
@@ -6715,10 +6778,7 @@ $i18nScript = json_encode([
                     const isEdit = Boolean(this.announcementForm.id);
                     const response = await fetch(
                         isEdit ? `/api/announcements/${this.announcementForm.id}` : '/api/announcements',
-                        {
-                            ...this.apiFetchInit(isEdit ? 'PUT' : 'POST'),
-                            body: JSON.stringify(payload),
-                        }
+                        this.apiFetchJsonInit(isEdit ? 'PUT' : 'POST', payload)
                     );
                     const result = await this.parseApiResponse(response);
 
@@ -7830,6 +7890,7 @@ $i18nScript = json_encode([
                 this.knowledgeBaseFormError = '';
                 this.knowledgeBaseSuccessMessage = '';
                 this.isKnowledgeBaseModalOpen = true;
+                this.$nextTick(() => this.initKnowledgeBaseContentQuill(this.knowledgeBaseForm.content || ''));
             },
             closeKnowledgeBaseModal() {
                 if (this.isKnowledgeBaseSubmitting) {
@@ -7839,6 +7900,7 @@ $i18nScript = json_encode([
                 this.isKnowledgeBaseModalOpen = false;
             },
             async submitKnowledgeBaseForm() {
+                this.syncKnowledgeBaseContentFromQuill();
                 this.isKnowledgeBaseSubmitting = true;
                 this.knowledgeBaseFormError = '';
                 this.knowledgeBaseSuccessMessage = '';
@@ -8212,6 +8274,8 @@ $i18nScript = json_encode([
                     asset_id: '',
                     priority: 'medium',
                 };
+                this.ticketFormAttachment = null;
+                this.ticketFormAttachmentName = '';
                 this.ticketFormError = '';
                 this.ticketsSuccessMessage = '';
                 this.ticketSelectedPersonnel = null;
@@ -8220,10 +8284,51 @@ $i18nScript = json_encode([
                 this.ticketUserSearchError = '';
                 this.showTicketUserResults = false;
                 this.isTicketModalOpen = true;
+                this.$nextTick(() => {
+                    if (this.$refs.ticketAttachmentInput) {
+                        this.$refs.ticketAttachmentInput.value = '';
+                    }
+                });
             },
             closeTicketModal() {
                 this.isTicketSubmitting = false;
                 this.isTicketModalOpen = false;
+            },
+            onTicketAttachmentSelected(event) {
+                const file = event?.target?.files?.[0] || null;
+                this.ticketFormAttachment = null;
+                this.ticketFormAttachmentName = '';
+                this.ticketFormError = '';
+
+                if (!file) {
+                    return;
+                }
+
+                const maxBytes = 5 * 1024 * 1024;
+                const allowed = new Set([
+                    'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx',
+                    'jpg', 'jpeg', 'png', 'gif', 'webp', 'txt', 'csv', 'zip',
+                ]);
+                const extension = String(file.name || '').split('.').pop()?.toLowerCase() || '';
+
+                if (!allowed.has(extension)) {
+                    this.ticketFormError = window.__i18n.ticket_attachment_extension_not_allowed;
+                    if (event?.target) {
+                        event.target.value = '';
+                    }
+                    return;
+                }
+
+                if (file.size > maxBytes) {
+                    this.ticketFormError = window.__i18n.ticket_attachment_file_too_large;
+                    if (event?.target) {
+                        event.target.value = '';
+                    }
+                    return;
+                }
+
+                this.ticketFormAttachment = file;
+                this.ticketFormAttachmentName = file.name;
             },
             clearTicketSelectedPersonnel() {
                 this.ticketSelectedPersonnel = null;
@@ -8259,23 +8364,22 @@ $i18nScript = json_encode([
                 this.ticketFormError = '';
                 this.ticketsSuccessMessage = '';
 
-                const payload = {
-                    subject: this.ticketForm.subject,
-                    description: this.ticketForm.description,
-                    personnel_id: Number(this.ticketSelectedPersonnel.id),
-                    priority: this.ticketForm.priority,
-                    asset_id: this.ticketForm.asset_id ? Number(this.ticketForm.asset_id) : null,
-                };
+                const formData = new FormData();
+                formData.append('subject', this.ticketForm.subject);
+                formData.append('description', this.ticketForm.description);
+                formData.append('personnel_id', String(Number(this.ticketSelectedPersonnel.id)));
+                formData.append('priority', this.ticketForm.priority);
+
+                if (this.ticketForm.asset_id) {
+                    formData.append('asset_id', String(Number(this.ticketForm.asset_id)));
+                }
+
+                if (this.ticketFormAttachment) {
+                    formData.append('attachment', this.ticketFormAttachment);
+                }
 
                 try {
-                    const response = await fetch('/api/tickets', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            Accept: 'application/json',
-                        },
-                        body: JSON.stringify(payload),
-                    });
+                    const response = await fetch('/api/tickets', this.apiFetchInit('POST', { body: formData }));
                     const result = await this.parseApiResponse(response);
 
                     if (!response.ok) {
@@ -8303,6 +8407,7 @@ $i18nScript = json_encode([
                     category_id: ticket.category_id ? String(ticket.category_id) : '',
                 };
                 this.ticketComments = [];
+                this.ticketAttachments = Array.isArray(ticket?.attachments) ? ticket.attachments : [];
                 this.ticketCommentBody = '';
                 this.ticketCommentError = '';
 
@@ -8317,24 +8422,148 @@ $i18nScript = json_encode([
                         return;
                     }
 
-                    this.ticketDetail = result.data;
-                    this.ticketDetailForm = {
-                        status: result.data.status,
-                        priority: result.data.priority,
-                        category_id: result.data.category_id ? String(result.data.category_id) : '',
-                    };
+                    this.ticketDetail = result.data || ticket;
                     this.ticketComments = Array.isArray(result.data?.comments) ? result.data.comments : [];
+                    this.ticketAttachments = Array.isArray(result.data?.attachments) ? result.data.attachments : [];
+                    this.ticketDetailForm = {
+                        status: this.ticketDetail.status,
+                        priority: this.ticketDetail.priority,
+                        category_id: this.ticketDetail.category_id ? String(this.ticketDetail.category_id) : '',
+                    };
                 } catch (error) {
                     this.ticketsError = window.__i18n.helpdesk_network_error;
                 } finally {
                     this.ticketDetailLoading = false;
                 }
             },
+            ticketAttachmentDownloadUrl(ticketId, attachmentId) {
+                if (!ticketId || !attachmentId) {
+                    return '#';
+                }
+
+                return `/api/tickets/${ticketId}/attachments/${attachmentId}/download`;
+            },
+            formatTicketAttachmentSize(bytes) {
+                const size = Number(bytes || 0);
+
+                if (!Number.isFinite(size) || size <= 0) {
+                    return '—';
+                }
+
+                if (size < 1024) {
+                    return `${size} B`;
+                }
+
+                if (size < 1024 * 1024) {
+                    return `${(size / 1024).toFixed(1)} KB`;
+                }
+
+                return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+            },
+            plainTextFromHtml(value) {
+                const raw = String(value || '');
+
+                if (raw === '') {
+                    return '';
+                }
+
+                const container = document.createElement('div');
+                container.innerHTML = raw;
+
+                return (container.textContent || container.innerText || '').replace(/\s+/g, ' ').trim();
+            },
+            quillHtml(quill) {
+                if (!quill) {
+                    return '';
+                }
+
+                const html = String(quill.root.innerHTML || '').trim();
+
+                return html === '' || html === '<p><br></p>' ? '' : html;
+            },
+            setQuillHtml(quill, html) {
+                if (!quill) {
+                    return;
+                }
+
+                const value = String(html || '');
+
+                if (value.includes('<')) {
+                    quill.root.innerHTML = value;
+                } else if (value !== '') {
+                    quill.setText(value);
+                } else {
+                    quill.setText('');
+                }
+            },
+            createSimpleQuill(elementId) {
+                if (typeof Quill === 'undefined') {
+                    return null;
+                }
+
+                const container = document.getElementById(elementId);
+
+                if (!container) {
+                    return null;
+                }
+
+                if (container.__betechQuill instanceof Quill) {
+                    return container.__betechQuill;
+                }
+
+                const quill = new Quill(container, {
+                    theme: 'snow',
+                    modules: {
+                        toolbar: [
+                            ['bold', 'italic', 'underline'],
+                            [{ list: 'ordered' }, { list: 'bullet' }],
+                            ['link'],
+                            ['clean'],
+                        ],
+                    },
+                });
+
+                container.__betechQuill = quill;
+
+                return quill;
+            },
+            initAnnouncementSummaryQuill(initialHtml = null) {
+                const quill = this.createSimpleQuill('announcement-summary-editor');
+
+                if (!quill) {
+                    return;
+                }
+
+                this.announcementSummaryQuill = quill;
+
+                if (initialHtml !== null) {
+                    this.setQuillHtml(quill, initialHtml);
+                } else if (!String(quill.getText() || '').trim()) {
+                    this.setQuillHtml(quill, this.announcementForm.summary || '');
+                }
+            },
+            syncAnnouncementSummaryFromQuill() {
+                this.announcementForm.summary = this.quillHtml(this.announcementSummaryQuill);
+            },
+            initKnowledgeBaseContentQuill(initialHtml = '') {
+                const quill = this.createSimpleQuill('knowledge-base-content-editor');
+
+                if (!quill) {
+                    return;
+                }
+
+                this.knowledgeBaseContentQuill = quill;
+                this.setQuillHtml(quill, initialHtml);
+            },
+            syncKnowledgeBaseContentFromQuill() {
+                this.knowledgeBaseForm.content = this.quillHtml(this.knowledgeBaseContentQuill);
+            },
             closeTicketDetail() {
                 this.isTicketDetailSubmitting = false;
                 this.isTicketCommentSubmitting = false;
                 this.isTicketDetailOpen = false;
                 this.ticketDetail = null;
+                this.ticketAttachments = [];
             },
             openTicketLinkedAsset() {
                 const ticket = this.ticketDetail;
