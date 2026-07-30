@@ -2598,18 +2598,11 @@ $i18nScript = json_encode([
             ticketsSuccessMessage: '',
             ticketsPage: 1,
             ticketsPagination: { page: 1, per_page: 20, total: 0, total_pages: 1 },
-            ticketLayout: 'table',
             ticketStatusFilter: 'active',
             ticketStatusFilters: [
                 { value: 'active', label: window.__i18n.helpdesk_filter_active },
                 { value: 'closed', label: window.__i18n.helpdesk_filter_closed },
                 { value: 'all', label: window.__i18n.helpdesk_filter_all },
-            ],
-            ticketBoardColumns: [
-                { status: 'open', label: window.__i18n.ticket_status_open },
-                { status: 'in_progress', label: window.__i18n.ticket_status_in_progress },
-                { status: 'resolved', label: window.__i18n.ticket_status_resolved },
-                { status: 'closed', label: window.__i18n.ticket_status_closed },
             ],
             isTicketModalOpen: false,
             isTicketSubmitting: false,
@@ -6715,10 +6708,7 @@ $i18nScript = json_encode([
                     const isEdit = Boolean(this.announcementForm.id);
                     const response = await fetch(
                         isEdit ? `/api/announcements/${this.announcementForm.id}` : '/api/announcements',
-                        {
-                            ...this.apiFetchInit(isEdit ? 'PUT' : 'POST'),
-                            body: JSON.stringify(payload),
-                        }
+                        this.apiFetchJsonInit(isEdit ? 'PUT' : 'POST', payload)
                     );
                     const result = await this.parseApiResponse(response);
 
@@ -7904,9 +7894,6 @@ $i18nScript = json_encode([
                 } catch (error) {
                     this.knowledgeBaseError = window.__i18n.kb_network_error;
                 }
-            },
-            ticketsForStatus(status) {
-                return this.tickets.filter((ticket) => ticket.status === status);
             },
             get filteredIpAddresses() {
                 if (this.ipAddressStatusFilter === 'all') {

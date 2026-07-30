@@ -1249,7 +1249,7 @@ return [
     'helpdesk_view_board' => 'Pano',
     'helpdesk_board_empty_column' => 'Talep yok',
     'helpdesk_filter_all' => 'Tümü',
-    'helpdesk_filter_active' => 'Aktif Talepler',
+    'helpdesk_filter_active' => 'Açık Talepler',
     'helpdesk_filter_closed' => 'Kapalı Talepler',
     'add_ticket' => 'Yeni Talep',
     'edit_ticket' => 'Talebi Düzenle',

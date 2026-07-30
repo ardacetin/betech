@@ -150,7 +150,19 @@ class AnnouncementController
     {
         $parsed = $request->getParsedBody();
 
-        return is_array($parsed) ? $parsed : [];
+        if (is_array($parsed) && $parsed !== []) {
+            return $parsed;
+        }
+
+        $rawBody = trim((string) $request->getBody());
+
+        if ($rawBody === '') {
+            return is_array($parsed) ? $parsed : [];
+        }
+
+        $decoded = json_decode($rawBody, true);
+
+        return is_array($decoded) ? $decoded : [];
     }
 
     /**
