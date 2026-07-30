@@ -14,6 +14,7 @@ $locale = $locale ?? 'tr';
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <?php require __DIR__ . '/favicon_link.php'; ?>
     <title><?= htmlspecialchars($pageTitle . ' - ' . $appName, ENT_QUOTES, 'UTF-8') ?></title>
     <link rel="stylesheet" href="/css/app.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -61,7 +62,7 @@ $locale = $locale ?? 'tr';
         .brand { display: inline-flex; align-items: center; gap: 0.7rem; min-width: 0; }
         .brand-mark {
             display: inline-flex; width: 34px; height: 34px; align-items: center; justify-content: center;
-            border-radius: 10px; background: var(--brand); color: #fff; font-size: 0.8rem; font-weight: 700; flex-shrink: 0;
+            border-radius: 10px; background: var(--brand); color: #fff; flex-shrink: 0;
         }
         .brand-text { display: flex; flex-direction: column; min-width: 0; line-height: 1.15; }
         .brand-name { font-weight: 700; letter-spacing: -0.02em; font-size: 1.05rem; }

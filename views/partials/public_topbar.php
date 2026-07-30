@@ -13,7 +13,7 @@ $appSubtitle = $appSubtitle ?? __('app_subtitle');
 <header class="topbar">
     <div class="topbar-inner">
         <a href="/" class="brand" aria-label="<?= htmlspecialchars($appName, ENT_QUOTES, 'UTF-8') ?>">
-            <span class="brand-mark">B</span>
+            <?php require __DIR__ . '/brand_icon.php'; ?>
             <span class="brand-text">
                 <span class="brand-name"><?= htmlspecialchars($appName, ENT_QUOTES, 'UTF-8') ?></span>
                 <span class="brand-sub"><?= htmlspecialchars($appSubtitle, ENT_QUOTES, 'UTF-8') ?></span>

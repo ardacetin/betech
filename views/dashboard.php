@@ -637,7 +637,11 @@ $i18nScript = json_encode([
     <div class="flex h-screen overflow-hidden bg-[var(--bg)]">
         <aside class="hidden h-full w-64 min-h-0 flex-shrink-0 flex-col border-r border-[var(--border)] bg-white lg:flex">
             <div class="flex h-16 shrink-0 items-center gap-3 border-b border-[var(--border)] px-5">
-                <div class="btn-brand flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-sm font-semibold text-white">B</div>
+                <?php
+                $wrapperClass = 'btn-brand flex h-9 w-9 shrink-0 items-center justify-center rounded-xl';
+                $iconSize = 20;
+                require __DIR__ . '/partials/brand_icon.php';
+                ?>
                 <div class="flex min-w-0 flex-col">
                     <span class="text-lg font-bold tracking-tight text-[var(--ink)]"><?= htmlspecialchars(__('app_name'), ENT_QUOTES, 'UTF-8') ?></span>
                     <span class="truncate text-[10px] text-[var(--muted)]"><?= htmlspecialchars(__('app_subtitle'), ENT_QUOTES, 'UTF-8') ?></span>
