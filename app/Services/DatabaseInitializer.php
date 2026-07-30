@@ -12,7 +12,7 @@ class DatabaseInitializer
     /**
      * Bump when new self-heal patches must run again on warm installs.
      */
-    private const INIT_MARKER_VERSION = '2026-07-21-announcements-public-docs';
+    private const INIT_MARKER_VERSION = '2026-07-30-ticket-attachments';
 
     public function __construct(
         private readonly DatabaseService $databaseService,
@@ -115,6 +115,10 @@ class DatabaseInitializer
                     $warnings[] = $warning;
                 }
 
+                foreach ($this->patchTicketAttachments($connection) as $warning) {
+                    $warnings[] = $warning;
+                }
+
                 foreach ($this->patchTicketCategories($connection) as $warning) {
                     $warnings[] = $warning;
                 }
@@ -206,6 +210,7 @@ class DatabaseInitializer
                 && $this->assetsTableExists($connection)
                 && $this->tableExists($connection, 'announcements')
                 && $this->columnExists($connection, 'quality_documents', 'is_public')
+                && $this->tableExists($connection, 'ticket_attachments')
             ) {
                 return true;
             }
@@ -1237,6 +1242,28 @@ class DatabaseInitializer
         if (!$this->tableExists($connection, 'tickets')) {
             $this->applySqlFile($connection, $this->getTicketsTableMigrationPath());
             $warnings[] = 'Self-healed database: created tickets and ticket_comments tables.';
+        }
+
+        return $warnings;
+    }
+
+    /**
+     * @param object $connection Medoo instance
+     *
+     * @return list<string>
+     */
+    private function patchTicketAttachments(object $connection): array
+    {
+        $warnings = [];
+
+        if (!$this->tableExists($connection, 'tickets')) {
+            return $warnings;
+        }
+
+        if (!$this->tableExists($connection, 'ticket_attachments')) {
+            $migrationPath = dirname($this->schemaPath) . '/migrations/036_create_ticket_attachments.sql';
+            $this->applySqlFile($connection, $migrationPath);
+            $warnings[] = 'Self-healed database: created ticket_attachments table.';
         }
 
         return $warnings;

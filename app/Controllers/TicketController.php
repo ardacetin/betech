@@ -15,8 +15,12 @@ use App\Services\ListPagination;
 use App\Services\Automation\AutomationEngine;
 use App\Services\DeferredTaskRunner;
 use App\Services\Mail\TicketNotificationService;
+use App\Services\TicketAttachmentStorageService;
+use InvalidArgumentException;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
+use Psr\Http\Message\UploadedFileInterface;
+use Throwable;
 
 class TicketController
 {
@@ -28,7 +32,8 @@ class TicketController
         private readonly EndUserContextService $endUserContextService,
         private readonly TicketNotificationService $ticketNotificationService,
         private readonly AutomationEngine $automationEngine,
-        private readonly AuditLogger $auditLogger
+        private readonly AuditLogger $auditLogger,
+        private readonly TicketAttachmentStorageService $ticketAttachmentStorageService
     ) {
     }
 
@@ -118,6 +123,77 @@ class TicketController
         ]);
     }
 
+    public function downloadAttachment(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
+    {
+        $ticketId = (int) ($args['id'] ?? 0);
+        $attachmentId = (int) ($args['attachmentId'] ?? 0);
+
+        if ($ticketId <= 0 || $attachmentId <= 0) {
+            return $this->jsonResponse($response, 400, [
+                'status' => 'error',
+                'message' => __('ticket_attachment_not_found'),
+            ]);
+        }
+
+        if ($this->endUserContextService->isEndUser()) {
+            $personnelId = $this->endUserContextService->resolvePersonnelId();
+
+            if ($personnelId === null || !$this->ticketModel->belongsToPersonnel($ticketId, $personnelId)) {
+                return $this->jsonResponse($response, 403, [
+                    'status' => 'error',
+                    'message' => __('portal_action_not_allowed'),
+                ]);
+            }
+        }
+
+        $attachment = $this->ticketModel->findAttachmentById($attachmentId);
+
+        if ($attachment === null || (int) ($attachment['ticket_id'] ?? 0) !== $ticketId) {
+            return $this->jsonResponse($response, 404, [
+                'status' => 'error',
+                'message' => __('ticket_attachment_not_found'),
+            ]);
+        }
+
+        try {
+            $absolutePath = $this->ticketAttachmentStorageService->resolveAbsolutePath(
+                (string) ($attachment['file_path'] ?? '')
+            );
+        } catch (InvalidArgumentException) {
+            return $this->jsonResponse($response, 404, [
+                'status' => 'error',
+                'message' => __('ticket_attachment_not_found'),
+            ]);
+        }
+
+        $stream = fopen($absolutePath, 'rb');
+
+        if ($stream === false) {
+            return $this->jsonResponse($response, 500, [
+                'status' => 'error',
+                'message' => __('ticket_attachment_not_found'),
+            ]);
+        }
+
+        $downloadName = $this->sanitizeDownloadFilename((string) ($attachment['original_filename'] ?? 'attachment'));
+        $mimeType = trim((string) ($attachment['mime_type'] ?? ''));
+
+        if ($mimeType === '') {
+            $mimeType = 'application/octet-stream';
+        }
+
+        $response = $response
+            ->withHeader('Content-Type', $mimeType)
+            ->withHeader('Content-Disposition', 'attachment; filename="' . $downloadName . '"')
+            ->withHeader('Content-Length', (string) filesize($absolutePath))
+            ->withStatus(200);
+
+        $response->getBody()->write((string) stream_get_contents($stream));
+        fclose($stream);
+
+        return $response;
+    }
+
     public function store(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
     {
         $payload = $this->resolvePayload($request);
@@ -188,6 +264,29 @@ class TicketController
             ]);
         }
 
+        $attachmentError = null;
+        $uploadedFile = $this->resolveUploadedAttachment($request);
+
+        if ($uploadedFile !== null) {
+            try {
+                $stored = $this->ticketAttachmentStorageService->storeUploadedFile($uploadedFile);
+                $this->ticketModel->createAttachment((int) ($ticket['id'] ?? 0), [
+                    'original_filename' => $stored['original_filename'],
+                    'stored_filename' => $stored['stored_filename'],
+                    'file_path' => $stored['relative_path'],
+                    'file_size' => $stored['file_size'],
+                    'mime_type' => $stored['mime_type'],
+                    'uploaded_by' => $this->endUserContextService->resolvePersonnelId(),
+                ]);
+            } catch (InvalidArgumentException $exception) {
+                $attachmentError = $exception->getMessage();
+            } catch (Throwable) {
+                $attachmentError = __('ticket_attachment_upload_error');
+            }
+        }
+
+        $ticket = $this->ticketModel->findById((int) ($ticket['id'] ?? 0), true) ?? $ticket;
+
         $this->safeDeferNewTicketAlert($ticket);
         $this->safeDeferAutomationTicketCreated($ticket);
 
@@ -201,9 +300,15 @@ class TicketController
             $this->snapshotTicket($ticket)
         );
 
+        $message = __('ticket_create_success');
+
+        if ($attachmentError !== null) {
+            $message .= ' ' . $attachmentError;
+        }
+
         return $this->jsonResponse($response, 201, [
             'status' => 'success',
-            'message' => __('ticket_create_success'),
+            'message' => $message,
             'data' => $ticket,
         ]);
     }
@@ -524,19 +629,38 @@ class TicketController
     {
         $parsedBody = $request->getParsedBody();
 
-        if (is_array($parsedBody)) {
+        if (is_array($parsedBody) && $parsedBody !== []) {
             return $parsedBody;
         }
 
-        $rawBody = (string) $request->getBody();
+        $rawBody = trim((string) $request->getBody());
 
         if ($rawBody === '') {
-            return [];
+            return is_array($parsedBody) ? $parsedBody : [];
         }
 
         $decoded = json_decode($rawBody, true);
 
         return is_array($decoded) ? $decoded : null;
+    }
+
+    private function resolveUploadedAttachment(ServerRequestInterface $request): ?UploadedFileInterface
+    {
+        $uploadedFiles = $request->getUploadedFiles();
+        $file = $uploadedFiles['attachment'] ?? $uploadedFiles['file'] ?? null;
+
+        if (is_array($file)) {
+            $file = $file[0] ?? null;
+        }
+
+        return $file instanceof UploadedFileInterface ? $file : null;
+    }
+
+    private function sanitizeDownloadFilename(string $filename): string
+    {
+        $sanitized = preg_replace('/[^\w.\-() ]+/u', '_', $filename) ?? 'attachment';
+
+        return $sanitized !== '' ? $sanitized : 'attachment';
     }
 
     /**

@@ -48,7 +48,7 @@ declare(strict_types=1);
                     <tr class="hover:bg-zinc-50/80">
                         <td class="px-6 py-4">
                             <p class="text-sm font-medium text-zinc-900" x-text="article.title"></p>
-                            <p class="mt-1 line-clamp-2 text-xs text-zinc-500" x-text="article.content"></p>
+                            <p class="mt-1 line-clamp-2 text-xs text-zinc-500" x-text="plainTextFromHtml(article.content)"></p>
                         </td>
                         <td class="px-6 py-4">
                             <span

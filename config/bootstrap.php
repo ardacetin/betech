@@ -99,6 +99,7 @@ use App\Services\Mail\MailService;
 use App\Services\Mail\TicketNotificationService;
 use App\Services\NetworkPortMappingService;
 use App\Services\QualityDocumentStorageService;
+use App\Services\TicketAttachmentStorageService;
 use App\Services\QrCodeService;
 use App\Services\Translator;
 use App\Services\TurnstileVerifier;
@@ -231,6 +232,7 @@ $consumableModel = new Consumable($databaseService);
 $knowledgeBaseArticleModel = new KnowledgeBaseArticle($databaseService);
 $announcementModel = new Announcement($databaseService);
 $qualityDocumentStorageService = new QualityDocumentStorageService($rootPath);
+$ticketAttachmentStorageService = new TicketAttachmentStorageService($rootPath);
 $qualityDocumentModel = new QualityDocument($databaseService, $qualityDocumentStorageService);
 $ticketCategoryModel = new TicketCategory($databaseService);
 $userIntegrationFactory = new UserIntegrationFactory($databaseService, $settingModel);
@@ -373,7 +375,8 @@ $ticketController = new TicketController(
     $endUserContextService,
     $ticketNotificationService,
     $automationEngine,
-    $auditLogger
+    $auditLogger,
+    $ticketAttachmentStorageService
 );
 $endUserController = new EndUserController($assetModel, $endUserContextService);
 $auditLogController = new AuditLogController($auditLogModel, $auditChangeFormatter);
@@ -448,6 +451,7 @@ $app->group('', function ($group) use ($ticketController, $assetTutanakControlle
     $group->get('/api/tickets', [$ticketController, 'index']);
     $group->post('/api/tickets', [$ticketController, 'store']);
     $group->get('/api/tickets/{id}', [$ticketController, 'show']);
+    $group->get('/api/tickets/{id}/attachments/{attachmentId}/download', [$ticketController, 'downloadAttachment']);
     $group->post('/api/tickets/{id}/comments', [$ticketController, 'addComment']);
     $group->get('/api/assets/{id}/tutanak', [$assetTutanakController, 'show']);
     $group->get('/api/assets/{id}/history', [$assetController, 'history']);
