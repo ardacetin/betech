@@ -70,6 +70,7 @@ require __DIR__ . '/partials/public_head.php';
                     <div class="panel">
                         <div class="panel-head">
                             <h2><?= htmlspecialchars(__('landing_recent_announcements'), ENT_QUOTES, 'UTF-8') ?></h2>
+                            <a href="/public-announcements"><?= htmlspecialchars(__('landing_all_announcements'), ENT_QUOTES, 'UTF-8') ?> →</a>
                         </div>
                         <?php if ($announcements === []): ?>
                             <p class="empty"><?= htmlspecialchars(__('landing_announcements_empty'), ENT_QUOTES, 'UTF-8') ?></p>
@@ -94,6 +95,9 @@ require __DIR__ . '/partials/public_head.php';
                                     </article>
                                 <?php endforeach; ?>
                             </div>
+                            <p style="margin:1rem 0 0;">
+                                <a class="card-link" href="/public-announcements"><?= htmlspecialchars(__('landing_all_announcements'), ENT_QUOTES, 'UTF-8') ?> →</a>
+                            </p>
                         <?php endif; ?>
                     </div>
 
@@ -147,7 +151,7 @@ require __DIR__ . '/partials/public_head.php';
                             <p><?= htmlspecialchars(__('landing_card_docs_desc'), ENT_QUOTES, 'UTF-8') ?></p>
                             <span class="card-link"><?= htmlspecialchars(__('landing_explore'), ENT_QUOTES, 'UTF-8') ?> →</span>
                         </a>
-                        <a class="card" href="#duyurular">
+                        <a class="card" href="/public-announcements">
                             <span class="card-icon" aria-hidden="true">
                                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h10M4 18h13"/></svg>
                             </span>

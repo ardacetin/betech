@@ -23,7 +23,7 @@ $appSubtitle = $appSubtitle ?? __('app_subtitle');
         <nav class="nav-links" aria-label="<?= htmlspecialchars(__('landing_nav_label'), ENT_QUOTES, 'UTF-8') ?>">
             <a class="nav-link" href="/knowledge-base"><?= htmlspecialchars(__('nav_knowledge_base'), ENT_QUOTES, 'UTF-8') ?></a>
             <a class="nav-link" href="/public-documents"><?= htmlspecialchars(__('landing_nav_documents'), ENT_QUOTES, 'UTF-8') ?></a>
-            <a class="nav-link" href="/#duyurular"><?= htmlspecialchars(__('landing_nav_announcements'), ENT_QUOTES, 'UTF-8') ?></a>
+            <a class="nav-link" href="/public-announcements"><?= htmlspecialchars(__('landing_nav_announcements'), ENT_QUOTES, 'UTF-8') ?></a>
             <a class="nav-link" href="/#talep"><?= htmlspecialchars(__('landing_nav_requests'), ENT_QUOTES, 'UTF-8') ?></a>
             <a class="nav-link" href="/#hakkinda"><?= htmlspecialchars(__('landing_nav_about'), ENT_QUOTES, 'UTF-8') ?></a>
         </nav>
@@ -53,7 +53,7 @@ $appSubtitle = $appSubtitle ?? __('app_subtitle');
         <div style="display:grid;gap:0.25rem;padding:0.75rem 0 1rem;width:100%;border-top:1px solid var(--border);">
             <a class="nav-link" href="/knowledge-base" @click="mobileOpen = false"><?= htmlspecialchars(__('nav_knowledge_base'), ENT_QUOTES, 'UTF-8') ?></a>
             <a class="nav-link" href="/public-documents" @click="mobileOpen = false"><?= htmlspecialchars(__('landing_nav_documents'), ENT_QUOTES, 'UTF-8') ?></a>
-            <a class="nav-link" href="/#duyurular" @click="mobileOpen = false"><?= htmlspecialchars(__('landing_nav_announcements'), ENT_QUOTES, 'UTF-8') ?></a>
+            <a class="nav-link" href="/public-announcements" @click="mobileOpen = false"><?= htmlspecialchars(__('landing_nav_announcements'), ENT_QUOTES, 'UTF-8') ?></a>
             <a class="nav-link" href="/#talep" @click="mobileOpen = false"><?= htmlspecialchars(__('landing_nav_requests'), ENT_QUOTES, 'UTF-8') ?></a>
             <a class="nav-link" href="/#hakkinda" @click="mobileOpen = false"><?= htmlspecialchars(__('landing_nav_about'), ENT_QUOTES, 'UTF-8') ?></a>
             <button

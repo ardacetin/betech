@@ -67,6 +67,17 @@ class LandingController
         ]);
     }
 
+    public function announcements(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
+    {
+        if ($this->sessionAuthService->isAuthenticated()) {
+            return $this->healthController->index($request, $response);
+        }
+
+        return $this->renderPublic($response, 'public_announcements', [
+            'announcements' => $this->safePublishedAnnouncements(500),
+        ]);
+    }
+
     /**
      * @param array<string, mixed> $extra
      */

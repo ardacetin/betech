@@ -148,6 +148,7 @@ $publicPaths = [
     '/',
     '/knowledge-base',
     '/public-documents',
+    '/public-announcements',
     '/login',
     '/api/login',
     '/logout',
@@ -397,6 +398,7 @@ $app->get('/unauthorized', [$authController, 'showUnauthorized']);
 $app->get('/', [$landingController, 'index']);
 $app->get('/knowledge-base', [$landingController, 'knowledgeBase']);
 $app->get('/public-documents', [$landingController, 'documents']);
+$app->get('/public-announcements', [$landingController, 'announcements']);
 $app->get('/api/announcements/published', [$announcementController, 'published']);
 $app->get('/api/quality-documents/public', [$qualityDocumentController, 'publicIndex']);
 $app->get('/api/quality-documents/{id}/public-download', [$qualityDocumentController, 'publicDownload']);

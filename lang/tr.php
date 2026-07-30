@@ -214,6 +214,8 @@ return [
     'landing_recent_documents' => 'Son Dokümanlar',
     'landing_popular_kb' => 'Popüler Bilgi Bankası İçerikleri',
     'landing_all_documents' => 'Tüm dokümanlar',
+    'landing_all_announcements' => 'Tüm duyurular',
+    'landing_announcements_subtitle' => 'Yayınlanmış tüm BT duyurularına buradan ulaşın.',
     'landing_all_kb' => 'Tüm bilgi bankası',
     'landing_announcements_empty' => 'Şu an yayınlanmış duyuru bulunmuyor.',
     'landing_documents_empty' => 'Herkese açık doküman bulunmuyor.',

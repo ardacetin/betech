@@ -54,7 +54,7 @@ class Announcement
      */
     public function findPublished(int $limit = 50): array
     {
-        $limit = max(1, min(100, $limit));
+        $limit = max(1, min(500, $limit));
 
         $rows = $this->db()->select(self::TABLE, [
             'id',
