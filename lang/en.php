@@ -1216,7 +1216,7 @@ return [
     'helpdesk_view_board' => 'Board',
     'helpdesk_board_empty_column' => 'No tickets',
     'helpdesk_filter_all' => 'All',
-    'helpdesk_filter_active' => 'Active Tickets',
+    'helpdesk_filter_active' => 'Open Tickets',
     'helpdesk_filter_closed' => 'Closed Tickets',
     'add_ticket' => 'New Ticket',
     'edit_ticket' => 'Edit Ticket',
