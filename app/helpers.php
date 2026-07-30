@@ -124,3 +124,21 @@ function format_display_date(?string $value, string $locale = 'tr'): string
 
     return date('d.m.Y', $timestamp);
 }
+
+/**
+ * Render Quill/rich text for public pages (HTML passthrough or escaped plain text).
+ */
+function render_rich_content(string $content): string
+{
+    $raw = trim($content);
+
+    if ($raw === '') {
+        return '';
+    }
+
+    if (preg_match('/<[a-z][\s\S]*>/i', $raw) === 1) {
+        return $raw;
+    }
+
+    return nl2br(htmlspecialchars($raw, ENT_QUOTES, 'UTF-8'));
+}

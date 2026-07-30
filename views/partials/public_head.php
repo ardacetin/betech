@@ -167,6 +167,13 @@ $locale = $locale ?? 'tr';
         .login-field input:focus { outline: 2px solid rgba(122, 36, 44, 0.25); border-color: var(--brand); }
         .login-modal .cf-turnstile { display: flex; justify-content: center; }
         .kb-prose { margin-top: 1.25rem; color: var(--muted); font-size: 0.975rem; line-height: 1.65; white-space: pre-wrap; word-break: break-word; }
+        .kb-prose.announcement-summary { margin-top: 0.35rem; font-size: 0.95rem; white-space: normal; }
+        .kb-prose :where(p, ul, ol) { margin: 0.35rem 0; }
+        .kb-prose :where(p:first-child) { margin-top: 0; }
+        .kb-prose :where(p:last-child) { margin-bottom: 0; }
+        .kb-prose :where(ul, ol) { padding-left: 1.25rem; }
+        .kb-prose :where(a) { color: var(--brand); text-decoration: underline; }
+        .kb-prose :where(strong, b) { color: var(--ink); font-weight: 600; }
         [x-cloak] { display: none !important; }
         @media (min-width: 640px) {
             .modal-backdrop { align-items: center; }

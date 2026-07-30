@@ -89,7 +89,7 @@ require __DIR__ . '/partials/public_head.php';
                                         </div>
                                         <h3 class="list-title"><?= htmlspecialchars((string) ($item['title'] ?? ''), ENT_QUOTES, 'UTF-8') ?></h3>
                                         <?php if (!empty($item['summary'])): ?>
-                                            <p class="empty"><?= htmlspecialchars(trim(strip_tags((string) $item['summary'])), ENT_QUOTES, 'UTF-8') ?></p>
+                                            <div class="kb-prose announcement-summary"><?= render_rich_content((string) $item['summary']) ?></div>
                                         <?php endif; ?>
                                     </article>
                                 <?php endforeach; ?>
