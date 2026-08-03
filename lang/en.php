@@ -214,6 +214,8 @@ return [
     'landing_recent_documents' => 'Latest Documents',
     'landing_popular_kb' => 'Popular Knowledge Base Articles',
     'landing_all_documents' => 'All documents',
+    'landing_all_announcements' => 'All announcements',
+    'landing_announcements_subtitle' => 'Browse all published IT announcements.',
     'landing_all_kb' => 'All knowledge base',
     'landing_announcements_empty' => 'There are no published announcements right now.',
     'landing_documents_empty' => 'No public documents are available.',

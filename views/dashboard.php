@@ -1996,31 +1996,37 @@ $i18nScript = json_encode([
     <div
         x-show="isKnowledgeBaseModalOpen"
         x-cloak
-        class="fixed inset-0 z-50 flex items-center justify-center px-4"
+        class="fixed inset-0 z-50 flex items-center justify-center px-4 py-4"
+        @keydown.escape.window="closeKnowledgeBaseModal()"
     >
         <div class="absolute inset-0 bg-zinc-900/40 backdrop-blur-sm" @click="closeKnowledgeBaseModal()"></div>
-        <div class="relative w-full max-w-2xl rounded-2xl border border-zinc-200 bg-white p-6 shadow-soft">
-            <h3 class="text-lg font-semibold text-zinc-900" x-text="knowledgeBaseForm.id ? '<?= htmlspecialchars(__('kb_edit_article'), ENT_QUOTES, 'UTF-8') ?>' : '<?= htmlspecialchars(__('kb_add_article'), ENT_QUOTES, 'UTF-8') ?>'"></h3>
-            <form class="mt-5 space-y-4" @submit.prevent="submitKnowledgeBaseForm()">
-                <label class="block">
-                    <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('kb_title_label'), ENT_QUOTES, 'UTF-8') ?></span>
-                    <input type="text" x-model="knowledgeBaseForm.title" required class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4">
-                </label>
-                <label class="block">
-                    <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('kb_content_label'), ENT_QUOTES, 'UTF-8') ?></span>
-                    <div class="simple-quill-wrapper overflow-hidden rounded-xl border border-zinc-300 bg-white">
-                        <div id="knowledge-base-content-editor" class="min-h-[220px] text-sm text-zinc-800"></div>
-                    </div>
-                </label>
-                <label class="flex items-start gap-3 rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3">
-                    <input type="checkbox" x-model="knowledgeBaseForm.is_published" class="mt-1 rounded border-zinc-300 text-zinc-900 focus:ring-zinc-900">
-                    <span>
-                        <span class="block text-sm font-medium text-zinc-900"><?= htmlspecialchars(__('kb_published_label'), ENT_QUOTES, 'UTF-8') ?></span>
-                        <span class="mt-1 block text-xs text-zinc-500"><?= htmlspecialchars(__('kb_published_hint'), ENT_QUOTES, 'UTF-8') ?></span>
-                    </span>
-                </label>
-                <p x-show="knowledgeBaseFormError" x-cloak class="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700" x-text="knowledgeBaseFormError"></p>
-                <div class="flex items-center justify-end gap-3 border-t border-zinc-200 pt-5">
+        <div class="relative flex max-h-[90vh] w-full max-w-2xl flex-col rounded-2xl border border-zinc-200 bg-white shadow-soft">
+            <div class="flex shrink-0 items-center justify-between border-b border-zinc-200 px-6 py-4">
+                <h3 class="text-lg font-semibold text-zinc-900" x-text="knowledgeBaseForm.id ? '<?= htmlspecialchars(__('kb_edit_article'), ENT_QUOTES, 'UTF-8') ?>' : '<?= htmlspecialchars(__('kb_add_article'), ENT_QUOTES, 'UTF-8') ?>'"></h3>
+                <button type="button" @click="closeKnowledgeBaseModal()" class="rounded-lg p-2 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600" aria-label="<?= htmlspecialchars(__('cancel'), ENT_QUOTES, 'UTF-8') ?>">&times;</button>
+            </div>
+            <form class="flex min-h-0 flex-1 flex-col" @submit.prevent="submitKnowledgeBaseForm()">
+                <div class="space-y-4 overflow-y-auto px-6 py-5">
+                    <label class="block">
+                        <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('kb_title_label'), ENT_QUOTES, 'UTF-8') ?></span>
+                        <input type="text" x-model="knowledgeBaseForm.title" required class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4">
+                    </label>
+                    <label class="block">
+                        <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('kb_content_label'), ENT_QUOTES, 'UTF-8') ?></span>
+                        <div class="simple-quill-wrapper overflow-hidden rounded-xl border border-zinc-300 bg-white">
+                            <div id="knowledge-base-content-editor" class="min-h-[180px] text-sm text-zinc-800"></div>
+                        </div>
+                    </label>
+                    <label class="flex items-start gap-3 rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3">
+                        <input type="checkbox" x-model="knowledgeBaseForm.is_published" class="mt-1 rounded border-zinc-300 text-zinc-900 focus:ring-zinc-900">
+                        <span>
+                            <span class="block text-sm font-medium text-zinc-900"><?= htmlspecialchars(__('kb_published_label'), ENT_QUOTES, 'UTF-8') ?></span>
+                            <span class="mt-1 block text-xs text-zinc-500"><?= htmlspecialchars(__('kb_published_hint'), ENT_QUOTES, 'UTF-8') ?></span>
+                        </span>
+                    </label>
+                    <p x-show="knowledgeBaseFormError" x-cloak class="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700" x-text="knowledgeBaseFormError"></p>
+                </div>
+                <div class="flex shrink-0 items-center justify-end gap-3 border-t border-zinc-200 px-6 py-4">
                     <button type="button" @click="closeKnowledgeBaseModal()" :disabled="isKnowledgeBaseSubmitting" class="rounded-xl border border-zinc-200 px-4 py-2.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60"><?= htmlspecialchars(__('cancel'), ENT_QUOTES, 'UTF-8') ?></button>
                     <button type="submit" :disabled="isKnowledgeBaseSubmitting" class="inline-flex items-center gap-2 rounded-xl bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60">
                         <span x-show="isKnowledgeBaseSubmitting"><?= htmlspecialchars(__('saving'), ENT_QUOTES, 'UTF-8') ?></span>
@@ -2314,7 +2320,15 @@ $i18nScript = json_encode([
 
     .simple-quill-wrapper .ql-editor {
         min-height: 140px;
+        max-height: 40vh;
+        overflow-y: auto;
         line-height: 1.6;
+    }
+
+    #knowledge-base-content-editor.ql-container .ql-editor,
+    #knowledge-base-content-editor .ql-editor {
+        min-height: 180px;
+        max-height: 40vh;
     }
 </style>
 
