@@ -444,6 +444,31 @@ class RoleMiddleware implements MiddlewareInterface
             ],
             [
                 'methods' => ['GET'],
+                'pattern' => '/todo',
+                'roles' => $operational,
+            ],
+            [
+                'methods' => ['GET', 'POST'],
+                'pattern' => '/api/todos',
+                'roles' => $operational,
+            ],
+            [
+                'methods' => ['PUT'],
+                'pattern' => '/api/todos/{id}',
+                'roles' => $operational,
+            ],
+            [
+                'methods' => ['POST'],
+                'pattern' => '/api/todos/{id}/move',
+                'roles' => $operational,
+            ],
+            [
+                'methods' => ['POST'],
+                'pattern' => '/api/todos/{id}/archive',
+                'roles' => $operational,
+            ],
+            [
+                'methods' => ['GET'],
                 'pattern' => '/api/personnel',
                 'roles' => $operational,
             ],

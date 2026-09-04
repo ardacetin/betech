@@ -81,6 +81,17 @@ $sectionHeaderClass = 'mt-6 mb-2 px-3 text-[11px] font-bold uppercase tracking-w
             </button>
             <button
                 type="button"
+                @click="openPanelView('todo')"
+                class="group flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900"
+                :class="activeView === 'todo' ? 'panel-nav-active font-semibold text-white shadow-sm' : ''"
+            >
+                <svg class="h-5 w-5 flex-shrink-0 text-gray-400 transition-colors group-hover:text-gray-500" :class="activeView === 'todo' ? 'text-white group-hover:text-white' : ''" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 5.25H6.375A2.625 2.625 0 003.75 7.875v10.5A2.625 2.625 0 006.375 21h11.25a2.625 2.625 0 002.625-2.625v-10.5a2.625 2.625 0 00-2.625-2.625H15M9 5.25a3 3 0 006 0M9 5.25a3 3 0 016 0M9.75 12.75l1.5 1.5 3-3" />
+                </svg>
+                <span><?= htmlspecialchars(__('nav_todo_board'), ENT_QUOTES, 'UTF-8') ?></span>
+            </button>
+            <button
+                type="button"
                 @click="openPanelView('knowledge_base')"
                 class="group flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900"
                 :class="activeView === 'knowledge_base' ? 'panel-nav-active font-semibold text-white shadow-sm' : ''"

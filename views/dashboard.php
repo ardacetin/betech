@@ -389,6 +389,29 @@ $i18nScript = json_encode([
     'ticket_category_update_error' => __('ticket_category_update_error'),
     'ticket_category_delete_success' => __('ticket_category_delete_success'),
     'ticket_category_delete_confirm' => __('ticket_category_delete_confirm'),
+    'todo_show_archived' => __('todo_show_archived'),
+    'todo_show_active' => __('todo_show_active'),
+    'todo_status_todo' => __('todo_status_todo'),
+    'todo_status_doing' => __('todo_status_doing'),
+    'todo_status_done' => __('todo_status_done'),
+    'todo_unassigned' => __('todo_unassigned'),
+    'todo_linked_ticket' => __('todo_linked_ticket'),
+    'todo_add' => __('todo_add'),
+    'todo_save' => __('todo_save'),
+    'todo_create' => __('todo_create'),
+    'todo_archive' => __('todo_archive'),
+    'todo_restore' => __('todo_restore'),
+    'todo_overdue' => __('todo_overdue'),
+    'todo_due_today' => __('todo_due_today'),
+    'todo_network_error' => __('todo_network_error'),
+    'todo_create_error' => __('todo_create_error'),
+    'todo_create_success' => __('todo_create_success'),
+    'todo_update_error' => __('todo_update_error'),
+    'todo_update_success' => __('todo_update_success'),
+    'todo_move_error' => __('todo_move_error'),
+    'todo_move_success' => __('todo_move_success'),
+    'todo_title_required' => __('todo_title_required'),
+    'saving' => __('saving'),
     'reports_fetch_error' => __('reports_fetch_error'),
     'quality_documents_fetch_error' => __('quality_documents_fetch_error'),
     'quality_document_upload_success' => __('quality_document_upload_success'),
@@ -938,6 +961,7 @@ $i18nScript = json_encode([
                 <?php require __DIR__ . '/partials/consumables_panel.php'; ?>
                 <?php require __DIR__ . '/partials/knowledge_base_panel.php'; ?>
                 <?php require __DIR__ . '/partials/helpdesk_panel.php'; ?>
+                <?php require __DIR__ . '/partials/todo_board_panel.php'; ?>
                 <?php require __DIR__ . '/partials/ipam_panel.php'; ?>
                 <?php require __DIR__ . '/partials/switch_ports_panel.php'; ?>
                 <?php endif; ?>
@@ -2345,6 +2369,15 @@ $i18nScript = json_encode([
                             <option value="critical"><?= htmlspecialchars(__('ticket_priority_critical'), ENT_QUOTES, 'UTF-8') ?></option>
                         </select>
                     </label>
+                    <label class="block">
+                        <span class="mb-1.5 block text-sm font-medium text-zinc-700"><?= htmlspecialchars(__('todo_assignee'), ENT_QUOTES, 'UTF-8') ?></span>
+                        <select x-model="ticketDetailForm.assigned_user_id" class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none ring-zinc-900/10 focus:border-zinc-400 focus:ring-4">
+                            <option value=""><?= htmlspecialchars(__('todo_unassigned'), ENT_QUOTES, 'UTF-8') ?></option>
+                            <template x-for="user in todoUsers" :key="user.id">
+                                <option :value="String(user.id)" x-text="user.name || user.email"></option>
+                            </template>
+                        </select>
+                    </label>
                 </div>
                 <div class="mt-6">
                     <h4 class="text-sm font-semibold text-zinc-900"><?= htmlspecialchars(__('ticket_comments_title'), ENT_QUOTES, 'UTF-8') ?></h4>
@@ -2434,8 +2467,11 @@ $i18nScript = json_encode([
     window.__assetOptions = <?= $assetOptionsJson ?? '[]' ?>;
     window.__portalStatusStyles = <?= json_encode($statusStyles, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>;
 
+    <?php require __DIR__ . '/partials/todo_board_script.php'; ?>
+
     function assetDashboard() {
         return {
+            ...todoBoardState(),
             mobileMenuOpen: false,
             activeView: <?= $initialActiveView !== null && $initialActiveView !== ''
                 ? json_encode($initialActiveView, JSON_THROW_ON_ERROR)
@@ -2469,6 +2505,7 @@ $i18nScript = json_encode([
                 announcements: <?= json_encode(__('announcements_page_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 documents: <?= json_encode(__('quality_documents_page_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 helpdesk: <?= json_encode(__('helpdesk_page_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
+                todo: <?= json_encode(__('todo_page_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 reports: <?= json_encode(__('reports_page_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 ipam: <?= json_encode(__('ipam_page_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 switch_ports: <?= json_encode(__('switch_ports_page_title'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
@@ -2494,6 +2531,7 @@ $i18nScript = json_encode([
                 announcements: <?= json_encode(__('announcements_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 documents: <?= json_encode(__('quality_documents_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 helpdesk: <?= json_encode(__('helpdesk_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
+                todo: <?= json_encode(__('todo_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 reports: <?= json_encode(__('reports_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 ipam: <?= json_encode(__('ipam_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
                 switch_ports: <?= json_encode(__('switch_ports_page_subtitle'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) ?>,
@@ -2778,6 +2816,7 @@ $i18nScript = json_encode([
                 status: 'open',
                 priority: 'medium',
                 category_id: '',
+                assigned_user_id: '',
             },
             isTicketDetailSubmitting: false,
             ticketComments: [],
@@ -3161,6 +3200,7 @@ $i18nScript = json_encode([
                 const routes = {
                     dashboard: '/',
                     helpdesk: '/helpdesk',
+                    todo: '/todo',
                     knowledge_base: '/knowledge-base',
                     reports: '/reports',
                     documents: '/documents',
@@ -3227,6 +3267,7 @@ $i18nScript = json_encode([
                 const routeMap = {
                     '/': this.isEndUser ? 'knowledge_base' : 'dashboard',
                     '/helpdesk': 'helpdesk',
+                    '/todo': 'todo',
                     '/knowledge-base': 'knowledge_base',
                     '/reports': 'reports',
                     '/announcements': 'announcements',
@@ -3307,6 +3348,8 @@ $i18nScript = json_encode([
                     } else if (this.activeView === 'helpdesk') {
                         this.fetchTicketCategories();
                         this.fetchTickets();
+                    } else if (this.activeView === 'todo') {
+                        this.fetchTodoBoard();
                     } else if (this.activeView === 'licenses') {
                         this.fetchLicenses();
                     } else if (this.activeView === 'consumables') {
@@ -8216,6 +8259,7 @@ $i18nScript = json_encode([
                     }
 
                     this.tickets = Array.isArray(result.data) ? result.data : [];
+                    this.todoUsers = Array.isArray(result.users) ? result.users : this.todoUsers;
                     this.ticketsPagination = result.pagination || this.defaultListPagination();
                     this.ticketsPage = Number(this.ticketsPagination.page || 1);
 
@@ -8522,6 +8566,7 @@ $i18nScript = json_encode([
                     status: ticket.status,
                     priority: ticket.priority,
                     category_id: ticket.category_id ? String(ticket.category_id) : '',
+                    assigned_user_id: ticket.assigned_user_id ? String(ticket.assigned_user_id) : '',
                 };
                 this.ticketComments = [];
                 this.ticketAttachments = Array.isArray(ticket?.attachments) ? ticket.attachments : [];
@@ -8546,6 +8591,7 @@ $i18nScript = json_encode([
                         status: this.ticketDetail.status,
                         priority: this.ticketDetail.priority,
                         category_id: this.ticketDetail.category_id ? String(this.ticketDetail.category_id) : '',
+                        assigned_user_id: this.ticketDetail.assigned_user_id ? String(this.ticketDetail.assigned_user_id) : '',
                     };
                 } catch (error) {
                     this.ticketsError = window.__i18n.helpdesk_network_error;
@@ -8721,6 +8767,7 @@ $i18nScript = json_encode([
                             status: this.ticketDetailForm.status,
                             priority: this.ticketDetailForm.priority,
                             category_id: this.ticketDetailForm.category_id ? Number(this.ticketDetailForm.category_id) : null,
+                            assigned_user_id: this.ticketDetailForm.assigned_user_id ? Number(this.ticketDetailForm.assigned_user_id) : null,
                         }),
                     });
                     const result = await this.parseApiResponse(response);
@@ -8736,6 +8783,7 @@ $i18nScript = json_encode([
                         status: result.data.status,
                         priority: result.data.priority,
                         category_id: result.data.category_id ? String(result.data.category_id) : '',
+                        assigned_user_id: result.data.assigned_user_id ? String(result.data.assigned_user_id) : '',
                     };
                     this.mergeTicketIntoList(result.data);
                     this.fetchTickets({ silent: true });

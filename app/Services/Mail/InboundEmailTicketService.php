@@ -6,6 +6,7 @@ namespace App\Services\Mail;
 
 use App\Models\Personnel;
 use App\Models\Ticket;
+use App\Models\TodoCard;
 use App\Services\AppLogger;
 
 class InboundEmailTicketService
@@ -14,6 +15,8 @@ class InboundEmailTicketService
         private readonly ImapInboxFetcher $imapInboxFetcher,
         private readonly Personnel $personnelModel,
         private readonly Ticket $ticketModel,
+        private readonly TodoCard $todoCardModel,
+        private readonly TicketNotificationService $ticketNotificationService,
         private readonly AppLogger $appLogger
     ) {
     }
@@ -107,6 +110,7 @@ class InboundEmailTicketService
                 );
 
                 $created++;
+                $this->syncBoardAndNotify($ticket);
                 $this->appLogger->log('mail.inbound.ticket_created', [
                     'ticket_id' => $ticket['id'] ?? null,
                     'ticket_number' => $ticket['ticket_number'] ?? null,
@@ -147,5 +151,29 @@ class InboundEmailTicketService
             'created' => $created,
             'skipped_messages' => $skippedMessages,
         ];
+    }
+
+    /**
+     * @param array<string, mixed> $ticket
+     */
+    private function syncBoardAndNotify(array $ticket): void
+    {
+        try {
+            $this->todoCardModel->syncFromTicket($ticket);
+        } catch (\Throwable $exception) {
+            $this->appLogger->error('mail.inbound.todo_sync_failed', [
+                'ticket_id' => $ticket['id'] ?? null,
+                'error' => $exception->getMessage(),
+            ]);
+        }
+
+        try {
+            $this->ticketNotificationService->deferNewTicketAlert($ticket);
+        } catch (\Throwable $exception) {
+            $this->appLogger->error('mail.inbound.notification_failed', [
+                'ticket_id' => $ticket['id'] ?? null,
+                'error' => $exception->getMessage(),
+            ]);
+        }
     }
 }

@@ -25,6 +25,7 @@ use App\Models\License;
 use App\Models\Personnel;
 use App\Models\Setting;
 use App\Models\Ticket;
+use App\Models\TodoCard;
 use App\Models\User;
 use App\Services\AppLogger;
 use App\Services\AssetColumnSchemaService;
@@ -48,6 +49,7 @@ use App\Services\Mail\ImapInboxFetcher;
 use App\Services\Mail\InboundEmailTicketService;
 use App\Services\Mail\MailConfigResolver;
 use App\Services\Mail\MailService;
+use App\Services\Mail\TicketNotificationService;
 use App\Services\Notifications\HealthScannerNotificationService;
 use App\Services\Notifications\TelegramNotifier;
 use App\Services\Translator;
@@ -103,10 +105,28 @@ if ($command === 'mail:fetch_inbox') {
     $mailConfigResolver = new MailConfigResolver($settingModel);
     $imapConfigResolver = new ImapConfigResolver($settingModel, $mailConfigResolver);
     $imapInboxFetcher = new ImapInboxFetcher($imapConfigResolver, $appLogger);
+    $mailService = new MailService($mailConfigResolver, $appLogger);
+    $viewRenderer = new ViewRenderer($rootPath . '/views');
+    $userModel = new User($databaseService);
+    $ticketModel = new Ticket(
+        $databaseService,
+        new AssetsGlobalRegistry($databaseService),
+        new AssetRegistry($databaseService)
+    );
+    $ticketNotificationService = new TicketNotificationService(
+        $mailService,
+        $mailConfigResolver,
+        $viewRenderer,
+        $userModel,
+        $appLogger,
+        $appConfig['url']
+    );
     $service = new InboundEmailTicketService(
         $imapInboxFetcher,
         new Personnel($databaseService),
-        new Ticket($databaseService),
+        $ticketModel,
+        new TodoCard($databaseService),
+        $ticketNotificationService,
         $appLogger
     );
     $commandRunner = new FetchEmailsCommand($service);
@@ -122,7 +142,11 @@ if ($command === 'notify:daily_summary') {
     $service = new DailySummaryNotificationService(
         new License($databaseService),
         new Consumable($databaseService),
-        new Ticket($databaseService),
+        new Ticket(
+            $databaseService,
+            new AssetsGlobalRegistry($databaseService),
+            new AssetRegistry($databaseService)
+        ),
         $settingModel,
         new Personnel($databaseService),
         $mailService,

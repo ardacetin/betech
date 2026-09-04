@@ -134,6 +134,7 @@ class HealthController
         $allowed = [
             'dashboard',
             'helpdesk',
+            'todo',
             'knowledge_base',
             'reports',
             'documents',

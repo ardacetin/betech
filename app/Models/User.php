@@ -234,17 +234,9 @@ class User
      */
     public function findOperationalEmails(): array
     {
-        $rows = $this->db()->select('users', ['email'], [
-            'role' => [self::ROLE_ADMIN, 'super_admin', 'technician'],
-        ]);
-
         $emails = [];
 
-        foreach ($rows as $row) {
-            if (!is_array($row)) {
-                continue;
-            }
-
+        foreach ($this->findOperationalUsers() as $row) {
             $email = strtolower(trim((string) ($row['email'] ?? '')));
 
             if ($email !== '' && filter_var($email, FILTER_VALIDATE_EMAIL) !== false) {
@@ -253,6 +245,40 @@ class User
         }
 
         return array_keys($emails);
+    }
+
+    /**
+     * @return list<array{id: int, name: string, email: string, role: string}>
+     */
+    public function findOperationalUsers(): array
+    {
+        $rows = $this->db()->select('users', [
+            'id',
+            'name',
+            'email',
+            'role',
+        ], [
+            'ORDER' => ['name' => 'ASC', 'email' => 'ASC'],
+        ]);
+
+        $users = [];
+
+        foreach ($rows as $row) {
+            $role = $this->normalizeRole((string) ($row['role'] ?? ''));
+
+            if (!$this->isOperationalRole($role)) {
+                continue;
+            }
+
+            $users[] = [
+                'id' => (int) ($row['id'] ?? 0),
+                'name' => trim((string) ($row['name'] ?? '')),
+                'email' => strtolower(trim((string) ($row['email'] ?? ''))),
+                'role' => $role,
+            ];
+        }
+
+        return $users;
     }
 
     public function findRoleById(int $userId): string

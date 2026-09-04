@@ -26,6 +26,7 @@ use App\Controllers\ReportController;
 use App\Controllers\AutomationRuleController;
 use App\Controllers\TicketCategoryController;
 use App\Controllers\TicketController;
+use App\Controllers\TodoController;
 use App\Controllers\HealthController;
 use App\Controllers\LandingController;
 use App\Controllers\InventoryFormController;
@@ -64,6 +65,7 @@ use App\Models\Location;
 use App\Models\AutomationRule;
 use App\Models\TicketCategory;
 use App\Models\Ticket;
+use App\Models\TodoCard;
 use App\Models\NetworkPortMapping;
 use App\Models\Setting;
 use App\Models\Personnel;
@@ -97,6 +99,7 @@ use App\Services\LoginAttemptService;
 use App\Services\Mail\MailConfigResolver;
 use App\Services\Mail\MailService;
 use App\Services\Mail\TicketNotificationService;
+use App\Services\Mail\TodoNotificationService;
 use App\Services\NetworkPortMappingService;
 use App\Services\QualityDocumentStorageService;
 use App\Services\TicketAttachmentStorageService;
@@ -344,6 +347,7 @@ $qualityDocumentController = new QualityDocumentController(
     $appLogger
 );
 $ticketModel = new Ticket($databaseService, $assetsGlobalRegistryModel, $assetRegistryModel);
+$todoCardModel = new TodoCard($databaseService);
 $automationRuleModel = new AutomationRule($databaseService);
 $automationEngine = new AutomationEngine(
     $automationRuleModel,
@@ -368,6 +372,13 @@ $ticketNotificationService = new TicketNotificationService(
     $appLogger,
     $appConfig['url']
 );
+$todoNotificationService = new TodoNotificationService(
+    $mailService,
+    $viewRenderer,
+    $userModel,
+    $appLogger,
+    $appConfig['url']
+);
 $ticketController = new TicketController(
     $ticketModel,
     $userModel,
@@ -377,7 +388,17 @@ $ticketController = new TicketController(
     $ticketNotificationService,
     $automationEngine,
     $auditLogger,
-    $ticketAttachmentStorageService
+    $ticketAttachmentStorageService,
+    $todoCardModel,
+    $todoNotificationService
+);
+$todoController = new TodoController(
+    $todoCardModel,
+    $ticketModel,
+    $userModel,
+    $sessionAuthService,
+    $todoNotificationService,
+    $ticketNotificationService
 );
 $endUserController = new EndUserController($assetModel, $endUserContextService);
 $auditLogController = new AuditLogController($auditLogModel, $auditChangeFormatter);
@@ -410,6 +431,9 @@ $app->get('/inventory/{typeId}', [$healthController, 'inventorySection']);
 $app->get('/documents', [$healthController, 'documents']);
 $app->get('/helpdesk', function ($request, $response) use ($healthController) {
     return $healthController->panelView($request, $response, 'helpdesk');
+});
+$app->get('/todo', function ($request, $response) use ($healthController) {
+    return $healthController->panelView($request, $response, 'todo');
 });
 $app->get('/reports', function ($request, $response) use ($healthController) {
     return $healthController->panelView($request, $response, 'reports');
@@ -483,7 +507,8 @@ $app->group('', function ($group) use (
     $assetController,
     $inventoryImportController,
     $networkPortMappingController,
-    $automationRuleController
+    $automationRuleController,
+    $todoController
 ): void {
     $group->get('/api/analytics/summary', [$analyticsController, 'summary']);
     $group->get('/api/reports/helpdesk', [$reportController, 'helpDesk']);
@@ -579,6 +604,11 @@ $app->group('', function ($group) use (
     $group->delete('/api/quality-documents/{id}', [$qualityDocumentController, 'destroy']);
     $group->put('/api/tickets/{id}', [$ticketController, 'update']);
     $group->delete('/api/tickets/{id}', [$ticketController, 'destroy']);
+    $group->get('/api/todos', [$todoController, 'index']);
+    $group->post('/api/todos', [$todoController, 'store']);
+    $group->put('/api/todos/{id}', [$todoController, 'update']);
+    $group->post('/api/todos/{id}/move', [$todoController, 'move']);
+    $group->post('/api/todos/{id}/archive', [$todoController, 'archive']);
     $group->get('/api/assets/{id}/licenses', [$licenseController, 'forAsset']);
     $group->get('/api/personnel', [$userController, 'personnelIndex']);
     $group->post('/api/personnel', [$userController, 'storePersonnel']);

@@ -7,6 +7,7 @@ namespace App\Controllers;
 use App\Models\Asset;
 use App\Models\AuditLog;
 use App\Models\Ticket;
+use App\Models\TodoCard;
 use App\Models\User;
 use App\Services\AuditLogger;
 use App\Services\Auth\SessionAuthService;
@@ -15,6 +16,7 @@ use App\Services\ListPagination;
 use App\Services\Automation\AutomationEngine;
 use App\Services\DeferredTaskRunner;
 use App\Services\Mail\TicketNotificationService;
+use App\Services\Mail\TodoNotificationService;
 use App\Services\TicketAttachmentStorageService;
 use InvalidArgumentException;
 use Psr\Http\Message\ResponseInterface;
@@ -33,7 +35,9 @@ class TicketController
         private readonly TicketNotificationService $ticketNotificationService,
         private readonly AutomationEngine $automationEngine,
         private readonly AuditLogger $auditLogger,
-        private readonly TicketAttachmentStorageService $ticketAttachmentStorageService
+        private readonly TicketAttachmentStorageService $ticketAttachmentStorageService,
+        private readonly TodoCard $todoCardModel,
+        private readonly TodoNotificationService $todoNotificationService
     ) {
     }
 
@@ -81,6 +85,7 @@ class TicketController
             'status' => 'success',
             'data' => $result['data'],
             'pagination' => $result['pagination'],
+            'users' => $this->userModel->findOperationalUsers(),
         ]);
     }
 
@@ -287,6 +292,7 @@ class TicketController
 
         $ticket = $this->ticketModel->findById((int) ($ticket['id'] ?? 0), true) ?? $ticket;
 
+        $this->safeSyncTodoCard($ticket);
         $this->safeDeferNewTicketAlert($ticket);
         $this->safeDeferAutomationTicketCreated($ticket);
 
@@ -349,6 +355,21 @@ class TicketController
             ]);
         }
 
+        if (array_key_exists('assigned_user_id', $payload)) {
+            $assignedUserId = $this->normalizeOptionalId($payload['assigned_user_id']);
+            $assignedUser = $assignedUserId !== null ? $this->userModel->findById($assignedUserId) : null;
+
+            $isOperationalAssignee = $assignedUser !== null
+                && $this->userModel->isOperationalRole((string) ($assignedUser['role'] ?? ''));
+
+            if ($assignedUserId !== null && !$isOperationalAssignee) {
+                return $this->jsonResponse($response, 422, [
+                    'status' => 'error',
+                    'message' => __('todo_assignee_invalid'),
+                ]);
+            }
+        }
+
         try {
             $ticket = $this->ticketModel->update($ticketId, $payload);
         } catch (\InvalidArgumentException $exception) {
@@ -368,6 +389,15 @@ class TicketController
                 'status' => 'error',
                 'message' => __('ticket_not_found'),
             ]);
+        }
+
+        $todoCard = $this->safeSyncTodoCard($ticket);
+
+        $previousAssignee = $this->normalizeOptionalId($existing['assigned_user_id'] ?? null);
+        $newAssignee = $this->normalizeOptionalId($ticket['assigned_user_id'] ?? null);
+
+        if ($todoCard !== null && $newAssignee !== null && $previousAssignee !== $newAssignee) {
+            $this->safeDeferTodoAssignmentAlert($todoCard);
         }
 
         if (array_key_exists('status', $payload)) {
@@ -536,6 +566,31 @@ class TicketController
             $this->ticketNotificationService->deferNewTicketAlert($ticket);
         } catch (\Throwable) {
             // Notification scheduling must never block ticket creation.
+        }
+    }
+
+    /**
+     * @param array<string, mixed> $ticket
+     */
+    private function safeSyncTodoCard(array $ticket): ?array
+    {
+        try {
+            return $this->todoCardModel->syncFromTicket($ticket);
+        } catch (\Throwable) {
+            // Board synchronization must never block helpdesk requests.
+            return null;
+        }
+    }
+
+    /**
+     * @param array<string, mixed> $card
+     */
+    private function safeDeferTodoAssignmentAlert(array $card): void
+    {
+        try {
+            $this->todoNotificationService->deferAssignmentAlert($card);
+        } catch (\Throwable) {
+            // Notification scheduling must never block ticket updates.
         }
     }
 

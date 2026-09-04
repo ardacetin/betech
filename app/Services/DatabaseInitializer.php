@@ -12,7 +12,7 @@ class DatabaseInitializer
     /**
      * Bump when new self-heal patches must run again on warm installs.
      */
-    private const INIT_MARKER_VERSION = '2026-07-30-ticket-attachments';
+    private const INIT_MARKER_VERSION = '2026-09-04-todo-board';
 
     public function __construct(
         private readonly DatabaseService $databaseService,
@@ -123,6 +123,10 @@ class DatabaseInitializer
                     $warnings[] = $warning;
                 }
 
+                foreach ($this->patchTodoCards($connection) as $warning) {
+                    $warnings[] = $warning;
+                }
+
                 foreach ($this->patchKnowledgeBase($connection) as $warning) {
                     $warnings[] = $warning;
                 }
@@ -211,6 +215,7 @@ class DatabaseInitializer
                 && $this->tableExists($connection, 'announcements')
                 && $this->columnExists($connection, 'quality_documents', 'is_public')
                 && $this->tableExists($connection, 'ticket_attachments')
+                && $this->tableExists($connection, 'todo_cards')
             ) {
                 return true;
             }
@@ -1328,6 +1333,30 @@ class DatabaseInitializer
     private function getTicketCategoriesMigrationPath(): string
     {
         return dirname($this->schemaPath) . '/migrations/019_create_ticket_categories.sql';
+    }
+
+    /**
+     * Self-heal the IT task board and backfill existing helpdesk requests.
+     *
+     * @param object $connection Medoo instance
+     *
+     * @return list<string>
+     */
+    private function patchTodoCards(object $connection): array
+    {
+        if (!$this->tableExists($connection, 'tickets') || $this->tableExists($connection, 'todo_cards')) {
+            return [];
+        }
+
+        $migrationPath = dirname($this->schemaPath) . '/migrations/037_create_todo_cards.sql';
+
+        if (!is_readable($migrationPath)) {
+            throw new RuntimeException('Todo board migration is missing or unreadable.');
+        }
+
+        $this->applySqlFile($connection, $migrationPath);
+
+        return ['Self-healed database: created todo_cards table and linked existing tickets.'];
     }
 
     /**
