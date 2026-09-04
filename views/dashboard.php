@@ -633,8 +633,14 @@ $i18nScript = json_encode([
         color: #fff !important;
     }
 </style>
-<div class="app-panel-shell min-h-screen bg-[var(--bg)]" x-data="assetDashboard()" x-init="restoreDashboardView(); parsePanelRoute(); parseListSortFromUrl(); syncDocumentTitle(); $watch('activeView', () => syncDocumentTitle()); $watch('settingsTab', () => syncDocumentTitle()); bootstrapActiveViewData(); this.isAssignLicenseModalOpen = false;">
-    <div class="flex h-screen overflow-hidden bg-[var(--bg)]">
+<div
+    class="app-panel-shell min-h-dvh bg-[var(--bg)]"
+    x-data="assetDashboard()"
+    x-init="restoreDashboardView(); parsePanelRoute(); parseListSortFromUrl(); syncDocumentTitle(); $watch('activeView', () => syncDocumentTitle()); $watch('settingsTab', () => syncDocumentTitle()); bootstrapActiveViewData(); this.isAssignLicenseModalOpen = false;"
+    x-effect="document.body.classList.toggle('overflow-hidden', mobileMenuOpen)"
+    @resize.window="if (window.innerWidth >= 1024) mobileMenuOpen = false"
+>
+    <div class="flex h-dvh overflow-hidden bg-[var(--bg)]">
         <aside class="hidden h-full w-64 min-h-0 flex-shrink-0 flex-col border-r border-[var(--border)] bg-white lg:flex">
             <div class="flex h-16 shrink-0 items-center gap-3 border-b border-[var(--border)] px-5">
                 <?php
@@ -672,20 +678,100 @@ $i18nScript = json_encode([
             </div>
         </aside>
 
+        <div
+            x-show="mobileMenuOpen"
+            x-cloak
+            class="fixed inset-0 z-50 lg:hidden"
+            @keydown.escape.window="if (mobileMenuOpen) closeMobileMenu(true)"
+        >
+            <button
+                type="button"
+                class="absolute inset-0 cursor-default bg-zinc-900/40"
+                @click="closeMobileMenu(true)"
+                aria-label="<?= htmlspecialchars(__('nav_close_menu'), ENT_QUOTES, 'UTF-8') ?>"
+            ></button>
+
+            <aside
+                id="mobile-navigation"
+                x-ref="mobileSidebar"
+                tabindex="-1"
+                role="dialog"
+                aria-modal="true"
+                aria-label="<?= htmlspecialchars(__('nav_menu'), ENT_QUOTES, 'UTF-8') ?>"
+                class="relative z-50 flex h-dvh w-72 max-w-[85vw] min-h-0 flex-col border-r border-[var(--border)] bg-white outline-none"
+            >
+                <div class="flex h-16 shrink-0 items-center gap-3 border-b border-[var(--border)] px-4">
+                    <?php
+                    $wrapperClass = 'btn-brand flex size-9 shrink-0 items-center justify-center rounded-xl';
+                    $iconSize = 20;
+                    require __DIR__ . '/partials/brand_icon.php';
+                    ?>
+                    <div class="flex min-w-0 flex-1 flex-col">
+                        <span class="truncate text-lg font-bold text-[var(--ink)]"><?= htmlspecialchars(__('app_name'), ENT_QUOTES, 'UTF-8') ?></span>
+                        <span class="truncate text-[10px] text-[var(--muted)]"><?= htmlspecialchars(__('app_subtitle'), ENT_QUOTES, 'UTF-8') ?></span>
+                    </div>
+                    <button
+                        type="button"
+                        @click="closeMobileMenu(true)"
+                        class="flex size-10 shrink-0 items-center justify-center rounded-lg text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 focus:outline-none focus:ring-2 focus:ring-zinc-900/20"
+                        aria-label="<?= htmlspecialchars(__('nav_close_menu'), ENT_QUOTES, 'UTF-8') ?>"
+                    >
+                        <svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"></path>
+                        </svg>
+                    </button>
+                </div>
+
+                <?php require __DIR__ . '/partials/sidebar_nav.php'; ?>
+
+                <div class="mt-auto flex shrink-0 items-center justify-between border-t border-[var(--border)] bg-[var(--bg)] p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
+                    <div class="min-w-0">
+                        <p class="truncate text-sm font-medium text-[var(--ink)]"><?= htmlspecialchars($sidebarPrimaryLabel, ENT_QUOTES, 'UTF-8') ?></p>
+                        <p class="truncate text-xs text-[var(--muted)]"><?= htmlspecialchars($sidebarRoleLabel, ENT_QUOTES, 'UTF-8') ?></p>
+                    </div>
+                    <a
+                        href="/logout"
+                        title="<?= htmlspecialchars(__('nav_logout'), ENT_QUOTES, 'UTF-8') ?>"
+                        aria-label="<?= htmlspecialchars(__('nav_logout'), ENT_QUOTES, 'UTF-8') ?>"
+                        class="shrink-0 rounded-lg p-2 text-gray-400 transition-colors hover:bg-white hover:text-red-600"
+                    >
+                        <svg class="size-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75"></path>
+                        </svg>
+                    </a>
+                </div>
+            </aside>
+        </div>
+
         <main class="min-w-0 flex-1 overflow-x-hidden overflow-y-auto">
             <header class="sticky top-0 z-10 border-b border-zinc-200 bg-white/90 backdrop-blur">
-                <div class="mx-auto flex max-w-7xl items-center justify-between gap-4 px-6 py-4">
-                    <div>
-                        <h1
-                            class="text-2xl font-semibold tracking-tight text-zinc-900"
-                            x-text="resolvePageTitle()"
-                        ></h1>
-                        <p
-                            class="mt-1 text-sm text-zinc-500"
-                            x-text="resolvePageSubtitle()"
-                        ></p>
+                <div class="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-3 sm:gap-4 sm:px-6 sm:py-4 lg:flex-nowrap">
+                    <div class="flex min-w-0 flex-1 items-center gap-3">
+                        <button
+                            x-ref="mobileMenuButton"
+                            type="button"
+                            @click="openMobileMenu()"
+                            class="flex size-10 shrink-0 items-center justify-center rounded-lg border border-zinc-200 bg-white text-zinc-700 shadow-soft hover:bg-zinc-50 focus:outline-none focus:ring-2 focus:ring-zinc-900/20 lg:hidden"
+                            :aria-expanded="mobileMenuOpen.toString()"
+                            aria-controls="mobile-navigation"
+                            aria-label="<?= htmlspecialchars(__('nav_open_menu'), ENT_QUOTES, 'UTF-8') ?>"
+                        >
+                            <svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5"></path>
+                            </svg>
+                        </button>
+                        <div class="min-w-0">
+                            <h1
+                                class="truncate text-xl font-semibold text-zinc-900 sm:text-2xl"
+                                x-text="resolvePageTitle()"
+                            ></h1>
+                            <p
+                                class="mt-1 hidden truncate text-sm text-zinc-500 sm:block"
+                                x-text="resolvePageSubtitle()"
+                            ></p>
+                        </div>
                     </div>
-                    <div class="flex items-center gap-3">
+                    <div class="flex w-full flex-wrap items-center justify-end gap-2 sm:gap-3 lg:w-auto lg:flex-nowrap">
                         <div class="inline-flex items-center rounded-xl border border-zinc-200 bg-white p-1 shadow-soft">
                             <span class="sr-only"><?= htmlspecialchars(__('language'), ENT_QUOTES, 'UTF-8') ?></span>
                             <a
@@ -828,7 +914,7 @@ $i18nScript = json_encode([
                 </div>
             </header>
 
-            <div class="mx-auto min-w-0 max-w-7xl px-6 py-8" :class="activeView === 'switch_ports' ? 'space-y-0 py-4' : 'space-y-8'">
+            <div class="mx-auto min-w-0 max-w-7xl px-4 py-5 sm:px-6 sm:py-8" :class="activeView === 'switch_ports' ? 'space-y-0 py-4' : 'space-y-8'">
                 <?php if ($isEndUser): ?>
                 <?php require __DIR__ . '/partials/end_user_knowledge_base_panel.php'; ?>
                 <?php endif; ?>
@@ -2350,6 +2436,7 @@ $i18nScript = json_encode([
 
     function assetDashboard() {
         return {
+            mobileMenuOpen: false,
             activeView: <?= $initialActiveView !== null && $initialActiveView !== ''
                 ? json_encode($initialActiveView, JSON_THROW_ON_ERROR)
                 : ($isEndUser ? "'knowledge_base'" : ($forceAssetsView ? "'assets'" : ($canManageAssets ? "'dashboard'" : "'assets'"))) ?>,
@@ -3157,10 +3244,23 @@ $i18nScript = json_encode([
                     this.activeView = this.normalizeEndUserView(routeMap[path]);
                 }
             },
+            openMobileMenu() {
+                this.mobileMenuOpen = true;
+                this.$nextTick(() => this.$refs.mobileSidebar?.focus());
+            },
+            closeMobileMenu(restoreFocus = false) {
+                const wasOpen = this.mobileMenuOpen;
+                this.mobileMenuOpen = false;
+
+                if (restoreFocus && wasOpen) {
+                    this.$nextTick(() => this.$refs.mobileMenuButton?.focus());
+                }
+            },
             openPanelView(view, options = {}) {
                 const nextView = this.normalizeEndUserView(view);
 
                 this.activeView = nextView;
+                this.closeMobileMenu(true);
 
                 if (options.settingsTab) {
                     this.settingsTab = options.settingsTab;
@@ -3620,6 +3720,7 @@ $i18nScript = json_encode([
                 this.activeAssetTypeId = targetTypeId;
                 this.activeAssetTypeSlug = pathIdentifier;
                 this.activeView = 'assets';
+                this.closeMobileMenu(true);
                 this.assetManagementOpen = true;
                 this.inventoryPage = 1;
                 this.syncPanelUrl();
