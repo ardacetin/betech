@@ -655,6 +655,22 @@ $i18nScript = json_encode([
     .app-panel-shell .switch-dir-item-active .text-zinc-400 {
         color: #fff !important;
     }
+    .mobile-panel-drawer nav {
+        overscroll-behavior: contain;
+    }
+    .mobile-panel-drawer nav button,
+    .mobile-panel-drawer nav a {
+        min-height: 44px;
+    }
+    .panel-header-actions {
+        scrollbar-width: none;
+    }
+    .panel-header-actions::-webkit-scrollbar {
+        display: none;
+    }
+    .panel-header-actions > * {
+        flex-shrink: 0;
+    }
 </style>
 <div
     class="app-panel-shell min-h-dvh bg-[var(--bg)]"
@@ -672,7 +688,7 @@ $i18nScript = json_encode([
                 require __DIR__ . '/partials/brand_icon.php';
                 ?>
                 <div class="flex min-w-0 flex-col">
-                    <span class="text-lg font-bold tracking-tight text-[var(--ink)]"><?= htmlspecialchars(__('app_name'), ENT_QUOTES, 'UTF-8') ?></span>
+                    <span class="text-lg font-bold text-[var(--ink)]"><?= htmlspecialchars(__('app_name'), ENT_QUOTES, 'UTF-8') ?></span>
                     <span class="truncate text-[10px] text-[var(--muted)]"><?= htmlspecialchars(__('app_subtitle'), ENT_QUOTES, 'UTF-8') ?></span>
                 </div>
             </div>
@@ -721,7 +737,7 @@ $i18nScript = json_encode([
                 role="dialog"
                 aria-modal="true"
                 aria-label="<?= htmlspecialchars(__('nav_menu'), ENT_QUOTES, 'UTF-8') ?>"
-                class="relative z-50 flex h-dvh w-72 max-w-[85vw] min-h-0 flex-col border-r border-[var(--border)] bg-white outline-none"
+                class="mobile-panel-drawer relative z-50 flex h-dvh w-[min(22rem,calc(100vw-2rem))] min-h-0 flex-col border-r border-[var(--border)] bg-white pt-[env(safe-area-inset-top)] shadow-xl outline-none"
             >
                 <div class="flex h-16 shrink-0 items-center gap-3 border-b border-[var(--border)] px-4">
                     <?php
@@ -766,22 +782,24 @@ $i18nScript = json_encode([
             </aside>
         </div>
 
-        <main class="min-w-0 flex-1 overflow-x-hidden overflow-y-auto">
-            <header class="sticky top-0 z-10 border-b border-zinc-200 bg-white/90 backdrop-blur">
-                <div class="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-3 sm:gap-4 sm:px-6 sm:py-4 lg:flex-nowrap">
-                    <div class="flex min-w-0 flex-1 items-center gap-3">
+        <main class="min-w-0 flex-1 overscroll-y-contain overflow-x-hidden overflow-y-auto">
+            <header class="sticky top-0 z-10 border-b border-zinc-200 bg-white/95 pt-[env(safe-area-inset-top)]">
+                <div class="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-2 px-3 py-2.5 sm:gap-4 sm:px-6 sm:py-4 lg:flex-nowrap">
+                    <div class="flex min-w-0 basis-full items-center gap-3 lg:flex-1 lg:basis-auto">
                         <button
                             x-ref="mobileMenuButton"
                             type="button"
                             @click="openMobileMenu()"
-                            class="flex size-10 shrink-0 items-center justify-center rounded-lg border border-zinc-200 bg-white text-zinc-700 shadow-soft hover:bg-zinc-50 focus:outline-none focus:ring-2 focus:ring-zinc-900/20 lg:hidden"
+                            class="btn-brand flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl px-3 text-sm font-semibold shadow-sm focus:outline-none focus:ring-2 focus:ring-zinc-900/20 lg:hidden"
                             :aria-expanded="mobileMenuOpen.toString()"
                             aria-controls="mobile-navigation"
+                            aria-haspopup="dialog"
                             aria-label="<?= htmlspecialchars(__('nav_open_menu'), ENT_QUOTES, 'UTF-8') ?>"
                         >
                             <svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5"></path>
                             </svg>
+                            <span><?= htmlspecialchars(__('nav_menu'), ENT_QUOTES, 'UTF-8') ?></span>
                         </button>
                         <div class="min-w-0">
                             <h1
@@ -794,7 +812,7 @@ $i18nScript = json_encode([
                             ></p>
                         </div>
                     </div>
-                    <div class="flex w-full flex-wrap items-center justify-end gap-2 sm:gap-3 lg:w-auto lg:flex-nowrap">
+                    <div class="panel-header-actions -mx-3 flex w-[calc(100%+1.5rem)] basis-full shrink-0 items-center gap-2 overflow-x-auto px-3 pb-0.5 sm:mx-0 sm:w-full sm:gap-3 sm:px-0 lg:w-auto lg:basis-auto lg:overflow-visible lg:pb-0">
                         <div class="inline-flex items-center rounded-xl border border-zinc-200 bg-white p-1 shadow-soft">
                             <span class="sr-only"><?= htmlspecialchars(__('language'), ENT_QUOTES, 'UTF-8') ?></span>
                             <a
@@ -937,7 +955,7 @@ $i18nScript = json_encode([
                 </div>
             </header>
 
-            <div class="mx-auto min-w-0 max-w-7xl px-4 py-5 sm:px-6 sm:py-8" :class="activeView === 'switch_ports' ? 'space-y-0 py-4' : 'space-y-8'">
+            <div class="mx-auto min-w-0 max-w-7xl px-3 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:px-6 sm:py-8" :class="activeView === 'switch_ports' ? 'space-y-0 py-4' : 'space-y-6 sm:space-y-8'">
                 <?php if ($isEndUser): ?>
                 <?php require __DIR__ . '/partials/end_user_knowledge_base_panel.php'; ?>
                 <?php endif; ?>

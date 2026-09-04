@@ -35,7 +35,7 @@ $appSubtitle = $appSubtitle ?? __('app_subtitle');
             </div>
             <button
                 type="button"
-                class="btn btn-primary"
+                class="btn btn-primary top-login-button"
                 @click.prevent="typeof openLogin === 'function' ? openLogin() : (window.location.href = '/login')"
             ><?= htmlspecialchars(__('landing_login'), ENT_QUOTES, 'UTF-8') ?></button>
             <button
@@ -49,8 +49,8 @@ $appSubtitle = $appSubtitle ?? __('app_subtitle');
             </button>
         </div>
     </div>
-    <div class="topbar-inner" x-show="mobileOpen" x-cloak>
-        <div style="display:grid;gap:0.25rem;padding:0.75rem 0 1rem;width:100%;border-top:1px solid var(--border);">
+    <div class="topbar-inner mobile-nav-row" x-show="mobileOpen" x-cloak @keydown.escape.window="mobileOpen = false">
+        <nav class="mobile-nav" aria-label="<?= htmlspecialchars(__('landing_nav_label'), ENT_QUOTES, 'UTF-8') ?>">
             <a class="nav-link" href="/knowledge-base" @click="mobileOpen = false"><?= htmlspecialchars(__('nav_knowledge_base'), ENT_QUOTES, 'UTF-8') ?></a>
             <a class="nav-link" href="/public-documents" @click="mobileOpen = false"><?= htmlspecialchars(__('landing_nav_documents'), ENT_QUOTES, 'UTF-8') ?></a>
             <a class="nav-link" href="/public-announcements" @click="mobileOpen = false"><?= htmlspecialchars(__('landing_nav_announcements'), ENT_QUOTES, 'UTF-8') ?></a>
@@ -59,9 +59,8 @@ $appSubtitle = $appSubtitle ?? __('app_subtitle');
             <button
                 type="button"
                 class="btn btn-primary"
-                style="margin-top:0.5rem;"
                 @click.prevent="mobileOpen = false; typeof openLogin === 'function' ? openLogin() : (window.location.href = '/login')"
             ><?= htmlspecialchars(__('landing_login'), ENT_QUOTES, 'UTF-8') ?></button>
-        </div>
+        </nav>
     </div>
 </header>

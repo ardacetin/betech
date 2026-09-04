@@ -55,9 +55,9 @@ require __DIR__ . '/partials/public_head.php';
 
             <section class="section" id="talep">
                 <div class="section-inner">
-                    <div class="panel" style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:1.25rem;">
-                        <div style="max-width:36rem;">
-                            <h2 class="section-title" style="font-size:1.35rem;"><?= htmlspecialchars(__('landing_requests_title'), ENT_QUOTES, 'UTF-8') ?></h2>
+                    <div class="panel request-panel">
+                        <div class="request-panel-copy">
+                            <h2 class="section-title request-panel-title"><?= htmlspecialchars(__('landing_requests_title'), ENT_QUOTES, 'UTF-8') ?></h2>
                             <p class="section-subtitle"><?= htmlspecialchars(__('landing_requests_subtitle'), ENT_QUOTES, 'UTF-8') ?></p>
                         </div>
                         <button type="button" class="btn btn-primary" @click="openLogin()"><?= htmlspecialchars(__('landing_requests_cta'), ENT_QUOTES, 'UTF-8') ?></button>
